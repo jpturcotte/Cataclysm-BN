@@ -1,5 +1,81 @@
 # Cataclysm: Bright Nights - Agent Guidelines
 
+## Arcopolis Project Context
+
+Arcopolis is a separate game/project concept being investigated on top of Cataclysm: Bright Nights.
+
+Arcopolis is not currently an implemented game. It is a research and architecture exploration.
+
+### Game concept
+
+Arcopolis is intended to be a dense, vertical, cyberpunk-style roguelike/survival-sim focused on combat, exploration, looting, equipment management, hazards, NPCs, factions, and mission-like traversal through stacked urban spaces.
+
+The goal is not to make a simple roguelike. The goal is to investigate whether Bright Nights can provide the simulation base.
+
+### Why Bright Nights
+
+Bright Nights already contains many systems Arcopolis may need: world simulation, local map/reality-bubble style gameplay, items, equipment, character state, NPCs, monsters, factions, environmental hazards, pathfinding, save/load, debug tools, JSON data loading, and mod/content infrastructure.
+
+### Problem being investigated
+
+The existing Bright Nights player-facing UI is not the desired final UI for Arcopolis.
+
+A previous attempt at GUI/overlay work suggested that bridging or replacing individual existing UI screens may become awkward and high-maintenance. The current hypothesis is that Bright Nights might be more useful as an authoritative simulation backend than as the final player-facing client.
+
+### Target architecture under investigation
+
+- Bright Nights remains authoritative for simulation, save/load, rules, world state, and content loading.
+- A future Arcopolis frontend is separate, graphical, file-based or protocol-based, and mouse-first.
+- The frontend sends high-level commands to the backend.
+- The backend validates and applies commands.
+- The backend returns snapshots, deltas, events, and query responses.
+- The frontend never directly mutates simulation state.
+- The project must not bridge existing Bright Nights UI screens one by one unless explicitly directed.
+
+### Current phase
+
+Repository exploration and backend-boundary research only.
+
+### Default Arcopolis rules
+
+- Do not modify gameplay source code unless explicitly asked.
+- Do not modernize or replace the Bright Nights UI during exploration.
+- Do not port old GUI/overlay work during exploration.
+- Do not bridge existing UI screens one by one.
+- Do not add dependencies during exploration.
+- Prefer documentation-only changes under `docs/arcopolis/`.
+- When exploring code, record exact file paths, functions, classes, and call paths.
+- If uncertain, state uncertainty and list what to inspect next.
+- Use PowerShell commands for Windows-local instructions.
+
+### Expected exploration artifacts
+
+```text
+docs/arcopolis/
+  00_REPO_EXPLORATION_PLAN.md
+  01_STARTUP_AND_CLI.md
+  02_WORLD_SAVE_AND_FIXTURE_LOADING.md
+  03_MAP_REALITY_BUBBLE_AND_VIEW_EXPORT.md
+  04_AVATAR_ACTORS_ITEMS_MESSAGES.md
+  05_ACTIONS_COMMANDS_AND_TURN_ADVANCE.md
+  06_BACKEND_BOUNDARY_RECOMMENDATION.md
+  FINDINGS.md
+  GLOSSARY.md
+```
+
+### Arcopolis local setup checks
+
+Use PowerShell for Windows-local checks:
+
+```powershell
+Get-Location
+git status
+git branch --show-current
+git remote -v
+Get-Content .\AGENTS.md -TotalCount 160
+New-Item -ItemType Directory -Force .\docs\arcopolis
+```
+
 ## HARD CONSTRAINTS (NEVER VIOLATE)
 
 Before writing **ANY** code, verify:
