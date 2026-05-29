@@ -145,6 +145,14 @@ auto print_button( const catacurses::window &w, const button_options &opts ) -> 
 
 ## Workflow
 
+## Privacy and Environment Documentation
+
+- **MUST NOT** publish machine-specific absolute paths, local usernames, auth tokens, private environment values, or raw auth/credential command output in docs, PR descriptions, comments, final responses, or committed scripts.
+- **MUST** use placeholders for local paths, for example `<repo-root>`, `<user-profile>`, `<vs-install-root>`, and `<path-to-ccache-dir>`.
+- **MUST** redact local paths from diagnostic script output by default. If exact paths are useful, require an explicit opt-in flag such as `-RevealPaths`.
+- **MUST** summarize credential/auth checks as pass/fail only. Never paste token-like values, full credential helper output, or authenticated account details unless the user explicitly asks.
+- When environment discovery needs exact local paths, keep them in transient local notes or command output only, not in committed documentation or PR text.
+
 ### WHEN given a link to an issue
 
 - **Context**: Fetch issue details via GitHub MCP.
