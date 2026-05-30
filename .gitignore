@@ -241,3 +241,6 @@ clang-tidy-trace
 CMakeFiles/
 CMakeCache.txt
 __cmake_systeminformation/
+
+# Config auto-generated in the working dir by the SearXNG search MCP tool
+/ods_config.json
