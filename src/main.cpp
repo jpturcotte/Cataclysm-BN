@@ -22,6 +22,7 @@
 #else
 #   include <csignal>
 #endif
+#include "arcopolis_export.h"
 #include "catalua.h"
 #include "color.h"
 #include "crash.h"
@@ -199,6 +200,7 @@ int main( int argc, char *argv[] )
     bool check_mods = false;
     std::filesystem::path lua_doc_output_path;
     std::filesystem::path lua_types_output_path;
+    std::filesystem::path arcopolis_export_path;
     std::string dump;
     dump_mode dmode = dump_mode::TSV;
     std::vector<std::string> opts;
@@ -238,7 +240,7 @@ int main( int argc, char *argv[] )
         const char *section_default = nullptr;
         const char *section_map_sharing = "Map sharing";
         const char *section_user_directory = "User directories";
-        const std::array<arg_handler, 15> first_pass_arguments = {{
+        const std::array<arg_handler, 16> first_pass_arguments = {{
                 {
                     "--seed", "<string of letters and or numbers>",
                     "Sets the random number generator's seed value",
@@ -443,6 +445,20 @@ int main( int argc, char *argv[] )
                         }
                         test_mode = true;
                         lua_types_output_path = params[0];
+                        return 0;
+                    }
+                },
+                {
+                    "--arcopolis-export-current-view", "<output path>",
+                    "Arcopolis: load --world headlessly and write a read-only current-view JSON snapshot, then exit",
+                    section_default,
+                    [&arcopolis_export_path]( int num_args, const char **params ) -> int {
+                        if( num_args < 1 )
+                        {
+                            return -1;
+                        }
+                        test_mode = true;
+                        arcopolis_export_path = params[0];
                         return 0;
                     }
                 }
@@ -766,6 +782,16 @@ int main( int argc, char *argv[] )
             } else {
                 exit( 1 );
             }
+        }
+        if( !arcopolis_export_path.empty() ) {
+            // The snapshot is already flushed to disk inside export_current_view(). A normal exit()
+            // here would run BN's global/static destructors on a fully-loaded game (avatar, map,
+            // overmaps, caches) — a teardown path the engine does not exercise cleanly and which
+            // corrupts the heap. Terminate immediately with the result code; the file is safe.
+            std::_Exit( arcopolis::export_current_view( {
+                .world = world,
+                .output_path = arcopolis_export_path.string()
+            } ) );
         }
     } catch( const std::exception &err ) {
         debugmsg( "%s", err.what() );
