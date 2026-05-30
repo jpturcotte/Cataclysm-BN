@@ -11,7 +11,7 @@
 > **medium** = located via search/exploration but the exact line was not personally re-opened (verify
 > with the PowerShell checks at the end); **low** = inferred, needs inspection.
 >
-> **Validation status (2026-05-29):** every `file:line` in the *backbone* sections (test bootstrap,
+> **Validation status (2026-05-29):** every `file:line` in the _backbone_ sections (test bootstrap,
 > `game.cpp` load/setup paths, worldfactory, and the export accessors) was read directly this session
 > and is **high**. A handful of secondary references (map buffer / overmap internals, a couple of
 > descriptor fields, the `clear_avatar` test helper) are **medium** and called out inline. Line numbers
@@ -31,7 +31,7 @@ Key facts (all **high** confidence, read directly this session):
 - The test bootstrap brings up the global `game` singleton `g`, a fresh world (`world_generator`), the
   avatar `g->u`, and the local map `g->m`, then initialises weather — entirely headless
   ([tests/test_main.cpp:99](../../tests/test_main.cpp)–170).
-- There are **three distinct bring-up paths**, and they are *not* equivalent:
+- There are **three distinct bring-up paths**, and they are _not_ equivalent:
   - `game::load( const std::string &world )` ([src/game.cpp:3214](../../src/game.cpp)) — no-menu load of
     an existing world by name; delegates to…
   - `game::load( const save_t & )` ([src/game.cpp:3240](../../src/game.cpp)) — full save
@@ -40,13 +40,13 @@ Key facts (all **high** confidence, read directly this session):
     rebuilds the floor/map/visibility caches ([src/game.cpp:3385](../../src/game.cpp),
     3418–3421). Its "Loading the save…" popup is already gated on `if( !test_mode )`
     ([src/game.cpp:3244](../../src/game.cpp)).
-  - the **test bootstrap** ([tests/test_main.cpp:99](../../tests/test_main.cpp)) — brings up a *fresh*
+  - the **test bootstrap** ([tests/test_main.cpp:99](../../tests/test_main.cpp)) — brings up a _fresh_
     world but does **not** call `game::setup()`, does **not** centre the bubble on the avatar, and does
     **not** build the visibility caches. It is the right blueprint for "make a world from nothing," but
-    its output is a *degenerate* view until extra steps are added.
+    its output is a _degenerate_ view until extra steps are added.
 - A rich set of **read-only accessors** already exists for everything an Arcopolis "current view" needs
   (avatar position/z-level/status, terrain/furniture ids, creatures, items, messages, time, weather) —
-  see [State available for export](#state-available-for-export). Even numeric *hunger/satiety* is
+  see [State available for export](#state-available-for-export). Even numeric _hunger/satiety_ is
   available via the calorie getters (`get_stored_kcal`/`max_stored_kcal`/`get_kcal_percent`); the only
   minor gaps are `recent_messages` metadata (turn/count) and the exact stomach-calorie value behind
   `get_hunger_description()`.
@@ -123,24 +123,24 @@ std::string &user_dir )` — [tests/test_main.cpp:99](../../tests/test_main.cpp)
 function that turns an empty process into a fully loaded headless game. The exact, in-order sequence
 (**all high**):
 
-| # | Line | Call | Purpose |
-|---|------|------|---------|
-| 1 | 103–108 | `remove_tree(user_dir)` + `assure_dir_exist(user_dir)` | Wipe & recreate the sandbox dir. |
-| 2 | 110–112 | `PATH_INFO::init_base_path("")`, `init_user_dir(user_dir)`, `set_standard_filenames()` | Point all game paths at the sandbox. |
-| 3 | 114–124 | `assure_dir_exist(config_dir()/savedir()/templatedir())` | Create the derived sub-dirs. |
-| 4 | 126 | `init_language_system()` | i18n. |
-| 5 | 130–141 | `get_options().init()` / `.load()` + apply `--option_overrides` | Load options without a config UI. |
-| 6 | 142 | `init_colors()` | Color table (no window). |
-| 7 | 144 | `g = std::make_unique<game>()` | Construct the global `game` singleton (this also creates `world_generator`, see [src/game.cpp:432](../../src/game.cpp)). |
-| 8 | 145 | `g->new_game = true` | Mark as a fresh game. |
-| 9 | 146 | `g->load_static_data()` | Mod-independent data (see [Static data loading](#static-data-loading)). |
-| 10 | 148–152 | `world_generator->set_active_world(nullptr)` → `init()` → `make_new_world(mods)` → `set_active_world(test_world)` | Create & activate a fresh world (see [World creation path](#world-creation-path)). |
-| 11 | 155–156 | `calendar::set_eternal_season(...)`, `set_season_length(...)` | Seed calendar config from options. |
-| 12 | 158–159 | `loading_ui ui( false )` + `init::load_world_modfiles( ui, g->get_active_world(), SAVE_ARTIFACTS )` | Load + finalize all mod JSON (non-interactive UI). |
-| 13 | 161–162 | `g->u = avatar()` + `g->u.create( character_type::NOW )` | Construct & generate the avatar. |
-| 14 | 164–165 | `g->m = map()` + `disable_mapgen = true` | Construct the local map; force test mapgen. |
-| 15 | 167 | `g->m.load( g->m.get_abs_sub(), false )` | Fill the reality bubble around the map's current submap. |
-| 16 | 169 | `get_weather().update_weather()` | Compute initial weather. |
+| #  | Line    | Call                                                                                                              | Purpose                                                                                                                  |
+| -- | ------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 1  | 103–108 | `remove_tree(user_dir)` + `assure_dir_exist(user_dir)`                                                            | Wipe & recreate the sandbox dir.                                                                                         |
+| 2  | 110–112 | `PATH_INFO::init_base_path("")`, `init_user_dir(user_dir)`, `set_standard_filenames()`                            | Point all game paths at the sandbox.                                                                                     |
+| 3  | 114–124 | `assure_dir_exist(config_dir()/savedir()/templatedir())`                                                          | Create the derived sub-dirs.                                                                                             |
+| 4  | 126     | `init_language_system()`                                                                                          | i18n.                                                                                                                    |
+| 5  | 130–141 | `get_options().init()` / `.load()` + apply `--option_overrides`                                                   | Load options without a config UI.                                                                                        |
+| 6  | 142     | `init_colors()`                                                                                                   | Color table (no window).                                                                                                 |
+| 7  | 144     | `g = std::make_unique<game>()`                                                                                    | Construct the global `game` singleton (this also creates `world_generator`, see [src/game.cpp:432](../../src/game.cpp)). |
+| 8  | 145     | `g->new_game = true`                                                                                              | Mark as a fresh game.                                                                                                    |
+| 9  | 146     | `g->load_static_data()`                                                                                           | Mod-independent data (see [Static data loading](#static-data-loading)).                                                  |
+| 10 | 148–152 | `world_generator->set_active_world(nullptr)` → `init()` → `make_new_world(mods)` → `set_active_world(test_world)` | Create & activate a fresh world (see [World creation path](#world-creation-path)).                                       |
+| 11 | 155–156 | `calendar::set_eternal_season(...)`, `set_season_length(...)`                                                     | Seed calendar config from options.                                                                                       |
+| 12 | 158–159 | `loading_ui ui( false )` + `init::load_world_modfiles( ui, g->get_active_world(), SAVE_ARTIFACTS )`               | Load + finalize all mod JSON (non-interactive UI).                                                                       |
+| 13 | 161–162 | `g->u = avatar()` + `g->u.create( character_type::NOW )`                                                          | Construct & generate the avatar.                                                                                         |
+| 14 | 164–165 | `g->m = map()` + `disable_mapgen = true`                                                                          | Construct the local map; force test mapgen.                                                                              |
+| 15 | 167     | `g->m.load( g->m.get_abs_sub(), false )`                                                                          | Fill the reality bubble around the map's current submap.                                                                 |
+| 16 | 169     | `get_weather().update_weather()`                                                                                  | Compute initial weather.                                                                                                 |
 
 The bootstrap is invoked from the Catch2 `main` ([tests/test_main.cpp:268](../../tests/test_main.cpp)),
 which sets the pivotal `test_mode = true` ([tests/test_main.cpp:313](../../tests/test_main.cpp)) **before**
@@ -150,7 +150,7 @@ calling it ([tests/test_main.cpp:334](../../tests/test_main.cpp)). `test_mode` i
 ([tests/test_main.cpp:328](../../tests/test_main.cpp)–331), plus `clear_all_state()` (352) and
 `world_generator->delete_world(...)` (356).
 
-**Crucial nuance (high):** the bootstrap creates the avatar (162) *before* the map (164) and loads the
+**Crucial nuance (high):** the bootstrap creates the avatar (162) _before_ the map (164) and loads the
 bubble around `g->m.get_abs_sub()` (167) — it never re-centres the bubble on the avatar and never builds
 the lighting/visibility caches. This is fine for unit tests (each test does its own placement via helpers
 such as `clear_avatar`), but it means **the bootstrap alone does not produce a coherent player view** —
@@ -196,31 +196,31 @@ mod loading, not here.
 
 ## World creation path
 
-A *new* world is created by the `worldfactory` (global `world_generator`, declared
+A _new_ world is created by the `worldfactory` (global `world_generator`, declared
 [src/worldfactory.h:122](../../src/worldfactory.h), constructed in the game ctor at
 [src/game.cpp:432](../../src/game.cpp)). Relevant API (**all high**, read from
 [src/worldfactory.h](../../src/worldfactory.h)):
 
-| Method | Line | Notes |
-|--------|------|-------|
-| `WORLDINFO *make_new_world( bool show_prompt = true, const std::string &world_to_copy = "" )` | 38 | Interactive (UI worldgen tabs) — **not** for headless. |
-| `WORLDINFO *make_new_world( special_game_type )` | 39 | Tutorial/defense worlds. |
-| `WORLDINFO *make_new_world( const std::vector<mod_id> &mods )` | 41 | **Unit-test overload** — comment says "does NOT verify if the mods can be loaded." Sets `WORLDINFO::active_mod_order = mods` and persists via the private `add_world` (106). |
-| `WORLDINFO *get_world( const std::string &name )` | 43 | Returns an *existing* world. |
-| `void set_active_world( WORLDINFO *world )` | 48 | Sets the active world & world options. |
-| `void init()` | 50 | Scans the save dir and loads existing world metadata. |
-| `std::unique_ptr<world> active_world` | 54 | The active world (`world` wraps `WORLDINFO` with file I/O). |
+| Method                                                                                        | Line | Notes                                                                                                                                                                        |
+| --------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WORLDINFO *make_new_world( bool show_prompt = true, const std::string &world_to_copy = "" )` | 38   | Interactive (UI worldgen tabs) — **not** for headless.                                                                                                                       |
+| `WORLDINFO *make_new_world( special_game_type )`                                              | 39   | Tutorial/defense worlds.                                                                                                                                                     |
+| `WORLDINFO *make_new_world( const std::vector<mod_id> &mods )`                                | 41   | **Unit-test overload** — comment says "does NOT verify if the mods can be loaded." Sets `WORLDINFO::active_mod_order = mods` and persists via the private `add_world` (106). |
+| `WORLDINFO *get_world( const std::string &name )`                                             | 43   | Returns an _existing_ world.                                                                                                                                                 |
+| `void set_active_world( WORLDINFO *world )`                                                   | 48   | Sets the active world & world options.                                                                                                                                       |
+| `void init()`                                                                                 | 50   | Scans the save dir and loads existing world metadata.                                                                                                                        |
+| `std::unique_ptr<world> active_world`                                                         | 54   | The active world (`world` wraps `WORLDINFO` with file I/O).                                                                                                                  |
 
 The test bootstrap uses the `make_new_world(mods)` overload
 ([tests/test_main.cpp:150](../../tests/test_main.cpp)) precisely because it skips dependency
 verification and is non-interactive — the headless-friendly entry point for "make a world from a mod
-list." Note `init()` (149) is called *before* `make_new_world` so the factory's internal state is set up,
+list." Note `init()` (149) is called _before_ `make_new_world` so the factory's internal state is set up,
 and `set_active_world(nullptr)` (148) clears any prior active world first.
 
 ## World loading path
 
 `game::load` has two overloads; **neither is what the test bootstrap does** — the bootstrap builds a
-*new* world, while these *load an existing* one.
+_new_ world, while these _load an existing_ one.
 
 **`bool game::load( const std::string &world )`** — [src/game.cpp:3214](../../src/game.cpp)–3238
 (**high**). No-menu load of a named world:
@@ -257,16 +257,16 @@ re-runs `init::load_world_modfiles` (616–618), then `init_bubble_config()` + `
 
 ### Three bring-up paths compared
 
-| Aspect | `load(world)` (3214) | `load(save_t)` (3240) | test bootstrap (test_main.cpp:99) |
-|--------|----------------------|------------------------|-----------------------------------|
-| Source of state | existing save | existing save | **fresh** `make_new_world(mods)` |
-| Calls `game::setup()` | **yes** (3228) | no (setup already ran via `load(world)`) | **no** (manual init instead) |
-| Static data prereq | must already be loaded | must already be loaded | calls `load_static_data` itself (146) |
-| Avatar source | from save (via `load(save_t)`) | `unserialize()` (3283) | `avatar::create(NOW)` (162) |
-| Bubble centred on avatar | yes (via `load(save_t)`) | **yes** — `update_map(u)` (3383) | **no** — loads around `get_abs_sub()` (167) |
-| Visibility/light caches built | yes | **yes** (3385, 3418–3421) | **no** |
-| Headless-safe popup | n/a | yes — `!test_mode` gate (3244) | n/a (no popup) |
-| Net result | coherent player view | **coherent player view** | world+data+avatar+map, **degenerate view** |
+| Aspect                        | `load(world)` (3214)           | `load(save_t)` (3240)                    | test bootstrap (test_main.cpp:99)           |
+| ----------------------------- | ------------------------------ | ---------------------------------------- | ------------------------------------------- |
+| Source of state               | existing save                  | existing save                            | **fresh** `make_new_world(mods)`            |
+| Calls `game::setup()`         | **yes** (3228)                 | no (setup already ran via `load(world)`) | **no** (manual init instead)                |
+| Static data prereq            | must already be loaded         | must already be loaded                   | calls `load_static_data` itself (146)       |
+| Avatar source                 | from save (via `load(save_t)`) | `unserialize()` (3283)                   | `avatar::create(NOW)` (162)                 |
+| Bubble centred on avatar      | yes (via `load(save_t)`)       | **yes** — `update_map(u)` (3383)         | **no** — loads around `get_abs_sub()` (167) |
+| Visibility/light caches built | yes                            | **yes** (3385, 3418–3421)                | **no**                                      |
+| Headless-safe popup           | n/a                            | yes — `!test_mode` gate (3244)           | n/a (no popup)                              |
+| Net result                    | coherent player view           | **coherent player view**                 | world+data+avatar+map, **degenerate view**  |
 
 **Takeaway:** loading a save (directly or via `load(world)`) gives a fully coherent view for free; the
 test bootstrap gives a loaded world but needs extra steps (place avatar → `update_map` → build caches)
@@ -322,10 +322,10 @@ exact mod set deterministically.
   ([tests/test_main.cpp:167](../../tests/test_main.cpp)) with `disable_mapgen = true` set first (165), so
   it uses test mapgen rather than full procedural generation.
 - **Reality-bubble extent.** Two distinct sizes matter:
-  - *Compile-time maximum* (constants in [src/game_constants.h](../../src/game_constants.h)):
+  - _Compile-time maximum_ (constants in [src/game_constants.h](../../src/game_constants.h)):
     `REALITY_BUBBLE_SIZE_MAX = 16` (30), `MAPSIZE = 2*16+3 = 35` (34), `SEEX = SEEY = 12` (39/40),
     `MAPSIZE_X = MAPSIZE_Y = SEEX*MAPSIZE = 420` (42/43).
-  - *Actual loaded size at runtime* (mutable globals, [src/game.cpp:232](../../src/game.cpp)–237):
+  - _Actual loaded size at runtime_ (mutable globals, [src/game.cpp:232](../../src/game.cpp)–237):
     `g_half_mapsize = 5`, `g_mapsize = 11`, `g_mapsize_x = g_mapsize_y = 132`. These are set by
     `init_bubble_config()` from the `REALITY_BUBBLE_SIZE` option. So a normal run loads a **132×132**
     tile bubble, not 420×420.
@@ -342,8 +342,8 @@ exact mod set deterministically.
   larger "map view."
 
 **Implication for export:** `game::load(save_t)` leaves `g->m` centred on the avatar with caches built,
-so an exporter run *after* a save load can immediately read `ter`/`furn`/visibility. After the *test
-bootstrap*, an exporter would first need `update_map(g->u)` + `m.build_map_cache` +
+so an exporter run _after_ a save load can immediately read `ter`/`furn`/visibility. After the _test
+bootstrap_, an exporter would first need `update_map(g->u)` + `m.build_map_cache` +
 `m.update_visibility_cache` to get a meaningful view.
 
 ## State available for export
@@ -352,41 +352,41 @@ Every datum the Arcopolis "current view" needs already has a **read-only** acces
 **high** for items read directly this session, **medium** where the accessor was located by an
 exploration agent but the exact line was not personally re-opened (verify via the PowerShell checks).
 
-| View datum | Accessor (read-only) | File:line | Conf. |
-|------------|----------------------|-----------|-------|
-| Avatar position (bubble) | `Creature::bub_pos() → tripoint_bub_ms` | [src/creature.h:492](../../src/creature.h) | high |
-| Avatar position (absolute) | `Creature::abs_pos() → tripoint_abs_ms` | [src/creature.h:493](../../src/creature.h) | high |
-| Current z-level | `game::get_levz() const → int` | [src/game.h:753](../../src/game.h) | high |
-| Loaded bubble size | `g_mapsize_x` / `g_mapsize_y` (=132) | [src/game.cpp:234](../../src/game.cpp) | high |
-| Bubble max (compile-time) | `MAPSIZE_X` / `MAPSIZE_Y` (=420), `SEEX`/`SEEY` | [src/game_constants.h:42](../../src/game_constants.h) | high |
-| "Player can see tile?" | `map::pl_sees( tripoint_bub_ms, int ) const → bool` | [src/map.h:1856](../../src/map.h) | high |
-| Per-tile visibility | `map::visibility_cache` (`std::vector<lit_level>`) | [src/map.h:410](../../src/map.h) | high |
-| Terrain id at tile | `map::ter( tripoint_bub_ms ) const → ter_id` | [src/map.h:977](../../src/map.h) | high |
-| Terrain descriptor | `struct ter_t` (`.id` → `ter_str_id`, `.name()`) | [src/mapdata.h:547](../../src/mapdata.h) | high (`.id` field line medium) |
-| Furniture id at tile | `map::furn( tripoint_bub_ms ) const → furn_id` | [src/map.h:952](../../src/map.h) | high |
-| Furniture descriptor | `struct furn_t` (`.id` → `furn_str_id`, `.name()`) | [src/mapdata.h:634](../../src/mapdata.h) | high (`.id` field line medium) |
-| Descriptor display name | `map_data_common_t::name() const → std::string` | [src/mapdata.h:455](../../src/mapdata.h) | high |
-| Monsters | `game::all_monsters() → monster_range` | [src/game.h:506](../../src/game.h) | high |
-| NPCs | `game::all_npcs() → npc_range` | [src/game.h:508](../../src/game.h) | high |
-| Creature name | `Character::get_name() const` / `monster::get_name()` | [src/character.h:1622](../../src/character.h) | high |
-| Items on ground | `map::i_at( tripoint_bub_ms ) → map_stack` | [src/map.h:1426](../../src/map.h) | high |
-| Item display name | `item::tname( unsigned, bool, unsigned ) const` | [src/item.h:487](../../src/item.h) | high |
-| Recent messages | `Messages::recent_messages( size_t ) → vector<pair<string,string>>` | [src/messages.h:25](../../src/messages.h) | high |
-| Avatar HP | `Creature::get_hp() const` / `get_hp_max() const` | [src/creature.h:620](../../src/creature.h) | high |
-| Avatar pain | `Creature::get_pain() const → int` | [src/creature.h:572](../../src/creature.h) | high |
-| Avatar stamina | `Character::get_stamina() const → int` | [src/character.h:1904](../../src/character.h) | high |
-| Avatar thirst | `Character::get_thirst() const → int` | [src/character.h:400](../../src/character.h) | high |
-| Avatar fatigue | `Character::get_fatigue() const → int` | [src/character.h:404](../../src/character.h) | high |
-| Avatar painkiller | `Character::get_painkiller() const → int` | [src/character.h:1959](../../src/character.h) | high |
-| Avatar satiety (hunger) | `Character::get_stored_kcal()`, `max_stored_kcal()`, `get_kcal_percent()` | [src/character.h:395](../../src/character.h)–399 | high |
-| Avatar hunger (display) | `Character::get_hunger_description() → (string,color)` | [src/character.h:402](../../src/character.h) | high |
-| Current time | `calendar::turn` (`time_point`) | [src/calendar.h:151](../../src/calendar.h) | high |
-| Time → string | `to_string( time_point )`, `to_string_time_of_day( time_point )`, `season_of_year( time_point )` | [src/calendar.h:622](../../src/calendar.h)/624/620 | high |
-| Weather type | `weather_manager::weather_id` (`weather_type_id`) | [src/weather.h:198](../../src/weather.h) | high |
-| Temperature | `weather_manager::temperature` (+ `print_temperature`) | [src/weather.h:194](../../src/weather.h) | high |
-| Weather accessor | `weather_manager &get_weather()` | [src/weather.h:237](../../src/weather.h) | high |
-| Build version | `getVersionString()` | [src/get_version.h:2](../../src/get_version.h) | high |
-| Save-format version | `extern const int savegame_version` | [src/game.h:64](../../src/game.h) | high |
+| View datum                 | Accessor (read-only)                                                                             | File:line                                             | Conf.                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------- | ------------------------------ |
+| Avatar position (bubble)   | `Creature::bub_pos() → tripoint_bub_ms`                                                          | [src/creature.h:492](../../src/creature.h)            | high                           |
+| Avatar position (absolute) | `Creature::abs_pos() → tripoint_abs_ms`                                                          | [src/creature.h:493](../../src/creature.h)            | high                           |
+| Current z-level            | `game::get_levz() const → int`                                                                   | [src/game.h:753](../../src/game.h)                    | high                           |
+| Loaded bubble size         | `g_mapsize_x` / `g_mapsize_y` (=132)                                                             | [src/game.cpp:234](../../src/game.cpp)                | high                           |
+| Bubble max (compile-time)  | `MAPSIZE_X` / `MAPSIZE_Y` (=420), `SEEX`/`SEEY`                                                  | [src/game_constants.h:42](../../src/game_constants.h) | high                           |
+| "Player can see tile?"     | `map::pl_sees( tripoint_bub_ms, int ) const → bool`                                              | [src/map.h:1856](../../src/map.h)                     | high                           |
+| Per-tile visibility        | `map::visibility_cache` (`std::vector<lit_level>`)                                               | [src/map.h:410](../../src/map.h)                      | high                           |
+| Terrain id at tile         | `map::ter( tripoint_bub_ms ) const → ter_id`                                                     | [src/map.h:977](../../src/map.h)                      | high                           |
+| Terrain descriptor         | `struct ter_t` (`.id` → `ter_str_id`, `.name()`)                                                 | [src/mapdata.h:547](../../src/mapdata.h)              | high (`.id` field line medium) |
+| Furniture id at tile       | `map::furn( tripoint_bub_ms ) const → furn_id`                                                   | [src/map.h:952](../../src/map.h)                      | high                           |
+| Furniture descriptor       | `struct furn_t` (`.id` → `furn_str_id`, `.name()`)                                               | [src/mapdata.h:634](../../src/mapdata.h)              | high (`.id` field line medium) |
+| Descriptor display name    | `map_data_common_t::name() const → std::string`                                                  | [src/mapdata.h:455](../../src/mapdata.h)              | high                           |
+| Monsters                   | `game::all_monsters() → monster_range`                                                           | [src/game.h:506](../../src/game.h)                    | high                           |
+| NPCs                       | `game::all_npcs() → npc_range`                                                                   | [src/game.h:508](../../src/game.h)                    | high                           |
+| Creature name              | `Character::get_name() const` / `monster::get_name()`                                            | [src/character.h:1622](../../src/character.h)         | high                           |
+| Items on ground            | `map::i_at( tripoint_bub_ms ) → map_stack`                                                       | [src/map.h:1426](../../src/map.h)                     | high                           |
+| Item display name          | `item::tname( unsigned, bool, unsigned ) const`                                                  | [src/item.h:487](../../src/item.h)                    | high                           |
+| Recent messages            | `Messages::recent_messages( size_t ) → vector<pair<string,string>>`                              | [src/messages.h:25](../../src/messages.h)             | high                           |
+| Avatar HP                  | `Creature::get_hp() const` / `get_hp_max() const`                                                | [src/creature.h:620](../../src/creature.h)            | high                           |
+| Avatar pain                | `Creature::get_pain() const → int`                                                               | [src/creature.h:572](../../src/creature.h)            | high                           |
+| Avatar stamina             | `Character::get_stamina() const → int`                                                           | [src/character.h:1904](../../src/character.h)         | high                           |
+| Avatar thirst              | `Character::get_thirst() const → int`                                                            | [src/character.h:400](../../src/character.h)          | high                           |
+| Avatar fatigue             | `Character::get_fatigue() const → int`                                                           | [src/character.h:404](../../src/character.h)          | high                           |
+| Avatar painkiller          | `Character::get_painkiller() const → int`                                                        | [src/character.h:1959](../../src/character.h)         | high                           |
+| Avatar satiety (hunger)    | `Character::get_stored_kcal()`, `max_stored_kcal()`, `get_kcal_percent()`                        | [src/character.h:395](../../src/character.h)–399      | high                           |
+| Avatar hunger (display)    | `Character::get_hunger_description() → (string,color)`                                           | [src/character.h:402](../../src/character.h)          | high                           |
+| Current time               | `calendar::turn` (`time_point`)                                                                  | [src/calendar.h:151](../../src/calendar.h)            | high                           |
+| Time → string              | `to_string( time_point )`, `to_string_time_of_day( time_point )`, `season_of_year( time_point )` | [src/calendar.h:622](../../src/calendar.h)/624/620    | high                           |
+| Weather type               | `weather_manager::weather_id` (`weather_type_id`)                                                | [src/weather.h:198](../../src/weather.h)              | high                           |
+| Temperature                | `weather_manager::temperature` (+ `print_temperature`)                                           | [src/weather.h:194](../../src/weather.h)              | high                           |
+| Weather accessor           | `weather_manager &get_weather()`                                                                 | [src/weather.h:237](../../src/weather.h)              | high                           |
+| Build version              | `getVersionString()`                                                                             | [src/get_version.h:2](../../src/get_version.h)        | high                           |
+| Save-format version        | `extern const int savegame_version`                                                              | [src/game.h:64](../../src/game.h)                     | high                           |
 
 **Hunger note (resolved):** BN models hunger through a calorie system, so there is intentionally no plain
 `int get_hunger()`. The numeric satiety signal is exposed read-only on `Character`:
@@ -405,38 +405,43 @@ The user's three candidate strategies, evaluated against "smallest first spike t
 bring-up + read-only export":
 
 **A) Load an existing prepared save** (via `game::load(world)` → `game::load(save_t)`).
-- *Pros:* reuses the most battle-tested code; `load(save_t)` already produces a **coherent, render-ready
+
+- _Pros:_ reuses the most battle-tested code; `load(save_t)` already produces a **coherent, render-ready
   view** (avatar-centred bubble, caches built) and is **already headless-safe** (popup gated on
   `test_mode`, [src/game.cpp:3244](../../src/game.cpp)). A fixed save **is** a deterministic fixture.
-  Least *new* code: a flag + a read-only exporter.
-- *Cons:* requires a save artifact to exist first (a one-time cost: play one turn and quit, or copy a
+  Least _new_ code: a flag + a read-only exporter.
+- _Cons:_ requires a save artifact to exist first (a one-time cost: play one turn and quit, or copy a
   known save into the sandbox).
 
 **B) Generate a deterministic fixture world + avatar** (from a fixture spec).
-- *Pros:* no save artifact; fully reproducible from JSON + a fixed RNG seed; the long-term ideal for
+
+- _Pros:_ no save artifact; fully reproducible from JSON + a fixed RNG seed; the long-term ideal for
   Arcopolis fixtures.
-- *Cons:* most new code — must replicate world creation **and** avatar placement **and** `update_map` +
+- _Cons:_ most new code — must replicate world creation **and** avatar placement **and** `update_map` +
   cache building to reach a coherent view; determinism of mapgen needs its own validation.
 
 **C) Reuse the test-harness bootstrap logic** (`init_global_game_state` sequence) in the game binary.
-- *Pros:* a ready-made, proven headless world+data+avatar+map bring-up; no save needed.
-- *Cons:* its output is a **degenerate view** (no avatar-centred bubble, no caches — see
+
+- _Pros:_ a ready-made, proven headless world+data+avatar+map bring-up; no save needed.
+- _Cons:_ its output is a **degenerate view** (no avatar-centred bubble, no caches — see
   [Map and reality bubble initialization](#map-and-reality-bubble-initialization)); it lives in the
-  Catch2 test binary, not the game binary, so it would be a *blueprint to copy*, not code to call.
+  Catch2 test binary, not the game binary, so it would be a _blueprint to copy_, not code to call.
 
 **Recommendation — Spike 0 = Option A.** Add a single headless flag to the game binary following the
 `--check-mods`/`--dump-stats` template from [doc 01](01_STARTUP_AND_CLI.md) (a new `arg_handler` that
 sets `test_mode` and does its work after `load_static_data()`), have it call the already-existing
 `g->load( world )` to load a **prepared sandbox save**, then run a **read-only exporter** that walks the
 accessors in [State available for export](#state-available-for-export) and writes the JSON snapshot
-below, then `exit()`. This is the smallest spike because *no new bring-up code is required* — only the
+below, then `exit()`. This is the smallest spike because _no new bring-up code is required_ — only the
 flag and the exporter — and it yields the richest, most coherent state.
+
+> **✅ Implemented** — see [03_SPIKE0_CURRENT_VIEW_EXPORT.md](03_SPIKE0_CURRENT_VIEW_EXPORT.md).
 
 - **Then** (Spike 1): adopt Option C's bootstrap as the blueprint for a "no-save fixture world" mode,
   adding the missing `update_map` + cache-build steps.
 - **Long term** (Spike 2): Option B — fully deterministic fixtures from a JSON spec.
 
-*Caveats to verify during Spike 0:* `load_static_data()` must run before `load(world)`; confirm
+_Caveats to verify during Spike 0:_ `load_static_data()` must run before `load(world)`; confirm
 `game::setup()`'s `loading_ui ui( true )` ([src/game.cpp:605](../../src/game.cpp)) is inert under
 `test_mode` on the target Windows build (the existing headless flags use `loading_ui( false )`).
 
@@ -449,28 +454,34 @@ A minimal, **read-only** "current view" export. Coordinates are bubble-local
 {
   "schema_version": 1,
   "backend": {
-    "game_version": "<getVersionString()>",        // src/get_version.h:2
-    "save_version": 0                                // src/game.h:64  (extern const int savegame_version)
+    "game_version": "<getVersionString()>", // src/get_version.h:2
+    "save_version": 0 // src/game.h:64  (extern const int savegame_version)
   },
   "turn": {
-    "turn": 0,                                       // calendar::turn as a turn count
-    "time_of_day": "08:00:00",                       // to_string_time_of_day(calendar::turn)
-    "season": "spring",                              // season_of_year(calendar::turn)
+    "turn": 0, // calendar::turn as a turn count
+    "time_of_day": "08:00:00", // to_string_time_of_day(calendar::turn)
+    "season": "spring", // season_of_year(calendar::turn)
     "day": 1,
     "year": 1
   },
   "avatar": {
-    "name": "",                                      // Character::get_name()
-    "pos_local": [60, 60, 0],                        // bub_pos()  (centre of a 132-wide bubble)
-    "pos_abs":   [0, 0, 0],                          // abs_pos()
-    "z": 0,                                          // game::get_levz()
-    "hp": 0, "hp_max": 0,                            // get_hp()/get_hp_max()
-    "stamina": 0, "pain": 0, "thirst": 0, "fatigue": 0,
-    "stored_kcal": 0, "kcal_percent": 0.0    // get_stored_kcal() / get_kcal_percent(); satiety signal
+    "name": "", // Character::get_name()
+    "pos_local": [60, 60, 0], // bub_pos()  (centre of a 132-wide bubble)
+    "pos_abs": [0, 0, 0], // abs_pos()
+    "z": 0, // game::get_levz()
+    "hp": 0,
+    "hp_max": 0, // get_hp()/get_hp_max()
+    "stamina": 0,
+    "pain": 0,
+    "thirst": 0,
+    "fatigue": 0,
+    "stored_kcal": 0,
+    "kcal_percent": 0.0 // get_stored_kcal() / get_kcal_percent(); satiety signal
   },
   "map_bounds": {
-    "origin_abs_sm": [0, 0, 0],                      // map::get_abs_sub()
-    "size_x": 132, "size_y": 132,                    // g_mapsize_x / g_mapsize_y
+    "origin_abs_sm": [0, 0, 0], // map::get_abs_sub()
+    "size_x": 132,
+    "size_y": 132, // g_mapsize_x / g_mapsize_y
     "z": 0
   },
   "tiles": [
@@ -480,24 +491,25 @@ A minimal, **read-only** "current view" export. Coordinates are bubble-local
     //   seen = map::pl_sees(p, range) or a visibility_cache lookup
   ],
   "actors": [
-    { "kind": "monster", "name": "zombie", "pos_local": [62, 60, 0] },   // all_monsters()
-    { "kind": "npc",     "name": "Smith",  "pos_local": [58, 61, 0] }    // all_npcs()
+    { "kind": "monster", "name": "zombie", "pos_local": [62, 60, 0] }, // all_monsters()
+    { "kind": "npc", "name": "Smith", "pos_local": [58, 61, 0] } // all_npcs()
   ],
   "items": [
-    { "pos_local": [60, 61, 0], "items": [ { "name": "rock" } ] }        // map::i_at(p) -> item::tname()
+    { "pos_local": [60, 61, 0], "items": [{ "name": "rock" }] } // map::i_at(p) -> item::tname()
   ],
   "messages": [
-    { "text": "You wake up.", "type": "good" }                          // Messages::recent_messages(N)
+    { "text": "You wake up.", "type": "good" } // Messages::recent_messages(N)
   ],
   "diagnostics": { "warnings": [] }
 }
 ```
 
 Notes:
+
 - **Extent choice:** for Spike 0, dump either the full loaded bubble (`g_mapsize_x` × `g_mapsize_y` =
-  132²) or a square window of radius *R* around `bub_pos()`, clamped to the bubble. Do **not** use the
+  132²) or a square window of radius _R_ around `bub_pos()`, clamped to the bubble. Do **not** use the
   420² compile-time max — that is not the loaded extent.
-- **`seen` semantics:** `pl_sees`/`visibility_cache` is *current* line-of-sight, distinct from
+- **`seen` semantics:** `pl_sees`/`visibility_cache` is _current_ line-of-sight, distinct from
   remembered map memory (`u.load_map_memory()`, [src/game.cpp:3331](../../src/game.cpp)). Pick one and
   label it; do not conflate them.
 - **`game_version`/`save_version`** are cheap (both symbols confirmed) — include them so the frontend can
@@ -533,10 +545,16 @@ Notes:
 
 ## Recommended next exploration task
 
+> **Update:** the read-only view export was implemented directly as **Spike 0** — see
+> [03_SPIKE0_CURRENT_VIEW_EXPORT.md](03_SPIKE0_CURRENT_VIEW_EXPORT.md). It pins the coordinate systems
+> (`bub_ms`/`abs_ms`/`abs_sm`) and uses the `pl_sees` visibility model; the remaining exploration folds
+> into Spike 1+.
+
 **`docs/arcopolis/03_MAP_REALITY_BUBBLE_AND_VIEW_EXPORT.md` — "Reality bubble, visibility, and a concrete
 read-only view export."** (Matches the artifact list in [AGENTS.md](../../AGENTS.md).)
 
 Goals:
+
 - Pin down the coordinate systems (`bub_ms` / `abs_ms` / `abs_sm`) and the exact conversion helpers.
 - Trace `map::build_map_cache` / `update_visibility_cache` and the `lit_level`/`visibility_cache` model,
   so the exporter can correctly emit "currently visible" vs "remembered" tiles.

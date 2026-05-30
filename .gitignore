@@ -17,6 +17,8 @@ build
 !build-data
 build-data/gettext
 test_user_dir*
+# Arcopolis headless-export sandbox userdir (--userdir .\arcopolis_user)
+/arcopolis_user/
 /build-start-time
 /cmake-build-debug/
 /config/
