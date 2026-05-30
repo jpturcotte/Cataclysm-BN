@@ -46,8 +46,10 @@ Key facts (all **high** confidence, read directly this session):
     its output is a *degenerate* view until extra steps are added.
 - A rich set of **read-only accessors** already exists for everything an Arcopolis "current view" needs
   (avatar position/z-level/status, terrain/furniture ids, creatures, items, messages, time, weather) —
-  see [State available for export](#state-available-for-export). The only genuinely missing piece is a
-  numeric *hunger* getter (only a description string is exposed; see that section).
+  see [State available for export](#state-available-for-export). Even numeric *hunger/satiety* is
+  available via the calorie getters (`get_stored_kcal`/`max_stored_kcal`/`get_kcal_percent`); the only
+  minor gaps are `recent_messages` metadata (turn/count) and the exact stomach-calorie value behind
+  `get_hunger_description()`.
 
 **Bottom line:** BN has more than enough headless infrastructure to support an Arcopolis fixture runner.
 The smallest first spike (Spike 0) should **load an existing prepared save via the already-headless-safe
@@ -376,7 +378,8 @@ exploration agent but the exact line was not personally re-opened (verify via th
 | Avatar thirst | `Character::get_thirst() const → int` | [src/character.h:400](../../src/character.h) | high |
 | Avatar fatigue | `Character::get_fatigue() const → int` | [src/character.h:404](../../src/character.h) | high |
 | Avatar painkiller | `Character::get_painkiller() const → int` | [src/character.h:1959](../../src/character.h) | high |
-| Avatar hunger | **Uncertain** — only `get_hunger_description() → (string,color)` found | [src/character.h:402](../../src/character.h) | low |
+| Avatar satiety (hunger) | `Character::get_stored_kcal()`, `max_stored_kcal()`, `get_kcal_percent()` | [src/character.h:395](../../src/character.h)–399 | high |
+| Avatar hunger (display) | `Character::get_hunger_description() → (string,color)` | [src/character.h:402](../../src/character.h) | high |
 | Current time | `calendar::turn` (`time_point`) | [src/calendar.h:151](../../src/calendar.h) | high |
 | Time → string | `to_string( time_point )`, `to_string_time_of_day( time_point )`, `season_of_year( time_point )` | [src/calendar.h:622](../../src/calendar.h)/624/620 | high |
 | Weather type | `weather_manager::weather_id` (`weather_type_id`) | [src/weather.h:198](../../src/weather.h) | high |
@@ -385,12 +388,16 @@ exploration agent but the exact line was not personally re-opened (verify via th
 | Build version | `getVersionString()` | [src/get_version.h:2](../../src/get_version.h) | high |
 | Save-format version | `extern const int savegame_version` | [src/game.h:64](../../src/game.h) | high |
 
-**Hunger caveat (important, honest gap):** a search of [src/character.h](../../src/character.h) found
-**no plain `int get_hunger()`** — only `get_hunger_description()` returning a `(std::string, nc_color)`
-pair ([src/character.h:402](../../src/character.h)). A numeric hunger/satiety value likely lives in the
-calorie/stomach subsystem (e.g. `stomach`, `get_kcal_percent`, or a `hunger` field). **Uncertain — to
-inspect next:** grep `character.h`/`character.cpp` for `hunger`, `kcal`, and `stomach` to find the
-numeric source before adding a `hunger` field to the schema.
+**Hunger note (resolved):** BN models hunger through a calorie system, so there is intentionally no plain
+`int get_hunger()`. The numeric satiety signal is exposed read-only on `Character`:
+`get_stored_kcal()`, `max_stored_kcal()`, and `get_kcal_percent()`
+([src/character.h:395](../../src/character.h)–399, under the comment "Getter for need values exclusive to
+characters"). Export `get_kcal_percent()` (or the raw `get_stored_kcal()`/`max_stored_kcal()` pair) as the
+hunger/satiety field. **Caveat (only if an exact match is required):** the player-facing
+`get_hunger_description()` ([src/character.cpp:5179](../../src/character.cpp)) computes
+`stored_calories + stomach.get_calories()` divided by `bmr()` — i.e. it also counts undigested food in the
+stomach. To reproduce that string's underlying value exactly, add `stomach.get_calories()` to
+`get_stored_kcal()`; for a simple satiety percentage, `get_kcal_percent()` alone suffices.
 
 ## Recommended Arcopolis fixture strategy
 
@@ -458,8 +465,8 @@ A minimal, **read-only** "current view" export. Coordinates are bubble-local
     "pos_abs":   [0, 0, 0],                          // abs_pos()
     "z": 0,                                          // game::get_levz()
     "hp": 0, "hp_max": 0,                            // get_hp()/get_hp_max()
-    "stamina": 0, "pain": 0, "thirst": 0, "fatigue": 0
-    // NOTE: numeric "hunger" intentionally omitted until the numeric getter is confirmed
+    "stamina": 0, "pain": 0, "thirst": 0, "fatigue": 0,
+    "stored_kcal": 0, "kcal_percent": 0.0    // get_stored_kcal() / get_kcal_percent(); satiety signal
   },
   "map_bounds": {
     "origin_abs_sm": [0, 0, 0],                      // map::get_abs_sub()
@@ -508,8 +515,10 @@ Notes:
 - **Bootstrap relies on default `g_mapsize` globals.** The test bootstrap never calls
   `init_bubble_config()`, so it uses the defaults (`g_mapsize = 11`); confirm the `map()` constructor and
   `map::load` honour those defaults if Option C is ever used directly. **Low/medium.**
-- **Numeric hunger is not exposed** via a simple getter (see the hunger caveat). Needs a follow-up grep
-  of the calorie/stomach subsystem. **Confirmed gap.**
+- **Hunger exactness (minor).** Numeric satiety is available (`get_kcal_percent()` /
+  `get_stored_kcal()`), but matching the exact value behind `get_hunger_description()` additionally
+  requires the stomach's calories (`stomach.get_calories()`) — decide per snapshot whether stored kcal
+  alone is sufficient. **Low.**
 - **`recent_messages` is lossy** — it returns `(text, type)` string pairs only
   ([src/messages.h:25](../../src/messages.h)); turn number and repeat-count metadata are not exposed
   publicly. If the snapshot needs them, the `Messages` internals
@@ -531,8 +540,9 @@ Goals:
 - Pin down the coordinate systems (`bub_ms` / `abs_ms` / `abs_sm`) and the exact conversion helpers.
 - Trace `map::build_map_cache` / `update_visibility_cache` and the `lit_level`/`visibility_cache` model,
   so the exporter can correctly emit "currently visible" vs "remembered" tiles.
-- Resolve the open gaps from this doc: the numeric **hunger** source, and the message metadata in
-  [src/messages.cpp](../../src/messages.cpp).
+- Resolve the remaining gap from this doc: the message metadata in
+  [src/messages.cpp](../../src/messages.cpp) (turn / repeat-count), and decide whether the snapshot needs
+  stomach-calorie satiety (`stomach.get_calories()`) in addition to stored kcal.
 - Produce a concrete, ordered read-only export walk (avatar → bounds → tiles → actors → items → messages
   → time/weather) ready to implement behind the Spike-0 flag.
 
