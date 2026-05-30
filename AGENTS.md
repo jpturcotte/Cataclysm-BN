@@ -76,6 +76,16 @@ Get-Content .\AGENTS.md -TotalCount 160
 New-Item -ItemType Directory -Force .\docs\arcopolis
 ```
 
+### Arcopolis Windows build route
+
+For this Windows/Codex worktree, the known-good build-backed exploration route is Visual Studio 2022 DevShell + MSVC + Ninja + vcpkg, with ccache from `C:\dev\ccache`.
+
+- Activate the Visual Studio 2022 x64 DevShell before configure/build commands.
+- Append `C:\dev\ccache` to `PATH` after DevShell activation; do not prepend it, because the real MSVC `cl.exe` should stay first.
+- Use short vcpkg temporary roots under `C:\tmp` to avoid Windows `MAX_PATH` failures in dependency builds.
+- Prefer the repo-supported Ninja shape from `CMakeSettings.json` for ccache-backed command-line builds; this route has built `cataclysm-bn-tiles` and `cata_test-tiles`. The Visual Studio solution preset can configure with short vcpkg roots, but it is not the proven ccache route.
+- See `docs/arcopolis/00_WINDOWS_LOCAL_ENVIRONMENT.md` for the exact current PowerShell commands and the historical failure analysis.
+
 ## HARD CONSTRAINTS (NEVER VIOLATE)
 
 Before writing **ANY** code, verify:
