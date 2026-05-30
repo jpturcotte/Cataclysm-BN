@@ -88,7 +88,7 @@ is picked up automatically. **No new third-party dependency** — the snapshot u
 - `std::filesystem::path arcopolis_export_path;` local — [src/main.cpp:203](../../src/main.cpp)
 - `first_pass_arguments` grown to `std::array<arg_handler, 16>` — [src/main.cpp:243](../../src/main.cpp)
   (the count is derived via `sizeof`, so a miscount is a compile error)
-- The flag's `arg_handler` (mirrors `--lua-doc`: sets `test_mode`, stores the path) —
+- The flag's `arg_handler` (sets `test_mode`, stores the path, returns 1 to consume the `<output path>` arg) —
   [src/main.cpp:452](../../src/main.cpp)–464
 - The headless branch, inside the `load_static_data()` try-block at
   [src/main.cpp:768](../../src/main.cpp), placed **after** the `check_mods` branch and **before**

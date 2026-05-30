@@ -459,7 +459,7 @@ int main( int argc, char *argv[] )
                         }
                         test_mode = true;
                         arcopolis_export_path = params[0];
-                        return 0;
+                        return 1;  // consume the <output path> argument
                     }
                 }
             }
