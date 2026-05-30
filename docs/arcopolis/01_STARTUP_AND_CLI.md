@@ -84,13 +84,13 @@ genuinely new piece.
 
 ## Entry point
 
-| Entry | Location | Notes | Confidence |
-|-------|----------|-------|-----------|
-| `int main( int argc, char *argv[] )` | [src/main.cpp:193](../../src/main.cpp) | Default (Linux/macOS, and Windows non-`USE_WINMAIN`). | high |
-| `int APIENTRY WinMain(...)` | [src/main.cpp:185](../../src/main.cpp) | Windows GUI subsystem build (`USE_WINMAIN`); reads `__argc`/`__argv`. | high |
-| `extern "C" int SDL_main(...)` | [src/main.cpp:191](../../src/main.cpp) | Android (`__ANDROID__`). | high |
-| Shared body begins | [src/main.cpp:195](../../src/main.cpp) | All three converge on one body; first call is `init_crash_handlers()` (196). | high |
-| Test binary `int main( int, const char* [] )` | [tests/test_main.cpp:268](../../tests/test_main.cpp) | Catch2 runner; separate program with its own arg handling. | high |
+| Entry                                         | Location                                             | Notes                                                                        | Confidence |
+| --------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------- | ---------- |
+| `int main( int argc, char *argv[] )`          | [src/main.cpp:193](../../src/main.cpp)               | Default (Linux/macOS, and Windows non-`USE_WINMAIN`).                        | high       |
+| `int APIENTRY WinMain(...)`                   | [src/main.cpp:185](../../src/main.cpp)               | Windows GUI subsystem build (`USE_WINMAIN`); reads `__argc`/`__argv`.        | high       |
+| `extern "C" int SDL_main(...)`                | [src/main.cpp:191](../../src/main.cpp)               | Android (`__ANDROID__`).                                                     | high       |
+| Shared body begins                            | [src/main.cpp:195](../../src/main.cpp)               | All three converge on one body; first call is `init_crash_handlers()` (196). | high       |
+| Test binary `int main( int, const char* [] )` | [tests/test_main.cpp:268](../../tests/test_main.cpp) | Catch2 runner; separate program with its own arg handling.                   | high       |
 
 On Windows, whether `WinMain` or `main` is used depends on the `USE_WINMAIN` build flag (tiles/console
 subsystem). Both reach the same body.
@@ -123,39 +123,39 @@ All line numbers below are **high** confidence (read directly from [src/main.cpp
 
 **First pass** (declared [src/main.cpp:241](../../src/main.cpp)–449):
 
-| Flag | Param | Effect | Line | Headless? |
-|------|-------|--------|------|-----------|
-| `--seed` | `<string>` | Hashes string to RNG seed (`djb2_hash`). | 243 | no |
-| `--jsonverify` | — | Sets `test_mode` + `verifyexit`; verifies JSON then exits. | 257 | **yes** |
-| `--check-mods` | `[mods…]` | Sets `test_mode` + `check_mods`; validates mod JSON then exits. | 267 | **yes** |
-| `--dump-stats` | `<what> [mode=TSV] [opts…]` | Sets `test_mode`; dumps stats (TSV/HTML) then exits. | 281 | **yes** |
-| `--world` | `<name>` | Stores world name; first save in that world is loaded on startup. | 311 | no (enters game) |
-| `--basepath` | `<path>` | `init_base_path()` + `set_standard_filenames()`. | 324 | no |
-| `--shared` | — | Enables map-sharing mode. | 338 | no |
-| `--username` | `<name>` | Map-sharing username. | 349 | no |
-| `--addadmin` | `<username>` | Map-sharing admin (cheat access). | 362 | no |
-| `--adddebugger` | `<username>` | Map-sharing: running under a debugger. | 376 | no |
-| `--competitive` | — | Map-sharing: disable in-game cheats. | 389 | no |
-| `--userdir` | `<path>` | `init_user_dir()` + `set_standard_filenames()`. | 398 | no |
-| `--dont-debugmsg` | — | Suppress debug messages (`dont_debugmsg`). | 413 | no |
-| `--lua-doc` | `<output path>` | Sets `test_mode`; generates Lua docs then `return 0`. | 422 | **yes** |
-| `--lua-types` | `<output path>` | Sets `test_mode`; generates Lua types then `return 0`. | 436 | **yes** |
+| Flag              | Param                       | Effect                                                            | Line | Headless?        |
+| ----------------- | --------------------------- | ----------------------------------------------------------------- | ---- | ---------------- |
+| `--seed`          | `<string>`                  | Hashes string to RNG seed (`djb2_hash`).                          | 243  | no               |
+| `--jsonverify`    | —                           | Sets `test_mode` + `verifyexit`; verifies JSON then exits.        | 257  | **yes**          |
+| `--check-mods`    | `[mods…]`                   | Sets `test_mode` + `check_mods`; validates mod JSON then exits.   | 267  | **yes**          |
+| `--dump-stats`    | `<what> [mode=TSV] [opts…]` | Sets `test_mode`; dumps stats (TSV/HTML) then exits.              | 281  | **yes**          |
+| `--world`         | `<name>`                    | Stores world name; first save in that world is loaded on startup. | 311  | no (enters game) |
+| `--basepath`      | `<path>`                    | `init_base_path()` + `set_standard_filenames()`.                  | 324  | no               |
+| `--shared`        | —                           | Enables map-sharing mode.                                         | 338  | no               |
+| `--username`      | `<name>`                    | Map-sharing username.                                             | 349  | no               |
+| `--addadmin`      | `<username>`                | Map-sharing admin (cheat access).                                 | 362  | no               |
+| `--adddebugger`   | `<username>`                | Map-sharing: running under a debugger.                            | 376  | no               |
+| `--competitive`   | —                           | Map-sharing: disable in-game cheats.                              | 389  | no               |
+| `--userdir`       | `<path>`                    | `init_user_dir()` + `set_standard_filenames()`.                   | 398  | no               |
+| `--dont-debugmsg` | —                           | Suppress debug messages (`dont_debugmsg`).                        | 413  | no               |
+| `--lua-doc`       | `<output path>`             | Sets `test_mode`; generates Lua docs then `return 0`.             | 422  | **yes**          |
+| `--lua-types`     | `<output path>`             | Sets `test_mode`; generates Lua types then `return 0`.            | 436  | **yes**          |
 
 Inline (handled in the dispatch loop, not in the table): `--help` (567), `--version` (571),
 `--paths` (574).
 
 **Second pass** (declared [src/main.cpp:454](../../src/main.cpp)–555):
 
-| Flag | Param | Effect | Line |
-|------|-------|--------|------|
-| `--worldmenu` | — | Enables world menu in map-sharing. | 456 |
-| `--datadir` | `<dir>` | `PATH_INFO::set_datadir()`. | 465 |
-| `--savedir` | `<dir>` | `PATH_INFO::set_savedir()`. | 478 |
-| `--configdir` | `<dir>` | `PATH_INFO::set_config_dir()`. | 491 |
-| `--memorialdir` | `<dir>` | `PATH_INFO::set_memorialdir()`. | 504 |
-| `--optionfile` | `<filename>` | `PATH_INFO::set_options()`. | 517 |
-| `--autopickupfile` | `<filename>` | `PATH_INFO::set_autopickup()`. | 530 |
-| `--motdfile` | `<filename>` | `PATH_INFO::set_motd()`. | 543 |
+| Flag               | Param        | Effect                             | Line |
+| ------------------ | ------------ | ---------------------------------- | ---- |
+| `--worldmenu`      | —            | Enables world menu in map-sharing. | 456  |
+| `--datadir`        | `<dir>`      | `PATH_INFO::set_datadir()`.        | 465  |
+| `--savedir`        | `<dir>`      | `PATH_INFO::set_savedir()`.        | 478  |
+| `--configdir`      | `<dir>`      | `PATH_INFO::set_config_dir()`.     | 491  |
+| `--memorialdir`    | `<dir>`      | `PATH_INFO::set_memorialdir()`.    | 504  |
+| `--optionfile`     | `<filename>` | `PATH_INFO::set_options()`.        | 517  |
+| `--autopickupfile` | `<filename>` | `PATH_INFO::set_autopickup()`.     | 530  |
+| `--motdfile`       | `<filename>` | `PATH_INFO::set_motd()`.           | 543  |
 
 **Coverage of the requested flag categories:** world name ✅ `--world`; user dir ✅ `--userdir`;
 save dir ✅ `--savedir`; base path ✅ `--basepath`; config path ✅ `--configdir`; data path ✅
@@ -183,17 +183,17 @@ if( !test_mode ) {
 Existing flows that do useful work without the normal UI (all **high** confidence — the calls are read
 directly in [src/main.cpp](../../src/main.cpp)):
 
-| Mode | Where it runs | What it does | Implementation |
-|------|---------------|--------------|----------------|
-| `--jsonverify` | [src/main.cpp:753](../../src/main.cpp) (`verifyexit`) | Loads static data, then `exit_handler(0)`. | `game::load_static_data` [src/game.cpp:440](../../src/game.cpp) |
-| `--dump-stats` | [src/main.cpp:756](../../src/main.cpp) | `init_colors()` + `g->dump_stats(...)`, then `exit()`. | `game::dump_stats` [src/dump.cpp:36](../../src/dump.cpp) |
-| `--check-mods` | [src/main.cpp:760](../../src/main.cpp) | `loading_ui ui(false)` + `init::check_mods_for_errors(...)`, then `exit(0/1)`. | decl [src/init.h:219](../../src/init.h), def [src/init.cpp:1009](../../src/init.cpp) |
-| `--lua-doc` / `--lua-types` | [src/main.cpp:792](../../src/main.cpp)–815 | `cata::generate_lua_docs(...)`, then `return 0`. | `cata::generate_lua_docs` (catalua.*) |
+| Mode                        | Where it runs                                         | What it does                                                                   | Implementation                                                                       |
+| --------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `--jsonverify`              | [src/main.cpp:753](../../src/main.cpp) (`verifyexit`) | Loads static data, then `exit_handler(0)`.                                     | `game::load_static_data` [src/game.cpp:440](../../src/game.cpp)                      |
+| `--dump-stats`              | [src/main.cpp:756](../../src/main.cpp)                | `init_colors()` + `g->dump_stats(...)`, then `exit()`.                         | `game::dump_stats` [src/dump.cpp:36](../../src/dump.cpp)                             |
+| `--check-mods`              | [src/main.cpp:760](../../src/main.cpp)                | `loading_ui ui(false)` + `init::check_mods_for_errors(...)`, then `exit(0/1)`. | decl [src/init.h:219](../../src/init.h), def [src/init.cpp:1009](../../src/init.cpp) |
+| `--lua-doc` / `--lua-types` | [src/main.cpp:792](../../src/main.cpp)–815            | `cata::generate_lua_docs(...)`, then `return 0`.                               | `cata::generate_lua_docs` (catalua.*)                                                |
 
 Important sequencing detail (**high**): `--jsonverify`, `--dump-stats`, and `--check-mods` are handled
 **before** `game_ui::init_ui()` ([src/main.cpp:777](../../src/main.cpp)), inside the
 `load_static_data()` try-block (752–773). The `--lua-doc`/`--lua-types` block runs **after**
-`game_ui::init_ui()` (792–815) — but because `test_mode` was set, the *window* (line 729) was already
+`game_ui::init_ui()` (792–815) — but because `test_mode` was set, the _window_ (line 729) was already
 skipped, so it is still effectively headless. For a clean headless Arcopolis mode, the
 pre-`init_ui()` region (≈752–773) is the better neighbourhood.
 
@@ -267,7 +267,7 @@ The boundary between "no window yet" and "window created" is a single call:
   This runs **even in test_mode**; it sets up UI layout state but not the window. The actual window
   creation skipped under `test_mode` is the `init_interface()` call at 729. **(high)**
 
-So: anything inserted *before* line 729, or inside a `test_mode` branch, runs with **no window**.
+So: anything inserted _before_ line 729, or inside a `test_mode` branch, runs with **no window**.
 
 ## Main menu versus direct world loading
 
@@ -299,7 +299,7 @@ while( true ) {
   So the save-load path is **already headless-safe**. **(high)**
 
 Caveat: the `--world` direct-load branch runs **after** `game_ui::init_ui()` (777) and after the
-window-init gate (729). With just `--world` (no `test_mode`), a window *is* created. To load a world
+window-init gate (729). With just `--world` (no `test_mode`), a window _is_ created. To load a world
 headless, an Arcopolis flag should set `test_mode` itself and load earlier (see next section).
 
 ## Existing hooks useful for Arcopolis
@@ -323,7 +323,7 @@ headless, an Arcopolis flag should set `test_mode` itself and load earlier (see 
 
 ## Candidate insertion points for Arcopolis flags
 
-> Design only. **Nothing here is implemented.** This section identifies *where* future work would go.
+> Design only. **Nothing here is implemented.** This section identifies _where_ future work would go.
 
 Both proposed flags follow the existing three-step pattern:
 
@@ -347,6 +347,8 @@ Both proposed flags follow the existing three-step pattern:
   `map::load`). Then either run fixture-supplied commands or `exit()` with a status code.
 
 ### `--arcopolis-export-current-view <output_path>`
+
+> **Implemented as Spike 0** — see [03_SPIKE0_CURRENT_VIEW_EXPORT.md](03_SPIKE0_CURRENT_VIEW_EXPORT.md); the headless design below is the one that was adopted.
 
 - **Dependency:** "current view" requires a loaded state (`g->m` map, `g->u` avatar, overmap). A bare
   export with nothing loaded has nothing to serialize.
@@ -377,7 +379,7 @@ Both proposed flags follow the existing three-step pattern:
   out of scope here and need their own investigation. BN already serializes world/map/creature state to
   saves, which may be reusable, but that is unverified for an on-demand snapshot.
 - **`game_ui::init_ui()` runs in test_mode**: confirm it is safe to call (or skippable) on the exact
-  Windows build configuration Arcopolis will use; the existing headless flags exit *before* it, so a new
+  Windows build configuration Arcopolis will use; the existing headless flags exit _before_ it, so a new
   branch should too.
 - **TILES vs console option-load ordering** differs ([src/main.cpp:716](../../src/main.cpp)–744): a new
   flag must not assume options are loaded at a particular point; load them explicitly if needed (the
