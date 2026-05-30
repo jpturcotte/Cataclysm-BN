@@ -20,6 +20,8 @@ build-data/mesa
 build-data/mesa*
 build-data/mesa/*
 test_user_dir*
+# Arcopolis headless-export sandbox userdir (--userdir .\arcopolis_user)
+/arcopolis_user/
 /build-start-time
 /cmake-build-debug/
 /config/
