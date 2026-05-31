@@ -233,6 +233,7 @@ int main( int argc, char *argv[] )
     std::filesystem::path lua_doc_output_path;
     std::filesystem::path lua_types_output_path;
     std::filesystem::path arcopolis_export_path;
+    std::filesystem::path arcopolis_command_path;
     std::string dump;
     dump_mode dmode = dump_mode::TSV;
     std::vector<std::string> opts;
@@ -518,6 +519,20 @@ int main( int argc, char *argv[] )
                         test_mode = true;
                         arcopolis_export_path = params[0];
                         return 1;  // consume the <output path> argument
+                    }
+                },
+                {
+                    "--arcopolis-command", "<command path>",
+                    "Arcopolis: apply one backend command from the given JSON file before the current-view snapshot export (use with --arcopolis-export-current-view)",
+                    section_default,
+                    [&arcopolis_command_path]( int num_args, const char **params ) -> int {
+                        if( num_args < 1 )
+                        {
+                            return -1;
+                        }
+                        test_mode = true;
+                        arcopolis_command_path = params[0];
+                        return 1;  // consume the <command path> argument
                     }
                 }
             }
@@ -875,14 +890,15 @@ int main( int argc, char *argv[] )
                 exit( 1 );
             }
         }
-        if( !arcopolis_export_path.empty() ) {
+        if( !arcopolis_export_path.empty() || !arcopolis_command_path.empty() ) {
             // The snapshot is already flushed to disk inside export_current_view(). A normal exit()
             // here would run BN's global/static destructors on a fully-loaded game (avatar, map,
             // overmaps, caches) — a teardown path the engine does not exercise cleanly and which
             // corrupts the heap. Terminate immediately with the result code; the file is safe.
             std::_Exit( arcopolis::export_current_view( {
                 .world = world,
-                .output_path = arcopolis_export_path.string()
+                .output_path = arcopolis_export_path.string(),
+                .command_path = arcopolis_command_path.string()
             } ) );
         }
     } catch( const std::exception &err ) {
