@@ -48,6 +48,26 @@ Repository exploration and backend-boundary research only.
 - If uncertain, state uncertainty and list what to inspect next.
 - Use PowerShell commands for Windows-local instructions.
 
+### Arcopolis backend fidelity (NON-NEGOTIABLE)
+
+**The GUI behavior is the engine behavior is the behavior, period.** There is no separate "headless mode" to
+invent — BN's code IS the spec. When driving BN headlessly (the `--arcopolis-*` export/command modes),
+reproduce EXACTLY what the engine does for the same action.
+
+- **Never override engine state/flags to make output look nicer or to make a counter move.** Worked example:
+  a `wait` issued right after a load is the engine's _bootstrap turn_ — `game::setup()` leaves
+  `game::new_game == true`, so the first `do_turn()` deliberately skips `calendar::turn += 1_turns`
+  (src/game.cpp:1879) and processes the world at the loaded turn `T` without advancing the clock, exactly as
+  pressing `'.'` once in the GUI. Do **NOT** clear `new_game` to force a tick (an earlier Spike-1 build did;
+  it ran the turn at `T+1`, one tick ahead of the GUI — wrong, reverted).
+- **If the lifecycle makes faithful behavior inconvenient, fix the lifecycle, not the behavior.** A one-shot
+  (load-per-command) wait re-pays the bootstrap turn every time, so the clock never advances. That is a signal
+  to build a _persistent_ backend (load once → bootstrap turn happens once → every later command is a normal,
+  clock-advancing turn), NOT to fake an advance.
+- **Answer "do headless and GUI differ?" from the code, decisively.** Read `do_turn` / the action path and
+  state the answer; do not spin up little experiments to defer the question. (Litigating this the slow way
+  cost a full session once — don't repeat it.)
+
 ### Expected exploration artifacts
 
 ```text
