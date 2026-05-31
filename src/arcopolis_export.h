@@ -8,9 +8,9 @@ namespace arcopolis
 /// Inputs for a one-shot headless run: load a world, optionally apply one backend command,
 /// then write a read-only "current view" snapshot.
 struct export_current_view_options {
-    std::string world;         //< prepared world/save to load headlessly (required)
-    std::string output_path;   //< filesystem path the JSON snapshot is written to
-    std::string command_path;  //< optional backend command file to apply before export ("" = none)
+    std::string world;         ///< prepared world/save to load headlessly (required)
+    std::string output_path;   ///< filesystem path the JSON snapshot is written to
+    std::string command_path;  ///< optional backend command file to apply before export ("" = none)
 };
 
 /// Headlessly loads `opts.world` via the existing game::load(world) path, optionally applies one

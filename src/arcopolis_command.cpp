@@ -90,6 +90,19 @@ auto arcopolis::apply_command( const backend_command &cmd ) -> std::expected<voi
         // command is a normal, clock-advancing turn). It must come from the right lifecycle, never from
         // faking engine flags here.
 
+        // Mirror the GUI's ACTION_PAUSE safe-mode gate (src/handle_action.cpp:1892): pressing '.' only
+        // pauses when check_safe_mode_allowed() is true. Under a laser lock or a new visible threat
+        // (SAFE_MODE_STOP) it returns false and the GUI neither pauses nor advances the turn — it warns
+        // and leaves the avatar in control. We honor that: decline the wait without advancing the world.
+        // check_safe_mode_allowed() is headless-safe (only add_msg / press_x; no popups or queries).
+        // (Limitation: the per-turn threat scan mon_info_update runs *inside* do_turn and is private, so a
+        // threat first becoming visible this turn isn't pre-assessed here — the gate uses the loaded
+        // safe-mode / laser-lock state. Persistent-backend integration would close that gap.)
+        if( !g->check_safe_mode_allowed() ) {
+            return std::unexpected( command_error{ .kind = command_error_kind::safe_mode_blocked,
+                                    .detail = "wait declined by safe mode (a threat is flagged); the GUI would "
+                                            "warn and not advance the turn either" } );
+        }
         // The real ACTION_PAUSE mechanism (the '.' key): zero the avatar's moves and run the
         // pause/trap/wait effects (character_funcs::do_pause, src/character_turn.cpp).
         character_funcs::do_pause( get_avatar() );
@@ -117,6 +130,8 @@ auto arcopolis::exit_code_for( command_error_kind kind ) -> int
             return 6;
         case command_error_kind::apply_failed:
             return 7;
+        case command_error_kind::safe_mode_blocked:
+            return 8;
     }
     return 1;  // unreachable; defensive default
 }

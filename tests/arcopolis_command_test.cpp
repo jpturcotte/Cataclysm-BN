@@ -66,4 +66,5 @@ TEST_CASE( "arcopolis exit_code_for maps error kinds to distinct nonzero codes",
     CHECK( arcopolis::exit_code_for( kind::bad_schema ) == 5 );
     CHECK( arcopolis::exit_code_for( kind::unsupported_command ) == 6 );
     CHECK( arcopolis::exit_code_for( kind::apply_failed ) == 7 );
+    CHECK( arcopolis::exit_code_for( kind::safe_mode_blocked ) == 8 );
 }

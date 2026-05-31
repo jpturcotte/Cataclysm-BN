@@ -67,20 +67,20 @@ path — faithfully, per the fidelity principle above.
 
 ## The flag
 
-| Property                                                | Behavior                                                                                    |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Flag                                                    | `--arcopolis-command <command_path>` (first-pass `arg_handler`)                             |
-| Side effects                                            | Sets `test_mode = true` (skips window/SDL init) and stores `<command_path>`                 |
-| Pairs with                                              | `--arcopolis-export-current-view <out>` (supplies the snapshot path) and `--world <name>`   |
+| Property                                                | Behavior                                                                                         |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Flag                                                    | `--arcopolis-command <command_path>` (first-pass `arg_handler`)                                  |
+| Side effects                                            | Sets `test_mode = true` (skips window/SDL init) and stores `<command_path>`                      |
+| Pairs with                                              | `--arcopolis-export-current-view <out>` (supplies the snapshot path) and `--world <name>`        |
 | On success                                              | Applies the command (a wait = one engine turn at the loaded `T`), writes the snapshot, exits `0` |
-| Missing output path                                     | `arcopolis: --arcopolis-command requires --arcopolis-export-current-view <path>` → exit `1` |
-| Command file missing                                    | clear stderr message → exit `2`                                                             |
-| File unreadable                                         | exit `3`                                                                                    |
-| Invalid JSON                                            | exit `4`                                                                                    |
-| Bad schema (wrong `schema_version` / missing `command`) | exit `5`                                                                                    |
-| Unsupported command                                     | exit `6`                                                                                    |
-| Apply failure                                           | exit `7`                                                                                    |
-| Never                                                   | Enters the main menu / the interactive input loop; initializes the player-facing UI         |
+| Missing output path                                     | `arcopolis: --arcopolis-command requires --arcopolis-export-current-view <path>` → exit `1`      |
+| Command file missing                                    | clear stderr message → exit `2`                                                                  |
+| File unreadable                                         | exit `3`                                                                                         |
+| Invalid JSON                                            | exit `4`                                                                                         |
+| Bad schema (wrong `schema_version` / missing `command`) | exit `5`                                                                                         |
+| Unsupported command                                     | exit `6`                                                                                         |
+| Apply failure                                           | exit `7`                                                                                         |
+| Never                                                   | Enters the main menu / the interactive input loop; initializes the player-facing UI              |
 
 Example (Windows, from the repo root so `data/`+`gfx/` resolve; `--userdir` sandboxes it):
 
@@ -137,7 +137,7 @@ main() [src/main.cpp ~786, std::_Exit branch]
        │    ├─ arcopolis::read_command_file(command_path)   [src/arcopolis_command.cpp]
        │    │     └─ file_exist → cata_ifstream → parse_command(JsonIn) → validate schema/command
        │    └─ arcopolis::apply_command(cmd)                [src/arcopolis_command.cpp]
-       │         └─ "wait": character_funcs::do_pause( get_avatar() ); g->do_turn();   // no new_game clear
+       │         └─ "wait": if check_safe_mode_allowed() → do_pause(get_avatar()) + do_turn()  // GUI gate; no new_game clear
        └─ write_to_file( output_path, write_snapshot )      (Spike 0 writer + new backend.turn)
 ```
 
@@ -146,11 +146,19 @@ main() [src/main.cpp ~786, std::_Exit branch]
 `wait` reuses the engine's existing **ACTION_PAUSE** mechanism — the `'.'` key — not the longer **ACTION_WAIT**
 menu (`'|'`), whose entry point opens a `uilist` and has no clean non-UI path.
 
-1. **`character_funcs::do_pause( get_avatar() )`** — src/character_turn.cpp:1080, declared
+1. **Safe-mode gate** — `if( !g->check_safe_mode_allowed() ) → decline`. The GUI's `ACTION_PAUSE`
+   (src/handle_action.cpp:1892) only pauses when `check_safe_mode_allowed()` is true; under a laser lock or a
+   new visible threat (`SAFE_MODE_STOP`) it returns false and the GUI **neither pauses nor advances the turn** —
+   it warns and leaves the avatar in control. We mirror that: if it returns false we decline the wait
+   (`safe_mode_blocked`, exit 8) **without advancing the world**. The check is headless-safe (only
+   `add_msg`/`press_x`, no popups). _Limitation:_ the per-turn threat scan (`mon_info_update`) runs inside
+   `do_turn` and is private, so a threat first becoming visible _this_ turn isn't pre-assessed; the gate uses
+   the loaded safe-mode / laser-lock state. (A persistent backend would close that gap.)
+2. **`character_funcs::do_pause( get_avatar() )`** — src/character_turn.cpp:1080, declared
    src/character_turn.h:13. This is exactly what `ACTION_PAUSE` calls (src/handle_action.cpp:1893). It sets
    `who.moves = 0`, resets recoil, runs the martial-arts on-pause hooks, `search_surroundings`, and
    `wait_effects` — pure state mutation for a grounded, non-burning avatar.
-2. **`g->do_turn()`** — public, src/game.h:216. Two things matter here, and both _honor the engine_:
+3. **`g->do_turn()`** — public, src/game.h:216. Two things matter here, and both _honor the engine_:
    - **The bootstrap turn is left intact.** `game::setup()` (run by `g->load`) leaves `game::new_game == true`
      (src/game.cpp:625). The first `do_turn()` after a load takes the `if( new_game )` branch (src/game.cpp:1879)
      and **deliberately skips** `calendar::turn += 1_turns`. So this turn processes the world **at the loaded
@@ -188,14 +196,15 @@ rather than suppressing it — and never override engine state to hide it (fidel
 detail }`. `exit_code_for(kind)` maps each kind to a distinct nonzero code so a frontend can tell failures
 apart; `detail` is printed to stderr prefixed with `arcopolis:`.
 
-| `command_error_kind`  | Exit | Cause                                                         |
-| --------------------- | ---- | ------------------------------------------------------------- |
-| `missing_file`        | 2    | command file does not exist (`file_exist` false)              |
-| `unreadable_file`     | 3    | file exists but `cata_ifstream` could not open it             |
-| `invalid_json`        | 4    | `JsonError` thrown while parsing                              |
-| `bad_schema`          | 5    | `schema_version` missing/≠1, or `command` missing/non-string  |
-| `unsupported_command` | 6    | a well-formed command other than `wait`                       |
-| `apply_failed`        | 7    | recognised command could not be applied (none yet for `wait`) |
+| `command_error_kind`  | Exit | Cause                                                                                     |
+| --------------------- | ---- | ----------------------------------------------------------------------------------------- |
+| `missing_file`        | 2    | command file does not exist (`file_exist` false)                                          |
+| `unreadable_file`     | 3    | file exists but `cata_ifstream` could not open it                                         |
+| `invalid_json`        | 4    | `JsonError` thrown while parsing                                                          |
+| `bad_schema`          | 5    | `schema_version` missing/≠1, or `command` missing/non-string                              |
+| `unsupported_command` | 6    | a well-formed command other than `wait`                                                   |
+| `apply_failed`        | 7    | recognised command could not be applied (none yet for `wait`)                             |
+| `safe_mode_blocked`   | 8    | safe mode declined the wait (a threat is flagged) — mirrors the GUI's `ACTION_PAUSE` gate |
 
 (Exit `0` = success; exit `1` = the pre-flight "command requires an output path" / missing `--world` guards.)
 
@@ -360,19 +369,19 @@ binary run above is its proof.
 
 ## Acceptance criteria → coverage
 
-| Criterion                                                          | Status                                                       |
-| ------------------------------------------------------------------ | ------------------------------------------------------------ |
-| `--arcopolis-command <command_path>` recognized                    | ✅ appears in `--help`; handled in `first_pass_arguments`    |
-| Sets `test_mode` (headless)                                        | ✅ in the handler                                            |
-| Loads world/save exactly as Spike 0                                | ✅ unchanged `g->load(world)`                                |
-| Reads + validates `schema_version` and `command`                   | ✅ `parse_command` (`bad_schema` / `invalid_json`)           |
-| Supports only `wait`                                               | ✅ `apply_command`; else `unsupported_command`               |
-| Applies via existing non-UI mechanism                              | ✅ `character_funcs::do_pause(get_avatar())`                 |
-| Advances the sim exactly as the game would                         | ✅ one `game::do_turn()` = the engine bootstrap turn at `T`  |
-| Exports the snapshot after the command                             | ✅ Spike 0 writer + new `backend.turn`                       |
-| Exit `0` on success                                                | ✅ `std::_Exit(0)`                                           |
-| Clear nonzero errors (missing/invalid/unsupported/apply)           | ✅ `command_error_kind` → `exit_code_for` 2–7 + stderr       |
-| No movement / inventory / targeting / sockets / deltas / deps / UI | ✅ none added; no engine state overridden                    |
+| Criterion                                                          | Status                                                      |
+| ------------------------------------------------------------------ | ----------------------------------------------------------- |
+| `--arcopolis-command <command_path>` recognized                    | ✅ appears in `--help`; handled in `first_pass_arguments`   |
+| Sets `test_mode` (headless)                                        | ✅ in the handler                                           |
+| Loads world/save exactly as Spike 0                                | ✅ unchanged `g->load(world)`                               |
+| Reads + validates `schema_version` and `command`                   | ✅ `parse_command` (`bad_schema` / `invalid_json`)          |
+| Supports only `wait`                                               | ✅ `apply_command`; else `unsupported_command`              |
+| Applies via existing non-UI mechanism                              | ✅ `character_funcs::do_pause(get_avatar())`                |
+| Advances the sim exactly as the game would                         | ✅ one `game::do_turn()` = the engine bootstrap turn at `T` |
+| Exports the snapshot after the command                             | ✅ Spike 0 writer + new `backend.turn`                      |
+| Exit `0` on success                                                | ✅ `std::_Exit(0)`                                          |
+| Clear nonzero errors (missing/invalid/unsupported/apply)           | ✅ `command_error_kind` → `exit_code_for` 2–7 + stderr      |
+| No movement / inventory / targeting / sockets / deltas / deps / UI | ✅ none added; no engine state overridden                   |
 
 ## PowerShell local checks
 

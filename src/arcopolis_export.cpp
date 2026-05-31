@@ -31,11 +31,11 @@ constexpr int arcopolis_view_radius = 12;
 
 /// Read-only bundle passed to each writer (keeps every writer at <=3 params per AGENTS).
 struct snapshot_ctx {
-    const avatar &u;                     //< read-only avatar state
-    const map &m;                        //< read-only loaded reality bubble
-    int levz;                            //< current z-level (game::get_levz())
-    int radius;                          //< half-width of the exported square tile window
-    std::vector<std::string> &warnings;  //< diagnostics accumulator (referent is mutable)
+    const avatar &u;                     ///< read-only avatar state
+    const map &m;                        ///< read-only loaded reality bubble
+    int levz;                            ///< current z-level (game::get_levz())
+    int radius;                          ///< half-width of the exported square tile window
+    std::vector<std::string> &warnings;  ///< diagnostics accumulator (referent is mutable)
 };
 
 auto write_backend( JsonOut &json ) -> void

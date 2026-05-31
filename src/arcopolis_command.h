@@ -9,19 +9,20 @@ namespace arcopolis
 
 /// One decoded backend command. Spike 1 supports only the "wait" command.
 struct backend_command {
-    int schema_version = 0;  //< must equal the supported schema version (1)
-    std::string command;     //< command verb, e.g. "wait"
+    int schema_version = 0;  ///< must equal the supported schema version (1)
+    std::string command;     ///< command verb, e.g. "wait"
 };
 
 /// Why a command file could not be read, validated, or applied. Mapped to a distinct
 /// process exit code by exit_code_for() so an external frontend can tell failures apart.
 enum class command_error_kind {
-    missing_file,         //< the command file does not exist
-    unreadable_file,      //< the file exists but could not be opened
-    invalid_json,         //< the file is not well-formed JSON
-    bad_schema,           //< missing/wrong schema_version, or missing/non-string command
-    unsupported_command,  //< a well-formed command this spike does not implement
-    apply_failed,         //< the command was recognised but could not be applied
+    missing_file,         ///< the command file does not exist
+    unreadable_file,      ///< the file exists but could not be opened
+    invalid_json,         ///< the file is not well-formed JSON
+    bad_schema,           ///< missing/wrong schema_version, or missing/non-string command
+    unsupported_command,  ///< a well-formed command this spike does not implement
+    safe_mode_blocked,    ///< recognised, but safe mode declined it (mirrors the GUI pause gate)
+    apply_failed,         ///< the command was recognised but could not be applied
 };
 
 /// A command failure: a machine-readable kind plus a human-readable detail for stderr.
