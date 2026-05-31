@@ -407,8 +407,8 @@ $p = Start-Process -FilePath $exe -ArgumentList @(
     '--arcopolis-run-script','.\out\script_move.json',
     '--arcopolis-export-dir','.\out\arcopolis_move',
     '--userdir','.\arcopolis_user'
-) -NoNewWindow -Wait -PassThru -RedirectStandardError C:\tmp\err.txt -RedirectStandardOutput C:\tmp\out.txt
-"exit=$($p.ExitCode)"   # expect 0
+) -NoNewWindow -Wait -PassThru -RedirectStandardError .\out\err.txt -RedirectStandardOutput .\out\out.txt
+"exit=$($p.ExitCode)"   # expect 0  (err.txt/out.txt are throwaway stream sinks; .\out is created above)
 
 $b = Get-Content .\out\arcopolis_move\000_before_move.json -Raw | ConvertFrom-Json
 $m = Get-Content .\out\arcopolis_move\001_after_move.json  -Raw | ConvertFrom-Json
