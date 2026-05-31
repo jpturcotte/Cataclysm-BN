@@ -23,6 +23,7 @@
 #   include <csignal>
 #endif
 #include "arcopolis_export.h"
+#include "arcopolis_script.h"
 #include "catalua.h"
 #include "color.h"
 #include "crash.h"
@@ -202,6 +203,8 @@ int main( int argc, char *argv[] )
     std::filesystem::path lua_types_output_path;
     std::filesystem::path arcopolis_export_path;
     std::filesystem::path arcopolis_command_path;
+    std::filesystem::path arcopolis_script_path;
+    std::filesystem::path arcopolis_export_dir;
     std::string dump;
     dump_mode dmode = dump_mode::TSV;
     std::vector<std::string> opts;
@@ -241,7 +244,7 @@ int main( int argc, char *argv[] )
         const char *section_default = nullptr;
         const char *section_map_sharing = "Map sharing";
         const char *section_user_directory = "User directories";
-        const std::array<arg_handler, 17> first_pass_arguments = {{
+        const std::array<arg_handler, 19> first_pass_arguments = {{
                 {
                     "--seed", "<string of letters and or numbers>",
                     "Sets the random number generator's seed value",
@@ -475,6 +478,34 @@ int main( int argc, char *argv[] )
                         test_mode = true;
                         arcopolis_command_path = params[0];
                         return 1;  // consume the <command path> argument
+                    }
+                },
+                {
+                    "--arcopolis-run-script", "<script path>",
+                    "Arcopolis: load --world ONCE, run the given JSON step script in order, writing a snapshot per export step into --arcopolis-export-dir, then exit",
+                    section_default,
+                    [&arcopolis_script_path]( int num_args, const char **params ) -> int {
+                        if( num_args < 1 )
+                        {
+                            return -1;
+                        }
+                        test_mode = true;
+                        arcopolis_script_path = params[0];
+                        return 1;  // consume the <script path> argument
+                    }
+                },
+                {
+                    "--arcopolis-export-dir", "<output dir>",
+                    "Arcopolis: directory the --arcopolis-run-script session writes its per-export snapshots into",
+                    section_default,
+                    [&arcopolis_export_dir]( int num_args, const char **params ) -> int {
+                        if( num_args < 1 )
+                        {
+                            return -1;
+                        }
+                        test_mode = true;
+                        arcopolis_export_dir = params[0];
+                        return 1;  // consume the <output dir> argument
                     }
                 }
             }
@@ -798,7 +829,28 @@ int main( int argc, char *argv[] )
                 exit( 1 );
             }
         }
-        if( !arcopolis_export_path.empty() || !arcopolis_command_path.empty() ) {
+        const bool arco_oneshot = !arcopolis_export_path.empty() || !arcopolis_command_path.empty();
+        const bool arco_script = !arcopolis_script_path.empty() || !arcopolis_export_dir.empty();
+        if( arco_oneshot && arco_script ) {
+            // The two Arcopolis headless modes are mutually exclusive. Only main.cpp sees both flag
+            // sets, so the conflict is rejected here (nothing is loaded yet, so a plain exit is safe).
+            std::cerr << "arcopolis: stateful script mode (--arcopolis-run-script/"
+                      "--arcopolis-export-dir) cannot be combined with one-shot mode "
+                      "(--arcopolis-command/--arcopolis-export-current-view)\n";
+            exit( 1 );
+        }
+        if( arco_script ) {
+            // Spike 2 stateful runner: load the world ONCE, run the step script, export snapshots
+            // between steps. Same std::_Exit rationale as the one-shot branch below — the snapshots
+            // are already flushed inside run_script(); running BN's global/static destructors on a
+            // fully-loaded game corrupts the heap, so terminate immediately with the result code.
+            std::_Exit( arcopolis::run_script( {
+                .world = world,
+                .script_path = arcopolis_script_path.string(),
+                .export_dir = arcopolis_export_dir.string()
+            } ) );
+        }
+        if( arco_oneshot ) {
             // The snapshot is already flushed to disk inside export_current_view(). A normal exit()
             // here would run BN's global/static destructors on a fully-loaded game (avatar, map,
             // overmaps, caches) — a teardown path the engine does not exercise cleanly and which
