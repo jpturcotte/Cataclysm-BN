@@ -5,7 +5,9 @@
 #include <utility>
 #include <vector>
 
+#include "arcopolis_command.h"  // read_command_file/apply_command/exit_code_for (Spike 1)
 #include "avatar.h"          // avatar, get_avatar()
+#include "calendar.h"        // to_turn(), calendar::turn
 #include "character.h"       // get_name/thirst/fatigue/stamina/kcal getters
 #include "color.h"           // init_colors()
 #include "coordinates.h"     // tripoint_bub_ms / _abs_ms / _abs_sm, .x()/.y()/.z()
@@ -29,11 +31,11 @@ constexpr int arcopolis_view_radius = 12;
 
 /// Read-only bundle passed to each writer (keeps every writer at <=3 params per AGENTS).
 struct snapshot_ctx {
-    const avatar &u;                     //< read-only avatar state
-    const map &m;                        //< read-only loaded reality bubble
-    int levz;                            //< current z-level (game::get_levz())
-    int radius;                          //< half-width of the exported square tile window
-    std::vector<std::string> &warnings;  //< diagnostics accumulator (referent is mutable)
+    const avatar &u;                     ///< read-only avatar state
+    const map &m;                        ///< read-only loaded reality bubble
+    int levz;                            ///< current z-level (game::get_levz())
+    int radius;                          ///< half-width of the exported square tile window
+    std::vector<std::string> &warnings;  ///< diagnostics accumulator (referent is mutable)
 };
 
 auto write_backend( JsonOut &json ) -> void
@@ -42,6 +44,7 @@ auto write_backend( JsonOut &json ) -> void
     json.start_object();
     json.member( "game_version", std::string( getVersionString() ) );
     json.member( "save_version", savegame_version );
+    json.member( "turn", to_turn<int>( calendar::turn ) );  // current sim turn; advances when a command does
     json.end_object();
 }
 
@@ -180,11 +183,32 @@ auto arcopolis::export_current_view( const export_current_view_options &opts ) -
         return 1;
     }
 
+    // A command run always exports its result, so it needs a snapshot output path.
+    if( !opts.command_path.empty() && opts.output_path.empty() ) {
+        std::cerr << "arcopolis: --arcopolis-command requires --arcopolis-export-current-view <path>\n";
+        return 1;
+    }
+
     init_colors();  // mirror the other headless flows; the world-load path may colorize output
 
     if( !g->load( opts.world ) ) {
         std::cerr << "arcopolis: failed to load world '" << opts.world << "'\n";
         return 1;
+    }
+
+    // Spike 1: optionally apply exactly one backend command between load and export. Errors map to
+    // distinct nonzero exit codes (see arcopolis::exit_code_for) with a clear stderr message.
+    if( !opts.command_path.empty() ) {
+        const auto cmd = read_command_file( opts.command_path );
+        if( !cmd ) {
+            std::cerr << "arcopolis: " << cmd.error().detail << "\n";
+            return exit_code_for( cmd.error().kind );
+        }
+        const auto applied = apply_command( *cmd );
+        if( !applied ) {
+            std::cerr << "arcopolis: " << applied.error().detail << "\n";
+            return exit_code_for( applied.error().kind );
+        }
     }
 
     std::vector<std::string> warnings;
