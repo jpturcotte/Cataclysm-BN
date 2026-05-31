@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 
 namespace arcopolis
@@ -19,5 +20,21 @@ struct export_current_view_options {
 /// missing world, load failure, command error, or write failure). The only simulation mutation is
 /// through the applied command's existing in-engine action path; never touches the player-facing UI.
 auto export_current_view( const export_current_view_options &opts ) -> int;
+
+/// Optional per-snapshot session metadata. When supplied to write_current_view(), a "session"
+/// object is written into the snapshot so a stateful run (Spike 2) records where each snapshot came
+/// from. Absent for the one-shot Spike 0/1 export, whose output is therefore unchanged.
+struct snapshot_session_info {
+    int export_index = 0;     ///< 0-based sequence among export steps in this session
+    int step_index = 0;       ///< 0-based index of this export within the script's steps[]
+    std::string export_name;  ///< the export step's "name" label
+};
+
+/// Writes a read-only current-view JSON snapshot of the ALREADY-LOADED game to `output_path`,
+/// reusing the single snapshot format. When `session` is set, a "session" object is included.
+/// Requires a loaded world (the global game `g`, avatar, and map); performs no simulation mutation.
+/// Returns true on success, false if the file could not be written.
+auto write_current_view( const std::string &output_path,
+                         const std::optional<snapshot_session_info> &session ) -> bool;
 
 } // namespace arcopolis

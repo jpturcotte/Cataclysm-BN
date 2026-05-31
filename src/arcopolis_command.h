@@ -23,6 +23,7 @@ enum class command_error_kind {
     unsupported_command,  ///< a well-formed command this spike does not implement
     safe_mode_blocked,    ///< recognised, but safe mode declined it (mirrors the GUI pause gate)
     apply_failed,         ///< the command was recognised but could not be applied
+    export_failed,        ///< a current-view snapshot could not be written (Spike 2 script runner)
 };
 
 /// A command failure: a machine-readable kind plus a human-readable detail for stderr.
