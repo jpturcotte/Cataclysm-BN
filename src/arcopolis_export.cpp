@@ -1,6 +1,7 @@
 #include "arcopolis_export.h"
 
 #include <iostream>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -36,7 +37,21 @@ struct snapshot_ctx {
     int levz;                            ///< current z-level (game::get_levz())
     int radius;                          ///< half-width of the exported square tile window
     std::vector<std::string> &warnings;  ///< diagnostics accumulator (referent is mutable)
+    const std::optional<arcopolis::snapshot_session_info> &session;  ///< Spike 2 metadata (none = nullopt)
 };
+
+auto write_session( JsonOut &json, const snapshot_ctx &ctx ) -> void
+{
+    if( !ctx.session ) {
+        return;  // one-shot Spike 0/1 export: no "session" block, output unchanged
+    }
+    json.member( "session" );
+    json.start_object();
+    json.member( "export_index", ctx.session->export_index );
+    json.member( "step_index", ctx.session->step_index );
+    json.member( "export_name", ctx.session->export_name );
+    json.end_object();
+}
 
 auto write_backend( JsonOut &json ) -> void
 {
@@ -155,6 +170,7 @@ auto write_snapshot( JsonOut &json, const snapshot_ctx &ctx ) -> void
 {
     json.start_object();
     json.member( "schema_version", 1 );
+    write_session( json, ctx );  // Spike 2: present only for script-runner exports
     write_backend( json );
     write_avatar( json, ctx );
     write_map_bounds( json, ctx );
@@ -211,6 +227,17 @@ auto arcopolis::export_current_view( const export_current_view_options &opts ) -
         }
     }
 
+    if( !write_current_view( opts.output_path, std::nullopt ) ) {
+        std::cerr << "arcopolis: failed to write snapshot to '" << opts.output_path << "'\n";
+        return 1;
+    }
+
+    return 0;
+}
+
+auto arcopolis::write_current_view( const std::string &output_path,
+                                    const std::optional<snapshot_session_info> &session ) -> bool
+{
     std::vector<std::string> warnings;
     const auto ctx = snapshot_ctx{
         .u = get_avatar(),
@@ -218,17 +245,11 @@ auto arcopolis::export_current_view( const export_current_view_options &opts ) -
         .levz = g->get_levz(),
         .radius = arcopolis_view_radius,
         .warnings = warnings,
+        .session = session,
     };
 
-    const auto ok = write_to_file( opts.output_path, [&]( std::ostream & stream ) {
+    return write_to_file( output_path, [&]( std::ostream & stream ) {
         JsonOut json( stream, /*pretty_print=*/true );
         write_snapshot( json, ctx );
     }, "arcopolis snapshot" );
-
-    if( !ok ) {
-        std::cerr << "arcopolis: failed to write snapshot to '" << opts.output_path << "'\n";
-        return 1;
-    }
-
-    return 0;
 }

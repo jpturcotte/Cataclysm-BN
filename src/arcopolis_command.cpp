@@ -132,6 +132,8 @@ auto arcopolis::exit_code_for( command_error_kind kind ) -> int
             return 7;
         case command_error_kind::safe_mode_blocked:
             return 8;
+        case command_error_kind::export_failed:
+            return 9;
     }
     return 1;  // unreachable; defensive default
 }
