@@ -57,6 +57,49 @@ TEST_CASE( "arcopolis apply_command rejects an unsupported command", "[arcopolis
     CHECK( result.error().kind == arcopolis::command_error_kind::unsupported_command );
 }
 
+TEST_CASE( "arcopolis parse_command accepts a valid move command", "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "command": "move", "direction": "move_e" })" );
+    const auto result = arcopolis::parse_command( is );
+    REQUIRE( result.has_value() );
+    CHECK( result->command == "move" );
+    CHECK( result->direction == "move_e" );
+}
+
+TEST_CASE( "arcopolis parse_command rejects a move without a direction", "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "command": "move" })" );
+    const auto result = arcopolis::parse_command( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
+TEST_CASE( "arcopolis parse_command rejects non-cardinal move directions", "[arcopolis]" )
+{
+    // "east" is not an engine ident; move_ne is a diagonal; move_up/move_down are vertical; "" is empty.
+    // All four resolve to a valid action_id via look_up_action (except "east"/""), so the cardinal-set
+    // check is what rejects them.
+    for( const std::string &dir : { "east", "move_ne", "move_up", "move_down", "" } ) {
+        const auto json = R"({ "schema_version": 1, "command": "move", "direction": ")" + dir + R"(" })";
+        std::istringstream is( json );
+        const auto result = arcopolis::parse_command( is );
+        REQUIRE_FALSE( result.has_value() );
+        CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+    }
+}
+
+TEST_CASE( "arcopolis is_supported_move_direction accepts only the four cardinals", "[arcopolis]" )
+{
+    CHECK( arcopolis::is_supported_move_direction( "move_n" ) );
+    CHECK( arcopolis::is_supported_move_direction( "move_s" ) );
+    CHECK( arcopolis::is_supported_move_direction( "move_e" ) );
+    CHECK( arcopolis::is_supported_move_direction( "move_w" ) );
+    CHECK_FALSE( arcopolis::is_supported_move_direction( "move_ne" ) );
+    CHECK_FALSE( arcopolis::is_supported_move_direction( "move_up" ) );
+    CHECK_FALSE( arcopolis::is_supported_move_direction( "east" ) );
+    CHECK_FALSE( arcopolis::is_supported_move_direction( "" ) );
+}
+
 TEST_CASE( "arcopolis exit_code_for maps error kinds to distinct nonzero codes", "[arcopolis]" )
 {
     using kind = arcopolis::command_error_kind;

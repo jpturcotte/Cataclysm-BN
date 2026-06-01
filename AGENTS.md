@@ -104,7 +104,23 @@ For this Windows/Codex worktree, the known-good build-backed exploration route i
 - Append `C:\dev\ccache` to `PATH` after DevShell activation; do not prepend it, because the real MSVC `cl.exe` should stay first.
 - Use short vcpkg temporary roots under `C:\tmp` to avoid Windows `MAX_PATH` failures in dependency builds.
 - Prefer the repo-supported Ninja shape from `CMakeSettings.json` for ccache-backed command-line builds; this route has built `cataclysm-bn-tiles` and `cata_test-tiles`. The Visual Studio solution preset can configure with short vcpkg roots, but it is not the proven ccache route.
+- Build the game and tests in **one** build dir. `cataclysm-bn-tiles-common` is a CMake OBJECT library shared by `cataclysm-bn-tiles` and `cata_test-tiles`, so build `cata_test-tiles` in the SAME `out/build/win-rel-deb` dir (re-configure with `-DTESTS=True`, then `--target cata_test-tiles`) to reuse the game's compiled objects — only the test sources recompile. A SEPARATE `out/build/win-tests` dir duplicates the entire ~10 GB object tree and has exhausted the disk here (`fatal error C1085: ... No space left on device`).
 - See `docs/arcopolis/00_WINDOWS_LOCAL_ENVIRONMENT.md` for the exact current PowerShell commands and the historical failure analysis.
+
+### Arcopolis test world fixture
+
+The headless `--arcopolis-*` modes load a prepared world, and this repo ships none (saves are gitignored).
+The canonical `ArcopolisTest` world (avatar in an evac shelter, ~14 nearby monsters, calendar turn
+~1,324,801) lives **outside the repo** at `C:\dev\arcopolis-fixtures\` so it survives worktree pruning and
+`git clean -fdx`. Copy it into the working tree (the `/arcopolis_user/` sandbox is gitignored) before
+running validation:
+
+```powershell
+Copy-Item C:\dev\arcopolis-fixtures\arcopolis_user .\arcopolis_user -Recurse -Force
+```
+
+`C:\dev\arcopolis-fixtures\README.md` documents the world, how to refresh it, and how to recreate it from
+scratch (graphical New Game → one step → Save & Quit). It is a point-in-time snapshot, not auto-synced.
 
 ## HARD CONSTRAINTS (NEVER VIOLATE)
 
