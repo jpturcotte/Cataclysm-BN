@@ -1,5 +1,14 @@
 # Spike 3 Movement Exploration
 
+> **Update (post-implementation):** the implementation that followed this exploration
+> ([08_SPIKE3_MOVE_COMMAND.md](08_SPIKE3_MOVE_COMMAND.md)) is marked **FAILED**. This doc's
+> "Recommendation A" (`command → do_turn`, guarded by `moves<=0`) was built and works mechanically, but it
+> leaves the **action/top-half ordering inversion** in place — the action runs *before* `do_turn` instead
+> of at the engine's `handle_action()` slot *inside* it, so it is not faithful past the bootstrap turn.
+> The "Verified byte-identical for `wait`" claim below was **not** independently re-verified and is
+> overstated; treat it as "seeded-reproducible, equivalence unproven". The fix (inject the command at the
+> engine input point and run the engine's own `do_turn` loop) is proposed in doc 08.
+
 > Scope: **exploration / design only** — the fourth step in the Arcopolis investigation, building on
 > [03_SPIKE0_CURRENT_VIEW_EXPORT.md](03_SPIKE0_CURRENT_VIEW_EXPORT.md),
 > [05_SPIKE1_WAIT_COMMAND.md](05_SPIKE1_WAIT_COMMAND.md), and
@@ -22,7 +31,7 @@ code**, not from experiments (AGENTS.md → "Arcopolis backend fidelity (NON-NEG
 ## Summary
 
 **Feasible**, at a tightly-scoped first slice, with one important guard. A faithful headless cardinal move
-is reachable by reusing the *exact* function the GUI's movement keys call — `avatar_action::move(avatar&,
+is reachable by reusing the _exact_ function the GUI's movement keys call — `avatar_action::move(avatar&,
 map&, point_rel_ms)` ([src/avatar_action.cpp:99](../../src/avatar_action.cpp),
 [src/avatar_action.h:27–31](../../src/avatar_action.h)) — and then completing the turn the same way the
 Spike 1 `wait` does (a single `game::do_turn()`), **guarded** so the engine's player-input loop is never
@@ -36,11 +45,11 @@ The feasibility rests on three code facts:
 2. For a cardinal step into **empty, safe, passable terrain on the same z-level**, that path is
    **UI-free** — it never reaches a `query_yn`/`popup`/menu (those fire only for monsters, NPCs, water,
    moving vehicles, or dangerous tiles; traced below).
-3. The turn-advance semantics are **identical to `wait`**: movement consumes `u.moves` but does *not*
+3. The turn-advance semantics are **identical to `wait`**: movement consumes `u.moves` but does _not_
    itself process the world; `game::do_turn()` does. The Spike 1/2 `do_pause + do_turn` pattern maps
    directly onto `avatar_action::move + do_turn`.
 
-The single **risk that must be guarded** is that `avatar_action::move` *decrements* moves rather than
+The single **risk that must be guarded** is that `avatar_action::move` _decrements_ moves rather than
 zeroing them (unlike `do_pause`). If a move leaves `u.moves > 0`, an unguarded `do_turn()` would enter
 the blocking keyboard-input loop ([src/game.cpp:1979–2004](../../src/game.cpp)) and hang headless. The
 fix is faithful and trivial: only call `do_turn()` when `u.moves <= 0`, which is **exactly** the GUI's
@@ -63,7 +72,7 @@ external viewer only becomes worthwhile once movement is proven (06_SPIKE2 "Next
   (`g->check_safe_mode_allowed()`). Exposed the one-shot lifecycle limit: every command re-pays the
   bootstrap turn, so the clock never advances. **No `new_game` override.**
   ([05_SPIKE1_WAIT_COMMAND.md](05_SPIKE1_WAIT_COMMAND.md))
-- **Spike 2** — fixed the *lifecycle*: a persistent step-script runner loads once and runs an ordered
+- **Spike 2** — fixed the _lifecycle_: a persistent step-script runner loads once and runs an ordered
   JSON script (`op: export` / `op: command`) against the live game, exporting between steps. Proved
   `T → T → T+1` (bootstrap turn first, normal turns after) with zero faking.
   ([06_SPIKE2_STATEFUL_SCRIPT.md](06_SPIKE2_STATEFUL_SCRIPT.md))
@@ -74,23 +83,23 @@ The backend command set today is **only `wait`**, dispatched by `arcopolis::appl
 
 ## Files inspected
 
-| File | One-line note |
-| --- | --- |
-| `AGENTS.md` | Fidelity rule; documentation-only preference; PowerShell for local checks. |
-| `docs/arcopolis/03,05,06_*.md` | Prior spikes; the `do_pause + do_turn` pattern and bootstrap-turn semantics. |
-| `src/arcopolis_command.h` / `.cpp` | `backend_command{schema_version,command}`; `apply_command` dispatcher (only `wait`); `command_error_kind` + `exit_code_for` (2–9). |
-| `src/arcopolis_script.h` / `.cpp` | `script_step{op,name,command}`; `parse_script` (validates `op`/`command`); `run_script` load-once loop reusing `apply_command`. |
-| `src/arcopolis_export.h` / `.cpp` | `write_current_view`; snapshot fields (`avatar.pos_local/pos_abs`, `backend.turn`, tile window re-centred on `u.bub_pos()`). |
-| `src/main.cpp` | `--arcopolis-*` flag wiring + mode-exclusive `std::_Exit` dispatch (run_script vs one-shot). |
-| `src/handle_action.cpp` | `ACTION_MOVE_*` cases → `avatar_action::move`; `ACTION_PAUSE`; `ACTION_MOVE_UP/DOWN` (vertical). |
-| `src/avatar_action.cpp` / `.h` | `avatar_action::move(...)` — the faithful movement entry; its UI prompts and special cases. |
-| `src/action.cpp` | `look_up_action` (`move_e`→`ACTION_MOVE_RIGHT`, …); `get_delta_from_movement_action` — action_id → `point_rel_ms` delta (+ iso rotation). |
-| `src/game.cpp` | `do_turn()` (input loop + bootstrap branch + bottom-half world processing); `walk_move`; `place_player`. |
-| `src/creature.cpp` | `Creature::process_turn()` — `moves += get_speed()` (move replenishment). |
-| `src/output.cpp` | `query_yn` — explicit "opened in test_mode" hazard comment. |
-| `src/popup.cpp` | `query_popup::query_once()` returns `{false,"ERROR"}` under `test_mode` (silent "No"). |
-| `src/ui.cpp` | `uilist::query` under `test_mode` → `debugmsg("Tried to open UI in test mode")` + `UILIST_ERROR`. |
-| `src/coordinates.h`, `src/point.h` | Direction helpers; `point_east{1,0}` / `point_north{0,-1}` / `point_south{0,1}` / `point_west{-1,0}`. |
+| File                               | One-line note                                                                                                                             |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`                        | Fidelity rule; documentation-only preference; PowerShell for local checks.                                                                |
+| `docs/arcopolis/03,05,06_*.md`     | Prior spikes; the `do_pause + do_turn` pattern and bootstrap-turn semantics.                                                              |
+| `src/arcopolis_command.h` / `.cpp` | `backend_command{schema_version,command}`; `apply_command` dispatcher (only `wait`); `command_error_kind` + `exit_code_for` (2–9).        |
+| `src/arcopolis_script.h` / `.cpp`  | `script_step{op,name,command}`; `parse_script` (validates `op`/`command`); `run_script` load-once loop reusing `apply_command`.           |
+| `src/arcopolis_export.h` / `.cpp`  | `write_current_view`; snapshot fields (`avatar.pos_local/pos_abs`, `backend.turn`, tile window re-centred on `u.bub_pos()`).              |
+| `src/main.cpp`                     | `--arcopolis-*` flag wiring + mode-exclusive `std::_Exit` dispatch (run_script vs one-shot).                                              |
+| `src/handle_action.cpp`            | `ACTION_MOVE_*` cases → `avatar_action::move`; `ACTION_PAUSE`; `ACTION_MOVE_UP/DOWN` (vertical).                                          |
+| `src/avatar_action.cpp` / `.h`     | `avatar_action::move(...)` — the faithful movement entry; its UI prompts and special cases.                                               |
+| `src/action.cpp`                   | `look_up_action` (`move_e`→`ACTION_MOVE_RIGHT`, …); `get_delta_from_movement_action` — action_id → `point_rel_ms` delta (+ iso rotation). |
+| `src/game.cpp`                     | `do_turn()` (input loop + bootstrap branch + bottom-half world processing); `walk_move`; `place_player`.                                  |
+| `src/creature.cpp`                 | `Creature::process_turn()` — `moves += get_speed()` (move replenishment).                                                                 |
+| `src/output.cpp`                   | `query_yn` — explicit "opened in test_mode" hazard comment.                                                                               |
+| `src/popup.cpp`                    | `query_popup::query_once()` returns `{false,"ERROR"}` under `test_mode` (silent "No").                                                    |
+| `src/ui.cpp`                       | `uilist::query` under `test_mode` → `debugmsg("Tried to open UI in test mode")` + `UILIST_ERROR`.                                         |
+| `src/coordinates.h`, `src/point.h` | Direction helpers; `point_east{1,0}` / `point_north{0,-1}` / `point_south{0,1}` / `point_west{-1,0}`.                                     |
 
 ## Normal movement call path
 
@@ -136,7 +145,7 @@ input loop, before the world is processed for that turn.
   ([src/action.cpp:549–572](../../src/action.cpp)), returning a `point_rel_ms`. It applies **isometric
   rotation** only when `use_tiles && tile_iso` (line 551); otherwise `ACTION_MOVE_RIGHT → east()`,
   `ACTION_MOVE_FORTH → north()`, etc.
-- **World-relative idents → action** is the engine's *own* string vocabulary. `look_up_action(ident)`
+- **World-relative idents → action** is the engine's _own_ string vocabulary. `look_up_action(ident)`
   ([src/action.cpp:460–491](../../src/action.cpp)) maps `"move_n" → ACTION_MOVE_FORTH`, `"move_s" →
   ACTION_MOVE_BACK`, `"move_e" → ACTION_MOVE_RIGHT`, `"move_w" → ACTION_MOVE_LEFT` (and the four diagonals
   `move_ne/nw/se/sw`, plus `move_up/down`), returning `ACTION_NULL` for an unknown ident (line 490) — a
@@ -149,37 +158,37 @@ input loop, before the world is processed for that turn.
 
 **Implication for the backend — reuse the engine's own conversion, don't invent one.** The faithful path
 is the GUI's: take a world-relative ident, resolve it with `look_up_action`, then compute the delta with
-`get_delta_from_movement_action( act, iso_rotate::no )` — the *exact* helper `handle_action` calls
+`get_delta_from_movement_action( act, iso_rotate::no )` — the _exact_ helper `handle_action` calls
 ([src/handle_action.cpp:1934](../../src/handle_action.cpp), there with `iso_rotate::yes`). Pass
 **`iso_rotate::no`** headless: iso rotation only applies when `use_tiles && tile_iso`
 ([src/action.cpp:551](../../src/action.cpp)), and `test_mode` loads no tileset, so `::yes` and `::no` are
 identical here — `::no` is the unambiguous choice that doesn't depend on `tile_iso` state. This routes
 through the engine's vocabulary end-to-end (no hand-rolled direction math):
 
-| `direction` ident | `look_up_action` → | `get_delta_from_movement_action(…, ::no)` → | x, y |
-| --- | --- | --- | --- |
-| `"move_e"` | `ACTION_MOVE_RIGHT` | `point_rel_ms::east()` | `+1, 0` |
-| `"move_w"` | `ACTION_MOVE_LEFT` | `point_rel_ms::west()` | `-1, 0` |
-| `"move_n"` | `ACTION_MOVE_FORTH` | `point_rel_ms::north()` | `0, -1` |
-| `"move_s"` | `ACTION_MOVE_BACK` | `point_rel_ms::south()` | `0, +1` |
+| `direction` ident | `look_up_action` →  | `get_delta_from_movement_action(…, ::no)` → | x, y    |
+| ----------------- | ------------------- | ------------------------------------------- | ------- |
+| `"move_e"`        | `ACTION_MOVE_RIGHT` | `point_rel_ms::east()`                      | `+1, 0` |
+| `"move_w"`        | `ACTION_MOVE_LEFT`  | `point_rel_ms::west()`                      | `-1, 0` |
+| `"move_n"`        | `ACTION_MOVE_FORTH` | `point_rel_ms::north()`                     | `0, -1` |
+| `"move_s"`        | `ACTION_MOVE_BACK`  | `point_rel_ms::south()`                     | `0, +1` |
 
 `+x = east`, `+y = south`, `-z = down` is the BN world convention. The resulting `point_rel_ms` feeds the
 `avatar_action::move` overload ([src/avatar_action.h:28–31](../../src/avatar_action.h)) that auto-wraps to
 `tripoint_rel_ms(d, 0)`, so the backend never touches z for cardinals. (Mapping a direction string to
-`point_rel_ms::east()` directly would yield the *same* delta — `get_delta_from_movement_action` literally
+`point_rel_ms::east()` directly would yield the _same_ delta — `get_delta_from_movement_action` literally
 returns those constants — but routing through `look_up_action`/`get_delta_from_movement_action` reuses the
 engine's table verbatim and stays correct if that table ever changes.)
 
 ## Candidate non-UI movement entry points
 
-| Candidate | File / function | What it does | UI-free? | Consumes moves? | Needs later `do_turn()`? | Risks |
-| --- | --- | --- | --- | --- | --- | --- |
-| **`avatar_action::move`** (recommended) | [src/avatar_action.cpp:99](../../src/avatar_action.cpp) / [.h:27–31](../../src/avatar_action.h) | The **exact** function the GUI movement keys call ([handle_action.cpp:1957](../../src/handle_action.cpp)). Runs the safe-mode gate, facing, attack/NPC/vehicle/water/door handling, then `walk_move`. | **Conditionally** — UI-free for a cardinal step into empty, safe, passable, same-z terrain; otherwise can `query_yn`/`npc_menu`/`popup` (see next section). | Yes (via `walk_move`: `u.moves -= run_cost(...)`, [game.cpp:11726](../../src/game.cpp)). | Yes — it repositions + spends moves but does **not** run monmove/process_turn/world_tick. | Prompts on special cases; bool return is "auto-move cancel", not "did I move" (compare position instead). |
-| `game::walk_move` | [src/game.cpp:11481](../../src/game.cpp) | Lower-level: grabs, vehicle/passage checks, move cost, stamina, `place_player`. | More UI-free (still `prompt_dangerous_tile` at 11660–11667), but… | Yes. | Yes. | **Unfaithful to call directly** — it **skips** the safe-mode gate, the stunned/shell checks, and the attack/swim branching that the GUI's `avatar_action::move` performs *before* it. Using it directly would be inventing a non-GUI path. |
-| `game::place_player` | [src/game.cpp:11888](../../src/game.cpp) | Pure reposition + terrain side-effects (signage, ROUGH/SHARP, effects, bubble shift). | Mostly. | **No** (no move-cost accounting). | Yes. | Even further from the GUI path; bypasses all movement legality and cost. Not faithful. |
-| `Character::set_pos`/teleport-style | (various) | Direct coordinate set. | Yes. | No. | n/a | **Forbidden** — pure state override; violates the fidelity principle and the task's hard constraints. |
+| Candidate                               | File / function                                                                                 | What it does                                                                                                                                                                                          | UI-free?                                                                                                                                                    | Consumes moves?                                                                          | Needs later `do_turn()`?                                                                  | Risks                                                                                                                                                                                                                                      |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`avatar_action::move`** (recommended) | [src/avatar_action.cpp:99](../../src/avatar_action.cpp) / [.h:27–31](../../src/avatar_action.h) | The **exact** function the GUI movement keys call ([handle_action.cpp:1957](../../src/handle_action.cpp)). Runs the safe-mode gate, facing, attack/NPC/vehicle/water/door handling, then `walk_move`. | **Conditionally** — UI-free for a cardinal step into empty, safe, passable, same-z terrain; otherwise can `query_yn`/`npc_menu`/`popup` (see next section). | Yes (via `walk_move`: `u.moves -= run_cost(...)`, [game.cpp:11726](../../src/game.cpp)). | Yes — it repositions + spends moves but does **not** run monmove/process_turn/world_tick. | Prompts on special cases; bool return is "auto-move cancel", not "did I move" (compare position instead).                                                                                                                                  |
+| `game::walk_move`                       | [src/game.cpp:11481](../../src/game.cpp)                                                        | Lower-level: grabs, vehicle/passage checks, move cost, stamina, `place_player`.                                                                                                                       | More UI-free (still `prompt_dangerous_tile` at 11660–11667), but…                                                                                           | Yes.                                                                                     | Yes.                                                                                      | **Unfaithful to call directly** — it **skips** the safe-mode gate, the stunned/shell checks, and the attack/swim branching that the GUI's `avatar_action::move` performs _before_ it. Using it directly would be inventing a non-GUI path. |
+| `game::place_player`                    | [src/game.cpp:11888](../../src/game.cpp)                                                        | Pure reposition + terrain side-effects (signage, ROUGH/SHARP, effects, bubble shift).                                                                                                                 | Mostly.                                                                                                                                                     | **No** (no move-cost accounting).                                                        | Yes.                                                                                      | Even further from the GUI path; bypasses all movement legality and cost. Not faithful.                                                                                                                                                     |
+| `Character::set_pos`/teleport-style     | (various)                                                                                       | Direct coordinate set.                                                                                                                                                                                | Yes.                                                                                                                                                        | No.                                                                                      | n/a                                                                                       | **Forbidden** — pure state override; violates the fidelity principle and the task's hard constraints.                                                                                                                                      |
 
-**Conclusion:** `avatar_action::move` is the only faithful entry — it is *literally* the GUI's call site.
+**Conclusion:** `avatar_action::move` is the only faithful entry — it is _literally_ the GUI's call site.
 The lower-level functions bypass the gates the GUI runs, so calling them directly would be the very
 "invent a headless mode" the fidelity rule forbids.
 
@@ -193,7 +202,7 @@ The lower-level functions bypass the gates the GUI runs, so calling them directl
   at [src/game.cpp:2087–2192](../../src/game.cpp) — which runs only **after** the input loop exits.
 - The input loop exits when `u.moves <= 0` ([src/game.cpp:1979–1980](../../src/game.cpp)). So in the GUI,
   a single move only ends the turn **if it exhausts the avatar's moves**; otherwise the player gets
-  another action in the *same* turn.
+  another action in the _same_ turn.
 - Moves are **replenished** in the bottom half, by `Creature::process_turn()` → `moves += get_speed()`
   ([src/creature.cpp:233–248](../../src/creature.cpp)), invoked as `u.process_turn()` at
   [src/game.cpp:2102](../../src/game.cpp).
@@ -202,10 +211,10 @@ The lower-level functions bypass the gates the GUI runs, so calling them directl
   ([src/game.cpp:1878–1885](../../src/game.cpp)). The player's first post-load action is processed in
   that bootstrap turn (this is the documented "pressing `.` once after loading" behavior).
 
-**Therefore the faithful backend move = `avatar_action::move(...)` then a *guarded* `g->do_turn()`** —
-the exact analogue of Spike 1/2's `do_pause(...) + do_turn()`, with one difference that *must* be
+**Therefore the faithful backend move = `avatar_action::move(...)` then a _guarded_ `g->do_turn()`** —
+the exact analogue of Spike 1/2's `do_pause(...) + do_turn()`, with one difference that _must_ be
 handled: `do_pause` sets `who.moves = 0` ([src/character_turn.cpp:1084](../../src/character_turn.cpp)) so
-the input loop is always skipped, whereas `avatar_action::move` only *decrements* moves (via `walk_move`,
+the input loop is always skipped, whereas `avatar_action::move` only _decrements_ moves (via `walk_move`,
 [src/game.cpp:11726](../../src/game.cpp)). The guard mirrors the engine's own loop condition:
 
 ```text
@@ -220,24 +229,25 @@ if u.moves > 0 at command start:           # GUI only delivers a movement key wh
 For the sample script (`export → move east → export → wait → export`) against the fixture avatar (100
 speed, flat `t_floor`, where one cardinal step costs ~100 moves → exhausts a fresh turn's allotment):
 
-| step | engine action | `do_turn` # | `new_game` before | `backend.turn` after | avatar |
-| --- | --- | --- | --- | --- | --- |
-| export `before_move` | — | — | true | **T** | start |
-| **move east** | `avatar_action::move(east)` → moves 100→0 → `do_turn` (moves≤0) | 1st = bootstrap | true→false | **T** (clock not advanced) | **+1 east** |
-| export `after_move` | — | — | false | **T** | moved |
-| wait | `do_pause` → moves 0 → `do_turn` (moves≤0) | 2nd = normal | false | **T+1** (`calendar::turn += 1`) | — |
-| export `after_wait` | — | — | false | **T+1** | — |
+| step                 | engine action                                                   | `do_turn` #     | `new_game` before | `backend.turn` after            | avatar      |
+| -------------------- | --------------------------------------------------------------- | --------------- | ----------------- | ------------------------------- | ----------- |
+| export `before_move` | —                                                               | —               | true              | **T**                           | start       |
+| **move east**        | `avatar_action::move(east)` → moves 100→0 → `do_turn` (moves≤0) | 1st = bootstrap | true→false        | **T** (clock not advanced)      | **+1 east** |
+| export `after_move`  | —                                                               | —               | false             | **T**                           | moved       |
+| wait                 | `do_pause` → moves 0 → `do_turn` (moves≤0)                      | 2nd = normal    | false             | **T+1** (`calendar::turn += 1`) | —           |
+| export `after_wait`  | —                                                               | —               | false             | **T+1**                         | —           |
 
-This is the **same `T → T → T+1` shape Spike 2 proved**, with the first action being a *move* instead of
-a *wait*. The clock advance still emerges purely from the load-once lifecycle; nothing is faked.
+This is the **same `T → T → T+1` shape Spike 2 proved**, with the first action being a _move_ instead of
+a _wait_. The clock advance still emerges purely from the load-once lifecycle; nothing is faked.
 
-> **Known inversion (inherited from Spike 1/2).** The backend calls the player action *before*
-> `do_turn`'s top half, whereas the GUI runs the top half (calendar advance) *before* the action inside
-> one `do_turn`. Spike 1 A/B-tested this for `wait` and found it byte-identical. Movement touches more
-> calendar-adjacent state (scent at the new tile, field interactions), so it is the **same** accepted
-> pattern but warrants the same kind of seeded re-check. From the code, the move's calendar-dependent
-> reads are minimal (`place_player` and the bottom-half scent write both use the *already-updated*
-> `u.bub_pos()`), so the risk is low — but it is listed under "Risks and unknowns".
+> **Known inversion (inherited from Spike 1/2) — this is what failed the spike, see doc 08.** The backend
+> calls the player action _before_ `do_turn`'s top half, whereas the GUI runs the top half (calendar
+> advance) _before_ the action inside one `do_turn`. This exploration called it "A/B-tested byte-identical
+> for `wait`" and "accepted / low risk" — **both characterizations were wrong**: the byte-identical claim
+> was never independently re-verified, and the inversion is a fidelity defect, not an accepted pattern.
+> Movement makes it observable (the action is evaluated one top-half behind the engine from the second turn
+> on). The correct resolution is structural — inject the command at the engine's `handle_action()` input
+> point (`src/game.cpp:2004`) and let the engine's own `do_turn` loop run — documented in doc 08.
 
 ## Safety, blocking, and prompts
 
@@ -249,7 +259,7 @@ avoids it:
   backend should pre-check it for a clean `safe_mode_blocked` (exit 8) result, exactly like
   `apply_command`'s `wait` ([src/arcopolis_command.cpp:101–105](../../src/arcopolis_command.cpp)). The
   check is headless-safe (only `add_msg`/`press_x`).
-- **UI prompts (must be avoided by scope — they don't hang, they answer *wrongly*).** In `test_mode` a
+- **UI prompts (must be avoided by scope — they don't hang, they answer _wrongly_).** In `test_mode` a
   `query_yn`/`query_popup` does **not** block: `query_popup::query_once()` short-circuits to
   `{ false, "ERROR" }` ([src/popup.cpp:269–270](../../src/popup.cpp)), so `query_yn` silently returns
   **`false` ("No")** ([src/output.cpp:707–725](../../src/output.cpp), whose own comment flags "opened in
@@ -269,15 +279,15 @@ avoids it:
     [11648](../../src/game.cpp)); its body is a `query_yn( "Really step into %s?" )`
     ([src/game.cpp:11406](../../src/game.cpp)) — so in `test_mode` it returns `false`, and `walk_move`
     then `return`s without moving the avatar.
-  A cardinal step into an empty, non-dangerous, passable, same-z tile reaches **none** of these — it goes
-  straight to `walk_move` → `place_player`.
-- **Blocked moves are *not* errors and are headless-safe.** Bumping a wall: `walk_move` returns `false`
+    A cardinal step into an empty, non-dangerous, passable, same-z tile reaches **none** of these — it goes
+    straight to `walk_move` → `place_player`.
+- **Blocked moves are _not_ errors and are headless-safe.** Bumping a wall: `walk_move` returns `false`
   ([src/game.cpp:11600/11692](../../src/game.cpp)), `avatar_action::move` falls through to the
   invalid-move branch and only emits `add_msg("You bump into the %s!")` / "That door is locked!"
   ([src/avatar_action.cpp:466–497](../../src/avatar_action.cpp)); **no moves are spent** unless the avatar
   is blind/stunned. So a blocked move leaves `u.moves` unchanged (still `> 0`) → the `moves <= 0` guard
   correctly **skips** `do_turn` (the GUI would keep the player in control and not advance the turn).
-- **Doors.** Walkable doors / fence gates / openable furniture are opened *in-line* by `m.open_door` and
+- **Doors.** Walkable doors / fence gates / openable furniture are opened _in-line_ by `m.open_door` and
   cost 100 moves, **without a prompt** ([src/avatar_action.cpp:404–448](../../src/avatar_action.cpp)). Low
   risk, but excluded from the first scope to keep "one step = one tile of translation" clean.
 - **Vertical movement is a different code path** — `ACTION_MOVE_UP`/`DOWN` →
@@ -311,9 +321,9 @@ Smallest faithful slice, justified by the trace above:
   headless.
 - **Reuse the safe-mode gate** exactly as `wait` does.
 
-This keeps Spike 3 a single, observable proof: *the avatar's absolute position changes by one tile in the
+This keeps Spike 3 a single, observable proof: _the avatar's absolute position changes by one tile in the
 commanded direction, the view re-centers, and the clock behaves exactly as the bootstrap/normal-turn rules
-dictate.*
+dictate._
 
 ## Proposed command schema
 
@@ -324,26 +334,26 @@ code):
 {
   "schema_version": 1,
   "steps": [
-    { "op": "export",  "name": "before_move" },
+    { "op": "export", "name": "before_move" },
     { "op": "command", "command": "move", "direction": "move_e" },
-    { "op": "export",  "name": "after_move" },
+    { "op": "export", "name": "after_move" },
     { "op": "command", "command": "wait" },
-    { "op": "export",  "name": "after_wait" }
+    { "op": "export", "name": "after_wait" }
   ]
 }
 ```
 
-| field | rule |
-| --- | --- |
-| `op` | `"command"` (unchanged; `parse_script` already accepts `export`/`command`). |
-| `command` | `"move"` (new) or `"wait"` (existing). |
+| field       | rule                                                                                                                                                                                                                                                                                                                                                        |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `op`        | `"command"` (unchanged; `parse_script` already accepts `export`/`command`).                                                                                                                                                                                                                                                                                 |
+| `command`   | `"move"` (new) or `"wait"` (existing).                                                                                                                                                                                                                                                                                                                      |
 | `direction` | **required when `command == "move"`**; a **cardinal engine ident** — `move_n` / `move_s` / `move_e` / `move_w`. Validated by `look_up_action != ACTION_NULL` **and** membership in that four-ident cardinal set (diagonals `move_ne/…` and vertical `move_up/down` are out of scope → reject). Missing/invalid → `bad_schema` (exit 5). Ignored for `wait`. |
 
 > **Why engine idents, not `"east"`.** The task's candidate used `"direction": "east"`, but the fidelity
 > principle favors the engine's own vocabulary (`look_up_action` already understands `move_e`) over a new
 > invented one. If a friendlier external surface is wanted, add a trivial 4-entry alias
 > (`east→move_e`, …) at the parser edge — purely cosmetic; the canonical/internal value stays the engine
-> ident. Either way the *internal* path is unchanged.
+> ident. Either way the _internal_ path is unchanged.
 
 **Code touch-points (for the eventual implementation, not done here):**
 
@@ -363,7 +373,7 @@ code):
   exit code, next after `export_failed = 9`) covers a bad/missing direction that slips past the parser.
 - No new dependency, no new flag, no UI: the `move` command rides the existing `--arcopolis-run-script` /
   `--arcopolis-export-dir` machinery and the existing `src/*.cpp` glob. (Validation belongs in the
-  existing `tests/arcopolis_script_test.cpp` parser tests; the *apply* path needs a loaded world and is
+  existing `tests/arcopolis_script_test.cpp` parser tests; the _apply_ path needs a loaded world and is
   proven by the binary run, same as Spikes 1/2.)
 
 ### Failure handling (exploration Q11)
@@ -372,14 +382,14 @@ What each failure case should do, and where the behavior is decided in the engin
 **match the GUI** — a GUI bump-into-a-wall is not an error dialog, so the backend shouldn't error either;
 a GUI safe-mode decline doesn't advance the turn, so the backend mustn't.
 
-| Failure case | Faithful backend behavior | Why / engine site |
-| --- | --- | --- |
-| **Invalid / missing `direction`** | Reject at parse with `bad_schema` (exit 5); a value slipping past → `invalid_direction` (new code). | Parser-level; not the apply path. Validated via `look_up_action(ident) != ACTION_NULL` restricted to the four cardinal `move_*` idents ([src/action.cpp:460–490](../../src/action.cpp)). |
-| **Unsafe movement (safe mode)** | Decline with `safe_mode_blocked` (exit 8); **do not move, do not advance the turn**. | Mirrors `avatar_action::move`'s own gate ([src/avatar_action.cpp:101](../../src/avatar_action.cpp)) and the GUI `ACTION_PAUSE`/move behavior; identical to `wait` ([src/arcopolis_command.cpp:101–105](../../src/arcopolis_command.cpp)). |
-| **Blocked terrain (wall / locked door)** | **Not an error** — report success with *unchanged* `pos_abs` and the engine's `add_msg` ("You bump into the %s!" / "That door is locked!") in `messages[]`. No moves spent ⇒ `do_turn` guard skips ⇒ turn not advanced. | `walk_move` returns false → invalid-move branch ([src/avatar_action.cpp:466–497](../../src/avatar_action.cpp)); the GUI keeps the player in control. |
-| **Movement not possible (same tile / no-op)** | Success, position unchanged; guard skips `do_turn` (no moves spent). | `avatar_action::move` early-returns true for `dest_loc == bub_pos()` ([src/avatar_action.cpp:117–120](../../src/avatar_action.cpp)). |
-| **UI confirmation required** (creature/NPC/water/moving-vehicle/dangerous tile at dest) | **Out of scope ⇒ reject** rather than risk a `test_mode` query. The first scope targets terrain where these never fire; a future wider scope must handle each deliberately. | `query_yn`/`npc_menu`/`popup`/`prompt_dangerous_tile` ([src/avatar_action.cpp:300,328,353,390,595](../../src/avatar_action.cpp), [src/game.cpp:11660–11667](../../src/game.cpp)); hazardous headless ([src/output.cpp:709](../../src/output.cpp)). |
-| **Avatar dead / terminal state** | Check `is_game_over()` / `u.is_dead_state()` before and after; if terminal, stop the script with a typed error. | `do_turn` returns true via `cleanup_at_end` ([src/game.cpp:1851–1852, 2008–2010](../../src/game.cpp)); unhandled in Spike 2 but cheap to add here. |
+| Failure case                                                                            | Faithful backend behavior                                                                                                                                                                                               | Why / engine site                                                                                                                                                                                                                                  |
+| --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Invalid / missing `direction`**                                                       | Reject at parse with `bad_schema` (exit 5); a value slipping past → `invalid_direction` (new code).                                                                                                                     | Parser-level; not the apply path. Validated via `look_up_action(ident) != ACTION_NULL` restricted to the four cardinal `move_*` idents ([src/action.cpp:460–490](../../src/action.cpp)).                                                           |
+| **Unsafe movement (safe mode)**                                                         | Decline with `safe_mode_blocked` (exit 8); **do not move, do not advance the turn**.                                                                                                                                    | Mirrors `avatar_action::move`'s own gate ([src/avatar_action.cpp:101](../../src/avatar_action.cpp)) and the GUI `ACTION_PAUSE`/move behavior; identical to `wait` ([src/arcopolis_command.cpp:101–105](../../src/arcopolis_command.cpp)).          |
+| **Blocked terrain (wall / locked door)**                                                | **Not an error** — report success with _unchanged_ `pos_abs` and the engine's `add_msg` ("You bump into the %s!" / "That door is locked!") in `messages[]`. No moves spent ⇒ `do_turn` guard skips ⇒ turn not advanced. | `walk_move` returns false → invalid-move branch ([src/avatar_action.cpp:466–497](../../src/avatar_action.cpp)); the GUI keeps the player in control.                                                                                               |
+| **Movement not possible (same tile / no-op)**                                           | Success, position unchanged; guard skips `do_turn` (no moves spent).                                                                                                                                                    | `avatar_action::move` early-returns true for `dest_loc == bub_pos()` ([src/avatar_action.cpp:117–120](../../src/avatar_action.cpp)).                                                                                                               |
+| **UI confirmation required** (creature/NPC/water/moving-vehicle/dangerous tile at dest) | **Out of scope ⇒ reject** rather than risk a `test_mode` query. The first scope targets terrain where these never fire; a future wider scope must handle each deliberately.                                             | `query_yn`/`npc_menu`/`popup`/`prompt_dangerous_tile` ([src/avatar_action.cpp:300,328,353,390,595](../../src/avatar_action.cpp), [src/game.cpp:11660–11667](../../src/game.cpp)); hazardous headless ([src/output.cpp:709](../../src/output.cpp)). |
+| **Avatar dead / terminal state**                                                        | Check `is_game_over()` / `u.is_dead_state()` before and after; if terminal, stop the script with a typed error.                                                                                                         | `do_turn` returns true via `cleanup_at_end` ([src/game.cpp:1851–1852, 2008–2010](../../src/game.cpp)); unhandled in Spike 2 but cheap to add here.                                                                                                 |
 
 Distinguish "did the avatar move" by **comparing `bub_pos()` before/after** (the `avatar_action::move`
 bool means "auto-move not cancelled", not "moved").
@@ -425,7 +435,7 @@ same `y`/`z`; `backend.turn` is `T, T, T+1`; stamina drops slightly on the step;
 
 - **Leftover-moves block (guarded).** If `u.moves > 0` after the step (high-speed avatar, cheap terrain
   like a road, haste), an unguarded `do_turn()` enters the blocking input loop and hangs headless. The
-  `if( u.moves <= 0 )` guard removes this; the only consequence is a faithful *partial turn* (the world
+  `if( u.moves <= 0 )` guard removes this; the only consequence is a faithful _partial turn_ (the world
   isn't processed until moves are exhausted by later commands), which the GUI also exhibits mid-input-loop.
 - **`u.moves` value right after load is empirically unknown.** It governs whether one cardinal step
   exhausts moves (clean bootstrap-on-move) or leaves leftovers (bootstrap consumed by a later command).
@@ -434,10 +444,12 @@ same `y`/`z`; `backend.turn` is `T, T, T+1`; stamina drops slightly on the step;
   and **adding `avatar.moves` to the snapshot** (below) makes it observable. This is a runtime
   observation, **not** a reason to override state.
 - **Top-half/action ordering inversion** — same as Spike 1/2 (`action` then `do_turn` vs the GUI's
-  `do_turn`-with-action-inside). Verified byte-identical for `wait`; re-verify for `move` with a pinned
-  `--seed` (A/B a build that runs the move inside vs. outside is *not* possible without a gameplay-source
-  change, so the practical check is seeded reproducibility + spot-checking scent/field state). Low risk
-  from the code.
+  `do_turn`-with-action-inside). **⚠️ This is the defect that failed the spike** (see doc 08): it is not
+  low-risk and it is not avoided by loading once. The "verified byte-identical for `wait`" wording here was
+  never independently confirmed — it should read "seeded-reproducible; GUI-vs-backend equivalence
+  unproven". The faithful fix is to run the engine's `while(!do_turn())` loop and inject the command at the
+  `handle_action()` call site (`src/game.cpp:2004`), which **does** require a one-site gameplay-source seam;
+  that touch is now justified rather than deferred.
 - **`avatar_action::move`'s bool is not "did I move."** It returns `false` for auto-move-cancel,
   safe-mode, blocked, attack, etc., and `true` for same-tile no-ops and door opens
   ([src/avatar_action.cpp:99–498](../../src/avatar_action.cpp)). The backend must judge success by
@@ -530,33 +542,33 @@ Select-String -Path .\src\arcopolis_script.cpp  -Pattern 'op == "command"|apply_
 
 ## Citation audit
 
-Every load-bearing **behavioral** claim (X happens/returns/advances) must cite the line that *implements*
+Every load-bearing **behavioral** claim (X happens/returns/advances) must cite the line that _implements_
 it — not a comment, declaration, wrapper, or caller — and every **absence** claim ("there's no X / must
 bypass") must be backed by a search that would have surfaced X. This table is the audit; re-checking it
 means opening each cited line and confirming it does what the claim says (regenerate with PowerShell check
 #1–#5 above).
 
-| Claim | Type | Citation (implementing line) | Verdict |
-| --- | --- | --- | --- |
-| `avatar_action::move` is the GUI's movement call | behavioral | [handle_action.cpp:1957](../../src/handle_action.cpp) | ✅ leaf-verified |
-| `move` runs the safe-mode gate first | behavioral | [avatar_action.cpp:101](../../src/avatar_action.cpp) | ✅ |
-| `walk_move` *decrements* moves (`-= run_cost`) | behavioral | [game.cpp:11726](../../src/game.cpp) | ✅ |
-| `place_player` repositions the avatar | behavioral | [game.cpp:11865 / 11888](../../src/game.cpp) | ✅ |
-| Bottom half (monmove/process_turn/world_tick) runs after the input loop | behavioral | [game.cpp:2087 / 2102 / 2192](../../src/game.cpp) | ✅ |
-| Bootstrap turn clears `new_game`, no calendar advance | behavioral | [game.cpp:1879–1884](../../src/game.cpp) | ✅ |
-| Input loop skipped when `moves <= 0` | behavioral | [game.cpp:1979–1980](../../src/game.cpp) | ✅ |
-| `process_turn` replenishes moves (`+= get_speed`) | behavioral | [creature.cpp:247](../../src/creature.cpp) | ✅ |
-| **`do_pause` zeroes `moves`** | behavioral | [character_turn.cpp:1084](../../src/character_turn.cpp) | ⚠️→✅ *was cited to the file with no line; opened the leaf this pass* |
-| `look_up_action` maps `move_e`→`ACTION_MOVE_RIGHT`, `ACTION_NULL` on miss | behavioral | [action.cpp:460–490](../../src/action.cpp) | ✅ |
-| `get_delta_from_movement_action` delta; iso only if `use_tiles && tile_iso` | behavioral | [action.cpp:549–572, 551](../../src/action.cpp) | ✅ |
-| `query_yn` → `{false,"ERROR"}` under `test_mode` | behavioral | [popup.cpp:269–270](../../src/popup.cpp) | ✅ |
-| `uilist::query` → `debugmsg` + `UILIST_ERROR` under `test_mode` | behavioral | [ui.cpp:918–921](../../src/ui.cpp) | ✅ |
-| **`prompt_dangerous_tile` is a `query_yn`** | behavioral | [game.cpp:11406](../../src/game.cpp) | ⚠️→✅ *was cited to the call site only; opened the leaf this pass* |
-| Blocked move spends no moves unless blind/stunned | behavioral | [avatar_action.cpp:466–497](../../src/avatar_action.cpp) | ✅ |
-| "Must bypass the action layer — no string→action path" | absence | refuted by `look_up_action` ([action.cpp:460](../../src/action.cpp)) | ✅ revised: the path exists; the doc now reuses it |
+| Claim                                                                       | Type       | Citation (implementing line)                                         | Verdict                                                               |
+| --------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `avatar_action::move` is the GUI's movement call                            | behavioral | [handle_action.cpp:1957](../../src/handle_action.cpp)                | ✅ leaf-verified                                                      |
+| `move` runs the safe-mode gate first                                        | behavioral | [avatar_action.cpp:101](../../src/avatar_action.cpp)                 | ✅                                                                    |
+| `walk_move` _decrements_ moves (`-= run_cost`)                              | behavioral | [game.cpp:11726](../../src/game.cpp)                                 | ✅                                                                    |
+| `place_player` repositions the avatar                                       | behavioral | [game.cpp:11865 / 11888](../../src/game.cpp)                         | ✅                                                                    |
+| Bottom half (monmove/process_turn/world_tick) runs after the input loop     | behavioral | [game.cpp:2087 / 2102 / 2192](../../src/game.cpp)                    | ✅                                                                    |
+| Bootstrap turn clears `new_game`, no calendar advance                       | behavioral | [game.cpp:1879–1884](../../src/game.cpp)                             | ✅                                                                    |
+| Input loop skipped when `moves <= 0`                                        | behavioral | [game.cpp:1979–1980](../../src/game.cpp)                             | ✅                                                                    |
+| `process_turn` replenishes moves (`+= get_speed`)                           | behavioral | [creature.cpp:247](../../src/creature.cpp)                           | ✅                                                                    |
+| **`do_pause` zeroes `moves`**                                               | behavioral | [character_turn.cpp:1084](../../src/character_turn.cpp)              | ⚠️→✅ _was cited to the file with no line; opened the leaf this pass_ |
+| `look_up_action` maps `move_e`→`ACTION_MOVE_RIGHT`, `ACTION_NULL` on miss   | behavioral | [action.cpp:460–490](../../src/action.cpp)                           | ✅                                                                    |
+| `get_delta_from_movement_action` delta; iso only if `use_tiles && tile_iso` | behavioral | [action.cpp:549–572, 551](../../src/action.cpp)                      | ✅                                                                    |
+| `query_yn` → `{false,"ERROR"}` under `test_mode`                            | behavioral | [popup.cpp:269–270](../../src/popup.cpp)                             | ✅                                                                    |
+| `uilist::query` → `debugmsg` + `UILIST_ERROR` under `test_mode`             | behavioral | [ui.cpp:918–921](../../src/ui.cpp)                                   | ✅                                                                    |
+| **`prompt_dangerous_tile` is a `query_yn`**                                 | behavioral | [game.cpp:11406](../../src/game.cpp)                                 | ⚠️→✅ _was cited to the call site only; opened the leaf this pass_    |
+| Blocked move spends no moves unless blind/stunned                           | behavioral | [avatar_action.cpp:466–497](../../src/avatar_action.cpp)             | ✅                                                                    |
+| "Must bypass the action layer — no string→action path"                      | absence    | refuted by `look_up_action` ([action.cpp:460](../../src/action.cpp)) | ✅ revised: the path exists; the doc now reuses it                    |
 
-**Not leaf-verified (flagged as estimates, not asserted as fact):** the ~100-move cost of a flat-floor
-step (`combined_movecost`/`run_cost` internals not opened — hedged with "~" and made observable via the
+**Not leaf-verified (flagged as estimates, not asserted as fact):** the ~~100-move cost of a flat-floor
+step (`combined_movecost`/`run_cost` internals not opened — hedged with "~~" and made observable via the
 proposed `avatar.moves` field), and `u.moves > 0` immediately after load (reasoned from the documented
 "first post-load action is the bootstrap turn", flagged empirical, and made safe by the `moves <= 0`
 guard regardless of its exact value).

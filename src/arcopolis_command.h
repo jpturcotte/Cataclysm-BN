@@ -3,6 +3,7 @@
 #include <expected>
 #include <iosfwd>
 #include <string>
+#include <string_view>
 
 namespace arcopolis
 {
@@ -58,6 +59,6 @@ auto exit_code_for( command_error_kind kind ) -> int;
 /// True iff `ident` is one of the four cardinal movement idents this spike supports
 /// (move_n / move_s / move_e / move_w). Diagonals (move_ne/...) and vertical (move_up/move_down) are
 /// intentionally rejected. Shared by the command/script parsers and apply_command to gate "move".
-auto is_supported_move_direction( const std::string &ident ) -> bool;
+auto is_supported_move_direction( std::string_view ident ) -> bool;
 
 } // namespace arcopolis

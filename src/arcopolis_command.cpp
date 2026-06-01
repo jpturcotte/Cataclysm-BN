@@ -25,7 +25,7 @@ constexpr int arcopolis_command_schema_version = 1;
 
 } // namespace
 
-auto arcopolis::is_supported_move_direction( const std::string &ident ) -> bool
+auto arcopolis::is_supported_move_direction( std::string_view ident ) -> bool
 {
     using namespace std::string_view_literals;
     // The four cardinals this spike supports. look_up_action() also resolves diagonals and vertical
@@ -166,9 +166,14 @@ auto arcopolis::apply_command( const backend_command &cmd ) -> std::expected<voi
         // not branch on it; whether the avatar moved is observable via the exported avatar.pos_abs, and
         // avatar.moves shows whether this step consumed the turn.
         avatar_action::move( get_avatar(), get_map(), delta );
-        // Mirror the GUI input loop exactly: it advances the world (do_turn) only once the avatar's
-        // moves are spent (game::do_turn's loop is `while( u.moves > 0 )`). If moves remain, stay in the
-        // same partial turn — calling do_turn() now would block on its handle_action() input loop.
+        // KNOWN DEFECT (Spike 3 FAILED — see docs/arcopolis/08_SPIKE3_MOVE_COMMAND.md): this is
+        // `action -> do_turn`, which INVERTS the engine's order. The GUI runs the action *inside*
+        // do_turn at handle_action() (game.cpp:2004), AFTER that turn's top half; here the action runs
+        // before do_turn's top half, so from the 2nd turn on the action is evaluated one top-half early.
+        // The guard below matches the engine's input-loop exit (`while( u.moves > 0 )`, game.cpp:1980)
+        // and avoids the blocking headless handle_action() loop, but it does NOT make the turn structure
+        // faithful. The fix (Spike 3.1) is to drive `while(!g->do_turn())` and inject the command at the
+        // handle_action() seam instead of calling do_turn after the action.
         if( get_avatar().moves <= 0 ) {
             g->do_turn();
         }

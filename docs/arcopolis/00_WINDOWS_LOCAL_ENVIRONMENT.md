@@ -26,7 +26,7 @@ Key points:
   OBJECT library shared by both `cataclysm-bn-tiles` and `cata_test-tiles`, so building the test target in
   the same dir reuses the game's compiled objects — only the ~169 test sources recompile + link. To add
   tests to an existing game build dir, re-configure it with `-DTESTS=True` (and `-DJSON_FORMAT=ON`), then
-  `cmake --build .\out\build\win-rel-deb --target cata_test-tiles`. A *separate* `out/build/win-tests` dir
+  `cmake --build .\out\build\win-rel-deb --target cata_test-tiles`. A _separate_ `out/build/win-tests` dir
   (used in the older attempts logged below) duplicates the whole ~10 GB object tree and has exhausted the
   disk in this worktree (`fatal error C1085: Cannot write compiler generated file: ... No space left on
   device`) — prefer the shared dir unless you specifically need an isolated test configuration.

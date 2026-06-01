@@ -79,7 +79,7 @@ TEST_CASE( "arcopolis parse_command rejects non-cardinal move directions", "[arc
     // "east" is not an engine ident; move_ne is a diagonal; move_up/move_down are vertical; "" is empty.
     // All four resolve to a valid action_id via look_up_action (except "east"/""), so the cardinal-set
     // check is what rejects them.
-    for( const std::string dir : { "east", "move_ne", "move_up", "move_down", "" } ) {
+    for( const std::string &dir : { "east", "move_ne", "move_up", "move_down", "" } ) {
         const auto json = R"({ "schema_version": 1, "command": "move", "direction": ")" + dir + R"(" })";
         std::istringstream is( json );
         const auto result = arcopolis::parse_command( is );
