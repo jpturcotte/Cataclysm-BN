@@ -7,10 +7,11 @@
 namespace arcopolis
 {
 
-/// One decoded backend command. Spike 1 supports only the "wait" command.
+/// One decoded backend command. Supports "wait" (Spike 1) and "move" + a cardinal direction (Spike 3).
 struct backend_command {
     int schema_version = 0;  ///< must equal the supported schema version (1)
-    std::string command;     ///< command verb, e.g. "wait"
+    std::string command;     ///< command verb, e.g. "wait" or "move"
+    std::string direction;   ///< cardinal ident for "move" (move_n/move_s/move_e/move_w); empty otherwise
 };
 
 /// Why a command file could not be read, validated, or applied. Mapped to a distinct
@@ -43,13 +44,20 @@ auto parse_command( std::istream &stream ) -> std::expected<backend_command, com
 /// missing/unreadable file, malformed JSON, or a schema problem.
 auto read_command_file( const std::string &path ) -> std::expected<backend_command, command_error>;
 
-/// Applies a validated command to the already-loaded game through existing non-UI action
-/// mechanisms. Spike 1 supports only "wait" (character pause + a one-turn world advance),
-/// and requires a loaded world (the global game `g`, avatar, and map). Returns nothing on
-/// success, or a typed error for an unsupported command or a failed application.
+/// Applies a validated command to the already-loaded game through existing non-UI action mechanisms.
+/// Supports "wait" (character pause + a one-turn world advance; Spike 1) and "move" + a cardinal
+/// direction (the GUI avatar_action::move path, advancing the turn only when the avatar's moves are
+/// spent; Spike 3). Both require a loaded world (the global game `g`, avatar, and map). Returns nothing
+/// on success, or a typed error for an unsupported command, a bad move direction (bad_schema), a
+/// safe-mode decline (safe_mode_blocked), or a failed application.
 auto apply_command( const backend_command &cmd ) -> std::expected<void, command_error>;
 
 /// Maps a command_error_kind to a distinct nonzero process exit code (success stays 0).
 auto exit_code_for( command_error_kind kind ) -> int;
+
+/// True iff `ident` is one of the four cardinal movement idents this spike supports
+/// (move_n / move_s / move_e / move_w). Diagonals (move_ne/...) and vertical (move_up/move_down) are
+/// intentionally rejected. Shared by the command/script parsers and apply_command to gate "move".
+auto is_supported_move_direction( const std::string &ident ) -> bool;
 
 } // namespace arcopolis

@@ -87,6 +87,37 @@ TEST_CASE( "arcopolis parse_script rejects a command op without a command", "[ar
     CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
 }
 
+TEST_CASE( "arcopolis parse_script accepts a move step with a cardinal direction", "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "move", "direction": "move_e" }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE( result.has_value() );
+    REQUIRE( result->size() == 1 );
+    CHECK( ( *result )[0].op == "command" );
+    CHECK( ( *result )[0].command == "move" );
+    CHECK( ( *result )[0].direction == "move_e" );
+}
+
+TEST_CASE( "arcopolis parse_script rejects a move step without a direction", "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "steps": [ { "op": "command", "command": "move" } ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
+TEST_CASE( "arcopolis parse_script rejects a move step with a non-cardinal direction", "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "move", "direction": "move_ne" }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
 TEST_CASE( "arcopolis parse_script rejects malformed JSON", "[arcopolis]" )
 {
     std::istringstream is( "{ not valid json" );

@@ -70,7 +70,21 @@ auto arcopolis::parse_script( std::istream &stream )
                     return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
                                             .detail = at + "op 'command' requires a string 'command'" } );
                 }
-                steps.push_back( script_step{ .op = op, .command = e.get_string( "command" ) } );
+                const auto command = e.get_string( "command" );
+                std::string direction;
+                if( command == "move" ) {
+                    if( !e.has_string( "direction" ) ) {
+                        return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                .detail = at + "command 'move' requires a string 'direction'" } );
+                    }
+                    direction = e.get_string( "direction" );
+                    if( !is_supported_move_direction( direction ) ) {
+                        return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                .detail = at + "unsupported move direction '" + direction +
+                                                        "' (expected move_n/move_s/move_e/move_w)" } );
+                    }
+                }
+                steps.push_back( script_step{ .op = op, .command = command, .direction = direction } );
             } else {
                 return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
                                         .detail = at + "unknown op '" + op + "' (expected 'export' or 'command')" } );
@@ -168,7 +182,9 @@ auto arcopolis::run_script( const run_script_options &opts ) -> int
             // unsupported_command for anything else). parse_script has already guaranteed op is one of
             // {export, command}, so this branch is always a backend command.
             const auto applied = apply_command( {
-                .schema_version = arcopolis_script_schema_version, .command = step.command
+                .schema_version = arcopolis_script_schema_version,
+                .command = step.command,
+                .direction = step.direction
             } );
             if( !applied ) {
                 std::cerr << "arcopolis: step " << i << " (command '" << step.command << "'): "

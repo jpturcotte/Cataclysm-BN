@@ -1,15 +1,21 @@
 #include "arcopolis_command.h"
 
+#include <algorithm>
+#include <array>
 #include <string>
+#include <string_view>
 #include <utility>
 
+#include "action.h"          // look_up_action(), get_delta_from_movement_action(), iso_rotate
 #include "avatar.h"          // get_avatar()
+#include "avatar_action.h"   // avatar_action::move()
 #include "character.h"       // Character (do_pause parameter type)
 #include "character_turn.h"  // character_funcs::do_pause()
 #include "filesystem.h"      // file_exist()
 #include "fstream_utils.h"   // cata_ifstream, cata_ios_mode
-#include "game.h"            // g, game::do_turn()
+#include "game.h"            // g, game::do_turn(), check_safe_mode_allowed()
 #include "json.h"            // JsonIn, JsonObject, JsonError
+#include "map.h"             // get_map()
 
 namespace
 {
@@ -18,6 +24,15 @@ namespace
 constexpr int arcopolis_command_schema_version = 1;
 
 } // namespace
+
+auto arcopolis::is_supported_move_direction( const std::string &ident ) -> bool
+{
+    using namespace std::string_view_literals;
+    // The four cardinals this spike supports. look_up_action() also resolves diagonals and vertical
+    // moves, so this cardinal-set membership check is what actually rejects move_ne.../move_up/move_down.
+    static constexpr std::array cardinals = { "move_n"sv, "move_s"sv, "move_e"sv, "move_w"sv };
+    return std::ranges::contains( cardinals, ident );
+}
 
 auto arcopolis::parse_command( std::istream &stream )
 -> std::expected<backend_command, command_error>
@@ -44,7 +59,21 @@ auto arcopolis::parse_command( std::istream &stream )
             return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
                                     .detail = "missing or non-string 'command'" } );
         }
-        return backend_command{ .schema_version = version, .command = obj.get_string( "command" ) };
+        const auto command = obj.get_string( "command" );
+        std::string direction;
+        if( command == "move" ) {
+            if( !obj.has_string( "direction" ) ) {
+                return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                        .detail = "command 'move' requires a string 'direction'" } );
+            }
+            direction = obj.get_string( "direction" );
+            if( !is_supported_move_direction( direction ) ) {
+                return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                        .detail = "unsupported move direction '" + direction +
+                                                "' (expected move_n/move_s/move_e/move_w)" } );
+            }
+        }
+        return backend_command{ .schema_version = version, .command = command, .direction = direction };
     } catch( const JsonError &err ) {
         return std::unexpected( command_error{ .kind = command_error_kind::invalid_json,
                                 .detail = std::string( "invalid JSON: " ) + err.what() } );
@@ -109,6 +138,40 @@ auto arcopolis::apply_command( const backend_command &cmd ) -> std::expected<voi
         // Advance one turn through the engine's own path. moves == 0 means do_turn()'s input loop (and
         // its blocking handle_action()) is skipped; everything else runs exactly as the engine's turn.
         g->do_turn();
+        return {};
+    }
+    if( cmd.command == "move" ) {
+        // FIDELITY PRINCIPLE (AGENTS.md): reproduce exactly what BN does when a movement key is pressed.
+        // Defense in depth: parse_command / parse_script already reject a non-cardinal direction as
+        // bad_schema, but apply_command is also reachable directly (and from tests), so re-validate.
+        if( !is_supported_move_direction( cmd.direction ) ) {
+            return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                    .detail = "unsupported move direction '" + cmd.direction +
+                                            "' (expected move_n/move_s/move_e/move_w)" } );
+        }
+        // Same safe-mode gate the GUI movement keys honor (avatar_action::move re-checks it internally
+        // too): under a laser lock / new visible threat the GUI warns and does not move, so we decline
+        // without touching the world. check_safe_mode_allowed() is headless-safe (no popups/queries).
+        if( !g->check_safe_mode_allowed() ) {
+            return std::unexpected( command_error{ .kind = command_error_kind::safe_mode_blocked,
+                                    .detail = "move declined by safe mode (a threat is flagged); the GUI "
+                                            "would warn and not move either" } );
+        }
+        // Resolve the cardinal the engine's own way: ident -> action_id -> delta. iso_rotate::no because
+        // headless test_mode loads no tileset (iso rotation only applies when use_tiles && tile_iso).
+        const auto action = look_up_action( cmd.direction );
+        const auto delta = get_delta_from_movement_action( action, iso_rotate::no );
+        // The faithful GUI movement entry point — exactly what handle_action()'s ACTION_MOVE_* cases
+        // call. Its bool means "auto-move not cancelled", NOT "did move" (docs/arcopolis/07), so we do
+        // not branch on it; whether the avatar moved is observable via the exported avatar.pos_abs, and
+        // avatar.moves shows whether this step consumed the turn.
+        avatar_action::move( get_avatar(), get_map(), delta );
+        // Mirror the GUI input loop exactly: it advances the world (do_turn) only once the avatar's
+        // moves are spent (game::do_turn's loop is `while( u.moves > 0 )`). If moves remain, stay in the
+        // same partial turn — calling do_turn() now would block on its handle_action() input loop.
+        if( get_avatar().moves <= 0 ) {
+            g->do_turn();
+        }
         return {};
     }
     return std::unexpected( command_error{ .kind = command_error_kind::unsupported_command,

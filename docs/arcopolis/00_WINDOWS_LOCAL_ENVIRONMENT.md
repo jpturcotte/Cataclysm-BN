@@ -21,8 +21,15 @@ Key points:
 - ccache: append `C:\dev\ccache` to `PATH` after Visual Studio DevShell activation.
 - vcpkg: use short temporary roots under `C:\tmp` to avoid Windows path-length failures.
 - Known successful game build dir: `out/build/win-rel-deb`.
-- Known successful test build dir: `out/build/win-tests`.
 - Known successful targets: `cataclysm-bn-tiles` and `cata_test-tiles`.
+- **Build game + tests in ONE dir (`out/build/win-rel-deb`).** `cataclysm-bn-tiles-common` is a CMake
+  OBJECT library shared by both `cataclysm-bn-tiles` and `cata_test-tiles`, so building the test target in
+  the same dir reuses the game's compiled objects — only the ~169 test sources recompile + link. To add
+  tests to an existing game build dir, re-configure it with `-DTESTS=True` (and `-DJSON_FORMAT=ON`), then
+  `cmake --build .\out\build\win-rel-deb --target cata_test-tiles`. A *separate* `out/build/win-tests` dir
+  (used in the older attempts logged below) duplicates the whole ~10 GB object tree and has exhausted the
+  disk in this worktree (`fatal error C1085: Cannot write compiler generated file: ... No space left on
+  device`) — prefer the shared dir unless you specifically need an isolated test configuration.
 
 Use this PowerShell sequence from `<repo-root>`:
 
@@ -350,11 +357,16 @@ For the full preset target set, including formatter and translations:
 cmake --build --preset windows-msvc-relwithdebinfo
 ```
 
-For the ccache-backed Ninja route verified in this worktree:
+For the ccache-backed Ninja route verified in this worktree, build the game and the tests in the **same**
+`win-rel-deb` dir (they share the `cataclysm-bn-tiles-common` OBJECT library — see "Current
+recommendation" above; a separate `win-tests` dir duplicates ~10 GB and has exhausted the disk here).
+Re-configure the dir with `-DTESTS=True` before building the test target:
 
 ```powershell
 cmake --build .\out\build\win-rel-deb --target cataclysm-bn-tiles -- -j4
-cmake --build .\out\build\win-tests --target cata_test-tiles -- -j4
+# add tests to the same dir, then build them:
+cmake -S . -B .\out\build\win-rel-deb -G Ninja -DTESTS=True   # …plus the same flags as the configure above
+cmake --build .\out\build\win-rel-deb --target cata_test-tiles -- -j4
 ```
 
 ## Recommended validation command
@@ -365,10 +377,10 @@ Run from the repository root after a successful build:
 & ".\out\build\windows-tiles-sounds-x64-msvc\tests\RelWithDebInfo\cata_test-tiles.exe"
 ```
 
-For the ccache-backed Ninja test build:
+For the ccache-backed Ninja test build (shared `win-rel-deb` dir):
 
 ```powershell
-& ".\out\build\win-tests\tests\cata_test-tiles.exe"
+& ".\out\build\win-rel-deb\tests\cata_test-tiles.exe"
 ```
 
 Then validate mod loading:

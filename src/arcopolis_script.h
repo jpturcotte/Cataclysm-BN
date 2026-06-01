@@ -14,9 +14,10 @@ namespace arcopolis
 /// (`op == "export"`) or a backend command (`op == "command"`); the two are deliberately separate so
 /// `export` is never confused with a game command as the backend command set grows.
 struct script_step {
-    std::string op;       ///< "export" (script directive) or "command" (backend command)
-    std::string name;     ///< export label (op == "export"; "" when omitted)
-    std::string command;  ///< backend command verb (op == "command", e.g. "wait")
+    std::string op;         ///< "export" (script directive) or "command" (backend command)
+    std::string name;       ///< export label (op == "export"; "" when omitted)
+    std::string command;    ///< backend command verb (op == "command", e.g. "wait" / "move")
+    std::string direction;  ///< cardinal ident for command "move" (move_n/move_s/move_e/move_w); else ""
 };
 
 /// Inputs for a stateful headless session: load a world EXACTLY ONCE, then run a step script against

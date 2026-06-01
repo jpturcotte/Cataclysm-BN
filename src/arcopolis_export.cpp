@@ -90,6 +90,7 @@ auto write_avatar( JsonOut &json, const snapshot_ctx &ctx ) -> void
     json.member( "hp", ctx.u.get_hp() );            // sum across body parts
     json.member( "hp_max", ctx.u.get_hp_max() );
     json.member( "stamina", ctx.u.get_stamina() );
+    json.member( "moves", ctx.u.get_moves() );      // action points left this turn; explains turn advance
     json.member( "pain", ctx.u.get_pain() );
     json.member( "thirst", ctx.u.get_thirst() );
     json.member( "fatigue", ctx.u.get_fatigue() );
