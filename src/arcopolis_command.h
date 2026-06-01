@@ -12,7 +12,8 @@ namespace arcopolis
 struct backend_command {
     int schema_version = 0;  ///< must equal the supported schema version (1)
     std::string command;     ///< command verb, e.g. "wait" or "move"
-    std::string direction;   ///< cardinal ident for "move" (move_n/move_s/move_e/move_w); empty otherwise
+    std::string
+    direction;   ///< cardinal ident for "move" (move_n/move_s/move_e/move_w); empty otherwise
 };
 
 /// Why a command file could not be read, validated, or applied. Mapped to a distinct

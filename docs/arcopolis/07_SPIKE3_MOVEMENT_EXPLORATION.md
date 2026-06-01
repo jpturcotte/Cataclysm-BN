@@ -3,8 +3,8 @@
 > **Update (post-implementation):** the implementation that followed this exploration
 > ([08_SPIKE3_MOVE_COMMAND.md](08_SPIKE3_MOVE_COMMAND.md)) is marked **FAILED**. This doc's
 > "Recommendation A" (`command → do_turn`, guarded by `moves<=0`) was built and works mechanically, but it
-> leaves the **action/top-half ordering inversion** in place — the action runs *before* `do_turn` instead
-> of at the engine's `handle_action()` slot *inside* it, so it is not faithful past the bootstrap turn.
+> leaves the **action/top-half ordering inversion** in place — the action runs _before_ `do_turn` instead
+> of at the engine's `handle_action()` slot _inside_ it, so it is not faithful past the bootstrap turn.
 > The "Verified byte-identical for `wait`" claim below was **not** independently re-verified and is
 > overstated; treat it as "seeded-reproducible, equivalence unproven". The fix (inject the command at the
 > engine input point and run the engine's own `do_turn` loop) is proposed in doc 08.

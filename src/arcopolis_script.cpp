@@ -24,8 +24,8 @@ constexpr int arcopolis_script_schema_version = 1;
 
 } // namespace
 
-auto arcopolis::parse_script( std::istream &stream )
--> std::expected<std::vector<script_step>, command_error>
+auto arcopolis::parse_script( std::istream &stream ) ->
+std::expected<std::vector<script_step>, command_error>
 {
     try {
         JsonIn json( stream );
@@ -37,17 +37,17 @@ auto arcopolis::parse_script( std::istream &stream )
 
         if( !obj.has_int( "schema_version" ) ) {
             return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
-                                    .detail = "missing or non-integer 'schema_version'" } );
+                                                   .detail = "missing or non-integer 'schema_version'" } );
         }
         const auto version = obj.get_int( "schema_version" );
         if( version != arcopolis_script_schema_version ) {
             return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
-                                    .detail = "unsupported schema_version " + std::to_string( version ) +
-                                            " (expected " + std::to_string( arcopolis_script_schema_version ) + ")" } );
+                                                   .detail = "unsupported schema_version " + std::to_string( version ) +
+                                                           " (expected " + std::to_string( arcopolis_script_schema_version ) + ")" } );
         }
         if( !obj.has_array( "steps" ) ) {
             return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
-                                    .detail = "missing or non-array 'steps'" } );
+                                                   .detail = "missing or non-array 'steps'" } );
         }
 
         std::vector<script_step> steps;
@@ -59,7 +59,7 @@ auto arcopolis::parse_script( std::istream &stream )
             const auto at = "steps[" + std::to_string( idx ) + "]: ";
             if( !e.has_string( "op" ) ) {
                 return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
-                                        .detail = at + "missing or non-string 'op'" } );
+                                                       .detail = at + "missing or non-string 'op'" } );
             }
             const auto op = e.get_string( "op" );
             if( op == "export" ) {
@@ -68,48 +68,48 @@ auto arcopolis::parse_script( std::istream &stream )
             } else if( op == "command" ) {
                 if( !e.has_string( "command" ) ) {
                     return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
-                                            .detail = at + "op 'command' requires a string 'command'" } );
+                                                           .detail = at + "op 'command' requires a string 'command'" } );
                 }
                 const auto command = e.get_string( "command" );
                 std::string direction;
                 if( command == "move" ) {
                     if( !e.has_string( "direction" ) ) {
                         return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
-                                                .detail = at + "command 'move' requires a string 'direction'" } );
+                                                               .detail = at + "command 'move' requires a string 'direction'" } );
                     }
                     direction = e.get_string( "direction" );
                     if( !is_supported_move_direction( direction ) ) {
                         return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
-                                                .detail = at + "unsupported move direction '" + direction +
-                                                        "' (expected move_n/move_s/move_e/move_w)" } );
+                                                               .detail = at + "unsupported move direction '" + direction +
+                                                                       "' (expected move_n/move_s/move_e/move_w)" } );
                     }
                 }
                 steps.push_back( script_step{ .op = op, .command = command, .direction = direction } );
             } else {
                 return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
-                                        .detail = at + "unknown op '" + op + "' (expected 'export' or 'command')" } );
+                                                       .detail = at + "unknown op '" + op + "' (expected 'export' or 'command')" } );
             }
             ++idx;
         }
         return steps;
     } catch( const JsonError &err ) {
         return std::unexpected( command_error{ .kind = command_error_kind::invalid_json,
-                                .detail = std::string( "invalid JSON: " ) + err.what() } );
+                                               .detail = std::string( "invalid JSON: " ) + err.what() } );
     }
 }
 
-auto arcopolis::read_script_file( const std::string &path )
--> std::expected<std::vector<script_step>, command_error>
+auto arcopolis::read_script_file( const std::string &path ) ->
+std::expected<std::vector<script_step>, command_error>
 {
     if( !file_exist( path ) ) {
         return std::unexpected( command_error{ .kind = command_error_kind::missing_file,
-                                .detail = "script file does not exist: " + path } );
+                                               .detail = "script file does not exist: " + path } );
     }
 
     auto stream = std::move( cata_ifstream().mode( cata_ios_mode::binary ).open( path ) );
     if( !stream.is_open() ) {
         return std::unexpected( command_error{ .kind = command_error_kind::unreadable_file,
-                                .detail = "could not open script file: " + path } );
+                                               .detail = "could not open script file: " + path } );
     }
 
     return parse_script( *stream );

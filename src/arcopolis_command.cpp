@@ -34,8 +34,8 @@ auto arcopolis::is_supported_move_direction( std::string_view ident ) -> bool
     return std::ranges::contains( cardinals, ident );
 }
 
-auto arcopolis::parse_command( std::istream &stream )
--> std::expected<backend_command, command_error>
+auto arcopolis::parse_command( std::istream &stream ) ->
+std::expected<backend_command, command_error>
 {
     try {
         JsonIn json( stream );
@@ -47,51 +47,51 @@ auto arcopolis::parse_command( std::istream &stream )
 
         if( !obj.has_int( "schema_version" ) ) {
             return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
-                                    .detail = "missing or non-integer 'schema_version'" } );
+                                                   .detail = "missing or non-integer 'schema_version'" } );
         }
         const auto version = obj.get_int( "schema_version" );
         if( version != arcopolis_command_schema_version ) {
             return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
-                                    .detail = "unsupported schema_version " + std::to_string( version ) +
-                                            " (expected " + std::to_string( arcopolis_command_schema_version ) + ")" } );
+                                                   .detail = "unsupported schema_version " + std::to_string( version ) +
+                                                           " (expected " + std::to_string( arcopolis_command_schema_version ) + ")" } );
         }
         if( !obj.has_string( "command" ) ) {
             return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
-                                    .detail = "missing or non-string 'command'" } );
+                                                   .detail = "missing or non-string 'command'" } );
         }
         const auto command = obj.get_string( "command" );
         std::string direction;
         if( command == "move" ) {
             if( !obj.has_string( "direction" ) ) {
                 return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
-                                        .detail = "command 'move' requires a string 'direction'" } );
+                                                       .detail = "command 'move' requires a string 'direction'" } );
             }
             direction = obj.get_string( "direction" );
             if( !is_supported_move_direction( direction ) ) {
                 return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
-                                        .detail = "unsupported move direction '" + direction +
-                                                "' (expected move_n/move_s/move_e/move_w)" } );
+                                                       .detail = "unsupported move direction '" + direction +
+                                                               "' (expected move_n/move_s/move_e/move_w)" } );
             }
         }
         return backend_command{ .schema_version = version, .command = command, .direction = direction };
     } catch( const JsonError &err ) {
         return std::unexpected( command_error{ .kind = command_error_kind::invalid_json,
-                                .detail = std::string( "invalid JSON: " ) + err.what() } );
+                                               .detail = std::string( "invalid JSON: " ) + err.what() } );
     }
 }
 
-auto arcopolis::read_command_file( const std::string &path )
--> std::expected<backend_command, command_error>
+auto arcopolis::read_command_file( const std::string &path ) ->
+std::expected<backend_command, command_error>
 {
     if( !file_exist( path ) ) {
         return std::unexpected( command_error{ .kind = command_error_kind::missing_file,
-                                .detail = "command file does not exist: " + path } );
+                                               .detail = "command file does not exist: " + path } );
     }
 
     auto stream = std::move( cata_ifstream().mode( cata_ios_mode::binary ).open( path ) );
     if( !stream.is_open() ) {
         return std::unexpected( command_error{ .kind = command_error_kind::unreadable_file,
-                                .detail = "could not open command file: " + path } );
+                                               .detail = "could not open command file: " + path } );
     }
 
     return parse_command( *stream );
@@ -129,8 +129,8 @@ auto arcopolis::apply_command( const backend_command &cmd ) -> std::expected<voi
         // safe-mode / laser-lock state. Persistent-backend integration would close that gap.)
         if( !g->check_safe_mode_allowed() ) {
             return std::unexpected( command_error{ .kind = command_error_kind::safe_mode_blocked,
-                                    .detail = "wait declined by safe mode (a threat is flagged); the GUI would "
-                                            "warn and not advance the turn either" } );
+                                                   .detail = "wait declined by safe mode (a threat is flagged); the GUI would "
+                                                           "warn and not advance the turn either" } );
         }
         // The real ACTION_PAUSE mechanism (the '.' key): zero the avatar's moves and run the
         // pause/trap/wait effects (character_funcs::do_pause, src/character_turn.cpp).
@@ -146,16 +146,16 @@ auto arcopolis::apply_command( const backend_command &cmd ) -> std::expected<voi
         // bad_schema, but apply_command is also reachable directly (and from tests), so re-validate.
         if( !is_supported_move_direction( cmd.direction ) ) {
             return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
-                                    .detail = "unsupported move direction '" + cmd.direction +
-                                            "' (expected move_n/move_s/move_e/move_w)" } );
+                                                   .detail = "unsupported move direction '" + cmd.direction +
+                                                           "' (expected move_n/move_s/move_e/move_w)" } );
         }
         // Same safe-mode gate the GUI movement keys honor (avatar_action::move re-checks it internally
         // too): under a laser lock / new visible threat the GUI warns and does not move, so we decline
         // without touching the world. check_safe_mode_allowed() is headless-safe (no popups/queries).
         if( !g->check_safe_mode_allowed() ) {
             return std::unexpected( command_error{ .kind = command_error_kind::safe_mode_blocked,
-                                    .detail = "move declined by safe mode (a threat is flagged); the GUI "
-                                            "would warn and not move either" } );
+                                                   .detail = "move declined by safe mode (a threat is flagged); the GUI "
+                                                           "would warn and not move either" } );
         }
         // Resolve the cardinal the engine's own way: ident -> action_id -> delta. iso_rotate::no because
         // headless test_mode loads no tileset (iso rotation only applies when use_tiles && tile_iso).
@@ -180,7 +180,7 @@ auto arcopolis::apply_command( const backend_command &cmd ) -> std::expected<voi
         return {};
     }
     return std::unexpected( command_error{ .kind = command_error_kind::unsupported_command,
-                            .detail = "unsupported command: '" + cmd.command + "'" } );
+                                           .detail = "unsupported command: '" + cmd.command + "'" } );
 }
 
 auto arcopolis::exit_code_for( command_error_kind kind ) -> int

@@ -7,7 +7,7 @@
 > **action/top-half inversion**: the backend evaluates every action one top-half "early" relative to the
 > engine. The single `move_e` validation passed only because the first post-load turn is the bootstrap
 > turn (no calendar advance), which masks the divergence; it shows from the second action on. This
-> contradicts the spike's premise — that a *persistent stream* is faithful by construction — so it is
+> contradicts the spike's premise — that a _persistent stream_ is faithful by construction — so it is
 > recorded as a failure and the fix is proposed below.
 >
 > Spike 2's persistent lifecycle (load once, pay the bootstrap once, clock advances `T → T → T+1`) is
@@ -25,7 +25,7 @@
 
 **The GUI behavior is the engine behavior is the behavior, period.** A faithful `move` would reproduce
 exactly what Bright Nights does when a movement key is pressed. This implementation reproduces the
-movement *call* (`avatar_action::move`) and the *direction resolution* (`look_up_action` →
+movement _call_ (`avatar_action::move`) and the _direction resolution_ (`look_up_action` →
 `get_delta_from_movement_action`) faithfully, but **not the turn structure**: it runs the action outside
 and before `do_turn` rather than at the `handle_action()` slot inside `do_turn`'s input loop. See
 "Turn-structure inversion (why this spike FAILED)" below, and AGENTS.md "Arcopolis backend fidelity".
@@ -78,7 +78,7 @@ which compute a delta with `get_delta_from_movement_action( act, iso_rotate::yes
 
 The backend does **not** mirror this faithfully. `apply_command` (`src/arcopolis_command.cpp`) does:
 resolve → safe-mode gate → `avatar_action::move` → `if(moves<=0) do_turn()`. That places the action
-*before* `do_turn`'s top half, not at the `handle_action()` slot *inside* it — the inversion documented
+_before_ `do_turn`'s top half, not at the `handle_action()` slot _inside_ it — the inversion documented
 in "Turn-structure inversion (why this spike FAILED)" below.
 
 ## Direction and action representation
@@ -116,7 +116,7 @@ surrounding `export` snapshots.
 
 This is the core finding. Read line by line against the current code (commit `792a2d2345`).
 
-### What the GUI does — action is *inside* `do_turn`
+### What the GUI does — action is _inside_ `do_turn`
 
 `main.cpp:930` drives the whole game as one repeated turn:
 
@@ -141,7 +141,7 @@ game::do_turn()                                             src/game.cpp:1846
 The player's keypress is consumed at `handle_action()` (`src/game.cpp:2004`), which **runs after that
 turn's top half** and inside the `while( u.moves > 0 )` loop.
 
-### What the backend does — action is *before* `do_turn`
+### What the backend does — action is _before_ `do_turn`
 
 `apply_command`'s move branch (`src/arcopolis_command.cpp:168-174`):
 
@@ -165,18 +165,18 @@ backend       │ ACTN   topN   botN      │ ACTN+1  topN+1  botN+1   │
 ```
 
 - The action and that turn's top half are **transposed**. The backend evaluates `avatar_action::move`
-  against state from *before* `update_body()` / `weather` / `timed_events` / `mission::process_all()`
-  have run for that turn; the GUI evaluates it *after*.
+  against state from _before_ `update_body()` / `weather` / `timed_events` / `mission::process_all()`
+  have run for that turn; the GUI evaluates it _after_.
 - For the **first** action this is partly hidden: the first `do_turn` is the bootstrap turn
   (`new_game == true`, set in `game::setup()` at `src/game.cpp:625`), so its calendar gate at
   `src/game.cpp:1879-1884` does **not** advance the clock — both GUI and backend sit at the loaded turn
-  `T`. The divergence is purely the reordered top-half *processing*.
+  `T`. The divergence is purely the reordered top-half _processing_.
 - From the **second** action on it is unambiguous: the GUI runs `topN+1` (which advances the calendar to
   `T+1`) **before** `ACTN+1`; the backend runs `ACTN+1` while the calendar still reads `T`, then `do_turn`
   advances to `T+1`. The action is evaluated one top-half behind the engine.
 
 This is exactly the inversion the persistent stream was supposed to eliminate. It is **not** fixed by
-loading once — loading once fixes the *bootstrap/clock* problem (Spike 2), not the *action placement*
+loading once — loading once fixes the _bootstrap/clock_ problem (Spike 2), not the _action placement_
 problem. The `command → do_turn` shape is structurally not the engine's `do_turn`-with-action-inside.
 
 ### Corrected `moves` / `avatar.moves` narrative
@@ -189,11 +189,11 @@ directions. The accurate mechanism, from the code:
 - The guard (`src/arcopolis_command.cpp:172`) therefore fires `g->do_turn()`. As the first post-load
   `do_turn` this is the bootstrap turn (calendar held at `T`), and its bottom-half upkeep **replenishes
   moves** to ~98.
-- The exported `avatar.moves` is the **post-`do_turn`** value (~98), so it does *not* show the ≤ 0 dip at
+- The exported `avatar.moves` is the **post-`do_turn`** value (~98), so it does _not_ show the ≤ 0 dip at
   the decision point. Reading `moves == 98 > 0` from the snapshot and concluding "the move did not advance
-  the turn" is wrong — the move *did* advance it; the snapshot is taken after the refill.
+  the turn" is wrong — the move _did_ advance it; the snapshot is taken after the refill.
 - This is why the single-move validation reads `T → T → T+1`: `move_e` consumed the bootstrap turn at `T`,
-  and the following `wait` is the first *normal* turn → `T+1`.
+  and the following `wait` is the first _normal_ turn → `T+1`.
 
 ### The case that proves the inversion is observable, not cosmetic
 
@@ -201,11 +201,11 @@ For an avatar whose per-turn moves exceed a single step's cost (haste/high speed
 leaves `moves > 0`. The GUI's `while( u.moves > 0 )` loop (`src/game.cpp:1980`) then lets that avatar take
 a **second action in the same turn**, before any top half. The backend's guard correctly skips `do_turn`
 (matching the loop condition) and the next command applies in the same turn — but it still applies
-*before* the top half, so the divergence persists, and the bootstrap is consumed by whichever later
+_before_ the top half, so the divergence persists, and the bootstrap is consumed by whichever later
 command first drives `moves ≤ 0`. The ordering is wrong regardless of speed; speed only changes how many
 actions share a turn.
 
-### Blocked move (wall bump) — this part *is* faithful
+### Blocked move (wall bump) — this part _is_ faithful
 
 When the destination is impassable on the same z and the avatar is sighted and unstunned, `walk_move`
 returns false and `avatar_action::move` falls to the "Invalid move" branch
@@ -301,7 +301,7 @@ moves:  99 -> 98 -> 100
 
 - **`move_e` moved the avatar +1 on x**, y and z unchanged — the movement mechanic works. ✅
 - **`T → T → T+1`** is observed, but this does **not** demonstrate fidelity — it is exactly the case that
-  *masks* the inversion. `move_e` drove `moves ≤ 0` and consumed the **bootstrap** turn at `T` (calendar
+  _masks_ the inversion. `move_e` drove `moves ≤ 0` and consumed the **bootstrap** turn at `T` (calendar
   held by `new_game`, `src/game.cpp:1879-1884`); the `wait` is the first normal turn → `T+1`. Because the
   bootstrap turn does no calendar advance, the action/top-half transposition has no visible calendar
   effect on this single step. A second moving action would expose it. ⚠️ See "Turn-structure inversion".
@@ -338,7 +338,7 @@ Recommended approach, smallest faithful change first:
    as the movement delta) and a minimal branch at the call site that, when in backend mode and a command
    is queued, performs that action exactly as the matching `ACTION_*` case would (for movement: the same
    `get_delta_from_movement_action` + `avatar_action::move` the GUI case at
-   `src/handle_action.cpp:1917-1961` runs). This is a gameplay-source touch at *one* call site, which is
+   `src/handle_action.cpp:1917-1961` runs). This is a gameplay-source touch at _one_ call site, which is
    why it was deferred — but it is the only way to be truly faithful, and it is now justified by this
    failure.
 2. **Restructure `run_script` as a turn pump.** Instead of `for step: apply_command(...)`, the runner
@@ -349,7 +349,7 @@ Recommended approach, smallest faithful change first:
    "deduce then experiment"): with the seam in place, the action executes at `src/game.cpp:2004` after the
    top half, so `top → action → bottom` matches the GUI for every turn, not just the bootstrap.
 4. **Keep the safe scope**: still cardinals-only, still the `avatar_action::move` path, still the
-   safe-mode gate. Only the *turn placement* changes.
+   safe-mode gate. Only the _turn placement_ changes.
 
 Alternative considered and rejected: splitting `do_turn` into `do_turn_top()` / `do_turn_bottom()` so the
 runner can sandwich the action (`top → action → bottom`) without touching the input loop. This also fixes
@@ -371,7 +371,7 @@ surface.
     load-bearing claim. The `07` wording ("A/B-verified byte-identical for `wait`") should likewise be
     softened to what was actually checked.
   - Violated the AGENTS.md fidelity rule "answer from the code, don't spin up experiments to defer the
-    question" by running snapshot probes to *deduce* behavior, then mis-reading the post-`do_turn`
+    question" by running snapshot probes to _deduce_ behavior, then mis-reading the post-`do_turn`
     `avatar.moves` value and flip-flopping on whether the move advanced the turn.
   - Briefly rationalized the inversion as an "accepted" property instead of a defect to fix. It is a
     defect; this doc reclassifies it.
@@ -381,16 +381,16 @@ surface.
 
 ## Citation audit
 
-| Claim                                                                  | Implementing line (commit `792a2d2345`)                                                     |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| GUI drives the game as one repeated turn                               | `while( !g->do_turn() );` — `src/main.cpp:930`                                              |
-| GUI consumes the action *inside* `do_turn`, after the top half         | `handle_action()` at `src/game.cpp:2004`, inside `while( u.moves > 0 )` at `src/game.cpp:1980` |
-| `do_turn` top half (update_body, weather, timed_events, missions…)     | `src/game.cpp:1907-1974`; `u.update_body()` at `src/game.cpp:1941`                          |
-| `do_turn` bottom half (scent, monsters, vehicles…)                     | `src/game.cpp:2025+`                                                                         |
-| bootstrap turn skips `calendar::turn += 1`                             | `if( new_game )` gate — `src/game.cpp:1879-1884`; `new_game = true` set in `setup()` `src/game.cpp:625` |
+| Claim                                                                  | Implementing line (commit `792a2d2345`)                                                                                          |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| GUI drives the game as one repeated turn                               | `while( !g->do_turn() );` — `src/main.cpp:930`                                                                                   |
+| GUI consumes the action _inside_ `do_turn`, after the top half         | `handle_action()` at `src/game.cpp:2004`, inside `while( u.moves > 0 )` at `src/game.cpp:1980`                                   |
+| `do_turn` top half (update_body, weather, timed_events, missions…)     | `src/game.cpp:1907-1974`; `u.update_body()` at `src/game.cpp:1941`                                                               |
+| `do_turn` bottom half (scent, monsters, vehicles…)                     | `src/game.cpp:2025+`                                                                                                             |
+| bootstrap turn skips `calendar::turn += 1`                             | `if( new_game )` gate — `src/game.cpp:1879-1884`; `new_game = true` set in `setup()` `src/game.cpp:625`                          |
 | **backend applies the action BEFORE `do_turn` (the inversion)**        | `avatar_action::move(...)` `src/arcopolis_command.cpp:168`, then `if(moves<=0) g->do_turn()` `src/arcopolis_command.cpp:172-173` |
-| ident → action_id; resolves diagonals/vertical too                     | `look_up_action` `src/action.cpp` (≈460-491)                                               |
-| action_id → `point_rel_ms` delta; iso gated by `use_tiles && tile_iso` | `get_delta_from_movement_action` `src/action.cpp` (≈549-572)                               |
-| movement entry point (GUI keys call it)                                | `avatar_action::move` `src/avatar_action.cpp:99`; `ACTION_MOVE_*` `src/handle_action.cpp:1917-1961` |
-| blocked same-z move spends no moves / silent                           | "Invalid move" branch `src/avatar_action.cpp:466-497`; `waste_moves` `src/avatar_action.cpp:467-469` |
-| remaining action points                                                | `Creature::moves` / `Creature::get_moves()` `src/creature.h:576,737`                        |
+| ident → action_id; resolves diagonals/vertical too                     | `look_up_action` `src/action.cpp` (≈460-491)                                                                                     |
+| action_id → `point_rel_ms` delta; iso gated by `use_tiles && tile_iso` | `get_delta_from_movement_action` `src/action.cpp` (≈549-572)                                                                     |
+| movement entry point (GUI keys call it)                                | `avatar_action::move` `src/avatar_action.cpp:99`; `ACTION_MOVE_*` `src/handle_action.cpp:1917-1961`                              |
+| blocked same-z move spends no moves / silent                           | "Invalid move" branch `src/avatar_action.cpp:466-497`; `waste_moves` `src/avatar_action.cpp:467-469`                             |
+| remaining action points                                                | `Creature::moves` / `Creature::get_moves()` `src/creature.h:576,737`                                                             |
