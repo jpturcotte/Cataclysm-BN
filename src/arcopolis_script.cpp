@@ -1,20 +1,20 @@
 #include "arcopolis_script.h"
 
-#include <filesystem>
+#include <cstddef>
 #include <iostream>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "arcopolis_command.h"  // backend_command, apply_command, command_error, exit_code_for
-#include "arcopolis_export.h"   // write_current_view, snapshot_session_info
-#include "color.h"              // init_colors()
-#include "filesystem.h"         // assure_dir_exist(), ensure_valid_file_name(), file_exist()
-#include "fstream_utils.h"      // cata_ifstream, cata_ios_mode
-#include "game.h"               // g, game::load(world)
-#include "json.h"               // JsonIn, JsonObject, JsonArray, JsonError
-#include "string_formatter.h"   // string_format()
+#include "arcopolis_backend_input.h"  // begin/end_backend_session, backend_input_done, backend_cursor
+#include "arcopolis_command.h"  // backend_command, command_to_action, command_error, exit_code_for
+#include "color.h"  // init_colors()
+#include "filesystem.h"  // assure_dir_exist(), file_exist()
+#include "fstream_utils.h"  // cata_ifstream, cata_ios_mode
+#include "game.h"  // g, game::load(world), game::do_turn()
+#include "json.h"  // JsonIn, JsonObject, JsonArray, JsonError
+#include "options.h"  // get_option<float>( "TURN_DURATION" )
 
 namespace
 {
@@ -138,6 +138,21 @@ auto arcopolis::run_script( const run_script_options &opts ) -> int
         return exit_code_for( script.error().kind );
     }
 
+    // Pre-flight: resolve every command to its engine action_id now, so an unsupported verb or a bad
+    // direction fails fast (before the world load) and the input provider stays total -- by the time the
+    // engine pulls actions through the seam, every command is already known-good.
+    for( const auto &step : *script ) {
+        if( step.op != "command" ) {
+            continue;
+        }
+        const auto resolved = command_to_action( { .schema_version = arcopolis_script_schema_version,
+                                                   .command = step.command, .direction = step.direction } );
+        if( !resolved ) {
+            std::cerr << "arcopolis: " << resolved.error().detail << "\n";
+            return exit_code_for( resolved.error().kind );
+        }
+    }
+
     if( !assure_dir_exist( opts.export_dir ) ) {
         std::cerr << "arcopolis: failed to create export directory '" << opts.export_dir << "'\n";
         return exit_code_for( command_error_kind::export_failed );
@@ -157,42 +172,57 @@ auto arcopolis::run_script( const run_script_options &opts ) -> int
         return 1;
     }
 
-    const auto &steps = *script;
-    int export_index = 0;
-    for( int i = 0; i < static_cast<int>( steps.size() ); ++i ) {
-        const auto &step = steps[i];
-        if( step.op == "export" ) {
-            const auto label = step.name.empty() ? std::string( "snapshot" ) : step.name;
-            const auto session = snapshot_session_info{
-                .export_index = export_index,
-                .step_index = i,
-                .export_name = label,
-            };
-            const auto filename = string_format( "%03d_%s.json", export_index,
-                                                 ensure_valid_file_name( label ) );
-            const auto path = ( std::filesystem::path( opts.export_dir ) / filename ).string();
-            if( !write_current_view( path, session ) ) {
-                std::cerr << "arcopolis: step " << i << " (export '" << label
-                          << "'): failed to write snapshot to '" << path << "'\n";
-                return exit_code_for( command_error_kind::export_failed );
+    // FIDELITY GUARD: force real-time moves off. handle_action() charges current_turn.moves_elapsed()
+    // against u.moves at its tail (~handle_action.cpp:2866); the backend runs THROUGH handle_action with
+    // the provider's inline export I/O inside that timed window, so a nonzero TURN_DURATION would drain
+    // the avatar's moves by wall-clock (non-deterministically, including file I/O). moves_elapsed()
+    // returns 0 only while TURN_DURATION <= 0.005 (handle_action.cpp:172); the option default is 0.0.
+    if( get_option<float>( "TURN_DURATION" ) > 0.005f ) {
+        std::cerr << "arcopolis: TURN_DURATION must be <= 0.005 for headless runs (real-time moves would "
+                  "drain the avatar by wall-clock); set it to 0 in the world's options\n";
+        return exit_code_for( command_error_kind::apply_failed );
+    }
+
+    // Drive the engine's OWN turn loop with the backend as the per-iteration input source (mechanism M1).
+    // do_turn runs verbatim: the provider feeds each command's action_id at the handle_action() seam
+    // (AFTER the turn's top half) and performs `export` steps inline at that faithful point; the world
+    // ticks only when an action exhausts the turn. The script-exhausted clean-stop parks the final turn
+    // before its bottom half. This replaces the Spike 3 `command -> do_turn` inversion entirely.
+    begin_backend_session( { .steps = *script, .export_dir = opts.export_dir } );
+
+    // The input loop is skipped while the avatar sleeps (game.cpp:1978), so the provider would never be
+    // called and the cursor would never advance. Bound the consecutive cursor-stalled turns as a hang
+    // backstop (the ArcopolisTest avatar is awake, so the happy path never trips this).
+    constexpr int max_idle_turns = 1000;
+    auto last_cursor = backend_cursor();
+    int idle_turns = 0;
+    while( !backend_input_done() ) {
+        if( g->do_turn() ) {
+            // do_turn returns true only via cleanup_at_end (game over / avatar death mid-script).
+            end_backend_session();
+            std::cerr << "arcopolis: the game ended (avatar died?) while running the script\n";
+            return exit_code_for( command_error_kind::game_over );
+        }
+        const auto cursor = backend_cursor();
+        if( cursor == last_cursor ) {
+            if( ++idle_turns >= max_idle_turns ) {
+                end_backend_session();
+                std::cerr << "arcopolis: backend stalled (no input consumed for " << max_idle_turns
+                          << " turns; is the avatar asleep?)\n";
+                return exit_code_for( command_error_kind::backend_stalled );
             }
-            ++export_index;
         } else {
-            // op == "command": apply through the existing backend path (handles "wait"; returns
-            // unsupported_command for anything else). parse_script has already guaranteed op is one of
-            // {export, command}, so this branch is always a backend command.
-            const auto applied = apply_command( {
-                .schema_version = arcopolis_script_schema_version,
-                .command = step.command,
-                .direction = step.direction
-            } );
-            if( !applied ) {
-                std::cerr << "arcopolis: step " << i << " (command '" << step.command << "'): "
-                          << applied.error().detail << "\n";
-                return exit_code_for( applied.error().kind );
-            }
+            idle_turns = 0;
+            last_cursor = cursor;
         }
     }
 
+    // Surface a deferred inline-export write failure (the provider cannot return one) as the exit code.
+    const auto failure = backend_session_failure();
+    end_backend_session();
+    if( failure ) {
+        std::cerr << "arcopolis: " << failure->detail << "\n";
+        return exit_code_for( failure->kind );
+    }
     return 0;
 }
