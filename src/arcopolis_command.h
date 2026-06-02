@@ -5,6 +5,10 @@
 #include <string>
 #include <string_view>
 
+// Forward declaration so command_to_action() can return an engine action_id without pulling the heavy
+// action.h into this parser header (the .cpp includes action.h). Matches the global enum in action.h.
+enum action_id : int;
+
 namespace arcopolis
 {
 
@@ -27,6 +31,8 @@ enum class command_error_kind {
     safe_mode_blocked,    ///< recognised, but safe mode declined it (mirrors the GUI pause gate)
     apply_failed,         ///< the command was recognised but could not be applied
     export_failed,        ///< a current-view snapshot could not be written (Spike 2 script runner)
+    backend_stalled,      ///< the input-seam session made no progress (e.g. avatar asleep); hang backstop
+    game_over,            ///< the avatar died / the game ended while driving the engine's turn loop
 };
 
 /// A command failure: a machine-readable kind plus a human-readable detail for stderr.
@@ -53,6 +59,14 @@ auto read_command_file( const std::string &path ) -> std::expected<backend_comma
 /// on success, or a typed error for an unsupported command, a bad move direction (bad_schema), a
 /// safe-mode decline (safe_mode_blocked), or a failed application.
 auto apply_command( const backend_command &cmd ) -> std::expected<void, command_error>;
+
+/// Resolves a validated command to the engine action_id the GUI's input switch dispatches for it
+/// (`wait` -> ACTION_PAUSE, `move` + cardinal -> ACTION_MOVE_* via look_up_action), WITHOUT touching
+/// simulation state. This is the faithful Spike 3.1 path: the engine's own switch( act ) in
+/// handle_action() computes the delta and calls avatar_action::move / do_pause at the input seam, so the
+/// backend never runs the action itself. Returns the action_id, or a typed error for an unsupported
+/// command (unsupported_command) or a bad move direction (bad_schema). Pure: safe without a loaded world.
+auto command_to_action( const backend_command &cmd ) -> std::expected<action_id, command_error>;
 
 /// Maps a command_error_kind to a distinct nonzero process exit code (success stays 0).
 auto exit_code_for( command_error_kind kind ) -> int;

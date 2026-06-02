@@ -183,6 +183,33 @@ auto arcopolis::apply_command( const backend_command &cmd ) -> std::expected<voi
                                            .detail = "unsupported command: '" + cmd.command + "'" } );
 }
 
+auto arcopolis::command_to_action( const backend_command &cmd ) ->
+std::expected<action_id, command_error>
+{
+    // FIDELITY (Spike 3.1): resolve the command to the engine action_id the GUI's input switch would
+    // dispatch, and stop there. The engine's switch( act ) in handle_action() runs the action at the
+    // faithful input-loop slot (after the turn's top half) -- the backend never calls avatar_action::move
+    // / do_pause / do_turn itself. See docs/arcopolis/09_SPIKE3_1_INPUT_SEAM_EXPLORATION.md.
+    if( cmd.command == "wait" ) {
+        // The '.' key: handle_action()'s ACTION_PAUSE case gates safe mode then calls do_pause.
+        return ACTION_PAUSE;
+    }
+    if( cmd.command == "move" ) {
+        // Defense in depth: the parsers already reject non-cardinals as bad_schema, but command_to_action
+        // is also reachable directly (and from tests), so re-validate before resolving.
+        if( !is_supported_move_direction( cmd.direction ) ) {
+            return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                   .detail = "unsupported move direction '" + cmd.direction +
+                                                           "' (expected move_n/move_s/move_e/move_w)" } );
+        }
+        // ident -> action_id the engine's own way (e.g. "move_e" -> ACTION_MOVE_RIGHT). The switch then
+        // computes the delta via get_delta_from_movement_action and calls avatar_action::move.
+        return look_up_action( cmd.direction );
+    }
+    return std::unexpected( command_error{ .kind = command_error_kind::unsupported_command,
+                                           .detail = "unsupported command: '" + cmd.command + "'" } );
+}
+
 auto arcopolis::exit_code_for( command_error_kind kind ) -> int
 {
     switch( kind ) {
@@ -202,6 +229,10 @@ auto arcopolis::exit_code_for( command_error_kind kind ) -> int
             return 8;
         case command_error_kind::export_failed:
             return 9;
+        case command_error_kind::backend_stalled:
+            return 10;
+        case command_error_kind::game_over:
+            return 11;
     }
     return 1;  // unreachable; defensive default
 }
