@@ -146,7 +146,7 @@ auto arcopolis::run_script( const run_script_options &opts ) -> int
             continue;
         }
         const auto resolved = command_to_action( { .schema_version = arcopolis_script_schema_version,
-                                                   .command = step.command, .direction = step.direction } );
+                              .command = step.command, .direction = step.direction } );
         if( !resolved ) {
             std::cerr << "arcopolis: " << resolved.error().detail << "\n";
             return exit_code_for( resolved.error().kind );

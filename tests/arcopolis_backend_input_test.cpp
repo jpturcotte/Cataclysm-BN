@@ -28,7 +28,8 @@ TEST_CASE( "arcopolis command_to_action resolves wait and the four cardinals", "
            .value_or( ACTION_NULL ) == ACTION_MOVE_LEFT );
 }
 
-TEST_CASE( "arcopolis command_to_action rejects unsupported commands and bad directions", "[arcopolis]" )
+TEST_CASE( "arcopolis command_to_action rejects unsupported commands and bad directions",
+           "[arcopolis]" )
 {
     const auto unsupported = arcopolis::command_to_action( { .schema_version = 1, .command = "teleport" } );
     REQUIRE_FALSE( unsupported.has_value() );
