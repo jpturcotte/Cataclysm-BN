@@ -8,7 +8,8 @@
 
 #include "action.h"             // action_id, ACTION_NULL
 #include "arcopolis_command.h"  // backend_command, command_to_action, command_error, command_error_kind
-#include "arcopolis_export.h"   // write_current_view, snapshot_session_info
+#include "arcopolis_export.h"   // write_current_view, snapshot_session_info, current_snapshot_summary
+#include "arcopolis_session_log.h"  // session_log_command / session_log_export / session_log_error
 #include "filesystem.h"         // ensure_valid_file_name
 #include "string_formatter.h"   // string_format
 
@@ -54,9 +55,30 @@ auto write_session_snapshot( const std::string &label, const std::optional<int> 
             .detail = "failed to write snapshot to '" + path + "'",
         };
         session.done = true;
+        // Record the failure in the transcript here (the single point of detection); the runner's tail
+        // then writes only session_end. No-op if no transcript is open.
+        arcopolis::session_log_error( {
+            .step_index = step_index,
+            .kind = arcopolis::command_error_kind::export_failed,
+            .detail = session.failure->detail,
+        } );
         return false;
     }
     ++session.export_index;
+    // Record the snapshot in the session transcript with the scalars it serialized. current_snapshot_summary
+    // reads the SAME accessors as the snapshot at this same instant (no turn runs between), so the values
+    // equal the file just written; `filename` is the relative NNN_<name>.json, not an absolute path.
+    const auto summary = arcopolis::current_snapshot_summary();
+    arcopolis::session_log_export( {
+        .step_index = step_index,
+        .export_index = info.export_index,
+        .name = label,
+        .path = filename,
+        .final = is_final,
+        .turn = summary.turn,
+        .pos_abs = { .x = summary.pos_abs_x, .y = summary.pos_abs_y, .z = summary.pos_abs_z },
+        .moves = summary.moves,
+    } );
     return true;
 }
 
@@ -118,11 +140,20 @@ auto arcopolis::next_backend_action() -> action_id
         // op == "command": advance past it, then resolve to the engine action_id. The runner's pre-flight
         // already validated every command, so command_to_action always succeeds here; value_or is the
         // total fallback (an unexpected ACTION_NULL is a harmless no-op -- the cursor has already moved).
+        const auto step_index = static_cast<int>( session.cursor );
         ++session.cursor;
-        return command_to_action( { .schema_version = 1,
-                                    .command = step.command,
-                                    .direction = step.direction } )
-               .value_or( ACTION_NULL );
+        const auto resolved = command_to_action( { .schema_version = 1,
+                              .command = step.command,
+                              .direction = step.direction } );
+        // Record what was queued (status "queued"); the observable result is the FOLLOWING export. No-op
+        // if no transcript is open (e.g. the provider unit tests, which drive command steps with no log).
+        session_log_command( {
+            .step_index = step_index,
+            .command = step.command,
+            .direction = step.direction,
+            .action_id = resolved ? std::optional<std::string>( action_ident( *resolved ) ) : std::nullopt,
+        } );
+        return resolved.value_or( ACTION_NULL );
     }
     // Cursor exhausted: signal "done" so do_turn's clean-stop parks the turn before the bottom half.
     session.done = true;
