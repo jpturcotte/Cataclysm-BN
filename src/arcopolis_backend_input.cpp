@@ -30,6 +30,36 @@ struct backend_session {
 
 backend_session session;
 
+/// Writes one session snapshot (an `export` step or the final-on-exit terminal snapshot) using the live
+/// session's export dir + running index. On failure records session.failure, sets done, returns false; on
+/// success advances export_index and returns true. Shared by next_backend_action() and
+/// backend_write_final_snapshot() so both emit identically-formatted NNN_<label>.json files.
+auto write_session_snapshot( const std::string &label, const std::optional<int> &step_index,
+                             bool is_final ) -> bool
+{
+    const auto info = arcopolis::snapshot_session_info{
+        .export_index = session.export_index,
+        .step_index = step_index,
+        .export_name = label,
+        .final = is_final,
+    };
+    const auto filename = string_format( "%03d_%s.json", session.export_index,
+                                         ensure_valid_file_name( label ) );
+    const auto path = ( std::filesystem::path( session.export_dir ) / filename ).string();
+    if( !arcopolis::write_current_view( path, info ) ) {
+        // The provider cannot return an error; record it and stop cleanly. The runner surfaces it as the
+        // process exit code once the engine loop ends.
+        session.failure = arcopolis::command_error{
+            .kind = arcopolis::command_error_kind::export_failed,
+            .detail = "failed to write snapshot to '" + path + "'",
+        };
+        session.done = true;
+        return false;
+    }
+    ++session.export_index;
+    return true;
+}
+
 } // namespace
 
 auto arcopolis::begin_backend_session( const backend_session_options &opts ) -> void
@@ -75,27 +105,13 @@ auto arcopolis::next_backend_action() -> action_id
     while( session.cursor < session.steps.size() ) {
         const auto &step = session.steps[session.cursor];
         if( step.op == "export" ) {
-            // Perform the export inline at this faithful input-loop point. Mirrors the old run_script
-            // export block, but now taken from INSIDE do_turn's input loop -- the GUI's resting point --
-            // which also fixes Spike 2's pre-do_turn `after_load` timing for free.
+            // Perform the export inline at this faithful input-loop point (INSIDE do_turn's input loop --
+            // the GUI's resting point). The shared helper records any write failure and sets done; we stop
+            // the script by returning ACTION_NULL so do_turn parks the turn.
             const auto label = step.name.empty() ? std::string( "snapshot" ) : step.name;
-            const auto info = snapshot_session_info{
-                .export_index = session.export_index,
-                .step_index = static_cast<int>( session.cursor ),
-                .export_name = label,
-            };
-            const auto filename = string_format( "%03d_%s.json", session.export_index,
-                                                 ensure_valid_file_name( label ) );
-            const auto path = ( std::filesystem::path( session.export_dir ) / filename ).string();
-            if( !write_current_view( path, info ) ) {
-                // The provider cannot return an error; record it and stop cleanly. The runner surfaces it
-                // as the process exit code once the engine loop ends.
-                session.failure = command_error{ .kind = command_error_kind::export_failed,
-                                                 .detail = "failed to write snapshot to '" + path + "'" };
-                session.done = true;
+            if( !write_session_snapshot( label, static_cast<int>( session.cursor ), /*is_final=*/false ) ) {
                 return ACTION_NULL;
             }
-            ++session.export_index;
             ++session.cursor;
             continue;
         }
@@ -111,4 +127,11 @@ auto arcopolis::next_backend_action() -> action_id
     // Cursor exhausted: signal "done" so do_turn's clean-stop parks the turn before the bottom half.
     session.done = true;
     return ACTION_NULL;
+}
+
+auto arcopolis::backend_write_final_snapshot() -> bool
+{
+    // Terminal snapshot: no steps[] entry (step_index = nullopt) and final = true. Reuses the running
+    // export index, so it follows the last export step's file as NNN_final.json.
+    return write_session_snapshot( "final", std::nullopt, /*is_final=*/true );
 }
