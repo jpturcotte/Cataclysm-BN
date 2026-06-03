@@ -39,4 +39,19 @@ struct snapshot_session_info {
 auto write_current_view( const std::string &output_path,
                          const std::optional<snapshot_session_info> &session ) -> bool;
 
+/// A few scalar avatar/clock values read from the live loaded game with the SAME accessors the snapshot
+/// uses (calendar::turn, avatar::abs_pos, avatar::get_moves). The Spike 3.1C session transcript records
+/// these in its `export` record so a reader sees a snapshot's turn/pos/moves without opening the snapshot
+/// file. Read immediately after writing a snapshot (no turn runs in between), the values equal that
+/// snapshot's. Requires a loaded game (the global `g` and avatar).
+struct snapshot_summary {
+    int turn = 0;
+    int pos_abs_x = 0;
+    int pos_abs_y = 0;
+    int pos_abs_z = 0;
+    int moves = 0;
+};
+
+auto current_snapshot_summary() -> snapshot_summary;
+
 } // namespace arcopolis
