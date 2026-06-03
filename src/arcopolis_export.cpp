@@ -286,3 +286,16 @@ auto arcopolis::write_current_view( const std::string &output_path,
         write_snapshot( json, ctx );
     }, "arcopolis snapshot" );
 }
+
+auto arcopolis::current_snapshot_summary() -> snapshot_summary
+{
+    const auto &u = get_avatar();
+    const auto pos_abs = u.abs_pos();  // tripoint_abs_ms - the same accessor write_avatar() serializes
+    return snapshot_summary{
+        .turn = to_turn<int>( calendar::turn ),  // matches write_backend()'s "turn"
+        .pos_abs_x = pos_abs.x(),
+        .pos_abs_y = pos_abs.y(),
+        .pos_abs_z = pos_abs.z(),
+        .moves = u.get_moves(),  // matches write_avatar()'s "moves"
+    };
+}
