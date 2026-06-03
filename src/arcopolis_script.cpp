@@ -217,6 +217,15 @@ auto arcopolis::run_script( const run_script_options &opts ) -> int
         }
     }
 
+    // Final-on-exit snapshot (Spike 3.1B): ALWAYS capture the terminal backend state on clean completion
+    // (every non-failing run, regardless of its last step type) -- after do_turn returned from the
+    // clean-park path and before the session is cleared. Suppressed ONLY by a recorded failure (the guard
+    // below; game-over and stall already returned inside the loop). This is a terminal state capture, NOT a
+    // world-tick witness (deferred -- see docs/arcopolis/10_SPIKE3_1B_CLEAN_PARK_HARDENING.md).
+    if( !backend_session_failure() ) {
+        backend_write_final_snapshot();  // records session.failure if the write fails
+    }
+
     // Surface a deferred inline-export write failure (the provider cannot return one) as the exit code.
     const auto failure = backend_session_failure();
     end_backend_session();

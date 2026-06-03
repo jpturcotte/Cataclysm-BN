@@ -52,4 +52,10 @@ auto backend_cursor() -> std::size_t;
 /// it as the process exit code after the engine loop ends.
 auto backend_session_failure() -> std::optional<command_error>;
 
+/// Writes the terminal final-on-exit snapshot (NNN_final.json, with session.final = true and a null
+/// step_index) using the live session's export dir + running index. Called by run_script() on clean script
+/// completion -- after do_turn returns from the clean-park path and before end_backend_session() clears
+/// state. Records a write failure via backend_session_failure(); returns true on success. (Spike 3.1B)
+auto backend_write_final_snapshot() -> bool;
+
 } // namespace arcopolis

@@ -52,8 +52,16 @@ auto write_session( JsonOut &json, const snapshot_ctx &ctx ) -> void
     json.member( "session" );
     json.start_object();
     json.member( "export_index", ctx.session->export_index );
-    json.member( "step_index", ctx.session->step_index );
+    // step_index is null for the final-on-exit snapshot (it belongs to no steps[] entry); the value form
+    // is unchanged for every export-step snapshot.
+    json.member( "step_index" );
+    if( ctx.session->step_index ) {
+        json.write( *ctx.session->step_index );
+    } else {
+        json.write_null();
+    }
     json.member( "export_name", ctx.session->export_name );
+    json.member( "final", ctx.session->final );  // true only for the terminal snapshot (Spike 3.1B)
     json.end_object();
 }
 
