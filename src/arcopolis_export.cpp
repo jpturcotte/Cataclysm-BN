@@ -6,7 +6,9 @@
 #include <utility>
 #include <vector>
 
-#include "arcopolis_command.h"  // read_command_file/apply_command/exit_code_for (Spike 1)
+#include "arcopolis_backend_input.h"  // begin/end_backend_session (drive the command through the seam)
+#include "arcopolis_command.h"  // read_command_file/command_to_action/exit_code_for
+#include "arcopolis_script.h"  // script_step (the single-command session step)
 #include "avatar.h"          // avatar, get_avatar()
 #include "calendar.h"        // to_turn(), calendar::turn
 #include "character.h"       // get_name/thirst/fatigue/stamina/kcal getters
@@ -21,6 +23,7 @@
 #include "map.h"             // get_map(), ter/furn/pl_sees/inbounds/getmapsize/get_abs_sub
 #include "map_iterator.h"    // points_in_radius()
 #include "messages.h"        // Messages::recent_messages()
+#include "options.h"         // get_option<float>( "TURN_DURATION" )
 #include "type_id.h"         // ter_id/furn_id -> .id().str()
 
 namespace
@@ -216,19 +219,37 @@ auto arcopolis::export_current_view( const export_current_view_options &opts ) -
         return 1;
     }
 
-    // Spike 1: optionally apply exactly one backend command between load and export. Errors map to
-    // distinct nonzero exit codes (see arcopolis::exit_code_for) with a clear stderr message.
+    // Spike 1, now Spike 3.1A: optionally apply exactly one backend command between load and export, but
+    // through the SAME input seam the script runner uses -- no `command -> do_turn` inversion. The command
+    // executes at handle_action() during one bootstrap do_turn (AFTER that turn's top half); then we
+    // export the result. Errors map to distinct nonzero exit codes (see arcopolis::exit_code_for).
     if( !opts.command_path.empty() ) {
         const auto cmd = read_command_file( opts.command_path );
         if( !cmd ) {
             std::cerr << "arcopolis: " << cmd.error().detail << "\n";
             return exit_code_for( cmd.error().kind );
         }
-        const auto applied = apply_command( *cmd );
-        if( !applied ) {
-            std::cerr << "arcopolis: " << applied.error().detail << "\n";
-            return exit_code_for( applied.error().kind );
+        // Pre-flight: reject an unsupported verb / bad direction before driving a turn.
+        const auto resolved = command_to_action( *cmd );
+        if( !resolved ) {
+            std::cerr << "arcopolis: " << resolved.error().detail << "\n";
+            return exit_code_for( resolved.error().kind );
         }
+        // Same fidelity guard as the script runner: real-time moves would drain the avatar by wall-clock
+        // through handle_action()'s moves_elapsed() charge (~handle_action.cpp:2866). It is 0 only here.
+        if( get_option<float>( "TURN_DURATION" ) > 0.005f ) {
+            std::cerr << "arcopolis: TURN_DURATION must be <= 0.005 for headless runs (real-time moves "
+                      "would drain the avatar by wall-clock); set it to 0 in the world's options\n";
+            return exit_code_for( command_error_kind::apply_failed );
+        }
+        // One bootstrap do_turn with the command as the seam's input: the provider feeds its action_id at
+        // handle_action() and the engine's switch dispatches it. A single do_turn leaves the calendar at
+        // the loaded bootstrap turn T -- exactly as pressing the key once right after loading would.
+        begin_backend_session( {
+            .steps = { { .op = "command", .command = cmd->command, .direction = cmd->direction } },
+        } );
+        g->do_turn();
+        end_backend_session();
     }
 
     if( !write_current_view( opts.output_path, std::nullopt ) ) {

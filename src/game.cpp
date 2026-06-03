@@ -40,6 +40,7 @@
 #include "activity_actor_definitions.h"
 #include "activity_handlers.h"
 #include "activity_type.h"
+#include "arcopolis_backend_input.h"
 #include "armor_layers.h"
 #include "artifact.h"
 #include "auto_note.h"
@@ -2086,6 +2087,18 @@ bool game::do_turn()
                     if( has_unheard_player_sounds ) {
                         sounds::process_sound_markers( &u );
                     }
+                }
+
+                // Arcopolis backend clean-stop: the input provider just signalled it has no more input
+                // (script exhausted) while the avatar still has moves. End the turn the way a player who
+                // stops giving input ends it -- leave do_turn BEFORE the bottom half (the world tick at
+                // ~game.cpp:2025+), so the world is NOT ticked and the avatar keeps its moves: a faithful
+                // "walked away mid-turn" park. Placed AFTER is_game_over() so a fatal final action still
+                // ends the game correctly. NOT a break (which would fall into the bottom half), NOT a
+                // forced do_pause. Gated on backend_session_active() so normal play is untouched.
+                // See docs/arcopolis/09_SPIKE3_1_INPUT_SEAM_EXPLORATION.md.
+                if( arcopolis::backend_session_active() && arcopolis::backend_input_done() ) {
+                    return false;
                 }
 
                 if( uquit == QUIT_WATCH ) {
