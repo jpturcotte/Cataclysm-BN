@@ -1,10 +1,78 @@
 # Spike 3.1 Input-Seam Exploration
 
-> **Scope: exploration / design only.** No source files are changed by this spike; this document is the
-> entire deliverable. It supersedes the *execution* approach of Spike 3
-> ([08_SPIKE3_MOVE_COMMAND.md](08_SPIKE3_MOVE_COMMAND.md), FAILED) while keeping its reusable parts.
-> Line numbers were read from the source during exploration (commit at time of writing) and drift as the
-> code evolves — trust the symbol names and re-run the PowerShell checks in the last section.
+> **Scope update — Spike 3.1A is now IMPLEMENTED & VALIDATED (2026-06-02).** This document began as
+> exploration/design; the **M1** mechanism it recommended has since been implemented and validated — see
+> [§ Spike 3.1A — implementation result](#spike-31a--implementation-result) immediately below. The
+> original exploration text (from "Fidelity principle" onward) is retained **unchanged** as the design
+> record. It superseded the *execution* approach of Spike 3
+> ([08_SPIKE3_MOVE_COMMAND.md](08_SPIKE3_MOVE_COMMAND.md), FAILED) while keeping its reusable parts. Line
+> numbers drift — trust the symbol names and re-run the PowerShell checks in the last section.
+
+## Spike 3.1A — implementation result
+
+**Status: ✅ implemented and validated.** The action/top-half **inversion that failed Spike 3 is gone**:
+the backend is now a pure input source, the engine's `game::do_turn` runs verbatim, and each command's
+`action_id` is consumed at the real `handle_action()` input seam — after the turn's top half — exactly
+where a keypress is. There is no `command → do_turn` caller anywhere.
+
+### What shipped (5 commits)
+
+| Commit | Change |
+| --- | --- |
+| `feat(arcopolis): backend input source` | New `src/arcopolis_backend_input.{h,cpp}`: a TU-local session + the `next_backend_action()` provider (inline exports, returns the next `action_id`); plus `command_to_action()` (pure `wait → ACTION_PAUSE`, `move → look_up_action`) in `arcopolis_command.cpp`. Unit-tested. |
+| `feat(arcopolis): consume backend action at the seam` | **Seam 1** — gated branch in `game::handle_action` (`src/handle_action.cpp`) sets `act` from the provider, mirroring the auto-move precedent. **Seam 2** — gated clean-park `return false` in `game::do_turn` (`src/game.cpp`), placed **after** the existing `is_game_over()` check, leaving `do_turn` before the bottom half (world not ticked). Both gated on `arcopolis::backend_session_active()`. |
+| `refactor(arcopolis): drive the script runner through the seam` | `run_script` (`src/arcopolis_script.cpp`) pre-flights `command_to_action`, asserts `TURN_DURATION <= 0.005`, then drives `while( !backend_input_done() ) g->do_turn();` with a stall backstop + game-over handling. Old per-step `apply_command` loop removed. |
+| `feat(arcopolis): drive the one-shot through the seam` | `export_current_view` (`src/arcopolis_export.cpp`) routes `--arcopolis-command` through one bootstrap `do_turn` at the seam; **`apply_command` (the inverted body) deleted**. |
+| `docs(arcopolis): record Spike 3.1A result` | This section. |
+
+> **One refinement vs the design plan, mandated by the fidelity bar:** Seam 2 is placed **after**
+> `is_game_over()` (not before, as the line-level plan first said). Placing it before would let a fatal
+> *final* action skip game-over processing and report success with a dead avatar. After `is_game_over()`,
+> a fatal step ends the game correctly and a normal exhaustion parks — both faithful.
+
+### Validation (game build `cataclysm-bn-tiles`, `--seed`, world `ArcopolisTest`)
+
+| Check | Result |
+| --- | --- |
+| `cata_test-tiles "[arcopolis]"` | ✅ **28 cases / 113 assertions pass** (incl. the new provider/cursor + `command_to_action` unit tests). |
+| **Two `move_s` + `wait`** (clean N-S corridor) | ✅ exit 0, empty stderr. `pos_abs.y`: 6421 → **6422 (+1)** → **6423 (+1)** → 6423; x,z fixed. Calendar **T, T+1, T+2, T+3** (1324801→1324804) — bootstrap then one tick per action. **Each move advances exactly 1, evaluated after each turn's top half.** |
+| **Two `move_e` + `wait`** (the Spike-3 bug case) | ✅ exit 0, empty stderr. 1st `move_e`: 6301 → **6302 (+1)**; 2nd `move_e`: **blocked** by `t_wall_w` one tile east (doc 08's documented wall) — a faithful no-op, and the script **continued to the wait** (never failed). Calendar **T, T+1, T+1, T+2**: the blocked move spent no moves, so the wait shared its turn — a **multi-action turn** (two actions, world ticked once). |
+| **One-shot `--arcopolis-command move_e`** | ✅ exit 0, empty stderr. `pos_abs.x` 6301 → **6302 (+1)**, calendar **T** (single bootstrap `do_turn`) — the one-shot's result is unchanged, but now executed at the seam (no inversion). |
+| **One-shot `--arcopolis-command fly`** | ✅ exit **6** (`unsupported_command`) — the pre-flight resolver rejects it before driving a turn, preserving the typed exit model. |
+
+The decisive signal that the inversion is gone: `after_move1` is observed at **T+1**, not T. The inverted
+Spike 3 took that snapshot between turns at T (bootstrap); M1 takes it at the next turn's input-loop rest
+**after** the top half advanced the calendar — exactly the frame a GUI player sees after one keypress.
+
+### Citation audit of the implemented behavior (trust symbols; line numbers drift)
+
+| Claim | Implementing symbol | Verdict |
+| --- | --- | --- |
+| Backend action consumed at the `handle_action` input seam, gated | `game::handle_action` first branch → `arcopolis::next_backend_action()` (`handle_action.cpp`) | ✅ |
+| Clean park leaves `do_turn` before the bottom half, after game-over check | `game::do_turn` input loop → `backend_input_done()` `return false` (`game.cpp`, after `is_game_over()`) | ✅ |
+| Command → `action_id`, pure (no engine mutation) | `arcopolis::command_to_action` (`arcopolis_command.cpp`) | ✅ |
+| Provider performs `export` inline + returns the next `action_id`; `done` at end | `arcopolis::next_backend_action` (`arcopolis_backend_input.cpp`) | ✅ |
+| Runner drives the engine's own loop; **no `command → do_turn`** | `arcopolis::run_script` (`arcopolis_script.cpp`); grep `do_turn` in `src/arcopolis_*` → none | ✅ |
+| One-shot routes through one bootstrap `do_turn` at the seam | `arcopolis::export_current_view` (`arcopolis_export.cpp`) | ✅ |
+| Inverted `apply_command` removed | absence (grep `apply_command` in `src/`,`tests/` → none) | ✅ |
+| `TURN_DURATION <= 0.005` asserted on both driven paths | `run_script` / `export_current_view` (`get_option<float>`) | ✅ |
+| Each `move` advances `pos_abs` by 1, after the top half | two-`move_s` run: y 6421→6422→6423; calendar T,T+1,T+2,T+3 | ✅ |
+| Blocked move = no-op; script feeds the next command | two-`move_e` run: 2nd move bumps `t_wall_w`, wait still runs (multi-action turn) | ✅ |
+| Seams inert in normal play (gated on `backend_session_active()`) | both seams behind the gate; session begun only in `run_script`/`export_current_view` | ✅ |
+
+### Known limitations (carried forward)
+
+- **Sleep boundary**: the input loop is skipped while the avatar sleeps (`effect_sleep`,
+  `game.cpp`), so the cursor cannot advance; a script crossing a sleep span errors with
+  `backend_stalled` (exit 10) rather than sleeping through. Acceptable for the move/wait spike (the
+  `ArcopolisTest` avatar is awake). It is a hang backstop, not a feature.
+- **Observation-point shift (intended)**: exports are now taken at the input-loop rest (post-top-half),
+  the GUI's only observable resting state. So a *wait-only* script now reads `T, T+1, T+2` (each snapshot
+  one tick later, at the next turn's rest) rather than Spike 2's `T, T, T+1` (which sampled
+  non-GUI-observable between-turn instants). This is the faithful correction this doc predicted
+  (§ "faithful observation point").
+- **`game_over` (exit 11)**: avatar death while driving a script reports a distinct terminal code, not a
+  malformed-input error (2–6).
 
 ## Fidelity principle (read this first — it is the whole point)
 
