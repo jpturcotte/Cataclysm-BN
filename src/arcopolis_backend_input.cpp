@@ -131,6 +131,12 @@ auto arcopolis::next_backend_action() -> action_id
 
 auto arcopolis::backend_write_final_snapshot() -> bool
 {
+    // Inert unless a session with an export dir is active: without it write_session_snapshot would build a
+    // cwd-relative path (e.g. "000_final.json") and write there. run_script (the only caller) is always
+    // active with a dir, so this is defense-in-depth that keeps the public writer inert outside a session.
+    if( !session.active || session.export_dir.empty() ) {
+        return false;
+    }
     // Terminal snapshot: no steps[] entry (step_index = nullopt) and final = true. Reuses the running
     // export index, so it follows the last export step's file as NNN_final.json.
     return write_session_snapshot( "final", std::nullopt, /*is_final=*/true );
