@@ -25,9 +25,11 @@ auto export_current_view( const export_current_view_options &opts ) -> int;
 /// object is written into the snapshot so a stateful run (Spike 2) records where each snapshot came
 /// from. Absent for the one-shot Spike 0/1 export, whose output is therefore unchanged.
 struct snapshot_session_info {
-    int export_index = 0;     ///< 0-based sequence among export steps in this session
-    int step_index = 0;       ///< 0-based index of this export within the script's steps[]
-    std::string export_name;  ///< the export step's "name" label
+    int export_index = 0;     ///< 0-based sequence among export snapshots in this session
+    std::optional<int>
+    step_index;               ///< 0-based index within steps[]; nullopt for the final-on-exit snapshot
+    std::string export_name;  ///< the export step's "name" label ("final" for the terminal snapshot)
+    bool final = false;       ///< true only for the terminal final-on-exit snapshot (Spike 3.1B)
 };
 
 /// Writes a read-only current-view JSON snapshot of the ALREADY-LOADED game to `output_path`,

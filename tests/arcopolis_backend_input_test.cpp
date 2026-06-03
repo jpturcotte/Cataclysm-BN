@@ -44,6 +44,29 @@ TEST_CASE( "arcopolis command_to_action rejects unsupported commands and bad dir
     }
 }
 
+TEST_CASE( "arcopolis backend gate is inert without an active session", "[arcopolis]" )
+{
+    // Normal gameplay path: no backend session has begun, so BOTH halves of the do_turn clean-stop guard
+    // (backend_session_active() && backend_input_done(), game.cpp:2021) are false -- the clean-park branch
+    // is dead code during normal play; only begin_backend_session() can arm it. Relies on the file-wide
+    // invariant that every test which begins a session also ends it, so no session leaks in here.
+    CHECK_FALSE( arcopolis::backend_session_active() );
+    CHECK_FALSE( arcopolis::backend_input_done() );
+
+    // A begin -> end cycle arms then fully disarms the gate, leaving it inert again with no leaked state:
+    // the next normal turn cannot see an active session or a queued action.
+    arcopolis::begin_backend_session( {
+        .steps = { { .op = "command", .command = "wait" } },
+    } );
+    CHECK( arcopolis::backend_session_active() );
+
+    arcopolis::end_backend_session();
+    CHECK_FALSE( arcopolis::backend_session_active() );
+    CHECK_FALSE( arcopolis::backend_input_done() );
+    CHECK( arcopolis::backend_cursor() == 0 );
+    CHECK_FALSE( arcopolis::backend_session_failure().has_value() );
+}
+
 TEST_CASE( "arcopolis backend input session drives command steps to done", "[arcopolis]" )
 {
     arcopolis::begin_backend_session( {
