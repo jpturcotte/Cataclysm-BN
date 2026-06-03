@@ -9,10 +9,13 @@
 
 #include "arcopolis_backend_input.h"  // begin/end_backend_session, backend_input_done, backend_cursor
 #include "arcopolis_command.h"  // backend_command, command_to_action, command_error, exit_code_for
+#include "arcopolis_export.h"  // current_snapshot_summary (final-state fields for the transcript)
+#include "arcopolis_session_log.h"  // begin/end_session_log, session_log_error
 #include "color.h"  // init_colors()
 #include "filesystem.h"  // assure_dir_exist(), file_exist()
 #include "fstream_utils.h"  // cata_ifstream, cata_ios_mode
 #include "game.h"  // g, game::load(world), game::do_turn()
+#include "get_version.h"  // getVersionString()
 #include "json.h"  // JsonIn, JsonObject, JsonArray, JsonError
 #include "options.h"  // get_option<float>( "TURN_DURATION" )
 
@@ -21,6 +24,19 @@ namespace
 
 /// The only step-script schema this spike understands.
 constexpr int arcopolis_script_schema_version = 1;
+
+/// Builds a session_end_summary carrying the live final turn/position (read with the snapshot's
+/// accessors). Used by the clean-completion tail and the stall path, where the avatar is alive; the
+/// game-over path uses a bare status instead, since the avatar may be dead.
+auto end_summary_with_state( const std::string &status ) -> arcopolis::session_end_summary
+{
+    const auto s = arcopolis::current_snapshot_summary();
+    return arcopolis::session_end_summary{
+        .status = status,
+        .final_turn = s.turn,
+        .final_pos_abs = arcopolis::session_log_point{ .x = s.pos_abs_x, .y = s.pos_abs_y, .z = s.pos_abs_z },
+    };
+}
 
 } // namespace
 
@@ -190,6 +206,20 @@ auto arcopolis::run_script( const run_script_options &opts ) -> int
     // before its bottom half. This replaces the Spike 3 `command -> do_turn` inversion entirely.
     begin_backend_session( { .steps = *script, .export_dir = opts.export_dir } );
 
+    // Spike 3.1C: open the JSON Lines session transcript beside the snapshots and record session_start.
+    // The transcript is a default deliverable for a script run, so a failure to OPEN it is surfaced as a
+    // typed error BEFORE driving the engine -- at this point no backend result exists to be masked, and a
+    // bad export dir is caught here rather than on the first snapshot. Once open, the writer is best-effort
+    // and never overrides the real backend exit code (see docs/arcopolis/11).
+    if( !begin_session_log( { .world = opts.world,
+                              .seed = std::nullopt,
+                              .export_dir = opts.export_dir,
+                              .game_version = std::string( getVersionString() ) } ) ) {
+        std::cerr << "arcopolis: failed to open session transcript in '" << opts.export_dir << "'\n";
+        end_backend_session();
+        return exit_code_for( command_error_kind::export_failed );
+    }
+
     // The input loop is skipped while the avatar sleeps (game.cpp:1978), so the provider would never be
     // called and the cursor would never advance. Bound the consecutive cursor-stalled turns as a hang
     // backstop (the ArcopolisTest avatar is awake, so the happy path never trips this).
@@ -199,6 +229,10 @@ auto arcopolis::run_script( const run_script_options &opts ) -> int
     while( !backend_input_done() ) {
         if( g->do_turn() ) {
             // do_turn returns true only via cleanup_at_end (game over / avatar death mid-script).
+            session_log_error( { .step_index = std::nullopt,
+                                 .kind = command_error_kind::game_over,
+                                 .detail = "the game ended (avatar died?) while running the script" } );
+            end_session_log( { .status = "error" } );  // avatar may be dead -> omit final position
             end_backend_session();
             std::cerr << "arcopolis: the game ended (avatar died?) while running the script\n";
             return exit_code_for( command_error_kind::game_over );
@@ -206,6 +240,10 @@ auto arcopolis::run_script( const run_script_options &opts ) -> int
         const auto cursor = backend_cursor();
         if( cursor == last_cursor ) {
             if( ++idle_turns >= max_idle_turns ) {
+                session_log_error( { .step_index = std::nullopt,
+                                     .kind = command_error_kind::backend_stalled,
+                                     .detail = "backend stalled (no input consumed; is the avatar asleep?)" } );
+                end_session_log( end_summary_with_state( "error" ) );
                 end_backend_session();
                 std::cerr << "arcopolis: backend stalled (no input consumed for " << max_idle_turns
                           << " turns; is the avatar asleep?)\n";
@@ -228,6 +266,11 @@ auto arcopolis::run_script( const run_script_options &opts ) -> int
 
     // Surface a deferred inline-export write failure (the provider cannot return one) as the exit code.
     const auto failure = backend_session_failure();
+    // session_end is the transcript's last line on every post-open return path. An export-failure `error`
+    // line (if any) was already written at the point of detection; here we only close the run out. The
+    // avatar is alive on both branches (a clean park or an export-write failure, not death), so the live
+    // final turn/position are safe to read.
+    end_session_log( end_summary_with_state( failure ? "error" : "ok" ) );
     end_backend_session();
     if( failure ) {
         std::cerr << "arcopolis: " << failure->detail << "\n";
