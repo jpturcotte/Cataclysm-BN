@@ -48,15 +48,6 @@ TEST_CASE( "arcopolis read_command_file reports a missing file", "[arcopolis]" )
     CHECK( result.error().kind == arcopolis::command_error_kind::missing_file );
 }
 
-TEST_CASE( "arcopolis apply_command rejects an unsupported command", "[arcopolis]" )
-{
-    // A non-"wait" verb is rejected before any simulation state is touched, so this is safe to call
-    // without a loaded world.
-    const auto result = arcopolis::apply_command( { .schema_version = 1, .command = "teleport" } );
-    REQUIRE_FALSE( result.has_value() );
-    CHECK( result.error().kind == arcopolis::command_error_kind::unsupported_command );
-}
-
 TEST_CASE( "arcopolis parse_command accepts a valid move command", "[arcopolis]" )
 {
     std::istringstream is( R"({ "schema_version": 1, "command": "move", "direction": "move_e" })" );

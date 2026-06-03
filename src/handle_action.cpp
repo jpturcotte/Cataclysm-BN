@@ -15,6 +15,7 @@
 #include "action.h"
 #include "advanced_inv.h"
 #include "animation.h"
+#include "arcopolis_backend_input.h"
 #include "armor_layers.h"
 #include "auto_note.h"
 #include "auto_pickup.h"
@@ -1847,9 +1848,17 @@ bool game::handle_action()
     user_turn current_turn;
     {
         ZoneScopedN( "handle_action_get_action" );
-        // Check if we have an auto-move destination
-        if( u.has_destination() ) {
+        // Arcopolis backend mode: take the per-iteration action from the backend input source instead
+        // of the keyboard, mirroring the auto-move branch (a queued action_id feeding the same switch).
+        // Gated strictly on backend_session_active() so normal play is untouched. An ACTION_NULL (script
+        // exhausted) falls through the ACTION_NULL path below harmlessly (the default-constructed ctxt
+        // yields an empty get_raw_input(), so no "Unknown command" is emitted); do_turn's clean-stop then
+        // parks the turn.
+        if( arcopolis::backend_session_active() ) {
+            act = arcopolis::next_backend_action();
+        } else if( u.has_destination() ) {
             ZoneScopedN( "handle_action_get_auto_move" );
+            // Check if we have an auto-move destination
             act = u.get_next_auto_move_direction();
             if( act == ACTION_NULL ) {
                 add_msg( m_info, _( "Auto-move canceled" ) );
