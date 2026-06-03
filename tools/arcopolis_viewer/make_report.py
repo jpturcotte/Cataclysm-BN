@@ -50,9 +50,13 @@ import json
 import os
 import sys
 
-TOOL_VERSION = "1.0.0"
+TOOL_VERSION = "1.1.0"
 EXPECTED_SCHEMA_VERSION = 1
 SESSION_LOG_NAME = "session.jsonl"
+# Defensive cap on the tile-window span we will render (the engine view is
+# radius 12 = 25x25); a malformed snapshot with wild coordinates cannot blow up
+# the render loops.
+MAX_MAP_SPAN = 256
 
 esc = html.escape
 
@@ -91,6 +95,18 @@ def as_int_list(value):
         return None
 
 
+def display_path(path, reveal):
+    """Render a local path for the report.
+
+    Redacted to a basename by default (AGENTS.md: diagnostic tooling must not
+    embed machine-specific local paths in its output); ``--reveal-paths`` shows
+    it verbatim.
+    """
+    if reveal or not path:
+        return str(path)
+    return os.path.basename(os.path.normpath(str(path))) or str(path)
+
+
 # --------------------------------------------------------------------------- #
 # loading + validation
 # --------------------------------------------------------------------------- #
@@ -109,7 +125,9 @@ def load_session_log(session_dir):
     bad_lines = []
     warnings = []
 
-    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+    # utf-8-sig transparently strips a UTF-8 BOM if a tool (PowerShell, Notepad)
+    # added one, while reading plain UTF-8 unchanged.
+    with open(path, "r", encoding="utf-8-sig", errors="replace") as handle:
         for line_no, raw in enumerate(handle, start=1):
             stripped = raw.strip()
             if not stripped:
@@ -149,9 +167,12 @@ def load_session_log(session_dir):
 def load_snapshot(session_dir, rel_path):
     """Load a referenced snapshot file defensively.
 
-    Returns ``{rel, ok, error, data, missing_keys}``. Never raises: every
-    failure mode (path traversal, missing, unreadable, invalid JSON, wrong
-    shape) is reported as ``ok=False`` with a human reason.
+    Returns ``{rel, ok, error, data, missing_keys}``. Never raises: hard
+    failures (path traversal, missing, unreadable, invalid JSON, non-object)
+    are reported as ``ok=False`` with a human reason. A loaded object that is
+    missing required keys stays ``ok=True`` (so the report still renders what it
+    can) but records them in ``missing_keys``, which the caller counts as a
+    discrepancy.
     """
     result = {"rel": rel_path, "ok": False, "error": None, "data": None, "missing_keys": []}
 
@@ -160,19 +181,22 @@ def load_snapshot(session_dir, rel_path):
         return result
 
     # Defense in depth: the producer only ever writes a bare relative filename
-    # (e.g. "001_after_move1.json"); reject anything that escapes session_dir.
-    normalized = os.path.normpath(rel_path)
-    if os.path.isabs(normalized) or normalized.startswith(".."):
+    # (e.g. "001_after_move1.json"); reject anything that resolves outside
+    # session_dir. Resolving both sides to absolute paths and checking the
+    # prefix also catches Windows drive-relative paths (e.g. "C:foo"), which
+    # os.path.isabs() does not treat as absolute.
+    abs_session_dir = os.path.abspath(session_dir)
+    abspath = os.path.abspath(os.path.join(abs_session_dir, rel_path))
+    if not abspath.startswith(abs_session_dir + os.sep):
         result["error"] = "refusing to load snapshot outside the session dir: %r" % rel_path
         return result
 
-    abspath = os.path.join(session_dir, normalized)
     if not os.path.isfile(abspath):
         result["error"] = "snapshot file not found: %s" % rel_path
         return result
 
     try:
-        with open(abspath, "r", encoding="utf-8", errors="replace") as handle:
+        with open(abspath, "r", encoding="utf-8-sig", errors="replace") as handle:
             text = handle.read()
     except OSError as err:
         result["error"] = "could not read snapshot: %s" % err
@@ -320,6 +344,11 @@ def render_map_html(snap_data, open_default=False):
     x0, x1 = min(xs), max(xs)
     y0, y1 = min(ys), max(ys)
 
+    if (x1 - x0 + 1) > MAX_MAP_SPAN or (y1 - y0 + 1) > MAX_MAP_SPAN:
+        return ('<p class="nomap">Tile window too large to render '
+                "(%d&times;%d; cap %d) &mdash; likely a malformed snapshot.</p>"
+                % (x1 - x0 + 1, y1 - y0 + 1, MAX_MAP_SPAN))
+
     avatar_local = as_int_list(dig(snap_data, "avatar.pos_local"))
     ax = avatar_local[0] if avatar_local and len(avatar_local) >= 2 else None
     ay = avatar_local[1] if avatar_local and len(avatar_local) >= 2 else None
@@ -410,6 +439,7 @@ def build_model(session_dir):
         "passes": 0,
         "fails": 0,
         "missing_snapshots": 0,
+        "incomplete_snapshots": 0,
     }
 
     for event in log["events"]:
@@ -426,6 +456,8 @@ def build_model(session_dir):
             event["_match"] = match
             if not snap["ok"]:
                 counts["missing_snapshots"] += 1
+            elif snap["missing_keys"]:
+                counts["incomplete_snapshots"] += 1
             if match["overall"] == "PASS":
                 counts["passes"] += 1
             elif match["overall"] == "FAIL":
@@ -436,6 +468,7 @@ def build_model(session_dir):
         counts["bad_lines"] == 0
         and counts["fails"] == 0
         and counts["missing_snapshots"] == 0
+        and counts["incomplete_snapshots"] == 0
         and counts["error_events"] == 0
         and log["start"] is not None
         and log["end"] is not None
@@ -531,7 +564,7 @@ footer { margin-top: 2rem; padding-top: .75rem; border-top: 1px solid var(--bord
 """
 
 
-def render_session_card(log):
+def render_session_card(log, reveal_paths=False):
     start = log["start"]
     end = log["end"]
     rows = []
@@ -543,7 +576,7 @@ def render_session_card(log):
         add("world", esc(str(start.get("world", "—"))))
         if start.get("seed") is not None:
             add("seed", esc(str(start.get("seed"))))
-        add("export_dir", "<span class='mono'>%s</span>" % esc(str(start.get("export_dir", "—"))))
+        add("export_dir", "<span class='mono'>%s</span>" % esc(display_path(start.get("export_dir", "—"), reveal_paths)))
         add("game_version", esc(str(start.get("game_version", "—"))))
     else:
         rows.append("<dt>session_start</dt><dd><span class='no'>absent</span> (truncated transcript)</dd>")
@@ -577,6 +610,7 @@ def render_validation_card(counts, overall_pass):
         ("exports matched (PASS)", counts["passes"]),
         ("exports mismatched (FAIL)", counts["fails"]),
         ("snapshots missing/unreadable", counts["missing_snapshots"]),
+        ("snapshots missing required keys", counts["incomplete_snapshots"]),
         ("error events", counts["error_events"]),
     ]
     body = "".join(
@@ -627,7 +661,8 @@ def render_errors_section(log, all_exports):
                 "<div class='error-callout'><strong>%s</strong> &mdash; %s</div>"
                 % (esc(str(event.get("path", "?"))), esc(str(snap.get("error", "snapshot unavailable"))))
             )
-        elif match.get("overall") == "FAIL":
+            continue
+        if match.get("overall") == "FAIL":
             failed = [c for c in (match.get("core", []) + match.get("bonus", [])) if not c["ok"]]
             detail = "; ".join(
                 "%s expected %s got %s" % (esc(c["name"]), esc(fmt_scalar(c["expected"])), esc(fmt_scalar(c["actual"])))
@@ -636,6 +671,12 @@ def render_errors_section(log, all_exports):
             snapshot_problems.append(
                 "<div class='error-callout'><strong>%s: scalar mismatch</strong> &mdash; %s</div>"
                 % (esc(str(event.get("name", event.get("path", "?")))), detail)
+            )
+        if snap.get("missing_keys"):
+            snapshot_problems.append(
+                "<div class='error-callout'><strong>%s: missing required keys</strong> &mdash; %s "
+                "(report cannot fully reconstruct this frame)</div>"
+                % (esc(str(event.get("name", event.get("path", "?")))), esc(", ".join(snap["missing_keys"])))
             )
     if snapshot_problems:
         blocks.append("<h3>Snapshot / contract problems</h3>" + "".join(snapshot_problems))
@@ -795,11 +836,14 @@ def render_timeline(log):
     return '<section><h2>Timeline</h2><div class="timeline">%s</div></section>' % "".join(items)
 
 
-def render_report_html(model, session_dir):
+def render_report_html(model, session_dir, reveal_paths=False):
     log = model["log"]
     counts = model["counts"]
+    # key=str so a malformed transcript mixing JSON types (e.g. 1 and "1")
+    # cannot raise TypeError mid-render; it stays on the discrepancy path.
     schema_versions = sorted(
-        {event.get("schema_version") for event in log["events"] if event.get("schema_version") is not None}
+        {event.get("schema_version") for event in log["events"] if event.get("schema_version") is not None},
+        key=str,
     )
     schema_txt = ", ".join(str(v) for v in schema_versions) if schema_versions else "unknown"
 
@@ -817,9 +861,9 @@ def render_report_html(model, session_dir):
         "<p class='sub'>Generated by <code>make_report.py</code> v%s &middot; read-only, offline, no server &middot; "
         "schema_version %s</p>"
         "<p class='sub'>session-dir: <span class='mono'>%s</span></p>"
-    ) % (esc(TOOL_VERSION), esc(schema_txt), esc(session_dir))
+    ) % (esc(TOOL_VERSION), esc(schema_txt), esc(display_path(session_dir, reveal_paths)))
 
-    cards = render_session_card(log) + render_validation_card(counts, model["overall_pass"])
+    cards = render_session_card(log, reveal_paths) + render_validation_card(counts, model["overall_pass"])
 
     footer = (
         "<footer>Arcopolis Spike 4 viewer. Consumes a Spike 3.1C export "
@@ -852,6 +896,9 @@ def parse_args(argv=None):
                         help="directory containing session.jsonl and the NNN_<name>.json snapshots")
     parser.add_argument("--output", required=True, metavar="PATH",
                         help="path to write the single self-contained .html report")
+    parser.add_argument("--reveal-paths", action="store_true",
+                        help="show full local paths in the report instead of basenames "
+                             "(off by default per the AGENTS.md privacy rule)")
     return parser.parse_args(argv)
 
 
@@ -878,7 +925,7 @@ def main(argv=None):
         sys.stderr.write("fatal: could not read %s: %s\n" % (SESSION_LOG_NAME, err))
         return 1
 
-    html_text = render_report_html(model, session_dir)
+    html_text = render_report_html(model, session_dir, reveal_paths=args.reveal_paths)
     try:
         with open(output, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(html_text)
@@ -889,10 +936,11 @@ def main(argv=None):
     counts = model["counts"]
     status = "OK" if model["overall_pass"] else "DISCREPANCIES"
     sys.stdout.write(
-        "wrote %s  [%s]  exports=%d pass=%d fail=%d missing=%d bad_lines=%d errors=%d\n"
+        "wrote %s  [%s]  exports=%d pass=%d fail=%d missing=%d incomplete=%d bad_lines=%d errors=%d\n"
         % (
             output, status, counts["exports"], counts["passes"], counts["fails"],
-            counts["missing_snapshots"], counts["bad_lines"], counts["error_events"],
+            counts["missing_snapshots"], counts["incomplete_snapshots"], counts["bad_lines"],
+            counts["error_events"],
         )
     )
     return 0 if model["overall_pass"] else 2

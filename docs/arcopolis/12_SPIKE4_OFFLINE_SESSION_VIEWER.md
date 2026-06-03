@@ -99,14 +99,17 @@ A single static `.html` (open it directly with `file://`, no server). Sections:
 ### CLI and exit codes
 
 ```powershell
-python tools\arcopolis_viewer\make_report.py --session-dir <dir> --output <report.html>
+python tools\arcopolis_viewer\make_report.py --session-dir <dir> --output <report.html> [--reveal-paths]
 ```
 
-| exit | meaning                                                                                                                                                                   |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | report written; every line valid JSON and every export matched its snapshot (a clean run).                                                                                |
-| `2`  | report **still written**, but ≥1 discrepancy (bad JSONL line, missing/invalid snapshot, scalar mismatch, an `error` event, or a truncated session) — open it and inspect. |
-| `1`  | fatal: bad usage, missing/unreadable `session.jsonl`, or the report could not be written. No report produced.                                                             |
+By default the report **redacts local paths to basenames** (per the AGENTS.md privacy rule for
+committed diagnostic tooling); pass `--reveal-paths` to show them verbatim.
+
+| exit | meaning                                                                                                                                                                                    |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`  | report written; every line valid JSON and every export matched its snapshot (a clean run).                                                                                                 |
+| `2`  | report **still written**, but ≥1 discrepancy (bad JSONL line, missing/invalid/shape-incomplete snapshot, scalar mismatch, an `error` event, or a truncated session) — open it and inspect. |
+| `1`  | fatal: bad usage, missing/unreadable `session.jsonl`, or the report could not be written. No report produced.                                                                              |
 
 (`argparse` also exits `2` on usage error; both `2`s mean "inspect", and a usage error never reaches
 the write path, so the report-written-vs-not distinction stays unambiguous.)
