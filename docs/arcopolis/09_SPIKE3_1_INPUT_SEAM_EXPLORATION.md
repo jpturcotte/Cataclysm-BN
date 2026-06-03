@@ -8,6 +8,11 @@
 > ([08_SPIKE3_MOVE_COMMAND.md](08_SPIKE3_MOVE_COMMAND.md), FAILED) while keeping its reusable parts. Line
 > numbers drift — trust the symbol names and re-run the PowerShell checks in the last section.
 
+> **Follow-up — Spike 3.1B (clean-park hardening, 2026-06-02).** The clean-park `return false` (Seam 2)
+> introduced here is now load-bearing. A scoped stabilization pass hardened it with provider/gate tests and
+> a final-on-exit snapshot; the full automated world-tick regression harness is **deferred**. See
+> [10_SPIKE3_1B_CLEAN_PARK_HARDENING.md](10_SPIKE3_1B_CLEAN_PARK_HARDENING.md).
+
 ## Spike 3.1A — implementation result
 
 **Status: ✅ implemented and validated.** The action/top-half **inversion that failed Spike 3 is gone**:
