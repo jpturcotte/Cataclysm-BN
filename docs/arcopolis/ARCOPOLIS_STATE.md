@@ -11,6 +11,35 @@ Run Cataclysm-BN **headless as a simulation backend** for a separate "Arcopolis"
 world, drive faithful engine turns from a script, and export read-only JSON the frontend (or an
 offline viewer) consumes. No new gameplay; the engine remains the single source of truth.
 
+## Repository layout (branch model)
+
+The fork follows a fast-moving upstream while carrying this backend work, using a **mirror + rebased
+dev branch** layout (set up 2026-06-04):
+
+- **`main` mirrors `upstream/main`** (`cataclysmbn/Cataclysm-BN`) exactly — **no Arcopolis work lives
+  on it.** Don't commit here; it only fast-forwards to upstream.
+- **`arcopolis` is the development branch** — the Spike 0–5 commits plus all new work, kept linear on
+  top of `main`, and the GitHub **default branch**. **Branch and PR off `arcopolis`.**
+- `git diff main...arcopolis` is always exactly the backend patch set.
+
+Sync with upstream:
+
+```sh
+git fetch upstream
+git switch main && git merge --ff-only upstream/main && git push origin main   # mirror; never conflicts
+git switch arcopolis && git rebase main                                        # replay patches onto upstream
+git push --force-with-lease origin arcopolis
+```
+
+`git rerere` replays the two recurring rebase conflicts automatically **once trained**: the `do_turn`
+clean-park vs. upstream's sound block (`src/game.cpp`), and the `first_pass_arguments` array-size
+literal (`src/main.cpp`). Its resolution cache (`.git/rr-cache`) is **local to each clone** and is not
+shared by git, so a fresh checkout hits both conflicts and must resolve them by hand the first time
+(which trains that clone's cache); they auto-replay only afterward. Enable it per clone with
+`git config rerere.enabled true`. Either way, if upstream adds a **new** CLI argument the
+`<arg_handler, N>` count still needs a manual bump (N = base + your flags + upstream's new ones) — git
+merges the literal silently and wrong.
+
 ## How to run
 
 | Mode              | Flags                                                                                              | Output                                           |
