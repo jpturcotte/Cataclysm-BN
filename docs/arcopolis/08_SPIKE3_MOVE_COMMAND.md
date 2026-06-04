@@ -321,7 +321,9 @@ Invalid inputs (each rejected before any UI; clear stderr):
 
 Parser unit tests (`cata_test-tiles "[arcopolis]"`) cover the same schema rules in-process.
 
-## Proposed next step — fix the inversion (Spike 3.1)
+## Proposed next step — fix the inversion (Spike 3.1) — ✅ done in Spike 3.1A
+
+> Implemented and validated as Spike 3.1A (the input-seam turn driver); see [09_SPIKE3_1_INPUT_SEAM_EXPLORATION.md](09_SPIKE3_1_INPUT_SEAM_EXPLORATION.md) and [ARCOPOLIS_STATE.md](ARCOPOLIS_STATE.md).
 
 The fix is to stop driving the engine with `command → do_turn` and instead **run the engine's own
 `do_turn` loop and inject the command at the engine's input point** — i.e. where `handle_action()` is
