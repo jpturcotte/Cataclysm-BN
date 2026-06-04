@@ -2,6 +2,7 @@
 
 #include <expected>
 #include <iosfwd>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -27,6 +28,8 @@ struct run_script_options {
     std::string world;        ///< prepared world/save to load headlessly (required)
     std::string script_path;  ///< JSON step script to execute in order (required)
     std::string export_dir;   ///< directory the snapshots are written into (required)
+    std::optional<std::string>
+    seed;  ///< original --seed CLI string for the transcript's session_start; nullopt if not passed
 };
 
 /// Parses and schema-validates a step script from an open JSON stream (no file I/O). Exposed so the
