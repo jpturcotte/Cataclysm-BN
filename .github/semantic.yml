@@ -25,6 +25,7 @@ scopes:
   - balance
   - port
   - lua
+  - arcopolis
   - mods/Arcana
   - mods/Arcana_Crit_Patch
   - mods/Arcana_Dinomod_Patch
@@ -75,6 +76,7 @@ scopes:
   - mods/no_global_uniques
   - mods/no_npc_food
   - mods/no_reviving_zombies
+  - mods/no_vehicle_colors
   - mods/no_zombify
   - mods/novitamins
   - mods/npc_lua_hook_test
@@ -97,5 +99,6 @@ scopes:
   - mods/test_lua_require
   - mods/udp_redux
   - mods/underground_dynamic_temperature
+  - mods/vehicle_color_expansion
   - mods/weather_variants
   - mods
