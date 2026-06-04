@@ -4,7 +4,7 @@
 
 Arcopolis is a separate game/project concept being investigated on top of Cataclysm: Bright Nights.
 
-Arcopolis is not currently an implemented game. It is a research and architecture exploration.
+Arcopolis is not currently an implemented game. It began as repository research and has moved into implementing the Bright Nights simulation backend in small, validated spikes (see `docs/arcopolis/ARCOPOLIS_STATE.md`).
 
 ### Game concept
 
@@ -34,7 +34,7 @@ A previous attempt at GUI/overlay work suggested that bridging or replacing indi
 
 ### Current phase
 
-Repository exploration and backend-boundary research only.
+Implementing the backend boundary in small, validated spikes — Spikes 0–5 are merged. Changes now routinely include real `src/` / tests / tooling (scoped to the `--arcopolis-*` modes), not just docs. See `docs/arcopolis/ARCOPOLIS_STATE.md` for the current state and the deferred backlog.
 
 ### Default Arcopolis rules
 
@@ -42,8 +42,8 @@ Repository exploration and backend-boundary research only.
 - Do not modernize or replace the Bright Nights UI during exploration.
 - Do not port old GUI/overlay work during exploration.
 - Do not bridge existing UI screens one by one.
-- Do not add dependencies during exploration.
-- Prefer documentation-only changes under `docs/arcopolis/`.
+- Do not add third-party dependencies.
+- Default to small, additive, well-tested changes scoped to `src/arcopolis_*` and `docs/arcopolis/`; modify shared engine files (the turn loop, `messages`, `map`, …) only when a spike justifies it and the change is gated behind the `--arcopolis-*` modes.
 - When exploring code, record exact file paths, functions, classes, and call paths.
 - If uncertain, state uncertainty and list what to inspect next.
 - Use PowerShell commands for Windows-local instructions.
@@ -68,22 +68,9 @@ reproduce EXACTLY what the engine does for the same action.
   state the answer; do not spin up little experiments to defer the question. (Litigating this the slow way
   cost a full session once — don't repeat it.)
 
-### Expected exploration artifacts
+### Backend documentation
 
-**Read first (current truth):** `docs/arcopolis/ARCOPOLIS_STATE.md` is the single-page, up-to-date state of the backend (the input-seam architecture, the snapshot/transcript contract, capabilities by spike, and the deferred backlog). The numbered `NN_*.md` files are the chronological record (including the failed Spike 3); the outline below is the original exploration plan and no longer matches the files on disk.
-
-```text
-docs/arcopolis/
-  00_REPO_EXPLORATION_PLAN.md
-  01_STARTUP_AND_CLI.md
-  02_WORLD_SAVE_AND_FIXTURE_LOADING.md
-  03_MAP_REALITY_BUBBLE_AND_VIEW_EXPORT.md
-  04_AVATAR_ACTORS_ITEMS_MESSAGES.md
-  05_ACTIONS_COMMANDS_AND_TURN_ADVANCE.md
-  06_BACKEND_BOUNDARY_RECOMMENDATION.md
-  FINDINGS.md
-  GLOSSARY.md
-```
+**Read first (current truth):** `docs/arcopolis/ARCOPOLIS_STATE.md` — a single-page checkpoint of the backend's current architecture (the input-seam design), the snapshot/transcript contract, capabilities by spike, and the deferred backlog. The numbered `NN_SPIKE*.md` files are the chronological record (including the failed Spike 3); list the live set with `Get-ChildItem docs/arcopolis`.
 
 ### Arcopolis local setup checks
 
