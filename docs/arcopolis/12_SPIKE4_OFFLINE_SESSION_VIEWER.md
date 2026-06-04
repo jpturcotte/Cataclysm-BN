@@ -149,13 +149,13 @@ enhancements for a later spike — Spike 4 invents none of them:
    moves and what is dangerous — and would also unblock the deferred tick-witness harness from 3.1B.
 3. **Explicit avatar marker in `tiles`.** The avatar is located only by matching `avatar.pos_local`
    to a tile `(x,y)`; an absent `pos_local` leaves it unplaceable. A per-tile `is_avatar` flag (or an
-   avatar `(x,y)` header) would be unambiguous.
+   avatar `(x,y)` header) would be unambiguous. ✅ **Done in Spike 5** (per-tile `is_avatar` flag).
 4. **Message severity / type / timestamp.** `write_messages` sets `type` to `""` always and drops the
    time-of-day the API returns; the viewer can show text only, with no severity colour or ordering.
 5. **Tile elevation / multi-z.** `tiles` is one z-slice; stairs/ladders show as ids but not their
    destination level.
-6. **`seed` in `session_start`.** Currently omitted (the CLI `--seed` is not threaded into the
-   backend session), so the report cannot show a reproducibility seed.
+6. **`seed` in `session_start`.** ✅ **Done in Spike 5** — the original `--seed` string is now threaded
+   into the backend session and recorded in `session_start` (omitted when no `--seed` is passed).
 
 ## Files changed
 
