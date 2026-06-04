@@ -156,8 +156,7 @@ auto write_tiles( JsonOut &json, const snapshot_ctx &ctx ) -> void
         // Emit the marker only on that tile (additive: absent elsewhere) so a reader need not re-derive
         // it from avatar.pos_local. center == ctx.u.bub_pos(), the same coordinate write_avatar serializes.
         if( p == center ) {
-            json.member( "is_avatar" );
-            json.write( true );
+            json.member( "is_avatar", true );
         }
         json.end_object();
     }

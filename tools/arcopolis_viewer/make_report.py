@@ -368,8 +368,13 @@ def render_map_html(snap_data, open_default=False):
             seen = tile.get("seen", True)
             classes = ["cell", css]
             # Prefer the explicit backend marker (Spike 5); fall back to the pos_local coordinate match
-            # for snapshots produced before is_avatar existed.
-            is_avatar = bool(tile.get("is_avatar")) or (avatar_in_window and x == ax and y == ay)
+            # only for snapshots produced before is_avatar existed (key absent). A present-but-false
+            # marker is trusted, not overridden by the coordinate guess.
+            is_avatar = tile.get("is_avatar")
+            if is_avatar is None:
+                is_avatar = avatar_in_window and x == ax and y == ay
+            else:
+                is_avatar = bool(is_avatar)
             if is_avatar:
                 render_glyph = "@"
                 classes.append("avatar")
