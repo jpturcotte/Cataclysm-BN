@@ -367,7 +367,9 @@ def render_map_html(snap_data, open_default=False):
             legend[(css, glyph, label)] = True
             seen = tile.get("seen", True)
             classes = ["cell", css]
-            is_avatar = avatar_in_window and x == ax and y == ay
+            # Prefer the explicit backend marker (Spike 5); fall back to the pos_local coordinate match
+            # for snapshots produced before is_avatar existed.
+            is_avatar = bool(tile.get("is_avatar")) or (avatar_in_window and x == ax and y == ay)
             if is_avatar:
                 render_glyph = "@"
                 classes.append("avatar")
