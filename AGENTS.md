@@ -36,6 +36,15 @@ A previous attempt at GUI/overlay work suggested that bridging or replacing indi
 
 Implementing the backend boundary in small, validated spikes — Spikes 0–5 are merged. Changes now routinely include real `src/` / tests / tooling (scoped to the `--arcopolis-*` modes), not just docs. See `docs/arcopolis/ARCOPOLIS_STATE.md` for the current state and the deferred backlog.
 
+### Repository layout (branch model)
+
+The fork uses a **mirror + rebased dev branch** layout so it can cleanly follow a fast upstream while carrying this backend work:
+
+- **`main` mirrors `upstream/main`** exactly — no Arcopolis work on it; do **not** develop or commit here.
+- **`arcopolis` is the dev branch** (Spike 0–5 + all new work, linear on top of `main`) and the GitHub default branch. Branch and PR off `arcopolis`.
+
+Sync upstream by fast-forwarding `main` to `upstream/main` and pushing it, then `git rebase main` on `arcopolis` and force-push `arcopolis`. `git rerere` (enable per clone: `git config rerere.enabled true`) auto-replays the two recurring collisions (`src/game.cpp` do_turn clean-park, `src/main.cpp` `first_pass_arguments` count) **once trained** — its `.git/rr-cache` is per-clone and not shared by git, so a fresh checkout resolves them by hand the first time. A brand-new upstream CLI arg still needs a manual `<arg_handler, N>` bump. Full workflow: `docs/arcopolis/ARCOPOLIS_STATE.md` → "Repository layout".
+
 ### Default Arcopolis rules
 
 - Do not modify gameplay source code unless explicitly asked.
