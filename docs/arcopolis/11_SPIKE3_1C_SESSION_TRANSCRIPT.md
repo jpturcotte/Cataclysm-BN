@@ -70,7 +70,7 @@ Semantics worth stating:
   portable beside its snapshot directory.
 - `seed` is **omitted** this spike: the CLI `--seed` is a `main.cpp` local and is not threaded into the
   backend session, and the task marks it "if available". Threading it through `run_script_options` is a
-  cheap future enhancement if deterministic-seed reproduction is wanted.
+  cheap future enhancement if deterministic-seed reproduction is wanted. **(Done in Spike 5 — the `--seed` string is now threaded into `session_start`; see [13_SPIKE5_EXPORT_CHEAP_WINS.md](13_SPIKE5_EXPORT_CHEAP_WINS.md).)**
 
 ### Example `session.jsonl`
 
@@ -230,13 +230,13 @@ Built `cataclysm-bn-tiles` + `cata_test-tiles` (same dir) — both exit 0, no wa
   lines, every line parsed as JSON). First event `session_start`, last `session_end`; 3 `command` events in
   step order (`step_index` 1/3/5); each `export` referenced an existing snapshot and matched it exactly:
 
-  | export `path` | `final` | `turn` == snapshot | `moves` == snapshot | `pos_abs` == snapshot |
-  | --- | --- | --- | --- | --- |
-  | `000_start.json` | false | 1324801 ✅ | 99 ✅ | `[6301,6421,0]` ✅ |
-  | `001_after_move1.json` | false | 1324802 ✅ | 98 ✅ | `[6301,6422,0]` ✅ |
-  | `002_after_move2.json` | false | 1324803 ✅ | 72 ✅ | `[6301,6423,0]` ✅ |
-  | `003_after_wait.json` | false | 1324804 ✅ | 100 ✅ | `[6301,6423,0]` ✅ |
-  | `004_final.json` | **true** | 1324804 ✅ | 100 ✅ | `[6301,6423,0]` ✅ |
+  | export `path`          | `final`  | `turn` == snapshot | `moves` == snapshot | `pos_abs` == snapshot |
+  | ---------------------- | -------- | ------------------ | ------------------- | --------------------- |
+  | `000_start.json`       | false    | 1324801 ✅         | 99 ✅               | `[6301,6421,0]` ✅    |
+  | `001_after_move1.json` | false    | 1324802 ✅         | 98 ✅               | `[6301,6422,0]` ✅    |
+  | `002_after_move2.json` | false    | 1324803 ✅         | 72 ✅               | `[6301,6423,0]` ✅    |
+  | `003_after_wait.json`  | false    | 1324804 ✅         | 100 ✅              | `[6301,6423,0]` ✅    |
+  | `004_final.json`       | **true** | 1324804 ✅         | 100 ✅              | `[6301,6423,0]` ✅    |
 
   `session_end`: `status=ok, snapshots=5, commands=3, final_turn=1324804, final_pos_abs=[6301,6423,0]`. The
   `move_s`/`wait` turn-and-moves progression is the engine's faithful behavior unchanged from Spike 3.1B;

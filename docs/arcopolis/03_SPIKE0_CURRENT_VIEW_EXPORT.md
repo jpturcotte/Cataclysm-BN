@@ -319,12 +319,14 @@ Spike 0 files reports them all _Unchanged_ (the code already conforms).
 
 ## Next steps
 
+> **Done (see [ARCOPOLIS_STATE.md](ARCOPOLIS_STATE.md)):** Spikes 1–5 all landed. This is the original Spike-0 outlook, kept as the chronological record.
+
 - **Spike 1** — a no-save fixture world: adopt the Catch2 bootstrap (`init_global_game_state`,
   [tests/test_main.cpp:99](../../tests/test_main.cpp)) as a blueprint in the game binary, adding the
   missing `update_map` + cache-build steps to reach a coherent view without a save.
 - **Spike 2** — deterministic fixtures from a JSON spec + fixed RNG seed.
 - **Later** — capability (3): high-level command validation/application and `do_turn` advancement
-  (`05_ACTIONS_COMMANDS_AND_TURN_ADVANCE.md`), and growing the snapshot (actors, items, larger-than-bubble
+  (done — the `05_SPIKE1` / `06_SPIKE2` command docs), and growing the snapshot (actors, items, larger-than-bubble
   map views) toward a real runtime protocol with deltas.
 
 ## PowerShell local checks

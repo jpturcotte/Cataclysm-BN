@@ -338,6 +338,8 @@ unit-tested — the binary run above is its proof (same rationale as Spike 1).
 
 ## Next step (not in scope here)
 
+> **Done:** movement landed in Spike 3.1A (input seam) and an offline viewer in Spike 4; see [ARCOPOLIS_STATE.md](ARCOPOLIS_STATE.md).
+
 With `T → T → T+1` proven, the next meaningful proof is **movement** inside the persistent backend
 (`export → move east → export → wait → export`) — spatial command execution with visible map changes,
 still no frontend and no sockets. A tiny viewer becomes worthwhile only after that.

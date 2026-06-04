@@ -152,6 +152,12 @@ auto write_tiles( JsonOut &json, const snapshot_ctx &ctx ) -> void
         // pl_sees range-checks via square_dist (Chebyshev); radius == window radius rejects nothing
         // by range, so real light/LOS (from caches game::load built) decides visibility.
         json.member( "seen", ctx.m.pl_sees( p, ctx.radius ) );
+        // The window is a single z-slice centred on the avatar, so exactly one tile is the avatar's.
+        // Emit the marker only on that tile (additive: absent elsewhere) so a reader need not re-derive
+        // it from avatar.pos_local. center == ctx.u.bub_pos(), the same coordinate write_avatar serializes.
+        if( p == center ) {
+            json.member( "is_avatar", true );
+        }
         json.end_object();
     }
     json.end_array();

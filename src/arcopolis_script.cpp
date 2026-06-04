@@ -212,7 +212,7 @@ auto arcopolis::run_script( const run_script_options &opts ) -> int
     // bad export dir is caught here rather than on the first snapshot. Once open, the writer is best-effort
     // and never overrides the real backend exit code (see docs/arcopolis/11).
     if( !begin_session_log( { .world = opts.world,
-                              .seed = std::nullopt,
+                              .seed = opts.seed,
                               .export_dir = opts.export_dir,
                               .game_version = std::string( getVersionString() ) } ) ) {
         std::cerr << "arcopolis: failed to open session transcript in '" << opts.export_dir << "'\n";

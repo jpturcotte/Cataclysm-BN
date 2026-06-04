@@ -550,8 +550,8 @@ Notes:
 > (`bub_ms`/`abs_ms`/`abs_sm`) and uses the `pl_sees` visibility model; the remaining exploration folds
 > into Spike 1+.
 
-**`docs/arcopolis/03_MAP_REALITY_BUBBLE_AND_VIEW_EXPORT.md` — "Reality bubble, visibility, and a concrete
-read-only view export."** (Matches the artifact list in [AGENTS.md](../../AGENTS.md).)
+**Reality bubble, visibility, and a concrete read-only view export** — implemented as
+[03_SPIKE0_CURRENT_VIEW_EXPORT.md](03_SPIKE0_CURRENT_VIEW_EXPORT.md) (see the Update above).
 
 Goals:
 
@@ -564,8 +564,9 @@ Goals:
 - Produce a concrete, ordered read-only export walk (avatar → bounds → tiles → actors → items → messages
   → time/weather) ready to implement behind the Spike-0 flag.
 
-A later doc (`05_ACTIONS_COMMANDS_AND_TURN_ADVANCE.md`) should cover capability (3): command
-validation/application and `do_turn` advancement.
+Capability (3) — command validation/application and `do_turn` advancement — is covered by the Spike 1+
+command docs ([05_SPIKE1_WAIT_COMMAND.md](05_SPIKE1_WAIT_COMMAND.md) /
+[06_SPIKE2_STATEFUL_SCRIPT.md](06_SPIKE2_STATEFUL_SCRIPT.md)).
 
 ## PowerShell local checks
 
