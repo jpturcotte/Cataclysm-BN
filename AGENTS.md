@@ -70,6 +70,8 @@ reproduce EXACTLY what the engine does for the same action.
 
 ### Expected exploration artifacts
 
+**Read first (current truth):** `docs/arcopolis/ARCOPOLIS_STATE.md` is the single-page, up-to-date state of the backend (the input-seam architecture, the snapshot/transcript contract, capabilities by spike, and the deferred backlog). The numbered `NN_*.md` files are the chronological record (including the failed Spike 3); the outline below is the original exploration plan and no longer matches the files on disk.
+
 ```text
 docs/arcopolis/
   00_REPO_EXPLORATION_PLAN.md
