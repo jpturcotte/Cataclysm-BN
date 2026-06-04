@@ -81,8 +81,8 @@ export const allModIds = await asynciter(walk("data/mods", {
  * see `changelog_guidelines.md` for list of all allowed scopes.
  */
 export const scopes = {
-  /** Default allowed scopes */
-  base: ["UI", "i18n", "balance", "port", "lua"],
+  /** Default allowed scopes (`arcopolis` is this fork's downstream addition). */
+  base: ["UI", "i18n", "balance", "port", "lua", "arcopolis"],
   /** List of `mods/<MOD_ID>` */
   mods: allModIds.toSorted().map((x) => `mods/${x}`).concat("mods"),
 }

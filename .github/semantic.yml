@@ -25,6 +25,7 @@ scopes:
   - balance
   - port
   - lua
+  - arcopolis
   - mods/Arcana
   - mods/CheesyInnaWoodFixes
   - mods/DinoMod
