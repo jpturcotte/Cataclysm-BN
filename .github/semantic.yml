@@ -25,6 +25,7 @@ scopes:
   - balance
   - port
   - lua
+  - arcopolis
   - mods/Arcana
   - mods/Arcana_Crit_Patch
   - mods/Arcana_Dinomod_Patch
