@@ -4,7 +4,7 @@
 > exploration/design; the **M1** mechanism it recommended has since been implemented and validated — see
 > [§ Spike 3.1A — implementation result](#spike-31a--implementation-result) immediately below. The
 > original exploration text (from "Fidelity principle" onward) is retained **unchanged** as the design
-> record. It superseded the *execution* approach of Spike 3
+> record. It superseded the _execution_ approach of Spike 3
 > ([08_SPIKE3_MOVE_COMMAND.md](08_SPIKE3_MOVE_COMMAND.md), FAILED) while keeping its reusable parts. Line
 > numbers drift — trust the symbol names and re-run the PowerShell checks in the last section.
 
@@ -22,28 +22,28 @@ where a keypress is. There is no `command → do_turn` caller anywhere.
 
 ### What shipped (5 commits)
 
-| Commit | Change |
-| --- | --- |
-| `feat(arcopolis): backend input source` | New `src/arcopolis_backend_input.{h,cpp}`: a TU-local session + the `next_backend_action()` provider (inline exports, returns the next `action_id`); plus `command_to_action()` (pure `wait → ACTION_PAUSE`, `move → look_up_action`) in `arcopolis_command.cpp`. Unit-tested. |
-| `feat(arcopolis): consume backend action at the seam` | **Seam 1** — gated branch in `game::handle_action` (`src/handle_action.cpp`) sets `act` from the provider, mirroring the auto-move precedent. **Seam 2** — gated clean-park `return false` in `game::do_turn` (`src/game.cpp`), placed **after** the existing `is_game_over()` check, leaving `do_turn` before the bottom half (world not ticked). Both gated on `arcopolis::backend_session_active()`. |
-| `refactor(arcopolis): drive the script runner through the seam` | `run_script` (`src/arcopolis_script.cpp`) pre-flights `command_to_action`, asserts `TURN_DURATION <= 0.005`, then drives `while( !backend_input_done() ) g->do_turn();` with a stall backstop + game-over handling. Old per-step `apply_command` loop removed. |
-| `feat(arcopolis): drive the one-shot through the seam` | `export_current_view` (`src/arcopolis_export.cpp`) routes `--arcopolis-command` through one bootstrap `do_turn` at the seam; **`apply_command` (the inverted body) deleted**. |
-| `docs(arcopolis): record Spike 3.1A result` | This section. |
+| Commit                                                          | Change                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `feat(arcopolis): backend input source`                         | New `src/arcopolis_backend_input.{h,cpp}`: a TU-local session + the `next_backend_action()` provider (inline exports, returns the next `action_id`); plus `command_to_action()` (pure `wait → ACTION_PAUSE`, `move → look_up_action`) in `arcopolis_command.cpp`. Unit-tested.                                                                                                                          |
+| `feat(arcopolis): consume backend action at the seam`           | **Seam 1** — gated branch in `game::handle_action` (`src/handle_action.cpp`) sets `act` from the provider, mirroring the auto-move precedent. **Seam 2** — gated clean-park `return false` in `game::do_turn` (`src/game.cpp`), placed **after** the existing `is_game_over()` check, leaving `do_turn` before the bottom half (world not ticked). Both gated on `arcopolis::backend_session_active()`. |
+| `refactor(arcopolis): drive the script runner through the seam` | `run_script` (`src/arcopolis_script.cpp`) pre-flights `command_to_action`, asserts `TURN_DURATION <= 0.005`, then drives `while( !backend_input_done() ) g->do_turn();` with a stall backstop + game-over handling. Old per-step `apply_command` loop removed.                                                                                                                                          |
+| `feat(arcopolis): drive the one-shot through the seam`          | `export_current_view` (`src/arcopolis_export.cpp`) routes `--arcopolis-command` through one bootstrap `do_turn` at the seam; **`apply_command` (the inverted body) deleted**.                                                                                                                                                                                                                           |
+| `docs(arcopolis): record Spike 3.1A result`                     | This section.                                                                                                                                                                                                                                                                                                                                                                                           |
 
 > **One refinement vs the design plan, mandated by the fidelity bar:** Seam 2 is placed **after**
 > `is_game_over()` (not before, as the line-level plan first said). Placing it before would let a fatal
-> *final* action skip game-over processing and report success with a dead avatar. After `is_game_over()`,
+> _final_ action skip game-over processing and report success with a dead avatar. After `is_game_over()`,
 > a fatal step ends the game correctly and a normal exhaustion parks — both faithful.
 
 ### Validation (game build `cataclysm-bn-tiles`, `--seed`, world `ArcopolisTest`)
 
-| Check | Result |
-| --- | --- |
-| `cata_test-tiles "[arcopolis]"` | ✅ **28 cases / 113 assertions pass** (incl. the new provider/cursor + `command_to_action` unit tests). |
-| **Two `move_s` + `wait`** (clean N-S corridor) | ✅ exit 0, empty stderr. `pos_abs.y`: 6421 → **6422 (+1)** → **6423 (+1)** → 6423; x,z fixed. Calendar **T, T+1, T+2, T+3** (1324801→1324804) — bootstrap then one tick per action. **Each move advances exactly 1, evaluated after each turn's top half.** |
+| Check                                            | Result                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cata_test-tiles "[arcopolis]"`                  | ✅ **28 cases / 113 assertions pass** (incl. the new provider/cursor + `command_to_action` unit tests).                                                                                                                                                                                                                                                                            |
+| **Two `move_s` + `wait`** (clean N-S corridor)   | ✅ exit 0, empty stderr. `pos_abs.y`: 6421 → **6422 (+1)** → **6423 (+1)** → 6423; x,z fixed. Calendar **T, T+1, T+2, T+3** (1324801→1324804) — bootstrap then one tick per action. **Each move advances exactly 1, evaluated after each turn's top half.**                                                                                                                        |
 | **Two `move_e` + `wait`** (the Spike-3 bug case) | ✅ exit 0, empty stderr. 1st `move_e`: 6301 → **6302 (+1)**; 2nd `move_e`: **blocked** by `t_wall_w` one tile east (doc 08's documented wall) — a faithful no-op, and the script **continued to the wait** (never failed). Calendar **T, T+1, T+1, T+2**: the blocked move spent no moves, so the wait shared its turn — a **multi-action turn** (two actions, world ticked once). |
-| **One-shot `--arcopolis-command move_e`** | ✅ exit 0, empty stderr. `pos_abs.x` 6301 → **6302 (+1)**, calendar **T** (single bootstrap `do_turn`) — the one-shot's result is unchanged, but now executed at the seam (no inversion). |
-| **One-shot `--arcopolis-command fly`** | ✅ exit **6** (`unsupported_command`) — the pre-flight resolver rejects it before driving a turn, preserving the typed exit model. |
+| **One-shot `--arcopolis-command move_e`**        | ✅ exit 0, empty stderr. `pos_abs.x` 6301 → **6302 (+1)**, calendar **T** (single bootstrap `do_turn`) — the one-shot's result is unchanged, but now executed at the seam (no inversion).                                                                                                                                                                                          |
+| **One-shot `--arcopolis-command fly`**           | ✅ exit **6** (`unsupported_command`) — the pre-flight resolver rejects it before driving a turn, preserving the typed exit model.                                                                                                                                                                                                                                                 |
 
 The decisive signal that the inversion is gone: `after_move1` is observed at **T+1**, not T. The inverted
 Spike 3 took that snapshot between turns at T (bootstrap); M1 takes it at the next turn's input-loop rest
@@ -51,19 +51,19 @@ Spike 3 took that snapshot between turns at T (bootstrap); M1 takes it at the ne
 
 ### Citation audit of the implemented behavior (trust symbols; line numbers drift)
 
-| Claim | Implementing symbol | Verdict |
-| --- | --- | --- |
-| Backend action consumed at the `handle_action` input seam, gated | `game::handle_action` first branch → `arcopolis::next_backend_action()` (`handle_action.cpp`) | ✅ |
-| Clean park leaves `do_turn` before the bottom half, after game-over check | `game::do_turn` input loop → `backend_input_done()` `return false` (`game.cpp`, after `is_game_over()`) | ✅ |
-| Command → `action_id`, pure (no engine mutation) | `arcopolis::command_to_action` (`arcopolis_command.cpp`) | ✅ |
-| Provider performs `export` inline + returns the next `action_id`; `done` at end | `arcopolis::next_backend_action` (`arcopolis_backend_input.cpp`) | ✅ |
-| Runner drives the engine's own loop; **no `command → do_turn`** | `arcopolis::run_script` (`arcopolis_script.cpp`); grep `do_turn` in `src/arcopolis_*` → none | ✅ |
-| One-shot routes through one bootstrap `do_turn` at the seam | `arcopolis::export_current_view` (`arcopolis_export.cpp`) | ✅ |
-| Inverted `apply_command` removed | absence (grep `apply_command` in `src/`,`tests/` → none) | ✅ |
-| `TURN_DURATION <= 0.005` asserted on both driven paths | `run_script` / `export_current_view` (`get_option<float>`) | ✅ |
-| Each `move` advances `pos_abs` by 1, after the top half | two-`move_s` run: y 6421→6422→6423; calendar T,T+1,T+2,T+3 | ✅ |
-| Blocked move = no-op; script feeds the next command | two-`move_e` run: 2nd move bumps `t_wall_w`, wait still runs (multi-action turn) | ✅ |
-| Seams inert in normal play (gated on `backend_session_active()`) | both seams behind the gate; session begun only in `run_script`/`export_current_view` | ✅ |
+| Claim                                                                           | Implementing symbol                                                                                     | Verdict |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------- |
+| Backend action consumed at the `handle_action` input seam, gated                | `game::handle_action` first branch → `arcopolis::next_backend_action()` (`handle_action.cpp`)           | ✅      |
+| Clean park leaves `do_turn` before the bottom half, after game-over check       | `game::do_turn` input loop → `backend_input_done()` `return false` (`game.cpp`, after `is_game_over()`) | ✅      |
+| Command → `action_id`, pure (no engine mutation)                                | `arcopolis::command_to_action` (`arcopolis_command.cpp`)                                                | ✅      |
+| Provider performs `export` inline + returns the next `action_id`; `done` at end | `arcopolis::next_backend_action` (`arcopolis_backend_input.cpp`)                                        | ✅      |
+| Runner drives the engine's own loop; **no `command → do_turn`**                 | `arcopolis::run_script` (`arcopolis_script.cpp`); grep `do_turn` in `src/arcopolis_*` → none            | ✅      |
+| One-shot routes through one bootstrap `do_turn` at the seam                     | `arcopolis::export_current_view` (`arcopolis_export.cpp`)                                               | ✅      |
+| Inverted `apply_command` removed                                                | absence (grep `apply_command` in `src/`,`tests/` → none)                                                | ✅      |
+| `TURN_DURATION <= 0.005` asserted on both driven paths                          | `run_script` / `export_current_view` (`get_option<float>`)                                              | ✅      |
+| Each `move` advances `pos_abs` by 1, after the top half                         | two-`move_s` run: y 6421→6422→6423; calendar T,T+1,T+2,T+3                                              | ✅      |
+| Blocked move = no-op; script feeds the next command                             | two-`move_e` run: 2nd move bumps `t_wall_w`, wait still runs (multi-action turn)                        | ✅      |
+| Seams inert in normal play (gated on `backend_session_active()`)                | both seams behind the gate; session begun only in `run_script`/`export_current_view`                    | ✅      |
 
 ### Known limitations (carried forward)
 
@@ -72,7 +72,7 @@ Spike 3 took that snapshot between turns at T (bootstrap); M1 takes it at the ne
   `backend_stalled` (exit 10) rather than sleeping through. Acceptable for the move/wait spike (the
   `ArcopolisTest` avatar is awake). It is a hang backstop, not a feature.
 - **Observation-point shift (intended)**: exports are now taken at the input-loop rest (post-top-half),
-  the GUI's only observable resting state. So a *wait-only* script now reads `T, T+1, T+2` (each snapshot
+  the GUI's only observable resting state. So a _wait-only_ script now reads `T, T+1, T+2` (each snapshot
   one tick later, at the next turn's rest) rather than Spike 2's `T, T, T+1` (which sampled
   non-GUI-observable between-turn instants). This is the faithful correction this doc predicted
   (§ "faithful observation point").
@@ -82,7 +82,7 @@ Spike 3 took that snapshot between turns at T (bootstrap); M1 takes it at the ne
 ## Fidelity principle (read this first — it is the whole point)
 
 **The GUI behavior is the engine behavior is the behavior, period.** Every spike, including this one,
-must reproduce *exactly* what Bright Nights does for the same action, at the same point in the turn. A
+must reproduce _exactly_ what Bright Nights does for the same action, at the same point in the turn. A
 backend behavior the GUI never produces is a **bug**, not a "headless mode." If a design cannot mirror
 the engine, the design is wrong and must be reworked until it can — we do **not** ship a divergent path
 and call it good enough. (AGENTS.md → "Arcopolis backend fidelity (NON-NEGOTIABLE)".)
@@ -94,20 +94,20 @@ documents **all three** mechanisms that can drive the engine faithfully, with th
 ## Summary
 
 The backend must be a **pure input source**: the engine's own `game::do_turn` runs unmodified, and the
-*only* thing that changes is where the per-iteration action comes from. The engine — never the backend —
+_only_ thing that changes is where the per-iteration action comes from. The engine — never the backend —
 decides when a turn ends (the input loop exits when `u.moves <= 0`) and when the world ticks (the bottom
 half, which runs only after that loop exits). A backend that feeds one action and then "ends the turn"
-itself (Spike 3's `command → do_turn`) inverts the order; a backend that *fails* or *breaks to the bottom
-half* when a turn isn't consumed in one action invents a non-GUI behavior. Both are rejected.
+itself (Spike 3's `command → do_turn`) inverts the order; a backend that _fails_ or _breaks to the bottom
+half_ when a turn isn't consumed in one action invents a non-GUI behavior. Both are rejected.
 
 **Three mechanisms can make the engine run faithfully while the backend supplies input.** They are
 documented in full below; here is the verdict:
 
-| # | Mechanism | Seam | Faithful? | When to use |
-| - | --------- | ---- | --------- | ----------- |
-| **M1** | **Synchronous input-seam callback** | `get_player_input` call site (handle_action.cpp:1683) + a clean-stop at the do_turn input-loop (game.cpp:2004) | ✅ Perfectly, for a **script** (all input known up front) | **Recommended now** (Spike 3.1A). Smallest change; `do_turn` runs verbatim. |
-| **M2** | **Split `do_turn`** into begin / input-iteration / end | `game::do_turn` itself (game.cpp:1846–2230) | ✅ if the decomposition stays in lockstep with the real `do_turn` | Not recommended — forks the engine's most central function; drift = divergence. |
-| **M3** | **Coroutine / stackful fiber** | same as M1 (handle_action.cpp:1683), but the provider can *suspend* | ✅ Perfectly, including a **live async protocol** | The eventual answer for a real-time protocol frontend; overkill for a script. |
+| #      | Mechanism                                              | Seam                                                                                                           | Faithful?                                                         | When to use                                                                     |
+| ------ | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **M1** | **Synchronous input-seam callback**                    | `get_player_input` call site (handle_action.cpp:1683) + a clean-stop at the do_turn input-loop (game.cpp:2004) | ✅ Perfectly, for a **script** (all input known up front)         | **Recommended now** (Spike 3.1A). Smallest change; `do_turn` runs verbatim.     |
+| **M2** | **Split `do_turn`** into begin / input-iteration / end | `game::do_turn` itself (game.cpp:1846–2230)                                                                    | ✅ if the decomposition stays in lockstep with the real `do_turn` | Not recommended — forks the engine's most central function; drift = divergence. |
+| **M3** | **Coroutine / stackful fiber**                         | same as M1 (handle_action.cpp:1683), but the provider can _suspend_                                            | ✅ Perfectly, including a **live async protocol**                 | The eventual answer for a real-time protocol frontend; overkill for a script.   |
 
 **M1 and M3 share the same seam**; they differ only in whether the input provider returns synchronously
 (M1, scripts) or can suspend and resume (M3, live protocol). So M1 implemented now **evolves into** M3
@@ -116,16 +116,16 @@ later without moving the seam — and M2 is never needed. Backend commands are r
 dispatches them, so no payload, delta math, or `avatar_action::move` call lives in the backend.
 
 The line-by-line read also resolves the **observation-timing** question: the GUI's only observable
-resting state is an input-loop iteration (where it redraws and blocks), so a faithful snapshot — *including
-the initial one* — must be taken there. Spike 2's `export after_load` (taken before the first `do_turn`)
+resting state is an input-loop iteration (where it redraws and blocks), so a faithful snapshot — _including
+the initial one_ — must be taken there. Spike 2's `export after_load` (taken before the first `do_turn`)
 is a non-GUI-observable instant; M1 fixes this for free, because the backend's exports run from inside
 the input loop.
 
 ## Why Spike 3 failed (the inversion, in one paragraph)
 
 The GUI runs `while( !g->do_turn() );` ([main.cpp:930](../../src/main.cpp)). One `do_turn` is **top half →
-action (at `handle_action`) → bottom half**. Spike 3's `apply_command` ran the action *first*
-(`avatar_action::move`, [arcopolis_command.cpp:168](../../src/arcopolis_command.cpp)) and *then*
+action (at `handle_action`) → bottom half**. Spike 3's `apply_command` ran the action _first_
+(`avatar_action::move`, [arcopolis_command.cpp:168](../../src/arcopolis_command.cpp)) and _then_
 `g->do_turn()` ([arcopolis_command.cpp:177–178](../../src/arcopolis_command.cpp)), i.e. **action →
 do_turn(top → bottom)** — the action and that turn's top half are transposed, so from the second turn on
 the action is evaluated one top-half early. Loading once (Spike 2) fixed the clock, not the action
@@ -169,12 +169,13 @@ sfx, redraw bookkeeping — are noted by range so nothing is skipped.)
 - `931  }` / `933  exit_handler( -999 );`
 
 **Consequence for timing:** nothing renders game state between `load` (916) and the first `do_turn`
-(930). The first observable frame happens *inside* the first `do_turn`'s input loop (see §4). So the
+(930). The first observable frame happens _inside_ the first `do_turn`'s input loop (see §4). So the
 "state right after load, before any `do_turn`" is **never shown to a GUI player**.
 
 ## 2. `game::do_turn` — `game.cpp:1846–2230`
 
 **Pre-turn / game-over (1846–1876):**
+
 - `1846  bool game::do_turn()`.
 - `1850  cleanup_arenas();`
 - `1851–1853  if( is_game_over() ) return cleanup_at_end();` — the only place `do_turn` returns `true`.
@@ -182,10 +183,12 @@ sfx, redraw bookkeeping — are noted by range so nothing is skipped.)
 - `1861–1876` Tracy monster/NPC counters (telemetry only).
 
 **Calendar gate (1878–1885) — the bootstrap rule:**
+
 - `1879–1884  if( new_game ) { new_game = false; } else { gamemode->per_turn(); calendar::turn += 1_turns; }`
   First `do_turn` after load is the **bootstrap turn**: clears `new_game`, does **not** advance the clock.
 
 **TOP HALF (1887–1974) — runs before any input:**
+
 - `1887  swapping_dimensions = false;`
 - `1892–1893  m.invalidate_lightmap_caches(); m.invalidate_visibility_caches();`
 - `1897–1900  weather.clear_temp_cache();`
@@ -203,6 +206,7 @@ sfx, redraw bookkeeping — are noted by range so nothing is skipped.)
 - `1962–1974` NPC sound pre-processing (skipped if `soundperf`).
 
 **INPUT LOOP (1978–2023) — where actions are consumed:**
+
 - `1978  if( !u.has_effect( effect_sleep ) || uquit == QUIT_WATCH ) {` — **if the avatar is asleep, the
   whole input loop is skipped** (turns auto-process until waking). Relevant edge case for the backend.
 - `1979  if( u.moves > 0 || uquit == QUIT_WATCH ) {`
@@ -210,7 +214,7 @@ sfx, redraw bookkeeping — are noted by range so nothing is skipped.)
   has moves (multi-action turns are normal). For a live backend avatar `uquit` is not `QUIT_WATCH`, so the
   condition is effectively `u.moves > 0`.
 - `1981  cleanup_dead();`
-- `1982  mon_info_update();` — **per-iteration threat scan**, runs *before* the action; this is why a
+- `1982  mon_info_update();` — **per-iteration threat scan**, runs _before_ the action; this is why a
   safe-mode gate inside `handle_action` is faithful (threats already assessed this iteration).
 - `1984–1991` per-iteration NPC sound markers (if `!soundperf`).
 - `1992–1995  if( !u.activity && !u.has_distant_destination() && uquit != QUIT_WATCH && wait_popup ) { wait_popup.reset(); ui_manager::redraw(); }`
@@ -224,6 +228,7 @@ sfx, redraw bookkeeping — are noted by range so nothing is skipped.)
 - `2018  }` end while; `2021  sounds::reset_markers();`
 
 **BOTTOM HALF (2025–2229) — the world ticks here, only after the loop exits:**
+
 - `2025–2032` driving view offset; `2035–2042` scent; `2046` `m.build_floor_caches();`
 - `2049–2053  if( !vehperf ) { m.process_falling(); autopilot_vehicles(); m.vehmove(); }`
 - `2056  m.process_items();` `2059  m.creature_in_field( u );` `2062–2067` grid trackers.
@@ -234,7 +239,7 @@ sfx, redraw bookkeeping — are noted by range so nothing is skipped.)
 - `2094–2096  if( once_every(5 min) ) overmap_npc_move();` `2098  update_stair_monsters();`
 - `2099  mon_info_update();`
 - `2102  u.process_turn();` — **refills the avatar's moves** (`moves += get_speed()` via
-  `Creature::process_turn`); this is why `avatar.moves` exported *after* `do_turn` is the refilled value.
+  `Creature::process_turn`); this is why `avatar.moves` exported _after_ `do_turn` is the refilled value.
 - `2107` Lua `on_every_x` hooks; `2111` explosions; `2114  cleanup_dead();`
 - `2117–2120` FORCE_REDRAW (inert headless); `2122–2124` weather effects.
 - `2126–2170` sleep / travel / activity wait-redraw (inert headless: `add_msg`/redraw gated).
@@ -257,6 +262,7 @@ unticked — so any mechanism that needs to "park mid-turn" must either avoid be
 current_turn;` — `current_turn` starts a wall-clock timer at entry (see §5).
 
 **Input acquisition — the three sources (1669–1684):**
+
 - `1670–1676  if( u.has_destination() ) { act = u.get_next_auto_move_direction(); if( act == ACTION_NULL ) { … clear_destination(); return false; } }`
   — **the auto-move queue: the engine's existing precedent for a non-interactive queued `action_id`
   source.** It sets `act` from a stored route and lets the rest of the function dispatch it.
@@ -264,6 +270,7 @@ current_turn;` — `current_turn` starts a wall-clock timer at entry (see §5).
 - `1681–1684  else { ctxt = get_player_input( action ); }` — **the blocking interactive path** (§4).
 
 **`act` resolution (1686–1817):**
+
 - `1686–1697` vehicle locals + `mouse_target`.
 - `1699–1702  if( uquit == QUIT_WATCH && action == "QUIT" ) { uquit = QUIT_DIED; return false; }`
 - `1704–1799  if( act == ACTION_NULL ) { act = look_up_action( action ); … menus (main/action/keybindings) … mouse SELECT/SEC_SELECT … else clear_destination(); }`
@@ -275,6 +282,7 @@ current_turn;` — `current_turn` starts a wall-clock timer at entry (see §5).
 - `1822  int soffset = …;` `1824  int before_action_moves = u.moves;`
 
 **Dispatch — two switches (1827–2864):**
+
 - `1827  if( uquit == QUIT_WATCH || !u.is_dead_state() ) { switch( act ) { … } }` — **deathcam-allowed
   actions** (1828–1871): `ACTION_TOGGLE_MAP_MEMORY`, `ACTION_CENTER`, `ACTION_SHIFT_N…NW`, `ACTION_LOOK`,
   `ACTION_KEYBINDINGS`, `default: break`. View/UI only; no turn effect.
@@ -285,7 +293,7 @@ current_turn;` — `current_turn` starts a wall-clock timer at entry (see §5).
     — **this is `wait`.** `do_pause` zeroes moves (§ run model). Payload-free; driven only by `act`.
   - `1917–1962  case ACTION_MOVE_FORTH … ACTION_MOVE_FORTH_LEFT:` — the 8 horizontal moves. Normal branch
     (1933–1960): `auto dest_delta = get_delta_from_movement_action( act, iso_rotate::yes ); … if( !avatar_action::move( u, m, dest_delta ) ) u.clear_destination();`
-    — **this is `move`.** The delta is computed *from `act`*; payload-free. (`iso_rotate::yes` ≡ `::no`
+    — **this is `move`.** The delta is computed _from `act`_; payload-free. (`iso_rotate::yes` ≡ `::no`
     headless: iso rotates only under `use_tiles && tile_iso`.)
   - `1963–2016  case ACTION_MOVE_DOWN:` and `2018–2091  case ACTION_MOVE_UP:` — vertical moves
     (`vertical_move`/`pldrive`); **out of scope.**
@@ -295,9 +303,10 @@ current_turn;` — `current_turn` starts a wall-clock timer at entry (see §5).
     terminal/loop state explicitly — `ACTION_SUICIDE` (2539: `u.moves = 0; uquit = QUIT_SUICIDE`),
     `ACTION_SAVE` (2550: `u.moves = 0; uquit = QUIT_SAVED`), `ACTION_QUICKSAVE`/`ACTION_QUICKLOAD`
     (2561/2565: `return false`). The backend never queues any of these, so they're unreachable in backend
-    mode — but it confirms the engine's "end the turn" levers are exactly *spend moves* or *set uquit*.
+    mode — but it confirms the engine's "end the turn" levers are exactly _spend moves_ or _set uquit_.
 
 **Move-charge tail + return (2865–2873):**
+
 - `2865–2867  if( act != ACTION_TIMEOUT ) { u.mod_moves( -current_turn.moves_elapsed() ); }` — charges
   **real wall-clock** elapsed against moves (see §5: **0 unless `TURN_DURATION > 0.005`**).
 - `2868  gamemode->post_action( act );` (no-op DEFAULTMODE).
@@ -327,7 +336,7 @@ call.
 
 **Implication:** with default options, handle_action.cpp:2866 subtracts **0** — the time spent acquiring
 the action does not affect `u.moves`. **But if `TURN_DURATION > 0.005`** (the "real-time turns" option),
-the wall-clock spent *inside the backend provider — including export file I/O —* would be charged against
+the wall-clock spent _inside the backend provider — including export file I/O —_ would be charged against
 `u.moves`, which is non-deterministic and unfaithful. **The backend session must assert/force
 `TURN_DURATION <= 0.005`.**
 
@@ -354,8 +363,8 @@ state differs from the first observable frame by all of that processing. **The f
 snapshot is the bootstrap turn's first input-loop iteration (post-top-half), not the pre-`do_turn`
 state.**
 
-**M1 fixes this for free:** because the backend's exports are performed by the input provider *from
-inside the input loop* (at the `get_player_input` seam), an `export` that appears before the first
+**M1 fixes this for free:** because the backend's exports are performed by the input provider _from
+inside the input loop_ (at the `get_player_input` seam), an `export` that appears before the first
 `command` in the script is taken at exactly that faithful point. No special "before the first turn"
 export path is needed — and Spike 2's subtly-early `after_load` timing is corrected as a side effect.
 (General rule the walkthrough establishes: **every faithful snapshot is taken at an input-loop
@@ -369,7 +378,7 @@ loop.)
 
 - **`action_id` is the currency.** `look_up_action(ident)` maps engine idents (`"move_e" →
   ACTION_MOVE_RIGHT`; `ACTION_NULL` on miss) — already used by Spike 3
-  ([arcopolis_command.cpp:162](../../src/arcopolis_command.cpp)). Movement and pause are *fully*
+  ([arcopolis_command.cpp:162](../../src/arcopolis_command.cpp)). Movement and pause are _fully_
   determined by `act` (handle_action.cpp:1891, 1934/1957).
 - **The auto-move queue is the precedent** for a non-interactive `action_id` source feeding
   `handle_action` (handle_action.cpp:1670–1671; declared [character.h:2281,2287](../../src/character.h)).
@@ -380,21 +389,21 @@ loop.)
 
 # Candidate injection seams (where to inject — A–E)
 
-This is the *placement* analysis (the *how-to-drive* analysis is the three mechanisms below).
+This is the _placement_ analysis (the _how-to-drive_ analysis is the three mechanisms below).
 
-| Option | What | Verdict |
-| --- | --- | --- |
-| **A — dispatch at the `handle_action()` call site** (game.cpp:2004) | Re-run `avatar_action::move`/`do_pause` in `do_turn` instead of calling `handle_action`. | ❌ for dispatch (duplicates the switch, drifts). ✅ only as the *location* of M1's clean-stop. |
-| **B — extract `consume_player_action()`** wrapping the input acquisition | Refactor `handle_action`'s 1669–1684 into an overridable function. | ❌ churns the hottest input function for no gain over C. |
-| **C — backend input source at the acquisition point** (handle_action.cpp:1669/1683) | A gated branch that sets `act` from the backend, mirroring auto-move. | ✅ **the seam M1 and M3 both use.** |
-| **D — split `do_turn`** | Carve top/iteration/bottom. | = **M2**; faithful but forks the central function. |
-| **E — keep `command → do_turn`** | Spike 3's shape. | ❌ the inversion that failed. |
+| Option                                                                              | What                                                                                     | Verdict                                                                                        |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **A — dispatch at the `handle_action()` call site** (game.cpp:2004)                 | Re-run `avatar_action::move`/`do_pause` in `do_turn` instead of calling `handle_action`. | ❌ for dispatch (duplicates the switch, drifts). ✅ only as the _location_ of M1's clean-stop. |
+| **B — extract `consume_player_action()`** wrapping the input acquisition            | Refactor `handle_action`'s 1669–1684 into an overridable function.                       | ❌ churns the hottest input function for no gain over C.                                       |
+| **C — backend input source at the acquisition point** (handle_action.cpp:1669/1683) | A gated branch that sets `act` from the backend, mirroring auto-move.                    | ✅ **the seam M1 and M3 both use.**                                                            |
+| **D — split `do_turn`**                                                             | Carve top/iteration/bottom.                                                              | = **M2**; faithful but forks the central function.                                             |
+| **E — keep `command → do_turn`**                                                    | Spike 3's shape.                                                                         | ❌ the inversion that failed.                                                                  |
 
 ---
 
 # The three faithful mechanisms (the core deliverable)
 
-All three keep the engine authoritative over turn-end and world-tick. They differ in *how* the runner
+All three keep the engine authoritative over turn-end and world-tick. They differ in _how_ the runner
 regains control between actions so it can export and feed the next command without the world ticking
 prematurely.
 
@@ -421,7 +430,7 @@ verbatim.
    including their internal `check_safe_mode_allowed()`, after the top half and after `mon_info_update`.
 
 2. **Clean-stop — game.cpp:2004 (the input-loop body, before `handle_action`).** When the script is
-   exhausted while `u.moves > 0`, the turn must end the way a player who *stops giving input* ends it:
+   exhausted while `u.moves > 0`, the turn must end the way a player who _stops giving input_ ends it:
    the world is **not** ticked. Since `do_turn` has no mid-loop return that skips the bottom half, add
    one — as a **clean stop, not an error, not a fake `do_pause`:**
    ```cpp
@@ -439,6 +448,7 @@ verbatim.
 
 **Control-flow trace (fast avatar, 250 moves, script `export, move_e, export, move_e, export, wait,
 export`):**
+
 - Runner: `begin_backend_session(script)`, then `while( !g->do_turn() ) { if( backend_input_done() ) break; }`.
 - `do_turn` #1 (bootstrap): top half. Input loop iter 1 → `handle_action` → provider: does `export #1`
   inline (faithful post-top-half "after_load"), returns `ACTION_MOVE_RIGHT`; dispatch → moves 250→150.
@@ -467,6 +477,7 @@ once at turn end. **No fail, no fake, no early world tick, no `do_turn` split.**
 ## Mechanism M2 — split `do_turn` (option D)
 
 **Idea.** Factor `do_turn` so the runner drives the phases explicitly:
+
 - `do_turn_begin()` ≈ game.cpp:1846–1974 (game-over check, calendar gate, top half),
 - `do_turn_input_iteration()` ≈ game.cpp:1981–2017 (cleanup_dead, mon_info_update, sounds, the
   `handle_action` equivalent, mid-loop game-over check, activity),
@@ -475,6 +486,7 @@ once at turn end. **No fail, no fake, no early world tick, no `do_turn` split.**
 
 The normal `do_turn` is recomposed as `begin(); while(pending()) iteration(); end();` so the GUI is
 unchanged. The runner does:
+
 ```
 do_turn_begin();
 while( is_turn_input_pending() ) {
@@ -485,7 +497,7 @@ while( is_turn_input_pending() ) {
 do_turn_end();   // only when the turn actually completed (moves <= 0)
 ```
 
-- **Fidelity:** ✅ *if* the decomposition mirrors `do_turn` exactly — including the mid-loop early-returns
+- **Fidelity:** ✅ _if_ the decomposition mirrors `do_turn` exactly — including the mid-loop early-returns
   (game.cpp:2008 game-over, 2012 QUIT_WATCH) and ordering.
 - **Risk:** **high.** Forks the engine's most central function; every future change to `do_turn` must be
   mirrored in the split or the backend silently diverges — which contradicts "perfectly mirror." The
@@ -498,7 +510,7 @@ do_turn_end();   // only when the turn actually completed (moves <= 0)
 ## Mechanism M3 — coroutine / stackful fiber (the live-protocol answer)
 
 **Idea.** Run `do_turn` on a stackful fiber. The provider at handle_action.cpp:1683, when no command is
-available *yet* (a live frontend that sends commands over time), **suspends the fiber** — preserving the
+available _yet_ (a live frontend that sends commands over time), **suspends the fiber** — preserving the
 whole `do_turn` stack (top-half-done, mid-loop, world frozen) exactly as the GUI's `getch` block
 preserves it. The runner regains control, reads the next protocol message, pushes the command, and
 **resumes** the fiber; the provider returns the `action_id` and dispatch continues. When an action
@@ -524,9 +536,9 @@ exhausts moves, the loop exits, the bottom half runs on the fiber, `do_turn` ret
 
 Queue an engine **`action_id`** (the auto-move precedent's currency; payload-free for the in-scope set):
 
-| backend command | `action_id` | engine leaf |
-| --- | --- | --- |
-| `wait` | `ACTION_PAUSE` | `check_safe_mode_allowed()` + `do_pause(u)` — handle_action.cpp:1891–1895 |
+| backend command         | `action_id`                                                | engine leaf                                                                                   |
+| ----------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `wait`                  | `ACTION_PAUSE`                                             | `check_safe_mode_allowed()` + `do_pause(u)` — handle_action.cpp:1891–1895                     |
 | `move` + `move_n/s/e/w` | `ACTION_MOVE_FORTH/BACK/RIGHT/LEFT` (via `look_up_action`) | `get_delta_from_movement_action(act,…)` + `avatar_action::move` — handle_action.cpp:1934/1957 |
 
 The backend does **no** delta math and makes **no** `avatar_action::move`/`do_pause` call itself — the
@@ -613,7 +625,7 @@ git diff eb4a4e1278~1 eb4a4e1278 -- src/arcopolis_command.cpp src/arcopolis_scri
 3. `refactor(arcopolis): drive wait through the seam` — `wait → ACTION_PAUSE`; remove `apply_command`'s
    `do_pause`+`do_turn`. Re-prove `T → T → T+1`.
 4. `feat(arcopolis): drive move_e through the seam (supersede Spike 3)` — `move → ACTION_MOVE_*`; delete
-   the inverted `move` body. **Prove the inversion is gone with a *two-move* script** (the case that
+   the inverted `move` body. **Prove the inversion is gone with a _two-move_ script** (the case that
    exposed the bug) and a **multi-action-in-one-turn** check on a higher-speed avatar (two moves consumed
    before any bottom half), with mid-turn exports showing the frozen world.
 5. `docs(arcopolis): mark Spike 3.1A result` — outcome + citation audit.
@@ -647,7 +659,7 @@ $p = Start-Process -FilePath $exe -ArgumentList @(
 "exit=$($p.ExitCode)"; Get-Content C:\tmp\err.txt
 ```
 
-Expect each `move_e` to advance `pos_abs.x` by 1 with the action evaluated *after* each turn's top half
+Expect each `move_e` to advance `pos_abs.x` by 1 with the action evaluated _after_ each turn's top half
 (no transposition), the calendar to follow bootstrap-then-normal, and — on a higher-speed avatar — both
 moves to land in one turn with the world ticking only once.
 
@@ -677,28 +689,28 @@ Select-String -Path .\src -Recurse -Pattern 'action_queue|queued_action|input_qu
 
 # Citation audit (load-bearing claims)
 
-| Claim | Type | Citation | Verdict |
-| --- | --- | --- | --- |
-| GUI drives the game as `while(!do_turn())` | behavioral | main.cpp:930 | ✅ |
-| Nothing renders game state between `load` and the first `do_turn` | behavioral | main.cpp:916–930 (only `create_or_get_main_ui_adaptor`/`cache_balance_options` between) | ✅ |
-| Bootstrap gate skips `calendar::turn += 1` | behavioral | game.cpp:1879–1884 | ✅ |
-| Top half (update_body/weather/missions/timed_events) runs before the input loop | behavioral | game.cpp:1907,1910,1941,1952 | ✅ |
-| Input loop is multi-iteration `while( u.moves > 0 …)` | structural | game.cpp:1980 | ✅ |
-| Input loop is **skipped** while asleep | behavioral | game.cpp:1978 | ✅ |
-| `mon_info_update()` runs in-loop before the action | behavioral | game.cpp:1982 | ✅ |
-| Action consumed at `handle_action()` in-loop, after top half | behavioral | game.cpp:2004 | ✅ |
-| Bottom half (monmove/process_turn/world_tick) runs only after the loop | behavioral | game.cpp:2087,2102,2192 | ✅ |
-| `do_turn` returns true only via `cleanup_at_end`; else false at end | behavioral | game.cpp:1852,2009,2229 | ✅ |
-| `handle_action` acquires `act` from auto-move / dest-activity / `get_player_input` | behavioral | handle_action.cpp:1670–1684 | ✅ |
-| A non-null `act` skips the ACTION_NULL/menu/unknown blocks | behavioral | handle_action.cpp:1704,1801 | ✅ |
-| `get_player_input` redraws then blocks on input | behavioral | handle_action.cpp:388/395 + input.h:620–631 | ✅ |
-| `ACTION_PAUSE` = gate + `do_pause`, payload-free | behavioral | handle_action.cpp:1891–1895 | ✅ |
-| `ACTION_MOVE_*` = delta-from-`act` + `avatar_action::move`, payload-free | behavioral | handle_action.cpp:1934/1957 | ✅ |
-| No alive-only case advances calendar / ticks world / calls do_turn (read all 1876–2862) | behavioral | handle_action.cpp:1876–2862 (turn-enders only spend moves or set `uquit`: 2543,2553,2561,2565) | ✅ |
-| `handle_action` returns `!u.is_dead_state()` (not "did an action") | behavioral | handle_action.cpp:2873 | ✅ |
-| `moves_elapsed()` is 0 unless `TURN_DURATION > 0.005`; charged at 2866 | behavioral | handle_action.cpp:165–179 (return-0 at 172) + 2866 | ✅ |
-| `do_pause` zeroes moves (wait ends the turn) | behavioral | character_turn.cpp:1084 | ✅ |
-| `move` subtracts a variable `run_cost` (may not end the turn) | behavioral | game.cpp:11726 | ✅ |
-| auto-move API declared (the queued-action precedent) | structural | character.h:2281,2287 | ✅ |
-| Spike 3 inversion: action before `do_turn` | behavioral | arcopolis_command.cpp:168,177–178 | ✅ |
-| No other player-action queue/macro/replay/autoplay | absence | `src/` grep → only auto-move + OS key buffer (input.h:620) | ✅ |
+| Claim                                                                                   | Type       | Citation                                                                                       | Verdict |
+| --------------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------- | ------- |
+| GUI drives the game as `while(!do_turn())`                                              | behavioral | main.cpp:930                                                                                   | ✅      |
+| Nothing renders game state between `load` and the first `do_turn`                       | behavioral | main.cpp:916–930 (only `create_or_get_main_ui_adaptor`/`cache_balance_options` between)        | ✅      |
+| Bootstrap gate skips `calendar::turn += 1`                                              | behavioral | game.cpp:1879–1884                                                                             | ✅      |
+| Top half (update_body/weather/missions/timed_events) runs before the input loop         | behavioral | game.cpp:1907,1910,1941,1952                                                                   | ✅      |
+| Input loop is multi-iteration `while( u.moves > 0 …)`                                   | structural | game.cpp:1980                                                                                  | ✅      |
+| Input loop is **skipped** while asleep                                                  | behavioral | game.cpp:1978                                                                                  | ✅      |
+| `mon_info_update()` runs in-loop before the action                                      | behavioral | game.cpp:1982                                                                                  | ✅      |
+| Action consumed at `handle_action()` in-loop, after top half                            | behavioral | game.cpp:2004                                                                                  | ✅      |
+| Bottom half (monmove/process_turn/world_tick) runs only after the loop                  | behavioral | game.cpp:2087,2102,2192                                                                        | ✅      |
+| `do_turn` returns true only via `cleanup_at_end`; else false at end                     | behavioral | game.cpp:1852,2009,2229                                                                        | ✅      |
+| `handle_action` acquires `act` from auto-move / dest-activity / `get_player_input`      | behavioral | handle_action.cpp:1670–1684                                                                    | ✅      |
+| A non-null `act` skips the ACTION_NULL/menu/unknown blocks                              | behavioral | handle_action.cpp:1704,1801                                                                    | ✅      |
+| `get_player_input` redraws then blocks on input                                         | behavioral | handle_action.cpp:388/395 + input.h:620–631                                                    | ✅      |
+| `ACTION_PAUSE` = gate + `do_pause`, payload-free                                        | behavioral | handle_action.cpp:1891–1895                                                                    | ✅      |
+| `ACTION_MOVE_*` = delta-from-`act` + `avatar_action::move`, payload-free                | behavioral | handle_action.cpp:1934/1957                                                                    | ✅      |
+| No alive-only case advances calendar / ticks world / calls do_turn (read all 1876–2862) | behavioral | handle_action.cpp:1876–2862 (turn-enders only spend moves or set `uquit`: 2543,2553,2561,2565) | ✅      |
+| `handle_action` returns `!u.is_dead_state()` (not "did an action")                      | behavioral | handle_action.cpp:2873                                                                         | ✅      |
+| `moves_elapsed()` is 0 unless `TURN_DURATION > 0.005`; charged at 2866                  | behavioral | handle_action.cpp:165–179 (return-0 at 172) + 2866                                             | ✅      |
+| `do_pause` zeroes moves (wait ends the turn)                                            | behavioral | character_turn.cpp:1084                                                                        | ✅      |
+| `move` subtracts a variable `run_cost` (may not end the turn)                           | behavioral | game.cpp:11726                                                                                 | ✅      |
+| auto-move API declared (the queued-action precedent)                                    | structural | character.h:2281,2287                                                                          | ✅      |
+| Spike 3 inversion: action before `do_turn`                                              | behavioral | arcopolis_command.cpp:168,177–178                                                              | ✅      |
+| No other player-action queue/macro/replay/autoplay                                      | absence    | `src/` grep → only auto-move + OS key buffer (input.h:620)                                     | ✅      |
