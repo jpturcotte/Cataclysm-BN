@@ -13,6 +13,7 @@
 #include <locale>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <filesystem>
@@ -205,6 +206,8 @@ int main( int argc, char *argv[] )
     std::filesystem::path arcopolis_command_path;
     std::filesystem::path arcopolis_script_path;
     std::filesystem::path arcopolis_export_dir;
+    std::optional<std::string>
+    seed_arg;  // original --seed string for the Arcopolis session transcript; nullopt if not passed
     std::string dump;
     dump_mode dmode = dump_mode::TSV;
     std::vector<std::string> opts;
@@ -249,13 +252,14 @@ int main( int argc, char *argv[] )
                     "--seed", "<string of letters and or numbers>",
                     "Sets the random number generator's seed value",
                     section_default,
-                    [&seed]( int num_args, const char **params ) -> int {
+                    [&seed, &seed_arg]( int num_args, const char **params ) -> int {
                         if( num_args < 1 )
                         {
                             return -1;
                         }
                         const unsigned char *hash_input = reinterpret_cast<const unsigned char *>( params[0] );
                         seed = djb2_hash( hash_input );
+                        seed_arg = params[0];  // keep the original string (repro input) for the Arcopolis transcript
                         return 1;
                     }
                 },
@@ -847,7 +851,8 @@ int main( int argc, char *argv[] )
             std::_Exit( arcopolis::run_script( {
                 .world = world,
                 .script_path = arcopolis_script_path.string(),
-                .export_dir = arcopolis_export_dir.string()
+                .export_dir = arcopolis_export_dir.string(),
+                .seed = seed_arg
             } ) );
         }
         if( arco_oneshot ) {
