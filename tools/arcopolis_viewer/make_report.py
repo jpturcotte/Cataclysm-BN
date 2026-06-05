@@ -487,7 +487,8 @@ def verify_monsters_in_window(data):
             continue
         pl = as_int_list(mon.get("pos_local"))
         if not pl or len(pl) < 3 or (pl[0], pl[1], pl[2]) not in tile_set:
-            off_window.append(mon.get("index", i))
+            idx = mon.get("index")
+            off_window.append(idx if idx is not None else i)
     return {"checked": len(monsters), "off_window": off_window, "note": None}
 
 
@@ -856,9 +857,11 @@ def render_export_card(event, open_map=False):
             for mon in monsters:
                 if not isinstance(mon, dict):
                     continue
+                symbol = mon.get("symbol")
+                type_id = mon.get("type_id")
                 items.append("%s %s @ %s (hp %s/%s)" % (
-                    esc(str(mon.get("symbol", "") or "")),
-                    esc(str(mon.get("type_id", "?"))),
+                    esc(str(symbol) if symbol is not None else ""),
+                    esc(str(type_id) if type_id is not None else "?"),
                     esc(fmt_scalar(mon.get("pos_local"))),
                     esc(fmt_scalar(mon.get("hp"))),
                     esc(fmt_scalar(mon.get("hp_max"))),
