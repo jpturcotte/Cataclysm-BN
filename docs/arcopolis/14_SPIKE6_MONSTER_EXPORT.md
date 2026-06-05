@@ -120,6 +120,9 @@ against the `ArcopolisTest` fixture, exactly as `write_tiles`/`is_avatar` were i
 Build the game **and** tests in the single `win-rel-deb` dir (shared `cataclysm-bn-tiles-common` OBJECT
 library — see [00_WINDOWS_LOCAL_ENVIRONMENT.md](00_WINDOWS_LOCAL_ENVIRONMENT.md)). Copy the external
 `ArcopolisTest` fixture, then run a stateful `export → move_s → export` script and assert the contract.
+(The literal `C:\dev\arcopolis-fixtures\` below is the project's **approved fixture-root** — an explicit
+local-path exception, like `C:\dev\ccache`, per AGENTS.md's fixture section; kept verbatim so the commands
+stay copy-pasteable, and it carries no username or secret.)
 
 ```powershell
 $exe = ".\out\build\win-rel-deb\src\cataclysm-bn-tiles.exe"
