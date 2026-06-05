@@ -23,6 +23,8 @@
 #include "map.h"             // get_map(), ter/furn/pl_sees/inbounds/getmapsize/get_abs_sub
 #include "map_iterator.h"    // points_in_radius()
 #include "messages.h"        // Messages::recent_messages()
+#include "monster.h"         // monster (complete type for all_monsters() iteration + accessors)
+#include "mtype.h"           // mtype::id (mon.type->id)
 #include "options.h"         // get_option<float>( "TURN_DURATION" )
 #include "type_id.h"         // ter_id/furn_id -> .id().str()
 
@@ -163,6 +165,64 @@ auto write_tiles( JsonOut &json, const snapshot_ctx &ctx ) -> void
     json.end_array();
 }
 
+auto write_entities( JsonOut &json, const snapshot_ctx &ctx ) -> void
+{
+    const auto center = ctx.u.bub_pos();  // tripoint_bub_ms - same window centre write_tiles uses
+
+    json.member( "entities" );
+    json.start_object();
+    json.member( "monsters" );
+    json.start_array();
+    // The raw engine monster list: it includes hallucinations and friendly/ridden monsters, and
+    // monsters outside the avatar's LOS - the GUI hides those at draw time, but the backend exports
+    // authoritative state and flags hallucinations (the frontend owns any visibility policy). The
+    // window predicate is identical to write_tiles (single z, center +/- radius like points_in_radius,
+    // then inbounds), so every emitted monster's pos_local equals an exported tile.
+    auto index = 0;
+    for( const monster &mon : g->all_monsters() ) {
+        const auto mp = mon.bub_pos();  // tripoint_bub_ms
+        if( mp.z() != center.z() ) {
+            continue;  // current z-level only (the tile window is a single z-slice)
+        }
+        if( mp.x() < center.x() - ctx.radius || mp.x() > center.x() + ctx.radius ||
+            mp.y() < center.y() - ctx.radius || mp.y() > center.y() + ctx.radius ) {
+            continue;  // outside the square view window
+        }
+        if( !ctx.m.inbounds( mp ) ) {
+            continue;  // clamp to the loaded bubble, exactly as write_tiles does
+        }
+        const auto ma = mon.abs_pos();  // tripoint_abs_ms
+
+        json.start_object();
+        json.member( "index", index++ );  // export-local, 0-based, assigned post-filter
+        json.member( "type_id", mon.type->id.str() );
+        json.member( "name", mon.get_name() );
+        json.member( "symbol", mon.symbol() );  // full display string (may be multi-byte)
+
+        json.member( "pos_local" );
+        json.start_array();
+        json.write( mp.x() );
+        json.write( mp.y() );
+        json.write( mp.z() );
+        json.end_array();
+
+        json.member( "pos_abs" );
+        json.start_array();
+        json.write( ma.x() );
+        json.write( ma.y() );
+        json.write( ma.z() );
+        json.end_array();
+
+        json.member( "hp", mon.get_hp() );           // current sum across the monster's hp pool
+        json.member( "hp_max", mon.get_hp_max() );
+        json.member( "moves", mon.get_moves() );      // action points left this turn (mid-turn snapshot)
+        json.member( "hallucination", mon.is_hallucination() );
+        json.end_object();
+    }
+    json.end_array();
+    json.end_object();
+}
+
 auto write_messages( JsonOut &json, const snapshot_ctx &ctx ) -> void
 {
     // recent_messages() returns (time_of_day, text) pairs - message severity/type is NOT exposed by
@@ -196,6 +256,7 @@ auto write_snapshot( JsonOut &json, const snapshot_ctx &ctx ) -> void
     write_avatar( json, ctx );
     write_map_bounds( json, ctx );
     write_tiles( json, ctx );
+    write_entities( json, ctx );  // Spike 6A: nearby monsters in the same window as tiles
     write_messages( json, ctx );  // may push to ctx.warnings - must precede diagnostics
 
     json.member( "diagnostics" );
