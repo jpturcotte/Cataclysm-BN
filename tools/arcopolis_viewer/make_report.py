@@ -354,6 +354,21 @@ def render_map_html(snap_data, open_default=False):
     ay = avatar_local[1] if avatar_local and len(avatar_local) >= 2 else None
     avatar_in_window = ax is not None and x0 <= ax <= x1 and y0 <= ay <= y1
 
+    # Spike 6A: overlay nearby monsters (entities.monsters[]) on the same single-z window. Absent in
+    # pre-Spike-6 snapshots -> dig() returns None -> no overlay (backward compatible). setdefault keeps
+    # the first monster (lowest export index) when several share a cell; the per-snapshot list shows all.
+    tile_z = next((t.get("z") for t in grid.values() if isinstance(t.get("z"), int)), None)
+    monster_cells = {}
+    monsters_here = dig(snap_data, "entities.monsters")
+    if isinstance(monsters_here, list):
+        for mon in monsters_here:
+            if not isinstance(mon, dict):
+                continue
+            pl = as_int_list(mon.get("pos_local"))
+            if not pl or len(pl) < 3 or (tile_z is not None and pl[2] != tile_z):
+                continue
+            monster_cells.setdefault((pl[0], pl[1]), mon)
+
     legend = {}
     rows_html = []
     for y in range(y0, y1 + 1):
@@ -375,19 +390,33 @@ def render_map_html(snap_data, open_default=False):
                 is_avatar = avatar_in_window and x == ax and y == ay
             else:
                 is_avatar = bool(is_avatar)
+            monster = None if is_avatar else monster_cells.get((x, y))
             if is_avatar:
                 render_glyph = "@"
                 classes.append("avatar")
+            elif monster is not None:
+                # Guard: a monster symbol may be empty, non-str, or multi-codepoint; take one char or "M".
+                raw = monster.get("symbol")
+                render_glyph = raw[0] if isinstance(raw, str) and raw else "M"
+                classes.append("monster")
             else:
                 render_glyph = glyph
-            if not seen and not is_avatar:
+            if not seen and not is_avatar and monster is None:
                 classes.append("unseen")
             title = "(%d,%d) ter=%s furn=%s seen=%s" % (
                 x, y, tile.get("ter", ""), tile.get("furn", ""), str(bool(seen)).lower(),
             )
+            if monster is not None:
+                title += " | monster=%s (%s) hp=%s/%s" % (
+                    monster.get("type_id", "?"), monster.get("name", ""),
+                    monster.get("hp", "?"), monster.get("hp_max", "?"),
+                )
             content = "&nbsp;" if render_glyph == " " else esc(render_glyph)
             cells.append('<span class="%s" title="%s">%s</span>' % (" ".join(classes), esc(title), content))
         rows_html.append('<div class="maprow">%s</div>' % "".join(cells))
+
+    if monster_cells:
+        legend[("monster", "M", "monster")] = True
 
     width = x1 - x0 + 1
     height = y1 - y0 + 1
@@ -403,6 +432,8 @@ def render_map_html(snap_data, open_default=False):
         caption_bits.append("avatar pos_local unavailable - not marked")
     if skipped:
         caption_bits.append("%d malformed tile(s) skipped" % skipped)
+    if monster_cells:
+        caption_bits.append("%d monster cell(s)" % len(monster_cells))
 
     summary = "Tile map &mdash; %d&times;%d window (%d tiles)" % (width, height, len(grid))
     open_attr = " open" if open_default else ""
@@ -423,6 +454,42 @@ def render_legend(legend_keys):
         items.append('<span class="legend-item"><span class="cell %s">%s</span> %s</span>' % (css, shown, esc(label)))
     items.append('<span class="legend-item"><span class="cell floor unseen">.</span> unseen (dimmed)</span>')
     return '<div class="legend">%s</div>' % "".join(items)
+
+
+def verify_monsters_in_window(data):
+    """Check that every exported monster sits on an exported tile (same x, y, z).
+
+    Returns ``{"checked": int, "off_window": [index...], "note": str | None}``.
+    The C++ exporter filters monsters with the SAME window predicate as ``tiles[]``,
+    so a correct snapshot has ``off_window == []``; a non-empty list is a real
+    contract violation. Backward compatible: a snapshot without ``entities.monsters``
+    checks nothing. If ``tiles[]`` is missing/empty there is nothing to verify
+    against, so nothing is flagged (a note is returned instead of false failures).
+    """
+    monsters = dig(data, "entities.monsters")
+    if not isinstance(monsters, list) or not monsters:
+        return {"checked": 0, "off_window": [], "note": None}
+    tiles = dig(data, "tiles")
+    if not isinstance(tiles, list) or not tiles:
+        return {"checked": len(monsters), "off_window": [],
+                "note": "no tiles[] to verify monster positions against"}
+    tile_set = set()
+    for tile in tiles:
+        if not isinstance(tile, dict):
+            continue
+        try:
+            tile_set.add((int(tile["x"]), int(tile["y"]), int(tile["z"])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    off_window = []
+    for i, mon in enumerate(monsters):
+        if not isinstance(mon, dict):
+            continue
+        pl = as_int_list(mon.get("pos_local"))
+        if not pl or len(pl) < 3 or (pl[0], pl[1], pl[2]) not in tile_set:
+            idx = mon.get("index")
+            off_window.append(idx if idx is not None else i)
+    return {"checked": len(monsters), "off_window": off_window, "note": None}
 
 
 # --------------------------------------------------------------------------- #
@@ -447,6 +514,7 @@ def build_model(session_dir):
         "fails": 0,
         "missing_snapshots": 0,
         "incomplete_snapshots": 0,
+        "monsters_off_window": 0,
     }
 
     for event in log["events"]:
@@ -461,6 +529,9 @@ def build_model(session_dir):
             match = verify_export_against_snapshot(event, snap["data"])
             event["_snapshot"] = snap
             event["_match"] = match
+            monsters = verify_monsters_in_window(snap["data"])
+            event["_monsters"] = monsters
+            counts["monsters_off_window"] += len(monsters["off_window"])
             if not snap["ok"]:
                 counts["missing_snapshots"] += 1
             elif snap["missing_keys"]:
@@ -477,6 +548,7 @@ def build_model(session_dir):
         and counts["missing_snapshots"] == 0
         and counts["incomplete_snapshots"] == 0
         and counts["error_events"] == 0
+        and counts["monsters_off_window"] == 0
         and log["start"] is not None
         and log["end"] is not None
         and end_status != "error"
@@ -562,6 +634,7 @@ details.map > summary { cursor: pointer; color: var(--accent); font-weight: 600;
 .cell.furn-plant { color: #6fbf73; }
 .cell.void { color: #2a2a30; }
 .cell.unknown { color: #ff5d6c; }
+.cell.monster { color: #ff6b6b; font-weight: 700; }
 .legend { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin-top: .5rem; font-size: .82rem;
           background: #0d0d10; color: #cccccc; padding: .5rem; border-radius: 6px; }
 .legend-item { display: inline-flex; align-items: center; gap: .35rem; }
@@ -619,6 +692,7 @@ def render_validation_card(counts, overall_pass):
         ("snapshots missing/unreadable", counts["missing_snapshots"]),
         ("snapshots missing required keys", counts["incomplete_snapshots"]),
         ("error events", counts["error_events"]),
+        ("monsters off the tile window", counts["monsters_off_window"]),
     ]
     body = "".join(
         "<tr><td>%s</td><td class='mono'>%s</td></tr>" % (esc(label), value) for label, value in rows
@@ -776,6 +850,31 @@ def render_export_card(event, open_map=False):
             texts = [esc(str(m.get("text", ""))) for m in messages if isinstance(m, dict) and m.get("text")]
             if texts:
                 body.append("<p class='sub'>messages: %s</p>" % " &middot; ".join(texts))
+        entities = data.get("entities") or {}
+        monsters = entities.get("monsters")
+        if isinstance(monsters, list) and monsters:
+            items = []
+            for mon in monsters:
+                if not isinstance(mon, dict):
+                    continue
+                symbol = mon.get("symbol")
+                type_id = mon.get("type_id")
+                items.append("%s %s @ %s (hp %s/%s)" % (
+                    esc(str(symbol) if symbol is not None else ""),
+                    esc(str(type_id) if type_id is not None else "?"),
+                    esc(fmt_scalar(mon.get("pos_local"))),
+                    esc(fmt_scalar(mon.get("hp"))),
+                    esc(fmt_scalar(mon.get("hp_max"))),
+                ))
+            body.append("<p class='sub'>monsters (%d): %s</p>" % (len(monsters), " &middot; ".join(items)))
+        mon_check = event.get("_monsters") or {}
+        if mon_check.get("off_window"):
+            body.append(
+                "<div class='warn-callout'>monsters off the tile window: <span class='mono'>%s</span></div>"
+                % esc(", ".join(str(idx) for idx in mon_check["off_window"]))
+            )
+        elif mon_check.get("note"):
+            body.append("<div class='warn-callout'>%s</div>" % esc(mon_check["note"]))
         if snap.get("missing_keys"):
             body.append(
                 "<div class='warn-callout'>snapshot missing expected keys: <span class='mono'>%s</span></div>"
@@ -943,11 +1042,12 @@ def main(argv=None):
     counts = model["counts"]
     status = "OK" if model["overall_pass"] else "DISCREPANCIES"
     sys.stdout.write(
-        "wrote %s  [%s]  exports=%d pass=%d fail=%d missing=%d incomplete=%d bad_lines=%d errors=%d\n"
+        "wrote %s  [%s]  exports=%d pass=%d fail=%d missing=%d incomplete=%d bad_lines=%d errors=%d "
+        "monsters_off_window=%d\n"
         % (
             output, status, counts["exports"], counts["passes"], counts["fails"],
             counts["missing_snapshots"], counts["incomplete_snapshots"], counts["bad_lines"],
-            counts["error_events"],
+            counts["error_events"], counts["monsters_off_window"],
         )
     )
     return 0 if model["overall_pass"] else 2

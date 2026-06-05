@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 5, 2026-06-03)
+# Arcopolis backend — current state (truth as of Spike 6A, 2026-06-05)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -77,8 +77,13 @@ The Spike 3 failure came from driving `command → do_turn` (which inverts actio
 save_version, turn) · `avatar` (name, pos_local[xyz], pos_abs[xyz], z, hp, hp_max, stamina, moves,
 pain, thirst, fatigue, stored_kcal, kcal_percent) · `map_bounds` (origin_abs_sm[xyz], size_x, size_y,
 z) · `tiles[]` (x, y, z, ter, furn, seen, **is_avatar** on the avatar's tile only — Spike 5) ·
-`messages[]` (text, type — **type currently blank**, deferred) · `diagnostics.warnings[]`. Tiles are
-a radius-12 single-z square window around the avatar, clamped to the loaded bubble.
+**`entities.monsters[]`** (index, type_id, name, symbol, pos_local[xyz], pos_abs[xyz], hp, hp_max,
+moves, hallucination — Spike 6A) · `messages[]` (text, type — **type currently blank**, deferred) ·
+`diagnostics.warnings[]`. Tiles **and the monster window** are a radius-12 single-z square around the
+avatar, clamped to the loaded bubble; `entities.monsters[]` uses the **identical** window predicate, so
+every exported monster sits on an exported tile. It is the **authoritative** monster list
+(`game::all_monsters()`) — it includes hallucinations and out-of-LOS monsters (flagged via
+`hallucination`), not a "what the player sees" list.
 
 ### Transcript `session.jsonl` (`schema_version` 1, one JSON object per line, flushed per event)
 
@@ -105,11 +110,13 @@ final_pos_abs opt).
 | 3.1B  | clean-park hardening + final-on-exit snapshot                            | ✅                                      |
 | 3.1C  | `session.jsonl` transcript                                               | ✅                                      |
 | 4     | offline viewer / contract consumer (Python → HTML)                       | ✅                                      |
-| 5     | `is_avatar` marker + `seed` in `session_start`                           | ✅ (this pass)                          |
+| 5     | `is_avatar` marker + `seed` in `session_start`                           | ✅                                      |
+| 6A    | nearby monster export (`entities.monsters[]`)                            | ✅ (this pass)                          |
 
 ## Source & tests
 
-`src/arcopolis_export.{h,cpp}` (snapshot) · `arcopolis_command.{h,cpp}` (verb→action_id, errors) ·
+`src/arcopolis_export.{h,cpp}` (snapshot; `write_entities` → `entities.monsters[]`, Spike 6A) ·
+`arcopolis_command.{h,cpp}` (verb→action_id, errors) ·
 `arcopolis_script.{h,cpp}` (script runner) · `arcopolis_backend_input.{h,cpp}` (input-seam provider,
 clean-park, final snapshot) · `arcopolis_session_log.{h,cpp}` (transcript). Flags wired in
 `src/main.cpp`; the seam branch lives at `src/handle_action.cpp`, the clean-park at `src/game.cpp`.
@@ -118,10 +125,11 @@ Unit tests: `tests/arcopolis_*_test.cpp` (`[arcopolis]` tag). Consumer:
 
 ## Deferred backlog
 
-- **Richer read-only export:** dynamic entities (monsters/NPCs/items/fields/vehicles) (#2), per-tile
-  symbol/colour (#1), message type/severity (#4 — needs a public `Messages::` accessor), multi-z (#5).
-  Dynamic-entity export is the linchpin: it also unblocks the deferred **world-tick regression
-  harness** (needs a `--arcopolis-new-world` generator + dynamic state to witness a tick — see
+- **Richer read-only export:** dynamic entities — **monsters done (Spike 6A, `entities.monsters[]`)**;
+  NPCs/items/fields/vehicles still deferred (#2) — plus per-tile symbol/colour (#1), message
+  type/severity (#4 — needs a public `Messages::` accessor), multi-z (#5). Dynamic-entity export is the
+  linchpin: monsters now exist, bringing the deferred **world-tick regression harness** closer (still
+  needs a `--arcopolis-new-world` generator + monster/field state to witness a tick — see
   [10_SPIKE3_1B_CLEAN_PARK_HARDENING.md](10_SPIKE3_1B_CLEAN_PARK_HARDENING.md)).
 - **Live protocol:** bidirectional commands over a transport (socket/stdin) with framing/acks (the
   M3 path) — everything today is file-based.
