@@ -98,6 +98,17 @@ final_pos_abs opt).
 `wait` → `ACTION_PAUSE` (`do_pause`); `move` + cardinal `direction` (`move_n`/`move_s`/`move_e`/`move_w`)
 → `ACTION_MOVE_*`. Diagonals, vertical, and everything else are rejected with a typed error.
 
+**Movement into an occupied/obstructed tile is a faithful no-op.** A `move` whose destination holds a
+creature, or a closed-but-not-bump-openable obstacle, runs the engine's real `avatar_action::move` leaf
+and can end the turn with the avatar not having moved — exactly as in the GUI. The studied case
+([15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md](15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md)): in `ArcopolisTest` the stock
+evac-shelter NPC **Edwardo Stovall** stands one tile north of the avatar, so `move_n` opens the engine's
+NPC interaction menu and returns without spending moves — and since the backend runs in `test_mode`, that
+`uilist` **auto-cancels** (≡ a GUI player pressing ESC) rather than blocking. Result: no move, 0 AP,
+clean-park (world not ticked). This is GUI-faithful, **not** a seam bug; there is simply no command yet to
+_choose_ an NPC interaction. Snapshots don't export NPCs (Spike 6A is monsters-only), so such a blocker is
+invisible in the export — check the save / a live `critter_at` when a move "does nothing."
+
 ## Capabilities by spike
 
 | Spike | What                                                                     | State                                   |
@@ -133,7 +144,9 @@ Unit tests: `tests/arcopolis_*_test.cpp` (`[arcopolis]` tag). Consumer:
   [10_SPIKE3_1B_CLEAN_PARK_HARDENING.md](10_SPIKE3_1B_CLEAN_PARK_HARDENING.md)).
 - **Live protocol:** bidirectional commands over a transport (socket/stdin) with framing/acks (the
   M3 path) — everything today is file-based.
-- **Richer commands:** examine/look, interaction (open/close/smash/pickup), inventory, targeting,
+- **Richer commands:** examine/look, interaction (open/close/smash/pickup), **NPC interaction
+  (talk/attack/swap/push — needed to act on a creature-occupied destination, the move-into-NPC no-op in
+  [15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md](15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md))**, inventory, targeting,
   diagonals, vertical.
 
 ## Build (Windows)
