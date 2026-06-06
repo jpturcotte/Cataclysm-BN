@@ -178,6 +178,10 @@ foreach( $entry in $scn.Snaps ) {
     foreach( $t in $tiles ) { $set["$($t.x),$($t.y),$($t.z)"] = $true }
     $off = 0
     foreach( $m in $mons ) {
+        # Guard: a malformed/regressed export with a missing or short pos_local must FAIL the gate cleanly,
+        # not crash the runner -- under $ErrorActionPreference=Stop, indexing $null (e.g. $m.pos_local[0])
+        # throws "Cannot index into a null array" and terminates the script.
+        if( $null -eq $m.pos_local -or @($m.pos_local).Count -lt 3 ) { $off++; continue }
         $k = "$($m.pos_local[0]),$($m.pos_local[1]),$($m.pos_local[2])"
         if( $m.pos_local[2] -ne $tz -or -not $set.ContainsKey($k) ) { $off++ }
     }

@@ -85,7 +85,8 @@ def load_sav(world_dir):
     matches = sorted(glob.glob(os.path.join(world_dir, "*.sav")))
     if not matches:
         raise SystemExit("fatal: no .sav file in %s" % world_dir)
-    raw = open(matches[0], "rb").read()
+    with open(matches[0], "rb") as f:
+        raw = f.read()
     nl = raw.find(b"\n")
     if nl == -1 or not raw.lstrip().startswith(b"#"):
         return matches[0], b"", json.loads(raw.decode("utf-8"))
@@ -106,6 +107,8 @@ def terrain_id_at(world_dir, x, y, z):
         fx, fy = sx // 2, sy // 2
         path = "maps/%d.%d.%d/%d.%d.%d.map" % (fx // 32, fy // 32, z, fx, fy, z)
         db = os.path.join(world_dir, "map.sqlite3")
+        if not os.path.exists(db):
+            return None  # don't let sqlite3.connect() create a stray empty db
         con = sqlite3.connect(db)
         try:
             row = con.execute("SELECT data FROM files WHERE path=?", (path,)).fetchone()
@@ -215,7 +218,8 @@ def main(argv=None):
 
     witness = build_witness(monsters[0], args.monster, pos, turn)
     monsters.append(witness)
-    open(sav, "wb").write(prefix + json.dumps(data, separators=(",", ":")).encode("utf-8"))
+    with open(sav, "wb") as f:
+        f.write(prefix + json.dumps(data, separators=(",", ":")).encode("utf-8"))
 
     print("created world : %s" % dst)
     print("witness       : %s @ pos_abs %s (avatar %s + offset %s, cheb %d)"
