@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 6B, 2026-06-05)
+# Arcopolis backend — current state (truth as of Spike 6B, 2026-06-06)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
