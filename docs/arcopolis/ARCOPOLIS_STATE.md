@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 6A, 2026-06-05)
+# Arcopolis backend — current state (truth as of Spike 6B, 2026-06-06)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -111,18 +111,19 @@ invisible in the export — check the save / a live `critter_at` when a move "do
 
 ## Capabilities by spike
 
-| Spike | What                                                                     | State                                   |
-| ----- | ------------------------------------------------------------------------ | --------------------------------------- |
-| 0     | headless load + one-shot snapshot                                        | ✅                                      |
-| 1     | `wait` command (bootstrap turn)                                          | ✅                                      |
-| 2     | persistent `--arcopolis-run-script` + `--arcopolis-export-dir` (T→T→T+1) | ✅                                      |
-| 3     | movement via `command → do_turn`                                         | ❌ failed (turn inversion) — superseded |
-| 3.1A  | input-seam architecture (the fix)                                        | ✅                                      |
-| 3.1B  | clean-park hardening + final-on-exit snapshot                            | ✅                                      |
-| 3.1C  | `session.jsonl` transcript                                               | ✅                                      |
-| 4     | offline viewer / contract consumer (Python → HTML)                       | ✅                                      |
-| 5     | `is_avatar` marker + `seed` in `session_start`                           | ✅                                      |
-| 6A    | nearby monster export (`entities.monsters[]`)                            | ✅ (this pass)                          |
+| Spike | What                                                                      | State                                   |
+| ----- | ------------------------------------------------------------------------- | --------------------------------------- |
+| 0     | headless load + one-shot snapshot                                         | ✅                                      |
+| 1     | `wait` command (bootstrap turn)                                           | ✅                                      |
+| 2     | persistent `--arcopolis-run-script` + `--arcopolis-export-dir` (T→T→T+1)  | ✅                                      |
+| 3     | movement via `command → do_turn`                                          | ❌ failed (turn inversion) — superseded |
+| 3.1A  | input-seam architecture (the fix)                                         | ✅                                      |
+| 3.1B  | clean-park hardening + final-on-exit snapshot                             | ✅                                      |
+| 3.1C  | `session.jsonl` transcript                                                | ✅                                      |
+| 4     | offline viewer / contract consumer (Python → HTML)                        | ✅                                      |
+| 5     | `is_avatar` marker + `seed` in `session_start`                            | ✅                                      |
+| 6A    | nearby monster export (`entities.monsters[]`)                             | ✅                                      |
+| 6B    | monster witness fixture (`ArcopolisNearMonsterTest`) + monster regression | ✅ validated (vs 6A build)              |
 
 ## Source & tests
 
@@ -132,7 +133,16 @@ invisible in the export — check the save / a live `critter_at` when a move "do
 clean-park, final snapshot) · `arcopolis_session_log.{h,cpp}` (transcript). Flags wired in
 `src/main.cpp`; the seam branch lives at `src/handle_action.cpp`, the clean-park at `src/game.cpp`.
 Unit tests: `tests/arcopolis_*_test.cpp` (`[arcopolis]` tag). Consumer:
-`tools/arcopolis_viewer/make_report.py` (stdlib-only).
+`tools/arcopolis_viewer/make_report.py` (stdlib-only). Fixture-driven regressions (need a loaded world, so
+not in CI):
+[`docs/arcopolis/movement_regression.ps1`](movement_regression.ps1) gates movement/NPC on **`ArcopolisTest`**
+(the movement/NPC fixture, unchanged), and
+[`docs/arcopolis/monster_export_regression.ps1`](monster_export_regression.ps1) gates the monster export on
+**`ArcopolisNearMonsterTest`** — the monster-export witness, a clone of `ArcopolisTest` with one in-window
+monster, built reproducibly by [`docs/arcopolis/make_monster_fixture.py`](make_monster_fixture.py) (save-edit,
+no GUI/build, witness on **passable** terrain so it stays put); see
+[16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md](16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md) and the load/wall-eject
+analysis [17_MONSTER_LOAD_AND_WALL_EJECT.md](17_MONSTER_LOAD_AND_WALL_EJECT.md).
 
 ## Deferred backlog
 
