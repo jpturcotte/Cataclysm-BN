@@ -47,8 +47,16 @@ if( -not (Test-Path $Exe) ) {
     Write-Error "Binary not found: $Exe  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)"
     exit 3
 }
+if( -not (Test-Path $FixtureSrc) ) {
+    Write-Error "Fixture source directory not found: $FixtureSrc"
+    exit 4
+}
 
-# Refresh the gitignored sandbox world from the external fixture.
+# Refresh the gitignored sandbox world from the external fixture. NOTE: `Copy-Item -Recurse` copies the
+# source dir INSIDE the destination when the destination already exists (a 2nd run would nest into
+# arcopolis_user\arcopolis_user); delete any existing sandbox first so every run gets a clean, non-nested
+# userdir whose contents sit directly under $UserDir.
+if( Test-Path $UserDir ) { Remove-Item $UserDir -Recurse -Force }
 Copy-Item $FixtureSrc $UserDir -Recurse -Force
 New-Item -ItemType Directory -Force $OutRoot | Out-Null
 
