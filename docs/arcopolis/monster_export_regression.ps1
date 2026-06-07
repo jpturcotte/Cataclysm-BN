@@ -158,7 +158,9 @@ foreach( $entry in $scn.Snaps ) {
     }
 
     # Gate 2: count > 0. Wrap with @() FIRST -- a single monster deserializes as a scalar, not an array.
-    $mons = @($snap.entities.monsters)
+    # Also filter $null: a missing/null property coerces to @($null), whose .Count is 1 (not 0), which
+    # would silently defeat the `.Count -lt 1` guards on a malformed/regressed snapshot.
+    $mons = @($snap.entities.monsters | Where-Object { $null -ne $_ })
     if( $mons.Count -lt 1 ) {
         Write-Host "  [$file] FAIL: entities.monsters present but EMPTY (count 0). The fixture monster is outside the radius-12 window -- re-place it within <=12 Chebyshev of the avatar." -ForegroundColor Red
         $fail++
@@ -167,7 +169,8 @@ foreach( $entry in $scn.Snaps ) {
 
     # Gate 3: off-window == 0. Build the (x,y,z) set from tiles[], take the tiles' z, assert each monster's
     # pos_local is in the set and on that z (the doc-14 local pattern). Guard empty tiles[].
-    $tiles = @($snap.tiles)
+    # Filter $null (see Gate 2): a missing tiles property coerces to @($null) (.Count 1), bypassing the guard.
+    $tiles = @($snap.tiles | Where-Object { $null -ne $_ })
     if( $tiles.Count -lt 1 ) {
         Write-Host "  [$file] FAIL: monsters present but tiles[] is empty (window-equivalence cannot hold)." -ForegroundColor Red
         $fail++
