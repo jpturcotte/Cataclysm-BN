@@ -159,8 +159,10 @@ foreach( $entry in $scn.Snaps ) {
 
     # Gate 2: off-window == 0. Build the (x,y,z) set from tiles[], take the tiles' z, assert each NPC's
     # pos_local is in the set and on that z. Wrap with @() FIRST -- a single NPC deserializes as a scalar.
-    $npcs  = @($snap.entities.npcs)
-    $tiles = @($snap.tiles)
+    # Also filter $null elements: a MISSING/null property coerces to @($null), whose .Count is 1 (not 0),
+    # which would silently defeat the `.Count -lt 1` guards below on a malformed/regressed snapshot.
+    $npcs  = @($snap.entities.npcs | Where-Object { $null -ne $_ })
+    $tiles = @($snap.tiles         | Where-Object { $null -ne $_ })
     if( $tiles.Count -lt 1 ) {
         Write-Host "  [$file] FAIL: tiles[] is empty (window-equivalence cannot hold)." -ForegroundColor Red
         $fail++
@@ -201,7 +203,9 @@ if( -not $before ) {
     Write-Host "  FAIL: no 'before' snapshot produced (expected NNN_before.json)." -ForegroundColor Red
     $fail++
 } else {
-    $bnpcs = @($before.Snap.entities.npcs)
+    # Filter $null (see Gate 2): a missing/null npcs property coerces to @($null) (.Count 1), which would
+    # otherwise bypass the count-0 check below and mis-report a missing block as "1 npc".
+    $bnpcs = @($before.Snap.entities.npcs | Where-Object { $null -ne $_ })
     if( $bnpcs.Count -lt 1 ) {
         Write-Host "  FAIL: before snapshot has entities.npcs present but EMPTY (count 0). Expected the shelter NPC in the radius-12 window." -ForegroundColor Red
         $fail++
