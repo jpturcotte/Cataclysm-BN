@@ -291,12 +291,14 @@ auto write_entities( JsonOut &json, const snapshot_ctx &ctx ) -> void
     json.member( "items" );
     json.start_array();
     auto item_index = 0;
-    for( const auto &p : points_in_radius( center, ctx.radius ) ) {  // p : tripoint_bub_ms, as write_tiles
+    for( const auto &p : points_in_radius( center,
+                                           ctx.radius ) ) {  // p : tripoint_bub_ms, as write_tiles
         if( !in_export_window( p, center, ctx ) ) {
             continue;  // identical window to tiles[] - here only the inbounds clamp can reject a tile
         }
         const auto ia = ctx.m.bub_to_abs( p );  // tripoint_abs_ms - SAME conversion Creature::abs_pos uses
-        for( const item *const it : get_map().i_at( p ) ) {  // ground stack; only get_map() for the accessor
+        for( const item *const it : get_map().i_at(
+                 p ) ) {  // ground stack; only get_map() for the accessor
             json.start_object();
             json.member( "index", item_index++ );  // export-local, 0-based, assigned post-filter
             json.member( "type_id", it->typeId().str() );
@@ -362,7 +364,8 @@ auto write_snapshot( JsonOut &json, const snapshot_ctx &ctx ) -> void
     write_avatar( json, ctx );
     write_map_bounds( json, ctx );
     write_tiles( json, ctx );
-    write_entities( json, ctx );  // Spike 6A/7A/8A: nearby monsters, NPCs, ground items in the tiles window
+    write_entities( json,
+                    ctx );  // Spike 6A/7A/8A: nearby monsters, NPCs, ground items in the tiles window
     write_messages( json, ctx );  // may push to ctx.warnings - must precede diagnostics
 
     json.member( "diagnostics" );
