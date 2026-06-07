@@ -25,6 +25,7 @@
 #include "messages.h"        // Messages::recent_messages()
 #include "monster.h"         // monster (complete type for all_monsters() iteration + accessors)
 #include "mtype.h"           // mtype::id (mon.type->id)
+#include "npc.h"             // npc (complete type for all_npcs() iteration + relationship predicates)
 #include "options.h"         // get_option<float>( "TURN_DURATION" )
 #include "type_id.h"         // ter_id/furn_id -> .id().str()
 
@@ -165,36 +166,43 @@ auto write_tiles( JsonOut &json, const snapshot_ctx &ctx ) -> void
     json.end_array();
 }
 
+/// True if a reality-bubble point falls inside the exported view window: the SAME predicate
+/// write_tiles applies (single z-slice, square center +/- radius mirroring points_in_radius, then
+/// clamp to the loaded bubble). Shared by the monster and NPC filters so both windows are identical
+/// to tiles[] by construction - every exported entity therefore sits on an exported tile.
+auto in_export_window( const tripoint_bub_ms &p, const tripoint_bub_ms &center,
+                       const snapshot_ctx &ctx ) -> bool
+{
+    return p.z() == center.z() &&
+           p.x() >= center.x() - ctx.radius && p.x() <= center.x() + ctx.radius &&
+           p.y() >= center.y() - ctx.radius && p.y() <= center.y() + ctx.radius &&
+           ctx.m.inbounds( p );
+}
+
 auto write_entities( JsonOut &json, const snapshot_ctx &ctx ) -> void
 {
     const auto center = ctx.u.bub_pos();  // tripoint_bub_ms - same window centre write_tiles uses
 
     json.member( "entities" );
     json.start_object();
+
     json.member( "monsters" );
     json.start_array();
     // The raw engine monster list: it includes hallucinations and friendly/ridden monsters, and
     // monsters outside the avatar's LOS - the GUI hides those at draw time, but the backend exports
     // authoritative state and flags hallucinations (the frontend owns any visibility policy). The
-    // window predicate is identical to write_tiles (single z, center +/- radius like points_in_radius,
-    // then inbounds), so every emitted monster's pos_local equals an exported tile.
-    auto index = 0;
+    // window filter (in_export_window) is identical to write_tiles, so every emitted monster's
+    // pos_local equals an exported tile.
+    auto monster_index = 0;
     for( const monster &mon : g->all_monsters() ) {
         const auto mp = mon.bub_pos();  // tripoint_bub_ms
-        if( mp.z() != center.z() ) {
-            continue;  // current z-level only (the tile window is a single z-slice)
-        }
-        if( mp.x() < center.x() - ctx.radius || mp.x() > center.x() + ctx.radius ||
-            mp.y() < center.y() - ctx.radius || mp.y() > center.y() + ctx.radius ) {
-            continue;  // outside the square view window
-        }
-        if( !ctx.m.inbounds( mp ) ) {
-            continue;  // clamp to the loaded bubble, exactly as write_tiles does
+        if( !in_export_window( mp, center, ctx ) ) {
+            continue;
         }
         const auto ma = mon.abs_pos();  // tripoint_abs_ms
 
         json.start_object();
-        json.member( "index", index++ );  // export-local, 0-based, assigned post-filter
+        json.member( "index", monster_index++ );  // export-local, 0-based, assigned post-filter
         json.member( "type_id", mon.type->id.str() );
         json.member( "name", mon.get_name() );
         json.member( "symbol", mon.symbol() );  // full display string (may be multi-byte)
@@ -220,6 +228,54 @@ auto write_entities( JsonOut &json, const snapshot_ctx &ctx ) -> void
         json.end_object();
     }
     json.end_array();
+
+    // Spike 7A: nearby NPCs, beside monsters, in the IDENTICAL window (in_export_window) so every
+    // exported NPC also sits on an exported tile. Source is g->all_npcs() - the active non-dead NPC
+    // range (not pre-filtered to loaded/simulated; out-of-bubble NPCs fail the inbounds window check,
+    // exactly as monsters do). The avatar is not in this list. v0 fields are conservative and
+    // public-API-backed; deeper faction / dialogue / inventory / mission / opinion data and stable
+    // persistent IDs are deferred. This is a read-only authoritative/debug export, NOT an interaction
+    // surface - no NPC command (talk/attack/swap/push) is added here.
+    json.member( "npcs" );
+    json.start_array();
+    auto npc_index = 0;
+    for( const npc &np : g->all_npcs() ) {
+        const auto np_local = np.bub_pos();  // tripoint_bub_ms
+        if( !in_export_window( np_local, center, ctx ) ) {
+            continue;
+        }
+        const auto np_abs = np.abs_pos();  // tripoint_abs_ms
+
+        json.start_object();
+        json.member( "index", npc_index++ );  // export-local, 0-based, assigned post-filter
+        json.member( "name", np.get_name() );
+
+        json.member( "pos_local" );
+        json.start_array();
+        json.write( np_local.x() );
+        json.write( np_local.y() );
+        json.write( np_local.z() );
+        json.end_array();
+
+        json.member( "pos_abs" );
+        json.start_array();
+        json.write( np_abs.x() );
+        json.write( np_abs.y() );
+        json.write( np_abs.z() );
+        json.end_array();
+
+        // Relationship flags (public const npc predicates): is_enemy = NPCATT_KILL/FLEE/FLEE_TEMP;
+        // is_following = NPCATT_FOLLOW/WAIT; is_player_ally = is_ally(g->u); is_stationary = guarding
+        // or a shelter/shopkeep/infected mission. These explain move-into-NPC semantics (see doc 15/18).
+        json.member( "is_enemy", np.is_enemy() );
+        json.member( "is_following", np.is_following() );
+        json.member( "is_player_ally", np.is_player_ally() );
+        json.member( "is_stationary", np.is_stationary() );
+        json.member( "hallucination", np.is_hallucination() );
+        json.end_object();
+    }
+    json.end_array();
+
     json.end_object();
 }
 
