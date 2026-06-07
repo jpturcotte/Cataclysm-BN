@@ -123,8 +123,10 @@ scratch (graphical New Game → one step → Save & Quit). It is a point-in-time
 A second world, `ArcopolisNearMonsterTest`, lives in the **same** userdir as the **monster-export witness**:
 a clone of `ArcopolisTest` with one `mon_fungal_wall` inside the radius-12 export window, so
 `entities.monsters[]` is non-empty (`ArcopolisTest`'s monsters are all ≥31 tiles away, hence present-but-empty
-at r12). `ArcopolisTest` remains the movement/NPC fixture. Build the witness with
-`docs/arcopolis/make_monster_fixture.py` (save-edit, no GUI/build) and gate it with
+at r12). `ArcopolisTest` remains the movement/NPC fixture and is also the **NPC-export witness** (its stock
+shelter NPC sits one tile north of the avatar, inside the r12 window), gated by
+`docs/arcopolis/npc_export_regression.ps1` (Spike 7A; see `docs/arcopolis/18_SPIKE7A_NPC_EXPORT.md`). Build the
+monster witness with `docs/arcopolis/make_monster_fixture.py` (save-edit, no GUI/build) and gate it with
 `docs/arcopolis/monster_export_regression.ps1`; see `docs/arcopolis/16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md`.
 
 ## HARD CONSTRAINTS (NEVER VIOLATE)
