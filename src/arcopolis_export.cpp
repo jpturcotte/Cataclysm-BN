@@ -19,6 +19,7 @@
 #include "game.h"            // g, game::load(world), get_levz(), savegame_version
 #include "game_constants.h"  // SEEX
 #include "get_version.h"     // getVersionString()
+#include "item.h"            // item (complete type: typeId/display_name/symbol/charges/count_by_charges + map_stack deref)
 #include "json.h"            // JsonOut
 #include "map.h"             // get_map(), ter/furn/pl_sees/inbounds/getmapsize/get_abs_sub
 #include "map_iterator.h"    // points_in_radius()
@@ -276,6 +277,57 @@ auto write_entities( JsonOut &json, const snapshot_ctx &ctx ) -> void
     }
     json.end_array();
 
+    // Spike 8A: nearby GROUND items, beside monsters/npcs, in the IDENTICAL window (in_export_window) so
+    // every exported item also sits on an exported tile. Unlike the entity blocks (which filter a global
+    // engine list) this iterates the exported TILE window and reads each tile's ground-item stack via
+    // map::i_at - the same public accessor look/pickup/examine use (pickup.cpp:1279, game.cpp:8770). i_at
+    // returns ONLY top-level ground items (the submap's itm stack): NOT vehicle cargo (that is
+    // vehicle::get_items, pickup.cpp:1293) and NOT items nested inside containers - both are naturally
+    // excluded here and remain explicitly deferred. The stack is reached through the non-const get_map()
+    // because map::i_at has no const overload (map.h:1692, "for safe modification"); every value is only
+    // READ - no item is mutated, moved, or removed. This is a read-only authoritative export, NOT a
+    // pickup/drop/use surface; avatar inventory, NPC inventory, vehicle cargo, and nested containers are
+    // all deferred. v0 fields are conservative and public-API-backed.
+    json.member( "items" );
+    json.start_array();
+    auto item_index = 0;
+    for( const auto &p : points_in_radius( center,
+                                           ctx.radius ) ) {  // p : tripoint_bub_ms, as write_tiles
+        if( !in_export_window( p, center, ctx ) ) {
+            continue;  // identical window to tiles[] - here only the inbounds clamp can reject a tile
+        }
+        const auto ia = ctx.m.bub_to_abs( p );  // tripoint_abs_ms - SAME conversion Creature::abs_pos uses
+        for( const auto *const it : get_map().i_at(
+                 p ) ) {  // ground stack; only get_map() for the accessor
+            json.start_object();
+            json.member( "index", item_index++ );  // export-local, 0-based, assigned post-filter
+            json.member( "type_id", it->typeId().str() );
+            json.member( "name", it->display_name() );  // look/pickup display name (item.h:495)
+            json.member( "symbol", it->symbol() );  // type->sym glyph (item.h:606)
+
+            json.member( "pos_local" );
+            json.start_array();
+            json.write( p.x() );
+            json.write( p.y() );
+            json.write( p.z() );
+            json.end_array();
+
+            json.member( "pos_abs" );
+            json.start_array();
+            json.write( ia.x() );
+            json.write( ia.y() );
+            json.write( ia.z() );
+            json.end_array();
+
+            // charges is only semantically meaningful when count_by_charges() is true (ammo/liquids/
+            // stackables); for everything else a consumer should treat the item as a single unit.
+            json.member( "charges", it->charges );
+            json.member( "count_by_charges", it->count_by_charges() );
+            json.end_object();
+        }
+    }
+    json.end_array();
+
     json.end_object();
 }
 
@@ -312,7 +364,8 @@ auto write_snapshot( JsonOut &json, const snapshot_ctx &ctx ) -> void
     write_avatar( json, ctx );
     write_map_bounds( json, ctx );
     write_tiles( json, ctx );
-    write_entities( json, ctx );  // Spike 6A: nearby monsters in the same window as tiles
+    write_entities( json,
+                    ctx );  // Spike 6A/7A/8A: nearby monsters, NPCs, ground items in the tiles window
     write_messages( json, ctx );  // may push to ctx.warnings - must precede diagnostics
 
     json.member( "diagnostics" );
