@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 8A, 2026-06-06)
+# Arcopolis backend — current state (truth as of Spike 9A, 2026-06-09)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -119,21 +119,22 @@ in the snapshot itself — the `before` snapshot carries a neutral NPC at the mo
 
 ## Capabilities by spike
 
-| Spike | What                                                                      | State                                   |
-| ----- | ------------------------------------------------------------------------- | --------------------------------------- |
-| 0     | headless load + one-shot snapshot                                         | ✅                                      |
-| 1     | `wait` command (bootstrap turn)                                           | ✅                                      |
-| 2     | persistent `--arcopolis-run-script` + `--arcopolis-export-dir` (T→T→T+1)  | ✅                                      |
-| 3     | movement via `command → do_turn`                                          | ❌ failed (turn inversion) — superseded |
-| 3.1A  | input-seam architecture (the fix)                                         | ✅                                      |
-| 3.1B  | clean-park hardening + final-on-exit snapshot                             | ✅                                      |
-| 3.1C  | `session.jsonl` transcript                                                | ✅                                      |
-| 4     | offline viewer / contract consumer (Python → HTML)                        | ✅                                      |
-| 5     | `is_avatar` marker + `seed` in `session_start`                            | ✅                                      |
-| 6A    | nearby monster export (`entities.monsters[]`)                             | ✅                                      |
-| 6B    | monster witness fixture (`ArcopolisNearMonsterTest`) + monster regression | ✅ validated (vs 6A build)              |
-| 7A    | nearby NPC export (`entities.npcs[]`) + NPC blocker regression            | ✅                                      |
-| 8A    | nearby ground-item export (`entities.items[]`) + item regression          | ✅                                      |
+| Spike | What                                                                                                                    | State                                   |
+| ----- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| 0     | headless load + one-shot snapshot                                                                                       | ✅                                      |
+| 1     | `wait` command (bootstrap turn)                                                                                         | ✅                                      |
+| 2     | persistent `--arcopolis-run-script` + `--arcopolis-export-dir` (T→T→T+1)                                                | ✅                                      |
+| 3     | movement via `command → do_turn`                                                                                        | ❌ failed (turn inversion) — superseded |
+| 3.1A  | input-seam architecture (the fix)                                                                                       | ✅                                      |
+| 3.1B  | clean-park hardening + final-on-exit snapshot                                                                           | ✅                                      |
+| 3.1C  | `session.jsonl` transcript                                                                                              | ✅                                      |
+| 4     | offline viewer / contract consumer (Python → HTML)                                                                      | ✅                                      |
+| 5     | `is_avatar` marker + `seed` in `session_start`                                                                          | ✅                                      |
+| 6A    | nearby monster export (`entities.monsters[]`)                                                                           | ✅                                      |
+| 6B    | monster witness fixture (`ArcopolisNearMonsterTest`) + monster regression                                               | ✅ validated (vs 6A build)              |
+| 7A    | nearby NPC export (`entities.npcs[]`) + NPC blocker regression                                                          | ✅                                      |
+| 8A    | nearby ground-item export (`entities.items[]`) + item regression                                                        | ✅                                      |
+| 9A    | external player-loop harness (cell bundles, HTML view/inspect, outcome explain, one-shot run; `tools/arcopolis_client`) | ✅                                      |
 
 ## Source & tests
 
@@ -144,9 +145,13 @@ iterate the tile window and read `map::i_at`) ·
 `arcopolis_script.{h,cpp}` (script runner) · `arcopolis_backend_input.{h,cpp}` (input-seam provider,
 clean-park, final snapshot) · `arcopolis_session_log.{h,cpp}` (transcript). Flags wired in
 `src/main.cpp`; the seam branch lives at `src/handle_action.cpp`, the clean-park at `src/game.cpp`.
-Unit tests: `tests/arcopolis_*_test.cpp` (`[arcopolis]` tag). Consumer:
-`tools/arcopolis_viewer/make_report.py` (stdlib-only). Fixture-driven regressions (need a loaded world, so
-not in CI):
+Unit tests: `tests/arcopolis_*_test.cpp` (`[arcopolis]` tag). Consumers (both stdlib-only,
+deliberately share-nothing so each independently re-derives the contract):
+`tools/arcopolis_viewer/make_report.py` (Spike 4 offline HTML report) and
+`tools/arcopolis_client/harness.py` (Spike 9A player-loop harness — cell bundles keyed by
+`pos_local`, HTML local view + tile inspector, per-command outcome classification, one-shot `run`
+mode; see [20_SPIKE9A_CLIENT_HARNESS.md](20_SPIKE9A_CLIENT_HARNESS.md)). Fixture-driven
+regressions (need a loaded world, so not in CI):
 [`docs/arcopolis/movement_regression.ps1`](movement_regression.ps1) gates movement/NPC on **`ArcopolisTest`**,
 [`docs/arcopolis/npc_export_regression.ps1`](npc_export_regression.ps1) gates the **NPC export** on the same
 **`ArcopolisTest`** (the stock shelter NPC Edwardo is already in the radius-12 window, so it needs no save
@@ -162,6 +167,12 @@ analysis [17_MONSTER_LOAD_AND_WALL_EJECT.md](17_MONSTER_LOAD_AND_WALL_EJECT.md).
 **`ArcopolisTest`** (its saved evac shelter already holds 27 deterministic in-window ground items, so it is
 the item-export witness with **no** save edit; `export(items_before) → wait → export(items_after_wait)`); see
 [19_SPIKE8A_ITEM_EXPORT.md](19_SPIKE8A_ITEM_EXPORT.md).
+[`docs/arcopolis/client_harness_regression.ps1`](client_harness_regression.ps1) gates the **Spike 9A client
+harness** end-to-end on **`ArcopolisTest`** (one session `export → move_n → export → move_s → export → wait →
+export`; asserts the harness classifies `blocked_no_op` (naming Edwardo from the before-snapshot bundle),
+`moved`, `waited`, and the final `no_command` pair, that the HTML view/inspector carries the blocker, that
+run mode reproduces the sequence, and that the Spike 4 viewer accepts the same session); see
+[20_SPIKE9A_CLIENT_HARNESS.md](20_SPIKE9A_CLIENT_HARNESS.md).
 
 ## Deferred backlog
 
