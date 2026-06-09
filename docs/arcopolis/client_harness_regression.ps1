@@ -42,6 +42,12 @@
        same outcome_sequence and run.exit_code=0 - the full choose -> run -> explain loop.
    10. The Spike 4 viewer agrees: make_report.py exits 0 on the same session dir (two
        independent consumers accept the same contract artifacts).
+   11. MONSTER FIXTURE: run mode over ArcopolisNearMonsterTest (the Spike 6B immobile-monster
+       witness, built by make_monster_fixture.py) exits 0 as waited,no_command with
+       contract_check.ok, the start snapshot carries >= 1 exported monster, and the HTML view of
+       the monster's own tile (computed from the snapshot, not hardcoded) renders the 'M' monster
+       cell with the inspector listing it -- the harness's monster path proven against a REAL
+       monster, not just empty entities.monsters[] arrays.
 
 .NOTES
   C:\dev\arcopolis-fixtures and C:\dev\ccache are the project's approved local-path exceptions
@@ -54,6 +60,7 @@ param(
     [string]$FixtureSrc = "C:\dev\arcopolis-fixtures\arcopolis_user",
     [string]$UserDir    = ".\arcopolis_user",
     [string]$World      = "ArcopolisTest",
+    [string]$MonsterWorld = "ArcopolisNearMonsterTest",
     [string]$OutRoot    = ".\out\arco_client_regress",
     [string]$Harness    = "tools\arcopolis_client\harness.py",
     [string]$Viewer     = "tools\arcopolis_viewer\make_report.py"
@@ -81,6 +88,10 @@ if( -not (Test-Path $FixtureSrc) ) {
 $fixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $World)
 if( -not (Test-Path $fixtureWorld) ) {
     Stop-WithCode "Fixture world '$World' not found at $fixtureWorld -- copy the canonical ArcopolisTest fixture. See AGENTS.md (Arcopolis test world fixture)." 5
+}
+$monsterFixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $MonsterWorld)
+if( -not (Test-Path $monsterFixtureWorld) ) {
+    Stop-WithCode "Monster fixture world '$MonsterWorld' not found at $monsterFixtureWorld -- build it with docs/arcopolis/make_monster_fixture.py (see 16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md)." 5
 }
 if( -not (Get-Command python -ErrorAction SilentlyContinue) ) {
     Stop-WithCode "python not found on PATH (needed to run the client harness and the offline viewer). See 00_WINDOWS_LOCAL_ENVIRONMENT.md." 6
@@ -328,6 +339,71 @@ if( $pview.ExitCode -ne 0 ) {
     $fail++
 } else {
     Write-Host "  PASS: viewer exit 0 on the same session (consumer cross-check)." -ForegroundColor Green
+}
+
+# --- Hard gate 11: the monster fixture (ArcopolisNearMonsterTest, the Spike 6B immobile witness). ---
+# A second run-mode session proves the harness's monster path (cell bundles, 'M' overlay, inspector)
+# against a REAL exported monster -- every ArcopolisTest session above carries an EMPTY
+# entities.monsters[]. The sandbox $UserDir already holds this world (the fixture copy includes
+# every save). The move-INTO-monster classifications (blocked_by=monster / bump-attack
+# acted_in_place) stay unwitnessed: the witness sits 8 tiles out by design (doc 16/17).
+$monDir  = Join-Path $OutRoot "monster_run"
+if( Test-Path $monDir ) { Remove-Item $monDir -Recurse -Force }
+$monJson = Join-Path $OutRoot "monster_run_result.json"
+$pm = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', $Exe, '--world', $MonsterWorld, '--userdir', $UserDir,
+    '--out', $monDir, '--commands', 'wait', '--json') `
+    -StdoutPath $monJson -StderrPath (Join-Path $OutRoot "monster_run_stderr.txt")
+$monOk = $false
+$monsters = @()
+if( $pm.ExitCode -eq 0 ) {
+    $mj = $pm.Stdout | ConvertFrom-Json
+    $mseq = (@($mj.summary.outcome_sequence) -join ',')
+    # Monster presence comes from the produced start snapshot (property-bag test + $null filter,
+    # the house gotchas) -- the explain JSON's wait pair has no destination block to carry entities.
+    $startSnapFile = Get-ChildItem $monDir -Filter "*.json" |
+                     Where-Object { $_.Name -match '^\d+_start\.json$' } | Select-Object -First 1
+    if( $startSnapFile ) {
+        $startSnap = Get-Content $startSnapFile.FullName -Raw | ConvertFrom-Json
+        $hasMon = ($null -ne $startSnap.PSObject.Properties['entities']) -and
+                  ($null -ne $startSnap.entities.PSObject.Properties['monsters'])
+        if( $hasMon ) { $monsters = @($startSnap.entities.monsters | Where-Object { $null -ne $_ }) }
+    }
+    $monOk = ($mj.run.exit_code -eq 0) -and ($mseq -eq 'waited,no_command') -and
+             $mj.contract_check.ok -and ($monsters.Count -ge 1)
+    if( -not $monOk ) {
+        Write-Host "  FAIL: monster run-mode -- run.exit_code=$($mj.run.exit_code) outcomes='$mseq' contract_ok=$($mj.contract_check.ok) monsters=$($monsters.Count) (expected 0 / waited,no_command / true / >=1)." -ForegroundColor Red
+    }
+} else {
+    Write-Host "  FAIL: harness run (monster fixture) exited $($pm.ExitCode) (expected 0). See $(Join-Path $OutRoot 'monster_run_stderr.txt')." -ForegroundColor Red
+}
+if( $monOk ) {
+    # The HTML view must render the monster: inspect the monster's own tile (computed from the
+    # snapshot, never hardcoded) and require the monster cell + its type_id in the inspector list.
+    $mpl = @($monsters[0].pos_local)
+    if( $mpl.Count -lt 3 ) {
+        Write-Host "  FAIL: monster[0].pos_local missing/short -- cannot aim the view inspector." -ForegroundColor Red
+        $fail++
+    } else {
+        $monAt   = "$($mpl[0]),$($mpl[1])"
+        $monHtml = Join-Path $monDir "monster_view.html"
+        $pmv = Invoke-PyTool -ToolArgs @($Harness, 'view', '--session-dir', $monDir, '--snapshot', 'start', '--output', $monHtml, '--at', $monAt) `
+            -StdoutPath (Join-Path $monDir "view_stdout.txt") -StderrPath (Join-Path $monDir "view_stderr.txt")
+        $monViewOk = $false
+        if( ($pmv.ExitCode -eq 0) -and (Test-Path $monHtml) ) {
+            $monRaw = Get-Content $monHtml -Raw
+            $monViewOk = $monRaw.Contains("class='cell monster") -and
+                         $monRaw.Contains($monsters[0].type_id) -and
+                         $monRaw.Contains('Monsters on this tile (')
+        }
+        if( $monViewOk ) {
+            Write-Host ("  PASS: monster fixture -- run mode waited,no_command with {0} @ [{1}]; view renders 'M' and the inspector lists it." -f $monsters[0].type_id, ($mpl -join ',')) -ForegroundColor Green
+        } else {
+            Write-Host "  FAIL: monster view gate -- exit=$($pmv.ExitCode), or monster_view.html lacks the monster cell / type_id / inspector list." -ForegroundColor Red
+            $fail++
+        }
+    }
+} else {
+    $fail++
 }
 
 if( $fail -gt 0 ) { Write-Host "CLIENT HARNESS REGRESSION: $fail hard assertion(s) failed." -ForegroundColor Red; exit 1 }

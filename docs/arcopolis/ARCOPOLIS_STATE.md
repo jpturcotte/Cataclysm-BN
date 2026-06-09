@@ -171,7 +171,9 @@ the item-export witness with **no** save edit; `export(items_before) → wait �
 harness** end-to-end on **`ArcopolisTest`** (one session `export → move_n → export → move_s → export → wait →
 export`; asserts the harness classifies `blocked_no_op` (naming Edwardo from the before-snapshot bundle),
 `moved`, `waited`, and the final `no_command` pair, that the HTML view/inspector carries the blocker, that
-run mode reproduces the sequence, and that the Spike 4 viewer accepts the same session); see
+run mode reproduces the sequence, and that the Spike 4 viewer accepts the same session; plus a
+monster-fixture run-mode gate on **`ArcopolisNearMonsterTest`** — `waited` tick with ≥1 exported monster,
+the `M` cell rendered, and the inspector listing the Spike 6B witness on its tile); see
 [20_SPIKE9A_CLIENT_HARNESS.md](20_SPIKE9A_CLIENT_HARNESS.md).
 
 ## Deferred backlog

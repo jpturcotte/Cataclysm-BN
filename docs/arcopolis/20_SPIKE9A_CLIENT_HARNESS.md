@@ -164,6 +164,11 @@ still one tile north (local `[85,84,0]`) — after `move_s` the start tile is em
 The same three offline outcomes were first re-derived from the **recorded** sibling sessions
 (`npc_blocker` → blocked_no_op/no_command, `move_s_walkable` → moved/no_command, `item_export` →
 waited/no_command) before any new backend run — the harness is a pure contract consumer either way.
+The monster path was proven the same two ways on the **second fixture**,
+`ArcopolisNearMonsterTest` (the Spike 6B immobile witness, `mon_fungal_wall` 8 tiles south at local
+`[85,93,0]`): offline against the recorded witness session and live via run mode (`wait` →
+waited/no_command), with the `M` cell rendered in the view and the inspector listing the monster on
+its tile (regression gate 11).
 
 ## Heuristics and honesty
 
@@ -188,14 +193,18 @@ waited/no_command) before any new backend run — the harness is a pure contract
 Fixture-driven (needs a loaded world, so not in CI), structured like the sibling scripts: prereq
 exits 3=exe, 4=fixture, 5=world, 6=python, 7=harness, 8=viewer; sandbox refresh from
 `C:\dev\arcopolis-fixtures\arcopolis_user`; `Stop-WithCode` (the `Write-Error; exit N` collapse
-gotcha). Ten hard gates: backend exit 0 + 5 snapshots · `explain --json` exit 0 with
+gotcha). Eleven hard gates: backend exit 0 + 5 snapshots · `explain --json` exit 0 with
 `contract_check.ok` · the exact outcome sequence `blocked_no_op,moved,waited,no_command` · the
 NPC-block pair (blocked_by npc, destination computed one-north of the before `pos_local`, NPC
 present — Edwardo in the canonical fixture; the PASS line prints the harness's own explanation) ·
 the moved pair (delta `0,1,0`, T≥1) · the wait pair (T≥1, no movement) · the final pair
 (`no_command`, T==0) · the HTML view + inspector markers (presence-only, never layout) · **run
 mode** end-to-end (the harness launches the backend itself and re-derives the same sequence) · the
-Spike 4 viewer exiting 0 on the same session (consumer cross-check). Validated 2026-06-09: exit 0,
+Spike 4 viewer exiting 0 on the same session (consumer cross-check) · the **monster fixture**
+(`ArcopolisNearMonsterTest`, a second run-mode session: `waited,no_command` with ≥1 exported
+monster, the `M` cell rendered, and the inspector — aimed at the monster's own `pos_local`,
+computed from the snapshot — listing it; the move-INTO-monster classifications stay unwitnessed,
+the witness sits 8 tiles out by design). Validated 2026-06-09: exit 0,
 all gates green, against the sibling worktree's Spike-8A build.
 
 ## Deferred (what a _real_ loop needs next)
