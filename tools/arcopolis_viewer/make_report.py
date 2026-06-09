@@ -50,7 +50,7 @@ import json
 import os
 import sys
 
-TOOL_VERSION = "1.1.0"
+TOOL_VERSION = "1.2.0"
 EXPECTED_SCHEMA_VERSION = 1
 SESSION_LOG_NAME = "session.jsonl"
 # Defensive cap on the tile-window span we will render (the engine view is
@@ -383,6 +383,21 @@ def render_map_html(snap_data, open_default=False):
                 continue
             npc_cells.setdefault((pl[0], pl[1]), np_obj)
 
+    # Spike 8A: overlay nearby ground items (entities.items[]) the same way. Absent in pre-Spike-8A
+    # snapshots -> dig() returns None -> no overlay (backward compatible). Unlike monsters/NPCs, a single
+    # tile can hold MANY items, so item_cells maps (x,y) -> the FULL list (for the count + tooltip); the
+    # cell only renders the marker when no higher-priority entity occupies it.
+    item_cells = {}
+    items_here = dig(snap_data, "entities.items")
+    if isinstance(items_here, list):
+        for it_obj in items_here:
+            if not isinstance(it_obj, dict):
+                continue
+            pl = as_int_list(it_obj.get("pos_local"))
+            if not pl or len(pl) < 3 or (tile_z is not None and pl[2] != tile_z):
+                continue
+            item_cells.setdefault((pl[0], pl[1]), []).append(it_obj)
+
     legend = {}
     rows_html = []
     for y in range(y0, y1 + 1):
@@ -404,10 +419,15 @@ def render_map_html(snap_data, open_default=False):
                 is_avatar = avatar_in_window and x == ax and y == ay
             else:
                 is_avatar = bool(is_avatar)
-            # Precedence avatar > npc > monster > terrain (Spike 7A). NPCs always render "N" (the v0
-            # contract carries no per-NPC symbol); monsters keep their engine symbol.
+            # Precedence avatar > npc > monster > item > terrain (Spike 7A/8A). NPCs always render "N"
+            # (the v0 contract carries no per-NPC symbol); monsters keep their engine symbol; an item-only
+            # cell renders "*". items_on_cell is kept regardless of precedence so the tooltip can always
+            # report tile contents, even when a higher-priority glyph occupies the cell.
             npc = None if is_avatar else npc_cells.get((x, y))
             monster = None if (is_avatar or npc is not None) else monster_cells.get((x, y))
+            items_on_cell = item_cells.get((x, y))
+            item = None if (is_avatar or npc is not None or monster is not None) else (
+                items_on_cell[0] if items_on_cell else None)
             if is_avatar:
                 render_glyph = "@"
                 classes.append("avatar")
@@ -419,9 +439,17 @@ def render_map_html(snap_data, open_default=False):
                 raw = monster.get("symbol")
                 render_glyph = raw[0] if isinstance(raw, str) and raw else "M"
                 classes.append("monster")
+            elif item is not None:
+                render_glyph = "*"
+                classes.append("item")
             else:
                 render_glyph = glyph
-            if not seen and not is_avatar and npc is None and monster is None:
+            # Dim any cell on a tile the player cannot currently see -- INCLUDING item / monster / NPC
+            # overlays (Spike 8A review feedback). Out-of-LOS entities are still EXPORTED authoritatively
+            # (the engine's full in-window lists), but the report fades them so a reader can tell what the
+            # player can actually see vs. what merely exists in the bubble. The avatar is never dimmed (its
+            # own tile is always seen). Uses the per-tile `seen` flag already present in tiles[].
+            if not seen and not is_avatar:
                 classes.append("unseen")
             title = "(%d,%d) ter=%s furn=%s seen=%s" % (
                 x, y, tile.get("ter", ""), tile.get("furn", ""), str(bool(seen)).lower(),
@@ -440,6 +468,11 @@ def render_map_html(snap_data, open_default=False):
                     monster.get("type_id", "?"), monster.get("name", ""),
                     monster.get("hp", "?"), monster.get("hp_max", "?"),
                 )
+            if items_on_cell:
+                first = items_on_cell[0]
+                title += " | items=%d (first: %s)" % (
+                    len(items_on_cell), first.get("name") or first.get("type_id") or "?",
+                )
             content = "&nbsp;" if render_glyph == " " else esc(render_glyph)
             cells.append('<span class="%s" title="%s">%s</span>' % (" ".join(classes), esc(title), content))
         rows_html.append('<div class="maprow">%s</div>' % "".join(cells))
@@ -448,6 +481,8 @@ def render_map_html(snap_data, open_default=False):
         legend[("npc", "N", "npc")] = True
     if monster_cells:
         legend[("monster", "M", "monster")] = True
+    if item_cells:
+        legend[("item", "*", "item (ground)")] = True
 
     width = x1 - x0 + 1
     height = y1 - y0 + 1
@@ -467,6 +502,8 @@ def render_map_html(snap_data, open_default=False):
         caption_bits.append("%d npc cell(s)" % len(npc_cells))
     if monster_cells:
         caption_bits.append("%d monster cell(s)" % len(monster_cells))
+    if item_cells:
+        caption_bits.append("%d item cell(s)" % len(item_cells))
 
     summary = "Tile map &mdash; %d&times;%d window (%d tiles)" % (width, height, len(grid))
     open_attr = " open" if open_default else ""
@@ -564,6 +601,44 @@ def verify_npcs_in_window(data):
     return {"checked": len(npcs), "off_window": off_window, "note": None}
 
 
+def verify_items_in_window(data):
+    """Check that every exported ground item sits on an exported tile (same x, y, z).
+
+    Parallel to ``verify_npcs_in_window`` (Spike 8A). The C++ exporter emits ``entities.items[]`` only
+    while iterating the SAME tile window as ``tiles[]`` (``points_in_radius`` + ``in_export_window``), so
+    a correct snapshot has ``off_window == []``; a non-empty list is a real contract violation. Backward
+    compatible: a snapshot without ``entities.items`` checks nothing (``checked == 0``); an empty
+    ``items[]`` is not a failure by itself. If ``tiles[]`` is missing/empty there is nothing to verify
+    against, so nothing is flagged (a note is returned). A malformed item object (non-dict, or a missing /
+    short ``pos_local``) is counted as off-window rather than crashing the viewer.
+    """
+    items = dig(data, "entities.items")
+    if not isinstance(items, list) or not items:
+        return {"checked": 0, "off_window": [], "note": None}
+    tiles = dig(data, "tiles")
+    if not isinstance(tiles, list) or not tiles:
+        return {"checked": len(items), "off_window": [],
+                "note": "no tiles[] to verify item positions against"}
+    tile_set = set()
+    for tile in tiles:
+        if not isinstance(tile, dict):
+            continue
+        try:
+            tile_set.add((int(tile["x"]), int(tile["y"]), int(tile["z"])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    off_window = []
+    for i, it_obj in enumerate(items):
+        if not isinstance(it_obj, dict):
+            off_window.append(i)
+            continue
+        pl = as_int_list(it_obj.get("pos_local"))
+        if not pl or len(pl) < 3 or (pl[0], pl[1], pl[2]) not in tile_set:
+            idx = it_obj.get("index")
+            off_window.append(idx if idx is not None else i)
+    return {"checked": len(items), "off_window": off_window, "note": None}
+
+
 # --------------------------------------------------------------------------- #
 # model assembly
 # --------------------------------------------------------------------------- #
@@ -588,6 +663,7 @@ def build_model(session_dir):
         "incomplete_snapshots": 0,
         "monsters_off_window": 0,
         "npcs_off_window": 0,
+        "items_off_window": 0,
     }
 
     for event in log["events"]:
@@ -608,6 +684,9 @@ def build_model(session_dir):
             npcs = verify_npcs_in_window(snap["data"])
             event["_npcs"] = npcs
             counts["npcs_off_window"] += len(npcs["off_window"])
+            items = verify_items_in_window(snap["data"])
+            event["_items"] = items
+            counts["items_off_window"] += len(items["off_window"])
             if not snap["ok"]:
                 counts["missing_snapshots"] += 1
             elif snap["missing_keys"]:
@@ -626,6 +705,7 @@ def build_model(session_dir):
         and counts["error_events"] == 0
         and counts["monsters_off_window"] == 0
         and counts["npcs_off_window"] == 0
+        and counts["items_off_window"] == 0
         and log["start"] is not None
         and log["end"] is not None
         and end_status != "error"
@@ -713,6 +793,7 @@ details.map > summary { cursor: pointer; color: var(--accent); font-weight: 600;
 .cell.unknown { color: #ff5d6c; }
 .cell.monster { color: #ff6b6b; font-weight: 700; }
 .cell.npc { color: #ffd166; font-weight: 700; }
+.cell.item { color: #4fd6c0; font-weight: 700; }
 .legend { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin-top: .5rem; font-size: .82rem;
           background: #0d0d10; color: #cccccc; padding: .5rem; border-radius: 6px; }
 .legend-item { display: inline-flex; align-items: center; gap: .35rem; }
@@ -772,6 +853,7 @@ def render_validation_card(counts, overall_pass):
         ("error events", counts["error_events"]),
         ("monsters off the tile window", counts["monsters_off_window"]),
         ("npcs off the tile window", counts["npcs_off_window"]),
+        ("items off the tile window", counts["items_off_window"]),
     ]
     body = "".join(
         "<tr><td>%s</td><td class='mono'>%s</td></tr>" % (esc(label), value) for label, value in rows
@@ -976,6 +1058,33 @@ def render_export_card(event, open_map=False):
             )
         elif npc_check.get("note"):
             body.append("<div class='warn-callout'>%s</div>" % esc(npc_check["note"]))
+        items_list = entities.get("items")
+        if isinstance(items_list, list) and items_list:
+            # A tile can hold many items (e.g. the evac-shelter witness), so cap the inline list and note
+            # the overflow rather than emitting one enormous line; the count and the map still show all.
+            cap = 24
+            item_strs = []
+            for it_obj in items_list[:cap]:
+                if not isinstance(it_obj, dict):
+                    continue
+                label = it_obj.get("type_id") or it_obj.get("name") or "?"
+                charge_txt = ""
+                if it_obj.get("count_by_charges") and it_obj.get("charges") is not None:
+                    charge_txt = " x%s" % esc(str(it_obj.get("charges")))
+                item_strs.append("%s%s @ %s" % (
+                    esc(str(label)), charge_txt, esc(fmt_scalar(it_obj.get("pos_local"))),
+                ))
+            more = len(items_list) - cap
+            tail = " &middot; +%d more" % more if more > 0 else ""
+            body.append("<p class='sub'>items (%d): %s%s</p>" % (len(items_list), " &middot; ".join(item_strs), tail))
+        item_check = event.get("_items") or {}
+        if item_check.get("off_window"):
+            body.append(
+                "<div class='warn-callout'>items off the tile window: <span class='mono'>%s</span></div>"
+                % esc(", ".join(str(idx) for idx in item_check["off_window"]))
+            )
+        elif item_check.get("note"):
+            body.append("<div class='warn-callout'>%s</div>" % esc(item_check["note"]))
         if snap.get("missing_keys"):
             body.append(
                 "<div class='warn-callout'>snapshot missing expected keys: <span class='mono'>%s</span></div>"
@@ -1144,11 +1253,12 @@ def main(argv=None):
     status = "OK" if model["overall_pass"] else "DISCREPANCIES"
     sys.stdout.write(
         "wrote %s  [%s]  exports=%d pass=%d fail=%d missing=%d incomplete=%d bad_lines=%d errors=%d "
-        "monsters_off_window=%d npcs_off_window=%d\n"
+        "monsters_off_window=%d npcs_off_window=%d items_off_window=%d\n"
         % (
             output, status, counts["exports"], counts["passes"], counts["fails"],
             counts["missing_snapshots"], counts["incomplete_snapshots"], counts["bad_lines"],
             counts["error_events"], counts["monsters_off_window"], counts["npcs_off_window"],
+            counts["items_off_window"],
         )
     )
     return 0 if model["overall_pass"] else 2

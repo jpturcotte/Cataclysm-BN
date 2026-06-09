@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 7A, 2026-06-06)
+# Arcopolis backend — current state (truth as of Spike 8A, 2026-06-06)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -79,14 +79,18 @@ pain, thirst, fatigue, stored_kcal, kcal_percent) · `map_bounds` (origin_abs_sm
 z) · `tiles[]` (x, y, z, ter, furn, seen, **is_avatar** on the avatar's tile only — Spike 5) ·
 **`entities.monsters[]`** (index, type_id, name, symbol, pos_local[xyz], pos_abs[xyz], hp, hp_max,
 moves, hallucination — Spike 6A) · **`entities.npcs[]`** (index, name, pos_local[xyz], pos_abs[xyz],
-is_enemy, is_following, is_player_ally, is_stationary, hallucination — Spike 7A) · `messages[]` (text,
-type — **type currently blank**, deferred) · `diagnostics.warnings[]`. Tiles **and the monster + NPC
-windows** are a radius-12 single-z square around the avatar, clamped to the loaded bubble;
-`entities.monsters[]` and `entities.npcs[]` use the **identical** window predicate (one shared
-`in_export_window` helper), so every exported monster **and NPC** sits on an exported tile. Both are
-**authoritative** engine lists (`game::all_monsters()` / `game::all_npcs()`, the active non-dead ranges)
-— they include hallucinations and out-of-LOS entities (flagged via `hallucination`), not a "what the
-player sees" or interaction list.
+is_enemy, is_following, is_player_ally, is_stationary, hallucination — Spike 7A) ·
+**`entities.items[]`** (index, type_id, name, symbol, pos_local[xyz], pos_abs[xyz], charges,
+count_by_charges — Spike 8A) · `messages[]` (text, type — **type currently blank**, deferred) ·
+`diagnostics.warnings[]`. Tiles **and the monster / NPC / item windows** are a radius-12 single-z square
+around the avatar, clamped to the loaded bubble; `entities.monsters[]` and `entities.npcs[]` use the
+**identical** window predicate (one shared `in_export_window` helper), and `entities.items[]` is gathered by
+iterating that **same tile window** and reading each tile's ground stack, so every exported monster, NPC,
+**and item** sits on an exported tile. Monsters and NPCs are **authoritative** engine lists
+(`game::all_monsters()` / `game::all_npcs()`, the active non-dead ranges) — they include hallucinations and
+out-of-LOS entities (flagged via `hallucination`), not a "what the player sees" or interaction list.
+`entities.items[]` is the **top-level ground-item stack** on each windowed tile (`map::i_at`), read-only —
+**not** vehicle cargo or nested-container contents (both deferred), and **not** a pickup/drop/use surface.
 
 ### Transcript `session.jsonl` (`schema_version` 1, one JSON object per line, flushed per event)
 
@@ -129,11 +133,13 @@ in the snapshot itself — the `before` snapshot carries a neutral NPC at the mo
 | 6A    | nearby monster export (`entities.monsters[]`)                             | ✅                                      |
 | 6B    | monster witness fixture (`ArcopolisNearMonsterTest`) + monster regression | ✅ validated (vs 6A build)              |
 | 7A    | nearby NPC export (`entities.npcs[]`) + NPC blocker regression            | ✅                                      |
+| 8A    | nearby ground-item export (`entities.items[]`) + item regression          | ✅                                      |
 
 ## Source & tests
 
 `src/arcopolis_export.{h,cpp}` (snapshot; `write_entities` → `entities.monsters[]` Spike 6A +
-`entities.npcs[]` Spike 7A, one shared `in_export_window` predicate) ·
+`entities.npcs[]` Spike 7A + `entities.items[]` Spike 8A, one shared `in_export_window` predicate; items
+iterate the tile window and read `map::i_at`) ·
 `arcopolis_command.{h,cpp}` (verb→action_id, errors) ·
 `arcopolis_script.{h,cpp}` (script runner) · `arcopolis_backend_input.{h,cpp}` (input-seam provider,
 clean-park, final snapshot) · `arcopolis_session_log.{h,cpp}` (transcript). Flags wired in
@@ -152,17 +158,23 @@ monster, built reproducibly by [`docs/arcopolis/make_monster_fixture.py`](make_m
 no GUI/build, witness on **passable** terrain so it stays put); see
 [16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md](16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md) and the load/wall-eject
 analysis [17_MONSTER_LOAD_AND_WALL_EJECT.md](17_MONSTER_LOAD_AND_WALL_EJECT.md).
+[`docs/arcopolis/item_export_regression.ps1`](item_export_regression.ps1) gates the **ground-item export** on
+**`ArcopolisTest`** (its saved evac shelter already holds 27 deterministic in-window ground items, so it is
+the item-export witness with **no** save edit; `export(items_before) → wait → export(items_after_wait)`); see
+[19_SPIKE8A_ITEM_EXPORT.md](19_SPIKE8A_ITEM_EXPORT.md).
 
 ## Deferred backlog
 
 - **Richer read-only export:** dynamic entities — **monsters done (Spike 6A, `entities.monsters[]`), NPCs
-  done (Spike 7A, `entities.npcs[]`)**; items/fields/vehicles still deferred (#2) — plus per-tile
-  symbol/colour (#1), message type/severity (#4 — needs a public `Messages::` accessor), multi-z (#5), and
-  **richer NPC fields** (faction / dialogue / mission / opinion detail, stable persistent IDs — explicitly
-  deferred from 7A's conservative v0). Dynamic-entity export is the linchpin: monsters + NPCs now exist,
-  bringing the deferred **world-tick regression harness** closer (still needs a `--arcopolis-new-world`
-  generator + monster/field state to witness a tick — see
-  [10_SPIKE3_1B_CLEAN_PARK_HARDENING.md](10_SPIKE3_1B_CLEAN_PARK_HARDENING.md)).
+  done (Spike 7A, `entities.npcs[]`), ground items done (Spike 8A, `entities.items[]`)**; fields and vehicles
+  still deferred (#2), and so is **item depth beyond the ground-item v0** — avatar/NPC **inventory**,
+  **vehicle cargo** (`vehicle::get_items`, a separate stack), **nested-container contents**, and
+  weight/volume/damage/rot/per-item state — plus per-tile symbol/colour (#1), message type/severity (#4 —
+  needs a public `Messages::` accessor), multi-z (#5), and **richer NPC fields** (faction / dialogue /
+  mission / opinion detail, stable persistent IDs — explicitly deferred from 7A's conservative v0).
+  Dynamic-entity export is the linchpin: monsters + NPCs + ground items now exist, bringing the deferred
+  **world-tick regression harness** closer (still needs a `--arcopolis-new-world` generator + monster/field
+  state to witness a tick — see [10_SPIKE3_1B_CLEAN_PARK_HARDENING.md](10_SPIKE3_1B_CLEAN_PARK_HARDENING.md)).
 - **Live protocol:** bidirectional commands over a transport (socket/stdin) with framing/acks (the
   M3 path) — everything today is file-based.
 - **Richer commands:** examine/look, interaction (open/close/smash/pickup), **NPC interaction
