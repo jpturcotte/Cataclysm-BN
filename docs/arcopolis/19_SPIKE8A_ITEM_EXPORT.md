@@ -109,8 +109,11 @@ and every item path no-ops (the viewer still exits 0).
   item > terrain**. An item-only cell renders `"*"` in a teal `.cell.item` class; a tile that also holds an
   avatar/NPC/monster keeps the higher-priority glyph but the cell tooltip still appends `items=N (first: …)`.
   `item_cells` maps `(x,y) → [item, …]` (the full per-tile list, since a tile can hold many items). An
-  `item (ground)` legend entry and an `N item cell(s)` caption bit appear when items are present. Item-only
-  cells are not dimmed when unseen (treated as an overlay, like the entity markers).
+  `item (ground)` legend entry and an `N item cell(s)` caption bit appear when items are present. Overlay
+  cells (item, monster, and NPC) are **dimmed when their tile is unseen** (`tiles[].seen == false`), so the
+  report distinguishes what the player can currently see from what merely exists in the bubble; the avatar is
+  never dimmed. The export itself stays authoritative — out-of-LOS entities are still listed (the frontend
+  owns visibility policy, and can also join an item to its tile's `seen`).
 - **`verify_items_in_window`** builds the 3D tile set and returns any item whose `pos_local` isn't on an
   exported tile; malformed item objects are **counted as off-window** (never crash). Missing/empty
   `entities.items` ⇒ `checked == 0`; an empty `items[]` is not a failure; missing/empty `tiles[]` ⇒ a note,

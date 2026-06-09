@@ -444,7 +444,12 @@ def render_map_html(snap_data, open_default=False):
                 classes.append("item")
             else:
                 render_glyph = glyph
-            if not seen and not is_avatar and npc is None and monster is None and item is None:
+            # Dim any cell on a tile the player cannot currently see -- INCLUDING item / monster / NPC
+            # overlays (Spike 8A review feedback). Out-of-LOS entities are still EXPORTED authoritatively
+            # (the engine's full in-window lists), but the report fades them so a reader can tell what the
+            # player can actually see vs. what merely exists in the bubble. The avatar is never dimmed (its
+            # own tile is always seen). Uses the per-tile `seen` flag already present in tiles[].
+            if not seen and not is_avatar:
                 classes.append("unseen")
             title = "(%d,%d) ter=%s furn=%s seen=%s" % (
                 x, y, tile.get("ter", ""), tile.get("furn", ""), str(bool(seen)).lower(),
