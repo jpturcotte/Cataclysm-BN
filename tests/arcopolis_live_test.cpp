@@ -21,7 +21,8 @@ namespace
 /// in '\n', and contains no other newline.
 auto is_one_line( const std::string &s ) -> bool
 {
-    return !s.empty() && s.back() == '\n' && std::ranges::count( s, '\n' ) == 1;
+    namespace ranges = std::ranges;
+    return !s.empty() && s.back() == '\n' && ranges::count( s, '\n' ) == 1;
 }
 
 /// Parses one formatted protocol line and runs `check` on the resulting object. JsonObject keeps a raw
@@ -34,7 +35,7 @@ auto with_protocol_line( const std::string &line, Check check ) -> void
     REQUIRE( is_one_line( line ) );
     std::istringstream is( line );
     JsonIn json( is );
-    JsonObject obj = json.get_object();  // throws JsonError (fails the test) on malformed JSON
+    auto obj = json.get_object();  // throws JsonError (fails the test) on malformed JSON
     obj.allow_omitted_members();
     check( obj );
 }
@@ -169,7 +170,7 @@ TEST_CASE( "arcopolis live ready line is one valid protocol object", "[arcopolis
 {
     std::ostringstream out;
     arcopolis::write_ready_line( out, { .world = "ArcopolisTest" } );
-    with_protocol_line( out.str(), []( const JsonObject & obj ) {
+    with_protocol_line( out.str(), []( const auto & obj ) {
         CHECK( obj.get_string( "type" ) == "ready" );
         CHECK( obj.get_int( "protocol_version" ) == arcopolis::live_protocol_version );
         CHECK( obj.get_bool( "ok" ) );
@@ -186,7 +187,7 @@ TEST_CASE( "arcopolis live success response carries the snapshot scalars", "[arc
                                             .export_index = 1,
                                             .turn = 1324801
                                                  } );
-    with_protocol_line( out.str(), []( const JsonObject & obj ) {
+    with_protocol_line( out.str(), []( const auto & obj ) {
         CHECK( obj.get_string( "type" ) == "response" );
         CHECK( obj.get_int( "id" ) == 2 );
         CHECK( obj.get_bool( "ok" ) );
@@ -201,7 +202,7 @@ TEST_CASE( "arcopolis live quit response reports session_end", "[arcopolis]" )
 {
     std::ostringstream out;
     arcopolis::write_quit_response_line( out, { .id = std::optional<int>( 4 ) } );
-    with_protocol_line( out.str(), []( const JsonObject & obj ) {
+    with_protocol_line( out.str(), []( const auto & obj ) {
         CHECK( obj.get_string( "type" ) == "response" );
         CHECK( obj.get_int( "id" ) == 4 );
         CHECK( obj.get_bool( "ok" ) );
@@ -218,7 +219,7 @@ TEST_CASE( "arcopolis live error response writes a null id and omits an unknown 
                                           .code = arcopolis::live_error_code::malformed_json,
                                           .message = "malformed JSON: oops"
                                                } );
-    with_protocol_line( out.str(), []( const JsonObject & obj ) {
+    with_protocol_line( out.str(), []( const auto & obj ) {
         CHECK( obj.get_string( "type" ) == "response" );
         REQUIRE( obj.has_member( "id" ) );   // present...
         CHECK( obj.has_null( "id" ) );       // ...as an explicit JSON null (protocol v0)
@@ -238,7 +239,7 @@ TEST_CASE( "arcopolis live error response echoes the id and op when known", "[ar
                                           .code = arcopolis::live_error_code::unsupported_command,
                                           .message = "unsupported move direction 'move_up'"
                                                } );
-    with_protocol_line( out.str(), []( const JsonObject & obj ) {
+    with_protocol_line( out.str(), []( const auto & obj ) {
         CHECK( obj.get_int( "id" ) == 5 );
         CHECK_FALSE( obj.get_bool( "ok" ) );
         CHECK( obj.get_string( "op" ) == "command" );
