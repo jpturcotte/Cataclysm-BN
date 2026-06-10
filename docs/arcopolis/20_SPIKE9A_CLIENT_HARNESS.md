@@ -122,20 +122,21 @@ direction (y grows **south**: `move_s` = (0,+1)), turn delta `T`, destination ce
 BEFORE snapshot. Closed label enum: `moved`, `blocked_no_op`, `acted_in_place`, `waited`,
 `no_command`, `multi_command`, `displaced`, `unknown`, `unverifiable`.
 
-| C                   | P vs E      | T      | D                             | outcome                                                                                              |
-| ------------------- | ----------- | ------ | ----------------------------- | ---------------------------------------------------------------------------------------------------- |
-| none                | 0           | 0      | —                             | `no_command` (the final-on-exit pair; an anomaly note if P≠0 or T≠0 — clean-park guarantees neither) |
-| `wait`              | 0           | ≥1     | —                             | `waited`; T==0 → `unknown` + anomaly note (do_pause zeroes moves)                                    |
-| `move d`            | **P==E**    | any    | any                           | `moved`; T==0 is **legal** (multi-action turns exist) and noted, not failed                          |
-| `move d`            | 0           | 0      | NPC on D                      | `blocked_no_op`, `blocked_by=["npc"]`, NPC named with relationship adjectives + the docs-15/18 note  |
-| `move d`            | 0           | 0      | monster on D                  | `blocked_no_op`, `blocked_by=["monster"]` + a "hostile bump normally attacks" caveat                 |
-| `move d`            | 0           | 0      | wall/window family, seen      | `blocked_no_op`, `blocked_by=["terrain"]` — **heuristic**, the contract has no passability flag      |
-| `move d`            | 0           | 0      | floor-like, no creature       | `blocked_no_op`, `blocked_by=[]` + "no exported blocker (v0 has no vehicles/fields)"                 |
-| `move d`            | 0           | **≥1** | any                           | `acted_in_place` (door family → "likely opened it"; creature → "likely a bump-attack")               |
-| `move d`            | P≠0 and P≠E | any    | —                             | `displaced` (push/swap/displacement?) — facts only                                                   |
-| `move d`            | any         | any    | outside window / `seen=false` | facts absent/flagged; unseen contents still listed ("authoritative export, not player knowledge")    |
-| >1 command          | —           | —      | —                             | `multi_command` — net deltas reported; per-command destination analysis needs exactly one command    |
-| snapshot unloadable | —           | —      | —                             | `unverifiable` → contract discrepancy → exit 2                                                       |
+| C                   | P vs E      | T      | D                             | outcome                                                                                                                                             |
+| ------------------- | ----------- | ------ | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| none                | 0           | 0      | —                             | `no_command` (the final-on-exit pair; an anomaly note if P≠0 or T≠0 — clean-park guarantees neither)                                                |
+| `wait`              | 0           | ≥1     | —                             | `waited` (the world ticked)                                                                                                                         |
+| `wait`              | 0           | 0      | —                             | `waited` + a zero-advance note — **legal**: the bootstrap turn after load skips `calendar::turn += 1` (src/game.cpp:1890-1898); T<0 stays `unknown` |
+| `move d`            | **P==E**    | any    | any                           | `moved`; T==0 is **legal** (multi-action turns exist) and noted, not failed                                                                         |
+| `move d`            | 0           | 0      | NPC on D                      | `blocked_no_op`, `blocked_by=["npc"]`, NPC named with relationship adjectives + the docs-15/18 note                                                 |
+| `move d`            | 0           | 0      | monster on D                  | `blocked_no_op`, `blocked_by=["monster"]` + a "hostile bump normally attacks" caveat                                                                |
+| `move d`            | 0           | 0      | wall/window family, seen      | `blocked_no_op`, `blocked_by=["terrain"]` — **heuristic**, the contract has no passability flag                                                     |
+| `move d`            | 0           | 0      | floor-like, no creature       | `blocked_no_op`, `blocked_by=[]` + "no exported blocker (v0 has no vehicles/fields)"                                                                |
+| `move d`            | 0           | **≥1** | any                           | `acted_in_place` (door family → "likely opened it"; creature → "likely a bump-attack")                                                              |
+| `move d`            | P≠0 and P≠E | any    | —                             | `displaced` (push/swap/displacement?) — facts only                                                                                                  |
+| `move d`            | any         | any    | outside window / `seen=false` | facts absent/flagged; unseen contents still listed ("authoritative export, not player knowledge")                                                   |
+| >1 command          | —           | —      | —                             | `multi_command` — net deltas reported; per-command destination analysis needs exactly one command                                                   |
+| snapshot unloadable | —           | —      | —                             | `unverifiable` → contract discrepancy → exit 2                                                                                                      |
 
 ### Messages diff
 
@@ -182,6 +183,12 @@ its tile (regression gate 11).
   (cell bundles, map, destination).
 - **`moved` does not require T≥1** — a fast avatar can act more than once per turn. The
   fixture-specific `turn_delta ≥ 1` assertions live in the regression, not the classifier.
+- **`waited` does not require T≥1 either** — a zero-advance wait is the engine's faithful bootstrap
+  turn right after load (`game::new_game` makes the first `do_turn` skip the calendar tick,
+  src/game.cpp:1890-1898), so it classifies `waited` with a note, never as an anomaly. Current
+  seam-timed sessions read the **next** `do_turn`'s clock and therefore show T=+1 even for a
+  first-command `wait` (regression gate 11); the zero-advance shape belongs to pre-seam recorded
+  sessions, which the harness keeps accepting.
 - **`acted_in_place` and `displaced` are designed but not fixture-witnessed** (no door/bump-attack
   case in `ArcopolisTest`'s deterministic script); they exist so real frontend traffic degrades to
   labeled facts instead of misclassification.

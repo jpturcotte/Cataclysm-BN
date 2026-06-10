@@ -419,6 +419,20 @@ def build_cells(snap):
     }
 
 
+def entity_counts(snap):
+    """Sizes of the ``entities.*`` lists, counting a wrong-typed block as 0.
+
+    A malformed block (``entities.items`` as a dict/string) would make a bare
+    ``len()`` crash or report a misleading size - degrade exactly like an
+    absent block instead, the same tolerance ``build_cells`` applies.
+    """
+    counts = {}
+    for kind in ("npcs", "monsters", "items"):
+        entries = dig(snap, "entities." + kind)
+        counts[kind] = len(entries) if isinstance(entries, list) else 0
+    return counts
+
+
 # --------------------------------------------------------------------------- #
 # tile -> glyph / family classification (substring families adapted from the
 # Spike 4 viewer, make_report.py lines 267-307, reduced to ASCII-only glyphs;
@@ -696,10 +710,24 @@ def classify_pair(pair, before_snap, after_snap):
             result["outcome"] = "waited"
             result["explanation"] = ("wait kept the avatar in place while the turn advanced by %d "
                                      "(the world ticked)." % turn_delta)
+        elif not moved_flag and turn_delta == 0:
+            # Faithful lifecycle case, not an anomaly: the engine's bootstrap
+            # turn right after load consumes the wait WITHOUT advancing the
+            # calendar (do_turn skips calendar::turn += 1 while game::new_game
+            # is set - src/game.cpp:1890-1898). Current seam-timed sessions
+            # read the NEXT do_turn's clock and so show +1; the zero-advance
+            # shape appears in pre-seam recorded sessions and stays legal.
+            result["outcome"] = "waited"
+            notes.append("wait consumed at bootstrap/input-rest without calendar turn advance "
+                         "(legal: the bootstrap turn after load skips the calendar tick)")
+            result["explanation"] = ("wait kept the avatar in place without advancing the turn "
+                                     "(a faithful zero-advance wait, e.g. the engine's bootstrap "
+                                     "turn right after load).")
         elif not moved_flag:
             result["outcome"] = "unknown"
-            notes.append("wait did not advance the turn (unexpected: do_pause zeroes moves)")
-            result["explanation"] = "wait left both the position and the turn unchanged - unexpected."
+            notes.append("wait went backward in turn (%d) - unexpected" % turn_delta)
+            result["explanation"] = ("wait left the position unchanged but the turn went backward "
+                                     "(%d) - unexpected." % turn_delta)
         else:
             result["outcome"] = "unknown"
             notes.append("wait changed the avatar position (unexpected)")
@@ -1019,11 +1047,17 @@ def render_view_html(snap, snap_name, session_dir, at_key, reveal):
     grid CSS adapted from make_report.py lines 774-801.
     """
     cells, info = build_cells(snap)
-    avatar = dig(snap, "avatar") or {}
-    counts = {kind: len(dig(snap, "entities." + kind) or []) for kind in ("npcs", "monsters", "items")}
+    # Wrong-typed snapshot blocks must degrade like absent ones, not crash the
+    # renderer (an ``avatar``/``session`` that is not a dict has no ``.get``).
+    avatar = dig(snap, "avatar")
+    if not isinstance(avatar, dict):
+        avatar = {}
+    counts = entity_counts(snap)
 
     # --- header table -------------------------------------------------------
-    session = snap.get("session") or {}
+    session = snap.get("session")
+    if not isinstance(session, dict):
+        session = {}
     header_rows = [
         ("session dir", display_path(session_dir, reveal)),
         ("snapshot", snap_name),
@@ -1338,8 +1372,7 @@ def cmd_view(args):
         warn("fatal: could not write %s: %s" % (display_path(args.output, args.reveal_paths), err))
         return 1
 
-    counts = {kind: len(dig(snap["data"], "entities." + kind) or [])
-              for kind in ("npcs", "monsters", "items")}
+    counts = entity_counts(snap["data"])
     cells, _ = build_cells(snap["data"])
     inspected = cells.get(at_key)
     emit("view ok snapshot=%s turn=%s avatar=%s npcs=%d monsters=%d items=%d inspect=%s "
