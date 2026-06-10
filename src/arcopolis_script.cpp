@@ -23,7 +23,7 @@ namespace
 {
 
 /// The only step-script schema this spike understands.
-constexpr int arcopolis_script_schema_version = 1;
+constexpr auto arcopolis_script_schema_version = 1;
 
 /// Builds a session_end_summary carrying the live final turn/position (read with the snapshot's
 /// accessors). Used by the clean-completion tail and the stall path, where the avatar is alive; the
@@ -45,7 +45,7 @@ std::expected<std::vector<script_step>, command_error>
 {
     try {
         JsonIn json( stream );
-        JsonObject obj = json.get_object();
+        auto obj = json.get_object();
         // We read only the fields we care about and may return early on a bad schema; tell the strict
         // JSON reader not to flag other/unread members as unvisited (it logs an error otherwise, which
         // BN's test harness treats as a failure, and which would also appear on the binary's stderr).
@@ -67,10 +67,10 @@ std::expected<std::vector<script_step>, command_error>
         }
 
         std::vector<script_step> steps;
-        JsonArray arr = obj.get_array( "steps" );
-        int idx = 0;
+        auto arr = obj.get_array( "steps" );
+        auto idx = 0;
         while( arr.has_more() ) {
-            JsonObject e = arr.next_object();
+            auto e = arr.next_object();
             e.allow_omitted_members();
             const auto at = "steps[" + std::to_string( idx ) + "]: ";
             if( !e.has_string( "op" ) ) {
@@ -223,9 +223,9 @@ auto arcopolis::run_script( const run_script_options &opts ) -> int
     // The input loop is skipped while the avatar sleeps (game.cpp:1978), so the provider would never be
     // called and the cursor would never advance. Bound the consecutive cursor-stalled turns as a hang
     // backstop (the ArcopolisTest avatar is awake, so the happy path never trips this).
-    constexpr int max_idle_turns = 1000;
+    constexpr auto max_idle_turns = 1000;
     auto last_cursor = backend_cursor();
-    int idle_turns = 0;
+    auto idle_turns = 0;
     while( !backend_input_done() ) {
         if( g->do_turn() ) {
             // do_turn returns true only via cleanup_at_end (game over / avatar death mid-script).

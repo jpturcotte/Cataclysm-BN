@@ -15,17 +15,18 @@ namespace
 {
 
 /// The only command schema this spike understands.
-constexpr int arcopolis_command_schema_version = 1;
+constexpr auto arcopolis_command_schema_version = 1;
 
 } // namespace
 
 auto arcopolis::is_supported_move_direction( std::string_view ident ) -> bool
 {
     using namespace std::string_view_literals;
+    namespace ranges = std::ranges;
     // The four cardinals this spike supports. look_up_action() also resolves diagonals and vertical
     // moves, so this cardinal-set membership check is what actually rejects move_ne.../move_up/move_down.
     static constexpr std::array cardinals = { "move_n"sv, "move_s"sv, "move_e"sv, "move_w"sv };
-    return std::ranges::contains( cardinals, ident );
+    return ranges::contains( cardinals, ident );
 }
 
 auto arcopolis::parse_command( std::istream &stream ) ->

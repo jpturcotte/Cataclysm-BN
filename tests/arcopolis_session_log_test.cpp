@@ -21,7 +21,8 @@ namespace
 /// '\n', and contains no other newline.
 auto is_one_line( const std::string &s ) -> bool
 {
-    return !s.empty() && s.back() == '\n' && std::ranges::count( s, '\n' ) == 1;
+    namespace ranges = std::ranges;
+    return !s.empty() && s.back() == '\n' && ranges::count( s, '\n' ) == 1;
 }
 
 /// Parses one formatted record and runs `check` on the resulting object. JsonObject keeps a raw JsonIn*
@@ -34,7 +35,7 @@ auto with_record( const std::string &line, Check check ) -> void
     REQUIRE( is_one_line( line ) );
     std::istringstream is( line );
     JsonIn json( is );
-    JsonObject obj = json.get_object();  // throws JsonError (fails the test) on malformed JSON
+    auto obj = json.get_object();  // throws JsonError (fails the test) on malformed JSON
     obj.allow_omitted_members();
     CHECK( obj.get_int( "schema_version" ) == 1 );
     check( obj );
@@ -50,7 +51,7 @@ TEST_CASE( "arcopolis session_start record is one valid JSON Lines object", "[ar
                                          .export_dir = "out/arco",
                                          .game_version = "test-version"
                                               } );
-    with_record( out.str(), []( const JsonObject & obj ) {
+    with_record( out.str(), []( const auto & obj ) {
         CHECK( obj.get_string( "event" ) == "session_start" );
         CHECK( obj.get_string( "world" ) == "ArcopolisTest" );
         CHECK( obj.get_string( "export_dir" ) == "out/arco" );
@@ -67,7 +68,7 @@ TEST_CASE( "arcopolis session_start writes seed only when present", "[arcopolis]
                                          .export_dir = "d",
                                          .game_version = "v"
                                               } );
-    with_record( out.str(), []( const JsonObject & obj ) {
+    with_record( out.str(), []( const auto & obj ) {
         REQUIRE( obj.has_member( "seed" ) );
         CHECK( obj.get_string( "seed" ) == "abc123" );
     } );
@@ -81,7 +82,7 @@ TEST_CASE( "arcopolis command record carries direction and action_id for a move"
                                           .direction = "move_s",
                                           .action_id = std::optional<std::string>( "move_back" )
                                         } );
-    with_record( out.str(), []( const JsonObject & obj ) {
+    with_record( out.str(), []( const auto & obj ) {
         CHECK( obj.get_string( "event" ) == "command" );
         CHECK( obj.get_int( "step_index" ) == 1 );
         CHECK( obj.get_string( "command" ) == "move" );
@@ -99,7 +100,7 @@ TEST_CASE( "arcopolis command record omits direction for a directionless command
                                           .direction = "",
                                           .action_id = std::optional<std::string>( "pause" )
                                         } );
-    with_record( out.str(), []( const JsonObject & obj ) {
+    with_record( out.str(), []( const auto & obj ) {
         CHECK( obj.get_string( "command" ) == "wait" );
         CHECK_FALSE( obj.has_member( "direction" ) );  // empty -> omitted
         CHECK( obj.get_string( "action_id" ) == "pause" );
@@ -115,7 +116,7 @@ TEST_CASE( "arcopolis command record omits action_id when unresolved", "[arcopol
                                           .direction = "move_e",
                                           .action_id = std::nullopt
                                         } );
-    with_record( out.str(), []( const JsonObject & obj ) {
+    with_record( out.str(), []( const auto & obj ) {
         CHECK_FALSE( obj.has_member( "action_id" ) );
     } );
 }
@@ -133,7 +134,7 @@ TEST_CASE( "arcopolis export record carries a pos_abs array and an integer step_
                                          .pos_abs = { .x = 12, .y = 69, .z = 0 },
                                          .moves = 0
                                        } );
-    with_record( out.str(), []( const JsonObject & obj ) {
+    with_record( out.str(), []( const auto & obj ) {
         CHECK( obj.get_string( "event" ) == "export" );
         CHECK( obj.get_int( "step_index" ) == 2 );
         CHECK( obj.get_int( "export_index" ) == 1 );
@@ -143,7 +144,7 @@ TEST_CASE( "arcopolis export record carries a pos_abs array and an integer step_
         CHECK( obj.get_int( "turn" ) == 1324801 );
         CHECK( obj.get_int( "moves" ) == 0 );
 
-        JsonArray pos = obj.get_array( "pos_abs" );
+        auto pos = obj.get_array( "pos_abs" );
         REQUIRE( pos.size() == 3 );
         CHECK( pos.get_int( 0 ) == 12 );
         CHECK( pos.get_int( 1 ) == 69 );
@@ -164,7 +165,7 @@ TEST_CASE( "arcopolis export record writes a null step_index for the final snaps
                                          .pos_abs = { .x = 12, .y = 70, .z = 0 },
                                          .moves = 100
                                        } );
-    with_record( out.str(), []( const JsonObject & obj ) {
+    with_record( out.str(), []( const auto & obj ) {
         CHECK( obj.has_null( "step_index" ) );  // final-on-exit snapshot belongs to no steps[] entry
         CHECK( obj.get_bool( "final" ) );
         CHECK( obj.get_int( "export_index" ) == 4 );
@@ -178,7 +179,7 @@ TEST_CASE( "arcopolis error record maps the kind to its name and exit code", "[a
                                         .kind = arcopolis::command_error_kind::export_failed,
                                         .detail = "failed to write snapshot to 'x'"
                                       } );
-    with_record( out.str(), []( const JsonObject & obj ) {
+    with_record( out.str(), []( const auto & obj ) {
         CHECK( obj.get_string( "event" ) == "error" );
         CHECK( obj.get_int( "step_index" ) == 4 );
         CHECK( obj.get_string( "kind" ) == "export_failed" );
@@ -195,7 +196,7 @@ TEST_CASE( "arcopolis error record omits step_index when unknown", "[arcopolis]"
                                         .kind = arcopolis::command_error_kind::game_over,
                                         .detail = "the game ended"
                                       } );
-    with_record( out.str(), []( const JsonObject & obj ) {
+    with_record( out.str(), []( const auto & obj ) {
         CHECK_FALSE( obj.has_member( "step_index" ) );
         CHECK( obj.get_string( "kind" ) == "game_over" );
         CHECK( obj.get_int( "exit_code" ) ==
@@ -212,14 +213,14 @@ TEST_CASE( "arcopolis session_end record carries counts and final state", "[arco
                                        .final_turn = std::optional<int>( 1324803 ),
                                        .final_pos_abs = arcopolis::session_log_point{ .x = 12, .y = 70, .z = 0 }
                                             } );
-    with_record( out.str(), []( const JsonObject & obj ) {
+    with_record( out.str(), []( const auto & obj ) {
         CHECK( obj.get_string( "event" ) == "session_end" );
         CHECK( obj.get_string( "status" ) == "ok" );
         CHECK( obj.get_int( "snapshots" ) == 5 );
         CHECK( obj.get_int( "commands" ) == 3 );
         CHECK( obj.get_int( "final_turn" ) == 1324803 );
 
-        JsonArray pos = obj.get_array( "final_pos_abs" );
+        auto pos = obj.get_array( "final_pos_abs" );
         REQUIRE( pos.size() == 3 );
         CHECK( pos.get_int( 1 ) == 70 );
     } );
@@ -234,7 +235,7 @@ TEST_CASE( "arcopolis session_end omits final state when absent", "[arcopolis]" 
                                        .final_turn = std::nullopt,
                                        .final_pos_abs = std::nullopt
                                             } );
-    with_record( out.str(), []( const JsonObject & obj ) {
+    with_record( out.str(), []( const auto & obj ) {
         CHECK( obj.get_string( "status" ) == "error" );
         CHECK_FALSE( obj.has_member( "final_turn" ) );
         CHECK_FALSE( obj.has_member( "final_pos_abs" ) );
@@ -268,14 +269,14 @@ TEST_CASE( "arcopolis transcript is valid JSON Lines: every line parses as a JSO
     // parse as a JSON object carrying schema_version + event.
     std::istringstream all( out.str() );
     std::string line;
-    int parsed = 0;
+    auto parsed = 0;
     while( std::getline( all, line ) ) {
         if( line.empty() ) {
             continue;
         }
         std::istringstream is( line );
         JsonIn json( is );
-        JsonObject obj = json.get_object();  // throws JsonError (fails the test) on malformed JSON
+        auto obj = json.get_object();  // throws JsonError (fails the test) on malformed JSON
         obj.allow_omitted_members();
         CHECK( obj.get_int( "schema_version" ) == 1 );
         CHECK( obj.has_member( "event" ) );

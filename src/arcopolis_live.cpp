@@ -23,7 +23,7 @@ namespace
 {
 
 /// Longest export label the protocol accepts (the NNN_ prefix and .json suffix come on top).
-constexpr std::size_t max_export_name_length = 64;
+constexpr auto max_export_name_length = std::size_t { 64 };
 
 /// The protocol's export-label whitelist. Deliberately STRICTER than ensure_valid_file_name() (which
 /// only strips \/:?"<>|): a control character or other exotic byte in a label would survive into the
@@ -31,10 +31,11 @@ constexpr std::size_t max_export_name_length = 64;
 /// fatal export_failed path.
 auto is_valid_export_name( std::string_view name ) -> bool
 {
+    namespace ranges = std::ranges;
     if( name.empty() || name.size() > max_export_name_length ) {
         return false;
     }
-    return std::ranges::all_of( name, []( const char c ) {
+    return ranges::all_of( name, []( const auto c ) {
         return ( c >= 'a' && c <= 'z' ) || ( c >= 'A' && c <= 'Z' ) || ( c >= '0' && c <= '9' ) ||
                c == '_' || c == '.' || c == '-';
     } );
@@ -441,9 +442,9 @@ auto arcopolis::run_live( const live_options &opts ) -> int
     // backend_cursor() (live never advances the script cursor -- the verbatim copy would false-trip
     // backend_stalled after 1000 healthy turn-ending commands). The backstop therefore fires only for
     // the input-loop-skipped case (e.g. the avatar fell asleep), where requests pile up unread.
-    constexpr int max_idle_turns = 1000;
+    constexpr auto max_idle_turns = 1000;
     auto last_progress = pump.accepted_requests;
-    int idle_turns = 0;
+    auto idle_turns = 0;
     while( !backend_input_done() ) {
         if( g->do_turn() ) {
             // do_turn returns true only via cleanup_at_end (game over / avatar death mid-session).
