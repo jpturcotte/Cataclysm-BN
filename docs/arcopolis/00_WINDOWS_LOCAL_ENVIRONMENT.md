@@ -40,6 +40,18 @@ Key points:
   the caller initializes fewer bytes than the callee reads, run `ccache -C`, delete the `.obj` files of
   every TU that includes the changed header (note `main.cpp.obj` lives under
   `src\CMakeFiles\cataclysm-bn-tiles.dir\`, not the common lib), and rebuild.
+- **Pagefile + duplicate-launch gotcha (hit on the 2026-06-10 upstream sync):** if free disk vanishes
+  much faster than the build dir grows, check `C:\pagefile.sys` — heavy parallel MSVC builds can balloon
+  the system-managed pagefile by several GB (observed at 39.6 GB; only a reboot shrinks it; `hiberfil.sys`
+  holds another ~6 GB that `powercfg /h off` frees instantly and reversibly — the machine owner's call).
+  Related trap: a background `Enter-VsDevShell` may print `'vswhere.exe' is not recognized` on stderr and
+  still initialize correctly — before declaring a background build dead, check the build log's
+  `LastWriteTime` and for live `ninja`/`cl` processes; never start a second build into the same build dir.
+  Two racing builds double the vcpkg scratch and memory pressure (which is what ballooned the pagefile),
+  can starve the disk to zero mid-link, and wedge ninja silently once the log writer can no longer append.
+  Recovery: stop everything, delete the vcpkg `--x-buildtrees-root`/`--x-packages-root` scratch (pure
+  intermediates once `vcpkg_installed` is populated), then re-run `cmake --build` only — ninja keeps the
+  finished objects, and a disk-full "FAILED" edge is corruption-free (ninja just redoes it).
 
 Use this PowerShell sequence from `<repo-root>`:
 
