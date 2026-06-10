@@ -33,6 +33,13 @@ Subcommands::
              backend never saves the world after --arcopolis-run-script, so one
              scripted run per session IS the faithful player loop today;
              interactive continuation across runs is impossible by design.
+    live     drive ONE persistent --arcopolis-live backend process over its
+             stdin/stdout JSON Lines protocol (Spike 9B): read the ready
+             event, send export/command requests ONE AT A TIME (each next
+             request only after the previous response), verify each referenced
+             snapshot exists, quit cleanly, then explain the produced session.
+             Every backend stdout line MUST parse as JSON - the live protocol's
+             stdout-purity guarantee is verified, not assumed.
 
 Exit codes (same convention as the Spike 4 viewer)::
 
@@ -57,13 +64,15 @@ import argparse
 import html
 import json
 import os
+import queue
 import re
 import subprocess
 import sys
+import threading
 import time
 
 TOOL_NAME = "arcopolis_client_harness"
-TOOL_VERSION = "1.0.0"
+TOOL_VERSION = "1.1.0"
 EXPECTED_SCHEMA_VERSION = 1
 SESSION_LOG_NAME = "session.jsonl"
 # Defensive cap on the tile-window span we will render (the engine view is
@@ -1332,6 +1341,308 @@ def cmd_run(args):
 
 
 # --------------------------------------------------------------------------- #
+# live mode (Spike 9B: drive the persistent --arcopolis-live stdin/stdout
+# JSONL protocol; cleanly separable like run mode - cmd_live + LiveSession +
+# the argparse block remove the mode without touching anything else)
+# --------------------------------------------------------------------------- #
+LIVE_PROTOCOL_VERSION = 1
+
+
+class LiveProtocolError(Exception):
+    """Fatal live-protocol failure: non-JSON stdout, timeout, early backend exit,
+    a broken pipe, or a response that violates the probe's invariants."""
+
+
+class LiveSession:
+    """One stdin/stdout JSON Lines protocol session against a live backend.
+
+    A single daemon reader thread pushes raw stdout lines into a queue and a
+    sentinel on EOF - ``readline`` on a Windows pipe cannot be interrupted, so
+    the main thread must never block on it directly. ``recv`` pops with a
+    deadline and also notices early process death (e.g. a world-load failure
+    exits before ``ready``). Every received line is teed verbatim to
+    ``protocol.jsonl`` and MUST parse as a JSON object: stdout is the protocol
+    stream, and one non-JSON line is a hard purity violation, never skipped.
+    """
+
+    _EOF = object()
+
+    def __init__(self, proc, tee_path):
+        self.proc = proc
+        self.lines = queue.Queue()
+        self.tee = open(tee_path, "w", encoding="utf-8", newline="\n")
+        reader = threading.Thread(target=self._pump_stdout, daemon=True)
+        reader.start()
+
+    def _pump_stdout(self):
+        try:
+            for raw in self.proc.stdout:
+                self.lines.put(raw)
+        except (OSError, ValueError):
+            pass  # pipe torn down mid-read (kill/exit); the sentinel below still lands
+        self.lines.put(self._EOF)
+
+    def close(self):
+        try:
+            self.tee.close()
+        except OSError:
+            pass
+
+    def send(self, obj):
+        """Write one request line + flush. subprocess wraps stdin in a buffered
+        text layer, so the explicit flush is what actually delivers the line."""
+        try:
+            self.proc.stdin.write(json.dumps(obj) + "\n")
+            self.proc.stdin.flush()
+        except OSError as err:
+            raise LiveProtocolError("could not send a request (backend gone? exit=%s): %s"
+                                    % (self.proc.poll(), err))
+
+    def recv(self, deadline, expect):
+        """Return the next protocol object, enforcing the deadline and purity."""
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise LiveProtocolError("timed out waiting for %s" % expect)
+            try:
+                raw = self.lines.get(timeout=min(remaining, 0.5))
+            except queue.Empty:
+                if self.proc.poll() is not None and self.lines.empty():
+                    raise LiveProtocolError("backend exited (code %s) before %s"
+                                            % (self.proc.returncode, expect))
+                continue
+            if raw is self._EOF:
+                raise LiveProtocolError("backend closed stdout (exit %s) before %s"
+                                        % (self.proc.poll(), expect))
+            stripped = raw.strip()
+            self.tee.write(stripped + "\n")
+            self.tee.flush()
+            if not stripped:
+                continue
+            try:
+                obj = json.loads(stripped)
+            except json.JSONDecodeError as err:
+                raise LiveProtocolError("non-JSON line on the protocol stdout (purity "
+                                        "violation): %r (%s)" % (stripped[:200], err))
+            if not isinstance(obj, dict):
+                raise LiveProtocolError("protocol stdout line is JSON but not an object: %r"
+                                        % stripped[:200])
+            return obj
+
+
+def live_expect_ok(resp, op, out_dir, expect):
+    """Assert a success response for `op` and that its snapshot file exists."""
+    if resp.get("type") != "response" or resp.get("ok") is not True or resp.get("op") != op:
+        raise LiveProtocolError("expected an ok %s response for %s, got: %s"
+                                % (op, expect, json.dumps(resp)[:300]))
+    snapshot = resp.get("snapshot")
+    if not isinstance(snapshot, str) or not snapshot:
+        raise LiveProtocolError("ok %s response for %s carries no snapshot filename: %s"
+                                % (op, expect, json.dumps(resp)[:300]))
+    if not os.path.isfile(os.path.join(out_dir, snapshot)):
+        raise LiveProtocolError("response for %s references %s, but the file does not exist"
+                                % (expect, snapshot))
+
+
+def cmd_live(args):
+    """ready -> export -> one command per response -> quit -> explain."""
+    tokens = [t.strip() for t in (args.commands or "").split(",") if t.strip()]
+    if not tokens:
+        warn("fatal: --commands is empty (expected a comma list of: %s)" % ", ".join(COMMAND_TOKENS))
+        return 1
+    bad = [t for t in tokens if t not in COMMAND_TOKENS]
+    if bad:
+        warn("fatal: unsupported command token(s): %s" % ", ".join(repr(t) for t in bad))
+        warn("       the backend vocabulary is exactly: %s" % ", ".join(COMMAND_TOKENS))
+        warn("       (rejected before any subprocess launch - this is a harness-side check)")
+        return 1
+
+    if not os.path.isfile(args.exe):
+        warn("fatal: backend exe not found: %s" % display_path(args.exe, args.reveal_paths))
+        return 1
+    world_save = os.path.join(args.userdir, "save", args.world)
+    if not os.path.isdir(world_save):
+        warn("fatal: world %r not found under the sandbox userdir (expected %s)"
+             % (args.world, os.path.join(display_path(args.userdir, args.reveal_paths), "save", args.world)))
+        warn("       copy the canonical fixture userdir first (see docs/arcopolis/"
+             "live_protocol_regression.ps1 / AGENTS.md fixture section)")
+        return 1
+
+    out_dir = args.out
+    if os.path.isdir(out_dir) and os.listdir(out_dir) and not args.force:
+        warn("fatal: --out %s exists and is not empty (pass --force to reuse; the harness never "
+             "silently deletes)" % display_path(out_dir, args.reveal_paths))
+        return 1
+    os.makedirs(out_dir, exist_ok=True)
+
+    argv = [args.exe,
+            "--world", args.world,
+            "--arcopolis-live",
+            "--arcopolis-export-dir", out_dir,
+            "--userdir", args.userdir]
+    if args.seed is not None:
+        argv += ["--seed", args.seed]
+
+    if not args.json:
+        emit("live: %s  world=%s  commands=%s%s"
+             % (display_path(args.exe, args.reveal_paths), args.world, ",".join(tokens),
+                "  (+negative probe)" if args.negative_probe else ""))
+
+    started = time.monotonic()
+    deadline = started + args.timeout
+    stderr_path = os.path.join(out_dir, "backend_stderr.txt")
+    stderr_handle = open(stderr_path, "w", encoding="utf-8")
+    try:
+        proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=stderr_handle, text=True, encoding="utf-8",
+                                errors="replace")
+    except OSError as err:
+        stderr_handle.close()
+        warn("fatal: could not launch the backend: %s" % err)
+        return 1
+
+    session = LiveSession(proc, os.path.join(out_dir, "protocol.jsonl"))
+    ready_seen = False
+    protocol_version = None
+    responses = []
+    negative_probe = None
+    next_id = 1
+
+    def send_and_recv(req, expect):
+        session.send(req)
+        resp = session.recv(deadline, expect)
+        responses.append(resp)
+        return resp
+
+    try:
+        # 1. The ready event (written only after the world loaded + transcript opened).
+        ready = session.recv(deadline, "the ready event")
+        if ready.get("type") != "ready" or ready.get("ok") is not True:
+            raise LiveProtocolError("first protocol line is not an ok ready event: %s"
+                                    % json.dumps(ready)[:300])
+        protocol_version = ready.get("protocol_version")
+        if protocol_version != LIVE_PROTOCOL_VERSION:
+            raise LiveProtocolError("backend speaks protocol_version %r (expected %d)"
+                                    % (protocol_version, LIVE_PROTOCOL_VERSION))
+        ready_seen = True
+
+        # 2. Export the starting state; every later request goes out only AFTER the
+        # previous response arrived - the inspect -> decide -> send loop, serialized.
+        resp = send_and_recv({"id": next_id, "op": "export", "name": "start"},
+                             "the start export response")
+        live_expect_ok(resp, "export", out_dir, "export start")
+        next_id += 1
+
+        # 3. One command per response (run-mode export naming, duplicate-safe).
+        for index, token in enumerate(tokens):
+            req = {"id": next_id, "op": "command", "name": "after_%02d_%s" % (index, token)}
+            if token == "wait":
+                req.update(command="wait")
+            else:
+                req.update(command="move", direction=token)
+            resp = send_and_recv(req, "the %s response" % token)
+            live_expect_ok(resp, "command", out_dir, token)
+            next_id += 1
+
+        # 4. Optional negative probe: a vocabulary-rejected command must produce ok=false
+        # WITHOUT ending the session; a recovery wait must then succeed (Spike 9B's
+        # recoverable-error gate).
+        if args.negative_probe:
+            resp = send_and_recv({"id": next_id, "op": "command", "command": "move",
+                                  "direction": "move_up", "name": "probe_bad"},
+                                 "the negative-probe error response")
+            next_id += 1
+            error = resp.get("error") if isinstance(resp.get("error"), dict) else {}
+            negative_probe = {
+                "sent": True,
+                "ok": resp.get("ok"),
+                "error_code": error.get("code"),
+                "error_message": error.get("message"),
+                "recovered": False,
+            }
+            if resp.get("ok") is not False or error.get("code") != "unsupported_command":
+                raise LiveProtocolError("negative probe expected ok=false with error.code="
+                                        "unsupported_command, got: %s" % json.dumps(resp)[:300])
+            if proc.poll() is not None:
+                raise LiveProtocolError("backend died after a recoverable bad request "
+                                        "(exit %s) - recoverability violated" % proc.returncode)
+            resp = send_and_recv({"id": next_id, "op": "command", "command": "wait",
+                                  "name": "after_probe_wait"},
+                                 "the post-probe recovery wait response")
+            live_expect_ok(resp, "command", out_dir, "the recovery wait")
+            negative_probe["recovered"] = True
+            next_id += 1
+
+        # 5. Quit; the backend writes its final snapshot + session_end after this response.
+        resp = send_and_recv({"id": next_id, "op": "quit"}, "the quit response")
+        if resp.get("ok") is not True or resp.get("op") != "quit" \
+                or resp.get("status") != "session_end":
+            raise LiveProtocolError("expected an ok quit/session_end response, got: %s"
+                                    % json.dumps(resp)[:300])
+
+        try:
+            proc.stdin.close()
+        except OSError:
+            pass
+        try:
+            proc.wait(timeout=max(1.0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            raise LiveProtocolError("backend did not exit after quit (killed)")
+    except LiveProtocolError as err:
+        proc.kill()
+        proc.wait()
+        session.close()
+        stderr_handle.close()
+        warn("fatal: %s" % err)
+        warn("       protocol transcript: %s; backend stderr: %s"
+             % (display_path(os.path.join(out_dir, "protocol.jsonl"), args.reveal_paths),
+                display_path(stderr_path, args.reveal_paths)))
+        return 1
+    finally:
+        session.close()
+        stderr_handle.close()
+
+    duration = round(time.monotonic() - started, 1)
+    live_block = {
+        "protocol_version": protocol_version,
+        "ready_seen": ready_seen,
+        "responses": responses,
+        "process_exit_code": proc.returncode,
+        "duration_s": duration,
+    }
+    if negative_probe is not None:
+        live_block["negative_probe"] = negative_probe
+
+    if proc.returncode != 0:
+        warn("fatal: backend exited %d (%s) after the live session; see %s"
+             % (proc.returncode, BACKEND_EXIT_MEANINGS.get(proc.returncode, "unknown"),
+                display_path(stderr_path, args.reveal_paths)))
+        if args.json:
+            doc = {"schema_version": EXPECTED_SCHEMA_VERSION, "tool": TOOL_NAME,
+                   "tool_version": TOOL_VERSION, "live": live_block}
+            sys.stdout.write(json.dumps(doc, indent=2) + "\n")
+        return 1
+
+    try:
+        model = build_explain_model(out_dir)
+    except OSError as err:
+        warn("fatal: backend exited 0 but %s is unreadable: %s" % (SESSION_LOG_NAME, err))
+        return 1
+    model["live"] = live_block
+
+    if args.json:
+        sys.stdout.write(json.dumps(model, indent=2) + "\n")
+    else:
+        emit("live: ready protocol_version=%s; %d response(s); backend exit %d in %.1fs"
+             % (protocol_version, len(responses), proc.returncode, duration))
+        emit("")
+        render_explain_text(model)
+    return 0 if model["contract_check"]["ok"] else 2
+
+
+# --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
 def cmd_view(args):
@@ -1427,6 +1738,8 @@ def parse_args(argv=None):
             "  python tools/arcopolis_client/harness.py view --session-dir <dir> --output view.html --at 85,84\n"
             "  python tools/arcopolis_client/harness.py explain --session-dir <dir> --json\n"
             "  python tools/arcopolis_client/harness.py run --exe <cataclysm-bn-tiles.exe> --out <dir> \\\n"
+            "         --userdir .\\arcopolis_user --commands move_n,move_s,wait --json\n"
+            "  python tools/arcopolis_client/harness.py live --exe <cataclysm-bn-tiles.exe> --out <dir> \\\n"
             "         --userdir .\\arcopolis_user --commands move_n,move_s,wait --json"
         ),
     )
@@ -1476,6 +1789,34 @@ def parse_args(argv=None):
     run.add_argument("--reveal-paths", action="store_true",
                      help="show full local paths instead of basenames")
 
+    live = sub.add_parser("live", help="drive one persistent --arcopolis-live backend over its "
+                                       "stdin/stdout JSONL protocol, then explain the session")
+    live.add_argument("--exe", required=True, metavar="PATH",
+                      help="path to cataclysm-bn-tiles.exe (a Spike 9B+ build)")
+    live.add_argument("--out", required=True, metavar="DIR",
+                      help="export dir for this session (refused if non-empty unless --force)")
+    live.add_argument("--commands", required=True, metavar="LIST",
+                      help="comma list of: %s (sent one at a time, each only after the previous "
+                           "response)" % ", ".join(COMMAND_TOKENS))
+    live.add_argument("--world", default="ArcopolisTest", metavar="NAME",
+                      help="world name under <userdir>/save (default: ArcopolisTest)")
+    live.add_argument("--userdir", default=os.path.join(".", "arcopolis_user"), metavar="DIR",
+                      help="sandbox userdir holding save/<world> (default: .\\arcopolis_user; ALWAYS "
+                           "passed to the backend so a session can never touch the real user directory)")
+    live.add_argument("--seed", metavar="S", help="forwarded to the backend --seed")
+    live.add_argument("--timeout", type=int, default=120, metavar="SECONDS",
+                      help="overall protocol deadline incl. world load; the backend is killed past "
+                           "it (default: 120)")
+    live.add_argument("--negative-probe", action="store_true",
+                      help="after the scripted commands, send an unsupported move_up (expect a "
+                           "recoverable ok=false), then a recovery wait, before quitting")
+    live.add_argument("--force", action="store_true",
+                      help="allow writing into an existing non-empty --out dir")
+    live.add_argument("--json", action="store_true",
+                      help="emit the machine-readable JSON document (with a 'live' block) on stdout")
+    live.add_argument("--reveal-paths", action="store_true",
+                      help="show full local paths instead of basenames")
+
     return parser.parse_args(argv)
 
 
@@ -1487,6 +1828,8 @@ def main(argv=None):
         return cmd_explain(args)
     if args.subcommand == "run":
         return cmd_run(args)
+    if args.subcommand == "live":
+        return cmd_live(args)
     return 1
 
 

@@ -30,6 +30,16 @@ Key points:
   (used in the older attempts logged below) duplicates the whole ~10 GB object tree and has exhausted the
   disk in this worktree (`fatal error C1085: Cannot write compiler generated file: ... No space left on
   device`) — prefer the shared dir unless you specifically need an isolated test configuration.
+- **ccache stale-object gotcha (hit on Spike 9B, 2026-06-10):** after changing a header that defines a
+  **struct layout shared across TUs**, ccache (MSVC, default direct mode) served a STALE `.obj` for an
+  _unchanged_ `.cpp` that includes it — even in a brand-new build dir (a ninja "Building CXX" line does
+  not prove a real compile). The result was an old-layout caller passing a smaller struct to a new-layout
+  callee → `EXCEPTION_ACCESS_VIOLATION` inside freshly-written code. If an "impossible" crash appears in a
+  function you just changed, suspect this first: disassemble the exe at the crash.log `module+offset`
+  (`llvm-objdump --disassemble --start-address=... --stop-address=...` from the VS LLVM toolset), and if
+  the caller initializes fewer bytes than the callee reads, run `ccache -C`, delete the `.obj` files of
+  every TU that includes the changed header (note `main.cpp.obj` lives under
+  `src\CMakeFiles\cataclysm-bn-tiles.dir\`, not the common lib), and rebuild.
 
 Use this PowerShell sequence from `<repo-root>`:
 
