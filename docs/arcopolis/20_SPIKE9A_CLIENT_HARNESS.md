@@ -208,9 +208,11 @@ the moved pair (delta `0,1,0`, T≥1) · the wait pair (T≥1, no movement) · t
 (`no_command`, T==0) · the HTML view + inspector markers (presence-only, never layout) · **run
 mode** end-to-end (the harness launches the backend itself and re-derives the same sequence) · the
 Spike 4 viewer exiting 0 on the same session (consumer cross-check) · the **monster fixture**
-(`ArcopolisNearMonsterTest`, a second run-mode session: `waited,no_command` with ≥1 exported
-monster, the `M` cell rendered, and the inspector — aimed at the monster's own `pos_local`,
-computed from the snapshot — listing it; the move-INTO-monster classifications stay unwitnessed,
+(`ArcopolisNearMonsterTest`, a second run-mode session: `waited,no_command` where the wait pair
+must **advance the turn** (T≥1; `waited` alone would also accept the tolerated zero-advance
+bootstrap shape, so the live seam-timed tick is asserted explicitly), ≥1 exported monster, the
+`M` cell rendered, and the inspector — aimed at the monster's own `pos_local`, computed from the
+snapshot — listing it; the move-INTO-monster classifications stay unwitnessed,
 the witness sits 8 tiles out by design). Validated 2026-06-09: exit 0,
 all gates green, against the sibling worktree's Spike-8A build.
 

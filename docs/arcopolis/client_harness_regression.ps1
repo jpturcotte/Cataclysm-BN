@@ -355,9 +355,15 @@ $pm = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', $Exe, '--world', $Mons
     -StdoutPath $monJson -StderrPath (Join-Path $OutRoot "monster_run_stderr.txt")
 $monOk = $false
 $monsters = @()
+$monWaitDelta = $null
 if( $pm.ExitCode -eq 0 ) {
     $mj = $pm.Stdout | ConvertFrom-Json
     $mseq = (@($mj.summary.outcome_sequence) -join ',')
+    # 'waited' alone no longer witnesses the tick: the classifier tolerates a zero-advance wait
+    # (the bootstrap shape of pre-seam recorded sessions; doc 20 honesty notes), so the live
+    # seam-timed path is asserted explicitly -- the wait pair must ADVANCE the turn.
+    $mpairs = @($mj.pairs | Where-Object { $null -ne $_ })
+    if( $mpairs.Count -ge 1 ) { $monWaitDelta = $mpairs[0].turn_delta }
     # Monster presence comes from the produced start snapshot (property-bag test + $null filter,
     # the house gotchas) -- the explain JSON's wait pair has no destination block to carry entities.
     $startSnapFile = Get-ChildItem $monDir -Filter "*.json" |
@@ -369,9 +375,10 @@ if( $pm.ExitCode -eq 0 ) {
         if( $hasMon ) { $monsters = @($startSnap.entities.monsters | Where-Object { $null -ne $_ }) }
     }
     $monOk = ($mj.run.exit_code -eq 0) -and ($mseq -eq 'waited,no_command') -and
-             $mj.contract_check.ok -and ($monsters.Count -ge 1)
+             $mj.contract_check.ok -and ($monsters.Count -ge 1) -and
+             ($null -ne $monWaitDelta) -and ($monWaitDelta -ge 1)
     if( -not $monOk ) {
-        Write-Host "  FAIL: monster run-mode -- run.exit_code=$($mj.run.exit_code) outcomes='$mseq' contract_ok=$($mj.contract_check.ok) monsters=$($monsters.Count) (expected 0 / waited,no_command / true / >=1)." -ForegroundColor Red
+        Write-Host "  FAIL: monster run-mode -- run.exit_code=$($mj.run.exit_code) outcomes='$mseq' contract_ok=$($mj.contract_check.ok) monsters=$($monsters.Count) wait_turn_delta=$monWaitDelta (expected 0 / waited,no_command / true / >=1 / >=1)." -ForegroundColor Red
     }
 } else {
     Write-Host "  FAIL: harness run (monster fixture) exited $($pm.ExitCode) (expected 0). See $(Join-Path $OutRoot 'monster_run_stderr.txt')." -ForegroundColor Red
@@ -396,7 +403,7 @@ if( $monOk ) {
                          $monRaw.Contains('Monsters on this tile (')
         }
         if( $monViewOk ) {
-            Write-Host ("  PASS: monster fixture -- run mode waited,no_command with {0} @ [{1}]; view renders 'M' and the inspector lists it." -f $monsters[0].type_id, ($mpl -join ',')) -ForegroundColor Green
+            Write-Host ("  PASS: monster fixture -- run mode waited (turn_delta +{2}),no_command with {0} @ [{1}]; view renders 'M' and the inspector lists it." -f $monsters[0].type_id, ($mpl -join ','), $monWaitDelta) -ForegroundColor Green
         } else {
             Write-Host "  FAIL: monster view gate -- exit=$($pmv.ExitCode), or monster_view.html lacks the monster cell / type_id / inspector list." -ForegroundColor Red
             $fail++
