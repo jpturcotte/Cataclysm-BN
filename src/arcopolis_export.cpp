@@ -296,7 +296,7 @@ auto write_entities( JsonOut &json, const snapshot_ctx &ctx ) -> void
         if( !in_export_window( p, center, ctx ) ) {
             continue;  // identical window to tiles[] - here only the inbounds clamp can reject a tile
         }
-        const auto ia = ctx.m.bub_to_abs( p );  // tripoint_abs_ms - SAME conversion Creature::abs_pos uses
+        const auto ia = bub_to_abs( p );  // tripoint_abs_ms - SAME conversion Creature::abs_pos uses
         for( const auto *const it : get_map().i_at(
                  p ) ) {  // ground stack; only get_map() for the accessor
             json.start_object();
