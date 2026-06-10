@@ -10,7 +10,7 @@ namespace arcopolis
 
 /// The only live-protocol version this spike speaks (echoed in the `ready` event). Independent of the
 /// snapshot and transcript schema_versions (all three happen to be 1).
-constexpr int live_protocol_version = 1;
+constexpr auto live_protocol_version = 1;
 
 /// One decoded live-protocol request: a single JSON object read from one stdin line (Spike 9B).
 struct live_request {
