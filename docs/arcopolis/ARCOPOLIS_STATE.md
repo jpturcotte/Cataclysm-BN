@@ -41,8 +41,8 @@ the conflicts and must resolve them by hand the first time (which trains that cl
 auto-replay only afterward. Enable it per clone with `git config rerere.enabled true`. Either way,
 when upstream adds a **new** CLI argument the `<arg_handler, N>` literal needs a manual fix at the
 tip: set N = upstream's count + the Arcopolis flags (17 + 5 = 22 as of 2026-06-10) and recount the
-array entries — git auto-merges the literal silently and wrong, including inside commits that replay
-**without** conflict markers.
+array entries — git auto-merges the literal silently and incorrectly, including inside commits that
+replay **without** conflict markers.
 
 ## How to run
 

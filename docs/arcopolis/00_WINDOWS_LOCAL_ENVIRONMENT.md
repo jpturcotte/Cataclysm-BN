@@ -49,9 +49,10 @@ Key points:
   `LastWriteTime` and for live `ninja`/`cl` processes; never start a second build into the same build dir.
   Two racing builds double the vcpkg scratch and memory pressure (which is what ballooned the pagefile),
   can starve the disk to zero mid-link, and wedge ninja silently once the log writer can no longer append.
-  Recovery: stop everything, delete the vcpkg `--x-buildtrees-root`/`--x-packages-root` scratch (pure
-  intermediates once `vcpkg_installed` is populated), then re-run `cmake --build` only — ninja keeps the
-  finished objects, and a disk-full "FAILED" edge is corruption-free (ninja just redoes it).
+  Recovery: stop everything, delete the vcpkg scratch directories specified by `--x-buildtrees-root`
+  and `--x-packages-root` (pure intermediates once `vcpkg_installed` is populated), then re-run
+  `cmake --build` only — ninja keeps the finished objects, and a disk-full "FAILED" edge is
+  corruption-free (ninja just redoes it).
 
 Use this PowerShell sequence from `<repo-root>`:
 
