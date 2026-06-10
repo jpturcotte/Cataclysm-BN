@@ -128,7 +128,9 @@ shelter NPC sits one tile north of the avatar, inside the r12 window), gated by
 `docs/arcopolis/npc_export_regression.ps1` (Spike 7A; see `docs/arcopolis/18_SPIKE7A_NPC_EXPORT.md`).
 `ArcopolisTest` is **also** the **ground-item-export witness** — its saved evac shelter already holds
 deterministic in-window loot (no save edit) — gated by `docs/arcopolis/item_export_regression.ps1` (Spike 8A;
-see `docs/arcopolis/19_SPIKE8A_ITEM_EXPORT.md`). Build the
+see `docs/arcopolis/19_SPIKE8A_ITEM_EXPORT.md`), and the **live-protocol fixture** — the Spike 9B
+`--arcopolis-live` stdin/stdout JSONL mode is gated end-to-end by
+`docs/arcopolis/live_protocol_regression.ps1` (see `docs/arcopolis/21_SPIKE9B_LIVE_PROTOCOL.md`). Build the
 monster witness with `docs/arcopolis/make_monster_fixture.py` (save-edit, no GUI/build) and gate it with
 `docs/arcopolis/monster_export_regression.ps1`; see `docs/arcopolis/16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md`.
 

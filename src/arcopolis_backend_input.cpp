@@ -27,16 +27,18 @@ struct backend_session {
     int export_index = 0;
     bool done = false;
     std::optional<arcopolis::command_error> failure;
+    arcopolis::backend_action_source live_source;  ///< Spike 9B: replaces the steps walk when set
 };
 
 backend_session session;
 
-/// Writes one session snapshot (an `export` step or the final-on-exit terminal snapshot) using the live
-/// session's export dir + running index. On failure records session.failure, sets done, returns false; on
-/// success advances export_index and returns true. Shared by next_backend_action() and
-/// backend_write_final_snapshot() so both emit identically-formatted NNN_<label>.json files.
+/// Writes one session snapshot (an `export` step, a live-protocol export, or the final-on-exit terminal
+/// snapshot) using the live session's export dir + running index. On failure records session.failure,
+/// sets done, returns nullopt; on success advances export_index and returns the written filename/scalars
+/// (Spike 9B live responses echo them). Shared by next_backend_action(), backend_write_step_snapshot()
+/// and backend_write_final_snapshot() so all emit identically-formatted NNN_<label>.json files.
 auto write_session_snapshot( const std::string &label, const std::optional<int> &step_index,
-                             bool is_final ) -> bool
+                             bool is_final ) -> std::optional<arcopolis::backend_step_snapshot>
 {
     const auto info = arcopolis::snapshot_session_info{
         .export_index = session.export_index,
@@ -62,7 +64,7 @@ auto write_session_snapshot( const std::string &label, const std::optional<int> 
             .kind = arcopolis::command_error_kind::export_failed,
             .detail = session.failure->detail,
         } );
-        return false;
+        return std::nullopt;
     }
     ++session.export_index;
     // Record the snapshot in the session transcript with the scalars it serialized. current_snapshot_summary
@@ -79,7 +81,11 @@ auto write_session_snapshot( const std::string &label, const std::optional<int> 
         .pos_abs = { .x = summary.pos_abs_x, .y = summary.pos_abs_y, .z = summary.pos_abs_z },
         .moves = summary.moves,
     } );
-    return true;
+    return arcopolis::backend_step_snapshot{
+        .filename = filename,
+        .export_index = info.export_index,
+        .turn = summary.turn,
+    };
 }
 
 } // namespace
@@ -94,6 +100,7 @@ auto arcopolis::begin_backend_session( const backend_session_options &opts ) -> 
         .export_index = 0,
         .done = false,
         .failure = std::nullopt,
+        .live_source = opts.live_source,
     };
 }
 
@@ -124,6 +131,11 @@ auto arcopolis::backend_session_failure() -> std::optional<command_error>
 
 auto arcopolis::next_backend_action() -> action_id
 {
+    // Spike 9B live mode: the session's pull source replaces the steps walk entirely. It runs at this
+    // same faithful input-loop instant and owns its exports/termination (backend_mark_input_done()).
+    if( session.live_source ) {
+        return session.live_source();
+    }
     while( session.cursor < session.steps.size() ) {
         const auto &step = session.steps[session.cursor];
         if( step.op == "export" ) {
@@ -160,15 +172,36 @@ auto arcopolis::next_backend_action() -> action_id
     return ACTION_NULL;
 }
 
+auto arcopolis::backend_mark_input_done() -> void
+{
+    // Gate on `active` so the public mutator stays inert outside a session (the same defense-in-depth
+    // as the snapshot writers): backend_input_done() must read false during normal play.
+    if( session.active ) {
+        session.done = true;
+    }
+}
+
+auto arcopolis::backend_write_step_snapshot( const std::string &label,
+        const std::optional<int> &step_index ) -> std::optional<backend_step_snapshot>
+{
+    // Same inertness guard as backend_write_final_snapshot below: without an active session + export
+    // dir the shared writer would build a cwd-relative path and write there.
+    if( !session.active || session.export_dir.empty() ) {
+        return std::nullopt;
+    }
+    return write_session_snapshot( label, step_index, /*is_final=*/false );
+}
+
 auto arcopolis::backend_write_final_snapshot() -> bool
 {
     // Inert unless a session with an export dir is active: without it write_session_snapshot would build a
-    // cwd-relative path (e.g. "000_final.json") and write there. run_script (the only caller) is always
-    // active with a dir, so this is defense-in-depth that keeps the public writer inert outside a session.
+    // cwd-relative path (e.g. "000_final.json") and write there. The script/live runners (the only
+    // callers) are always active with a dir, so this is defense-in-depth that keeps the public writer
+    // inert outside a session.
     if( !session.active || session.export_dir.empty() ) {
         return false;
     }
     // Terminal snapshot: no steps[] entry (step_index = nullopt) and final = true. Reuses the running
     // export index, so it follows the last export step's file as NNN_final.json.
-    return write_session_snapshot( "final", std::nullopt, /*is_final=*/true );
+    return write_session_snapshot( "final", std::nullopt, /*is_final=*/true ).has_value();
 }

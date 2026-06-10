@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 9A, 2026-06-09)
+# Arcopolis backend — current state (truth as of Spike 9B, 2026-06-10)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -42,10 +42,11 @@ merges the literal silently and wrong.
 
 ## How to run
 
-| Mode              | Flags                                                                                              | Output                                           |
-| ----------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| One-shot snapshot | `--arcopolis-export-current-view <path>` `--world <w>` [`--arcopolis-command <file>`]              | one snapshot JSON                                |
-| Stateful script   | `--arcopolis-run-script <script.json>` `--arcopolis-export-dir <dir>` `--world <w>` [`--seed <s>`] | `NNN_<name>.json` per `export` + `session.jsonl` |
+| Mode              | Flags                                                                                              | Output                                                                            |
+| ----------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| One-shot snapshot | `--arcopolis-export-current-view <path>` `--world <w>` [`--arcopolis-command <file>`]              | one snapshot JSON                                                                 |
+| Stateful script   | `--arcopolis-run-script <script.json>` `--arcopolis-export-dir <dir>` `--world <w>` [`--seed <s>`] | `NNN_<name>.json` per `export` + `session.jsonl`                                  |
+| Live protocol     | `--arcopolis-live` `--arcopolis-export-dir <dir>` `--world <w>` [`--seed <s>`]                     | stdin JSONL requests → stdout JSONL responses + snapshots + transcript (Spike 9B) |
 
 Common: `--userdir <dir>`. Headless runs end with `std::_Exit(code)` (skips the fragile global
 teardown that corrupts the heap on a fully-loaded game). World options must keep
@@ -61,8 +62,10 @@ The backend is a **pure input source**, not a turn driver:
 - **Clean-park:** when the script is exhausted while `moves > 0`, the provider sets
   `backend_input_done()` and `do_turn` returns **before** its bottom half — "the player walked away"
   (faithful; world not ticked). Gated on `backend_session_active()` so normal play never reaches it.
-- Mechanism in use is **M1** (synchronous input-seam callback). M2 (split `do_turn`) and M3
-  (coroutine, for a future live protocol) are designed-but-unused.
+- Mechanism in use is **M1** (synchronous input-seam callback). **Spike 9B's live mode is the same
+  M1 seam** with a blocking pull source: the provider blocks on a stdin `getline` exactly where the
+  GUI blocks on a keypress, so a persistent process serves one request at a time with zero new
+  engine seams. M2 (split `do_turn`) and M3 (coroutine) remain designed-but-unused.
 
 **Fidelity rules (non-negotiable):** GUI behavior == engine behavior == the behavior. Never fake
 engine state. Answer GUI-vs-headless questions **from the code**, never by spinning up experiments.
@@ -135,6 +138,7 @@ in the snapshot itself — the `before` snapshot carries a neutral NPC at the mo
 | 7A    | nearby NPC export (`entities.npcs[]`) + NPC blocker regression                                                          | ✅                                      |
 | 8A    | nearby ground-item export (`entities.items[]`) + item regression                                                        | ✅                                      |
 | 9A    | external player-loop harness (cell bundles, HTML view/inspect, outcome explain, one-shot run; `tools/arcopolis_client`) | ✅                                      |
+| 9B    | minimal persistent live protocol over stdin/stdout JSONL (`--arcopolis-live`, one request at a time, same seam)         | ✅                                      |
 
 ## Source & tests
 
@@ -143,14 +147,19 @@ in the snapshot itself — the `before` snapshot carries a neutral NPC at the mo
 iterate the tile window and read `map::i_at`) ·
 `arcopolis_command.{h,cpp}` (verb→action_id, errors) ·
 `arcopolis_script.{h,cpp}` (script runner) · `arcopolis_backend_input.{h,cpp}` (input-seam provider,
-clean-park, final snapshot) · `arcopolis_session_log.{h,cpp}` (transcript). Flags wired in
+clean-park, final snapshot; Spike 9B adds the pluggable `live_source` pull hook + the public
+step-snapshot writer) · `arcopolis_live.{h,cpp}` (Spike 9B: the JSONL protocol parser/formatters +
+the blocking stdin pump + `run_live`) · `arcopolis_session_log.{h,cpp}` (transcript). Flags wired in
 `src/main.cpp`; the seam branch lives at `src/handle_action.cpp`, the clean-park at `src/game.cpp`.
 Unit tests: `tests/arcopolis_*_test.cpp` (`[arcopolis]` tag). Consumers (both stdlib-only,
 deliberately share-nothing so each independently re-derives the contract):
 `tools/arcopolis_viewer/make_report.py` (Spike 4 offline HTML report) and
 `tools/arcopolis_client/harness.py` (Spike 9A player-loop harness — cell bundles keyed by
 `pos_local`, HTML local view + tile inspector, per-command outcome classification, one-shot `run`
-mode; see [20_SPIKE9A_CLIENT_HARNESS.md](20_SPIKE9A_CLIENT_HARNESS.md)). Fixture-driven
+mode, plus the Spike 9B `live` probe driving the persistent protocol with a verified protocol-only
+stdout; subcommands now **view / explain / run / live**; see
+[20_SPIKE9A_CLIENT_HARNESS.md](20_SPIKE9A_CLIENT_HARNESS.md) and
+[21_SPIKE9B_LIVE_PROTOCOL.md](21_SPIKE9B_LIVE_PROTOCOL.md)). Fixture-driven
 regressions (need a loaded world, so not in CI):
 [`docs/arcopolis/movement_regression.ps1`](movement_regression.ps1) gates movement/NPC on **`ArcopolisTest`**,
 [`docs/arcopolis/npc_export_regression.ps1`](npc_export_regression.ps1) gates the **NPC export** on the same
@@ -175,6 +184,13 @@ run mode reproduces the sequence, and that the Spike 4 viewer accepts the same s
 monster-fixture run-mode gate on **`ArcopolisNearMonsterTest`** — `waited` tick with ≥1 exported monster,
 the `M` cell rendered, and the inspector listing the Spike 6B witness on its tile); see
 [20_SPIKE9A_CLIENT_HARNESS.md](20_SPIKE9A_CLIENT_HARNESS.md).
+[`docs/arcopolis/live_protocol_regression.ps1`](live_protocol_regression.ps1) gates the **Spike 9B live
+protocol** end-to-end on **`ArcopolisTest`**: the harness `live` probe drives ONE persistent backend
+(`ready` → `export start` → `move_n` → `move_s` → `wait` → `quit`, one request per response, every
+stdout line verified JSON) and must re-derive the SAME `blocked_no_op,moved,waited,no_command`
+sequence through the unchanged explain pipeline, plus a recoverability scenario (a rejected `move_up`
+answers `ok=false`/`unsupported_command` without ending the session, then a recovery `wait` succeeds);
+see [21_SPIKE9B_LIVE_PROTOCOL.md](21_SPIKE9B_LIVE_PROTOCOL.md).
 
 ## Deferred backlog
 
@@ -188,8 +204,11 @@ the `M` cell rendered, and the inspector listing the Spike 6B witness on its til
   Dynamic-entity export is the linchpin: monsters + NPCs + ground items now exist, bringing the deferred
   **world-tick regression harness** closer (still needs a `--arcopolis-new-world` generator + monster/field
   state to witness a tick — see [10_SPIKE3_1B_CLEAN_PARK_HARDENING.md](10_SPIKE3_1B_CLEAN_PARK_HARDENING.md)).
-- **Live protocol:** bidirectional commands over a transport (socket/stdin) with framing/acks (the
-  M3 path) — everything today is file-based.
+- **Live protocol:** **v0 done (Spike 9B)** — a persistent process serving stdin/stdout JSONL, one
+  request at a time, through the M1 seam with a blocking pull source. Still deferred: sockets/named
+  pipes, framing/acks beyond line-delimited JSON, concurrent/pipelined requests, inline snapshots,
+  save/resume of a live session, and a transcript record for rejected requests (an additive
+  `"rejected"` event kind).
 - **Richer commands:** examine/look, interaction (open/close/smash/pickup), **NPC interaction
   (talk/attack/swap/push — needed to act on a creature-occupied destination, the move-into-NPC no-op in
   [15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md](15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md))**, inventory, targeting,
