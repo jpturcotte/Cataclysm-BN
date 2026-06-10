@@ -43,7 +43,7 @@ The fork uses a **mirror + rebased dev branch** layout so it can cleanly follow 
 - **`main` mirrors `upstream/main`** exactly — no Arcopolis work on it; do **not** develop or commit here.
 - **`arcopolis` is the dev branch** (Spike 0–5 + all new work, linear on top of `main`) and the GitHub default branch. Branch and PR off `arcopolis`.
 
-Sync upstream by fast-forwarding `main` to `upstream/main` and pushing it, then `git rebase main` on `arcopolis` and force-push `arcopolis`. `git rerere` (enable per clone: `git config rerere.enabled true`) auto-replays the two recurring collisions (`src/game.cpp` do_turn clean-park, `src/main.cpp` `first_pass_arguments` count) **once trained** — its `.git/rr-cache` is per-clone and not shared by git, so a fresh checkout resolves them by hand the first time. A brand-new upstream CLI arg still needs a manual `<arg_handler, N>` bump. Full workflow: `docs/arcopolis/ARCOPOLIS_STATE.md` → "Repository layout".
+Sync upstream by fast-forwarding `main` to `upstream/main` and pushing it, then `git rebase main` on `arcopolis` and force-push `arcopolis`. `git rerere` (enable per clone: `git config rerere.enabled true`) auto-replays the two recurring collisions (`src/main.cpp` — upstream and Arcopolis both append `first_pass_arguments` entries at the array tail; `src/handle_action.cpp` — the backend input branch leads `handle_action()`'s input-dispatch chain) **once trained** — its `.git/rr-cache` is per-clone and not shared by git, so a fresh checkout resolves them by hand the first time. The `src/game.cpp` do_turn clean-park currently merges clean. After any sync where upstream added a CLI arg, set the `<arg_handler, N>` literal to upstream's count plus the Arcopolis flags (17 + 5 = 22 as of the 2026-06-10 sync) and recount the array entries — git auto-merges the literal silently and incorrectly, even in commits that replay without conflict markers. Full workflow: `docs/arcopolis/ARCOPOLIS_STATE.md` → "Repository layout".
 
 ### Default Arcopolis rules
 
@@ -66,7 +66,7 @@ reproduce EXACTLY what the engine does for the same action.
 - **Never override engine state/flags to make output look nicer or to make a counter move.** Worked example:
   a `wait` issued right after a load is the engine's _bootstrap turn_ — `game::setup()` leaves
   `game::new_game == true`, so the first `do_turn()` deliberately skips `calendar::turn += 1_turns`
-  (src/game.cpp:1879) and processes the world at the loaded turn `T` without advancing the clock, exactly as
+  (the `new_game` branch at the top of `game::do_turn()`, src/game.cpp) and processes the world at the loaded turn `T` without advancing the clock, exactly as
   pressing `'.'` once in the GUI. Do **NOT** clear `new_game` to force a tick (an earlier Spike-1 build did;
   it ran the turn at `T+1`, one tick ahead of the GUI — wrong, reverted).
 - **If the lifecycle makes faithful behavior inconvenient, fix the lifecycle, not the behavior.** A one-shot
