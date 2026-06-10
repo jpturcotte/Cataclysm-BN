@@ -31,14 +31,18 @@ git switch arcopolis && git rebase main                                        #
 git push --force-with-lease origin arcopolis
 ```
 
-`git rerere` replays the two recurring rebase conflicts automatically **once trained**: the `do_turn`
-clean-park vs. upstream's sound block (`src/game.cpp`), and the `first_pass_arguments` array-size
-literal (`src/main.cpp`). Its resolution cache (`.git/rr-cache`) is **local to each clone** and is not
-shared by git, so a fresh checkout hits both conflicts and must resolve them by hand the first time
-(which trains that clone's cache); they auto-replay only afterward. Enable it per clone with
-`git config rerere.enabled true`. Either way, if upstream adds a **new** CLI argument the
-`<arg_handler, N>` count still needs a manual bump (N = base + your flags + upstream's new ones) — git
-merges the literal silently and wrong.
+`git rerere` replays the two recurring rebase conflicts automatically **once trained** (shapes as of
+the 2026-06-10 sync): the `first_pass_arguments` array tail in `src/main.cpp` (upstream and Arcopolis
+both append entries at the same spot), and the backend input branch in `src/handle_action.cpp` (it
+leads `handle_action()`'s input-dispatch chain, inside upstream's `handle_action_get_action` scope).
+The `do_turn` clean-park (`src/game.cpp`) currently merges clean without a conflict. The resolution
+cache (`.git/rr-cache`) is **local to each clone** and is not shared by git, so a fresh checkout hits
+the conflicts and must resolve them by hand the first time (which trains that clone's cache); they
+auto-replay only afterward. Enable it per clone with `git config rerere.enabled true`. Either way,
+when upstream adds a **new** CLI argument the `<arg_handler, N>` literal needs a manual fix at the
+tip: set N = upstream's count + the Arcopolis flags (17 + 5 = 22 as of 2026-06-10) and recount the
+array entries — git auto-merges the literal silently and incorrectly, including inside commits that
+replay **without** conflict markers.
 
 ## How to run
 
