@@ -35,7 +35,7 @@ namespace
 
 /// Conservative half-width (tiles) of the square window exported around the avatar. The full loaded
 /// reality bubble is ~132x132 (getmapsize()*SEEX); 12 keeps Spike 0 snapshots small but real.
-constexpr int arcopolis_view_radius = 12;
+constexpr auto arcopolis_view_radius = 12;
 
 /// Read-only bundle passed to each writer (keeps every writer at <=3 params per AGENTS).
 struct snapshot_ctx {
@@ -457,7 +457,7 @@ auto arcopolis::write_current_view( const std::string &output_path,
         .session = session,
     };
 
-    return write_to_file( output_path, [&]( std::ostream & stream ) {
+    return write_to_file( output_path, [&]( auto & stream ) {
         JsonOut json( stream, /*pretty_print=*/true );
         write_snapshot( json, ctx );
     }, "arcopolis snapshot" );

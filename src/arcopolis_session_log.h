@@ -11,7 +11,7 @@ namespace arcopolis
 
 /// The only session-transcript schema this spike emits. Independent of the snapshot's own schema_version
 /// (which Spike 3.1C does not touch); both happen to be 1.
-constexpr int session_log_schema_version = 1;
+constexpr auto session_log_schema_version = 1;
 
 /// An absolute map position, serialized as a `[x, y, z]` array -- the same shape as the snapshot's
 /// `avatar.pos_abs`, so a reader handles both identically.
