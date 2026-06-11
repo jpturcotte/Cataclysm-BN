@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 10A, 2026-06-10)
+# Arcopolis backend — current state (truth as of Spike 10B, 2026-06-11)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -144,6 +144,7 @@ in the snapshot itself — the `before` snapshot carries a neutral NPC at the mo
 | 9A    | external player-loop harness (cell bundles, HTML view/inspect, outcome explain, one-shot run; `tools/arcopolis_client`) | ✅                                      |
 | 9B    | minimal persistent live protocol over stdin/stdout JSONL (`--arcopolis-live`, one request at a time, same seam)         | ✅                                      |
 | 10A   | browser frontend prototype: stdlib HTTP bridge + plain HTML/JS driving `--arcopolis-live` (`tools/arcopolis_frontend/`) | ✅                                      |
+| 10B   | frontend-side snapshot diff: changed-tile highlights, before→after inspector, change summary, open/closed door glyphs   | ✅                                      |
 
 ## Source & tests
 
@@ -167,7 +168,12 @@ stdout; subcommands now **view / explain / run / live**; see
 [21_SPIKE9B_LIVE_PROTOCOL.md](21_SPIKE9B_LIVE_PROTOCOL.md)), and
 `tools/arcopolis_frontend/prototype_server.py` + `static/` (Spike 10A browser frontend prototype —
 a stdlib-only HTTP bridge owning one `--arcopolis-live` backend, plus a plain HTML/JS map +
-inspector UI; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROTOTYPE.md)). Fixture-driven
+inspector UI; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROTOTYPE.md); Spike 10B
+adds **frontend-side snapshot diffing** to the same static assets — changed-tile highlights keyed
+on snapshot identity with an origin-delta correction across bubble rebases, a before→after tile
+inspector, a change-summary panel, per-cell exact-id tooltips, and open/closed door glyphs, with
+zero bridge/snapshot/protocol change; see
+[23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md](23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md)). Fixture-driven
 regressions (need a loaded world, so not in CI):
 [`docs/arcopolis/movement_regression.ps1`](movement_regression.ps1) gates movement/NPC on **`ArcopolisTest`**,
 [`docs/arcopolis/npc_export_regression.ps1`](npc_export_regression.ps1) gates the **NPC export** on the same
@@ -202,10 +208,12 @@ see [21_SPIKE9B_LIVE_PROTOCOL.md](21_SPIKE9B_LIVE_PROTOCOL.md).
 [`docs/arcopolis/frontend_prototype_regression.ps1`](frontend_prototype_regression.ps1) gates the
 **Spike 10A browser-frontend bridge** on **`ArcopolisTest`**: it starts
 `tools/arcopolis_frontend/prototype_server.py`, drives the whole HTTP API (start → move_n → move_s
-→ wait → export → a `move_up` recoverability probe → quit → restart → shutdown; 14 gates) and
+→ wait → export → a `move_up` recoverability probe → quit → restart → shutdown; 15 gates incl.
+the Spike 10B diff-UI static-hook gate 2b) and
 asserts the bridge re-derives the SAME `blocked_no_op,moved,waited,no_command` sequence through the
 live protocol, that the backend exits 0 with a final snapshot + transcript, and that the server
-stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROTOTYPE.md).
+stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROTOTYPE.md) and
+[23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md](23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md).
 
 ## Deferred backlog
 
