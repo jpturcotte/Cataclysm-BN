@@ -133,6 +133,7 @@ main {
 .g-wall { color: #8f93a2; }
 .g-window { color: #89ddff; }
 .g-door { color: #c3a06a; }
+.g-door-open { color: #e5c890; }
 .g-floor { color: #4a4f5a; }
 .g-grass { color: #7cb342; }
 .g-water { color: #82aaff; }
@@ -140,6 +141,20 @@ main {
 .g-furniture { color: #b48ead; }
 .g-void { color: transparent; }
 .g-unknown { color: #f78c6c; }
+
+/* --- snapshot diff highlights (Spike 10B) -------------------------------- */
+/* Inset rings: outline is taken by :hover/.inspected and background by
+ * .is-avatar, so the highlight must not use either. box-shadow does NOT
+ * stack across classes - the SOURCE ORDER below is the precedence when one
+ * tile changed in several ways (entities > terrain > furniture > seen). */
+.cell.changed-tile { box-shadow: inset 0 0 0 1px #d4b106; }
+.cell.changed-seen { box-shadow: inset 0 0 0 1px #4f6b8f; }
+.cell.changed-furniture { box-shadow: inset 0 0 0 1px #b48ead; }
+.cell.changed-terrain { box-shadow: inset 0 0 0 1px #e2b714; }
+.cell.changed-entities { box-shadow: inset 0 0 0 1px #ff8a65; }
+/* .unseen dims the whole cell to 0.35, which would bury a fresh highlight
+ * exactly where seen-flag diffs land - changed unseen cells dim less. */
+.cell.changed-tile.unseen { opacity: 0.65; }
 
 /* --- outcome ------------------------------------------------------------ */
 .badge {
@@ -165,6 +180,13 @@ main {
     border-radius: 4px;
     font-size: 0.8em;
 }
+
+/* --- change summary / inspector diff -------------------------------------- */
+#diff-summary p { margin: 0 0 0.25em; }
+#diff-summary .diff-headline { font-weight: 600; }
+#diff-summary .diff-counts { font-family: Consolas, monospace; font-size: 0.9em; }
+#diff-summary .diff-meta { color: var(--muted); font-size: 0.85em; }
+#inspector .diff-changed { color: #e2b714; }
 
 /* --- inspector / stats / messages ---------------------------------------- */
 #avatar-stats {
