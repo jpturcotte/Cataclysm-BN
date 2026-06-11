@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 9B, 2026-06-10)
+# Arcopolis backend — current state (truth as of Spike 10A, 2026-06-10)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -143,6 +143,7 @@ in the snapshot itself — the `before` snapshot carries a neutral NPC at the mo
 | 8A    | nearby ground-item export (`entities.items[]`) + item regression                                                        | ✅                                      |
 | 9A    | external player-loop harness (cell bundles, HTML view/inspect, outcome explain, one-shot run; `tools/arcopolis_client`) | ✅                                      |
 | 9B    | minimal persistent live protocol over stdin/stdout JSONL (`--arcopolis-live`, one request at a time, same seam)         | ✅                                      |
+| 10A   | browser frontend prototype: stdlib HTTP bridge + plain HTML/JS driving `--arcopolis-live` (`tools/arcopolis_frontend/`) | ✅                                      |
 
 ## Source & tests
 
@@ -155,7 +156,7 @@ clean-park, final snapshot; Spike 9B adds the pluggable `live_source` pull hook 
 step-snapshot writer) · `arcopolis_live.{h,cpp}` (Spike 9B: the JSONL protocol parser/formatters +
 the blocking stdin pump + `run_live`) · `arcopolis_session_log.{h,cpp}` (transcript). Flags wired in
 `src/main.cpp`; the seam branch lives at `src/handle_action.cpp`, the clean-park at `src/game.cpp`.
-Unit tests: `tests/arcopolis_*_test.cpp` (`[arcopolis]` tag). Consumers (both stdlib-only,
+Unit tests: `tests/arcopolis_*_test.cpp` (`[arcopolis]` tag). Consumers (all stdlib-only,
 deliberately share-nothing so each independently re-derives the contract):
 `tools/arcopolis_viewer/make_report.py` (Spike 4 offline HTML report) and
 `tools/arcopolis_client/harness.py` (Spike 9A player-loop harness — cell bundles keyed by
@@ -163,7 +164,10 @@ deliberately share-nothing so each independently re-derives the contract):
 mode, plus the Spike 9B `live` probe driving the persistent protocol with a verified protocol-only
 stdout; subcommands now **view / explain / run / live**; see
 [20_SPIKE9A_CLIENT_HARNESS.md](20_SPIKE9A_CLIENT_HARNESS.md) and
-[21_SPIKE9B_LIVE_PROTOCOL.md](21_SPIKE9B_LIVE_PROTOCOL.md)). Fixture-driven
+[21_SPIKE9B_LIVE_PROTOCOL.md](21_SPIKE9B_LIVE_PROTOCOL.md)), and
+`tools/arcopolis_frontend/prototype_server.py` + `static/` (Spike 10A browser frontend prototype —
+a stdlib-only HTTP bridge owning one `--arcopolis-live` backend, plus a plain HTML/JS map +
+inspector UI; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROTOTYPE.md)). Fixture-driven
 regressions (need a loaded world, so not in CI):
 [`docs/arcopolis/movement_regression.ps1`](movement_regression.ps1) gates movement/NPC on **`ArcopolisTest`**,
 [`docs/arcopolis/npc_export_regression.ps1`](npc_export_regression.ps1) gates the **NPC export** on the same
@@ -195,6 +199,13 @@ stdout line verified JSON) and must re-derive the SAME `blocked_no_op,moved,wait
 sequence through the unchanged explain pipeline, plus a recoverability scenario (a rejected `move_up`
 answers `ok=false`/`unsupported_command` without ending the session, then a recovery `wait` succeeds);
 see [21_SPIKE9B_LIVE_PROTOCOL.md](21_SPIKE9B_LIVE_PROTOCOL.md).
+[`docs/arcopolis/frontend_prototype_regression.ps1`](frontend_prototype_regression.ps1) gates the
+**Spike 10A browser-frontend bridge** on **`ArcopolisTest`**: it starts
+`tools/arcopolis_frontend/prototype_server.py`, drives the whole HTTP API (start → move_n → move_s
+→ wait → export → a `move_up` recoverability probe → quit → restart → shutdown; 14 gates) and
+asserts the bridge re-derives the SAME `blocked_no_op,moved,waited,no_command` sequence through the
+live protocol, that the backend exits 0 with a final snapshot + transcript, and that the server
+stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROTOTYPE.md).
 
 ## Deferred backlog
 
@@ -212,7 +223,8 @@ see [21_SPIKE9B_LIVE_PROTOCOL.md](21_SPIKE9B_LIVE_PROTOCOL.md).
   request at a time, through the M1 seam with a blocking pull source. Still deferred: sockets/named
   pipes, framing/acks beyond line-delimited JSON, concurrent/pipelined requests, inline snapshots,
   save/resume of a live session, and a transcript record for rejected requests (an additive
-  `"rejected"` event kind).
+  `"rejected"` event kind). The Spike 10A browser prototype consumes v0 as-is over a polling HTTP
+  bridge; push updates (SSE/long-poll) are deferred with the rest.
 - **Richer commands:** examine/look, interaction (open/close/smash/pickup), **NPC interaction
   (talk/attack/swap/push — needed to act on a creature-occupied destination, the move-into-NPC no-op in
   [15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md](15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md))**, inventory, targeting,
