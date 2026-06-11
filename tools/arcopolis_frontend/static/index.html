@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arcopolis frontend prototype</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header id="status-bar">
+    <strong>Arcopolis frontend prototype</strong>
+    <span id="status-phase" class="pill phase-idle">idle</span>
+    <span id="status-world"></span>
+    <span id="status-turn"></span>
+    <span id="status-session"></span>
+    <span id="status-busy" class="pill pill-busy hidden">busy</span>
+    <span id="status-conn" class="pill pill-error hidden">server unreachable</span>
+</header>
+
+<div id="error-banner" class="hidden">
+    <span id="error-text"></span>
+    <button id="error-dismiss" type="button">dismiss</button>
+</div>
+
+<main>
+    <section id="map-pane">
+        <div id="grid" class="grid"><span class="placeholder">No snapshot yet — press Start.</span></div>
+        <p id="map-hint">Click an adjacent N/S/E/W tile to move. Click any other tile
+        (or Shift-click anywhere) to inspect it.</p>
+    </section>
+    <aside id="side-pane">
+        <section class="panel" id="avatar-panel">
+            <h2>Avatar</h2>
+            <dl id="avatar-stats"><dd class="placeholder">no session</dd></dl>
+        </section>
+        <section class="panel" id="outcome-panel">
+            <h2>Last outcome</h2>
+            <div id="outcome-badge" class="badge o-none">—</div>
+            <p id="outcome-text"></p>
+            <details>
+                <summary>raw backend response</summary>
+                <pre id="raw-response"></pre>
+            </details>
+        </section>
+        <section class="panel" id="inspector-panel">
+            <h2>Tile inspector</h2>
+            <div id="inspector"><span class="placeholder">click a tile</span></div>
+        </section>
+        <section class="panel" id="messages-panel">
+            <h2>Messages</h2>
+            <ul id="messages"></ul>
+        </section>
+    </aside>
+</main>
+
+<footer id="controls">
+    <button id="btn-start" type="button">Start</button>
+    <span class="dpad">
+        <span></span><button class="btn-move" data-direction="move_n" type="button">N</button><span></span>
+        <button class="btn-move" data-direction="move_w" type="button">W</button>
+        <span class="dpad-center">·</span>
+        <button class="btn-move" data-direction="move_e" type="button">E</button>
+        <span></span><button class="btn-move" data-direction="move_s" type="button">S</button><span></span>
+    </span>
+    <button id="btn-wait" type="button">Wait</button>
+    <button id="btn-export" type="button">Export / Refresh</button>
+    <button id="btn-quit" type="button">Quit backend</button>
+</footer>
+
+<script src="/static/app.js" defer></script>
+</body>
+</html>
