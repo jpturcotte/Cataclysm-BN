@@ -833,10 +833,16 @@ class Bridge:
             if session is None or not session.alive or self.phase != "ready":
                 return 409, self.error_doc("no_session",
                                            f"no live backend session (phase: {self.phase})")
+            # Label numbering happens HERE - under the op lock, after the
+            # preconditions: incremented outside it, a 409-rejected concurrent
+            # request would skip (or, unsynchronized, duplicate) a number.
+            # Labels are cosmetic (the backend's NNN prefix is authoritative),
+            # but gapless reads better in a session dir listing.
+            self.command_seq += 1
             before_summary = session.cur_summary
             before_snap = session.cur_snapshot
             try:
-                response = runner(session)
+                response = runner(session, self.command_seq)
             except BackendError as err:
                 self._mark_dead(err)
                 return 502, self.error_doc(err.code, str(err))
@@ -866,23 +872,19 @@ class Bridge:
         return self._run_op(op_name, fn)
 
     def op_command(self, verb, direction):
-        self.command_seq += 1
         token = safe_token(direction if direction is not None else verb)
-        label = f"after_{self.command_seq:02d}_{token}"
         request_doc = {"command": verb}
         if direction is not None:
             request_doc["direction"] = direction
         return self._op_backend_step(
             "command", request_doc,
-            lambda session: session.do_command(verb, direction, label),
+            lambda session, seq: session.do_command(verb, direction, f"after_{seq:02d}_{token}"),
             verb, direction)
 
     def op_export(self):
-        self.command_seq += 1
-        label = f"export_{self.command_seq:02d}"
         return self._op_backend_step(
             "export", {"op": "export"},
-            lambda session: session.do_export(label),
+            lambda session, seq: session.do_export(f"export_{seq:02d}"),
             None, None)
 
     def op_quit(self):
