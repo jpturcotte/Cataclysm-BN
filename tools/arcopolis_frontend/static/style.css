@@ -1,0 +1,233 @@
+/* Arcopolis Spike 10A prototype UI - intentionally plain, dark, readable. */
+
+:root {
+    --bg: #14161a;
+    --panel: #1e2127;
+    --panel-edge: #2c313a;
+    --text: #d7dae0;
+    --muted: #8b919c;
+    --accent: #82aaff;
+    color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.45 system-ui, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+h2 {
+    margin: 0 0 0.4em;
+    font-size: 0.95em;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.placeholder { color: var(--muted); font-style: italic; }
+.hidden { display: none !important; }
+
+/* --- status bar -------------------------------------------------------- */
+#status-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.9em;
+    padding: 0.5em 1em;
+    background: var(--panel);
+    border-bottom: 1px solid var(--panel-edge);
+    flex-wrap: wrap;
+}
+
+.pill {
+    padding: 0.05em 0.6em;
+    border-radius: 1em;
+    font-size: 0.85em;
+    background: #37474f;
+}
+.phase-idle { background: #455a64; }
+.phase-ready { background: #2e7d32; }
+.phase-starting { background: #ef6c00; }
+.phase-ended { background: #546e7a; }
+.phase-dead { background: #c62828; }
+.pill-busy { background: #ef6c00; }
+.pill-error { background: #c62828; }
+
+/* --- error banner ------------------------------------------------------- */
+#error-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1em;
+    padding: 0.45em 1em;
+    background: #5d1f1f;
+    border-bottom: 1px solid #8e2f2f;
+}
+
+/* --- layout ------------------------------------------------------------- */
+main {
+    display: flex;
+    gap: 1em;
+    padding: 1em;
+    align-items: flex-start;
+    flex: 1;
+    flex-wrap: wrap;
+}
+
+#map-pane { flex: 0 0 auto; }
+#side-pane {
+    flex: 1 1 22em;
+    min-width: 20em;
+    max-width: 34em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8em;
+}
+
+.panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: 6px;
+    padding: 0.7em 0.9em;
+}
+
+#map-hint { color: var(--muted); font-size: 0.85em; max-width: 34em; }
+
+/* --- map grid ----------------------------------------------------------- */
+.grid {
+    display: grid;
+    gap: 0;
+    background: #0d0f12;
+    border: 1px solid var(--panel-edge);
+    border-radius: 4px;
+    padding: 4px;
+    width: fit-content;
+    font-family: Consolas, "Cascadia Mono", monospace;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.cell {
+    width: 1.25em;
+    height: 1.25em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+}
+.cell:hover { outline: 1px solid #5c6370; }
+.cell.inspected { outline: 1px solid #ffffff; }
+.cell.unseen { opacity: 0.35; }
+.cell.is-avatar { background: #33252a; }
+
+.g-avatar { color: #ff5370; font-weight: bold; }
+.g-npc { color: #ffb62c; font-weight: bold; }
+.g-monster { color: #f07178; font-weight: bold; }
+.g-item { color: #4ec9b0; }
+.g-wall { color: #8f93a2; }
+.g-window { color: #89ddff; }
+.g-door { color: #c3a06a; }
+.g-floor { color: #4a4f5a; }
+.g-grass { color: #7cb342; }
+.g-water { color: #82aaff; }
+.g-stairs { color: #c792ea; }
+.g-furniture { color: #b48ead; }
+.g-void { color: transparent; }
+.g-unknown { color: #f78c6c; }
+
+/* --- outcome ------------------------------------------------------------ */
+.badge {
+    display: inline-block;
+    padding: 0.1em 0.7em;
+    border-radius: 4px;
+    font-weight: 600;
+    font-family: Consolas, monospace;
+}
+.o-none { background: #37474f; }
+.o-moved { background: #2e7d32; }
+.o-blocked_no_op { background: #ef6c00; }
+.o-waited { background: #1565c0; }
+.o-no_command { background: #546e7a; }
+.o-error { background: #c62828; }
+.o-acted_in_place, .o-displaced, .o-unknown, .o-unverifiable { background: #6a1b9a; }
+
+#raw-response {
+    max-height: 14em;
+    overflow: auto;
+    background: #0d0f12;
+    padding: 0.5em;
+    border-radius: 4px;
+    font-size: 0.8em;
+}
+
+/* --- inspector / stats / messages ---------------------------------------- */
+#avatar-stats {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.1em 0.8em;
+    margin: 0;
+}
+#avatar-stats dt { color: var(--muted); }
+#avatar-stats dd { margin: 0; font-family: Consolas, monospace; }
+
+#inspector dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.1em 0.8em;
+    margin: 0 0 0.4em;
+}
+#inspector dt { color: var(--muted); }
+#inspector dd { margin: 0; font-family: Consolas, monospace; overflow-wrap: anywhere; }
+#inspector ul { margin: 0.2em 0 0.4em; padding-left: 1.2em; }
+
+#messages {
+    margin: 0;
+    padding-left: 1.2em;
+    max-height: 12em;
+    overflow: auto;
+    font-size: 0.9em;
+}
+#messages li { margin-bottom: 0.15em; }
+
+/* --- controls ------------------------------------------------------------ */
+#controls {
+    display: flex;
+    align-items: center;
+    gap: 1em;
+    padding: 0.7em 1em;
+    background: var(--panel);
+    border-top: 1px solid var(--panel-edge);
+    flex-wrap: wrap;
+}
+
+button {
+    background: #2c313a;
+    color: var(--text);
+    border: 1px solid #3c424d;
+    border-radius: 4px;
+    padding: 0.35em 0.9em;
+    font: inherit;
+    cursor: pointer;
+}
+button:hover:not(:disabled) { background: #3a404c; }
+button:disabled { opacity: 0.4; cursor: default; }
+
+.dpad {
+    display: grid;
+    grid-template-columns: repeat(3, 2.2em);
+    grid-auto-rows: 1.9em;
+    gap: 2px;
+}
+.dpad button { padding: 0; }
+.dpad-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+}
