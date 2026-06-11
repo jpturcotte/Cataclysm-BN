@@ -9,6 +9,10 @@
 
     Gate  1: server up; GET / serves the UI; GET /api/state reports phase "idle".
     Gate  2: static whitelist (app.js/style.css 200, unknown 404) + Cache-Control: no-store.
+    Gate 2b: Spike 10B snapshot-diff UI hooks are present in the SERVED assets (app.js carries
+             computeSnapshotDiff + the changed-tile class, style.css styles .changed-tile and
+             .g-door-open, the page carries the diff-summary panel). Static-content asserts only;
+             diff BEHAVIOR is browser-side JS and deliberately not automated here.
     Gate  3: POST /api/start -> phase "ready", session_001, a NNN_start.json snapshot on disk,
              avatar present, 625 tiles (FIXTURE-SPECIFIC: ArcopolisTest's avatar sits
              mid-bubble so its radius-12 window is the full 25x25; the general contract is
@@ -212,6 +216,19 @@ try {
         Assert-True ("$($state.Raw.Headers['Cache-Control'])" -eq "no-store") `
             "/api/state carries Cache-Control: no-store"
 
+        # --- Gate 2b: Spike 10B diff-UI hooks in the served assets (static asserts only). ----
+        Write-Host "Gate 2b: snapshot-diff UI hooks served" -ForegroundColor Cyan
+        Assert-True ($js.Raw.Content -like "*computeSnapshotDiff*") `
+            "served app.js carries computeSnapshotDiff"
+        Assert-True ($js.Raw.Content -like "*changed-tile*") `
+            "served app.js applies the changed-tile class"
+        Assert-True ($css.Raw.Content -like "*.changed-tile*") `
+            "served style.css styles .changed-tile"
+        Assert-True ($css.Raw.Content -like "*.g-door-open*") `
+            "served style.css styles .g-door-open"
+        Assert-True ($page.Raw.Content -like "*diff-summary*") `
+            "served page carries the diff-summary panel"
+
         # --- Gate 3: start -> ready + initial snapshot. --------------------------------------
         Write-Host "Gate 3: POST /api/start" -ForegroundColor Cyan
         $start = Invoke-Api POST "/api/start" "{}"
@@ -356,5 +373,5 @@ if( $script:fail -gt 0 ) {
     Write-Host "FRONTEND PROTOTYPE REGRESSION: $script:fail hard assertion(s) failed." -ForegroundColor Red
     exit 1
 }
-Write-Host "FRONTEND PROTOTYPE REGRESSION: all 14 gates passed." -ForegroundColor Green
+Write-Host "FRONTEND PROTOTYPE REGRESSION: all 15 gates passed." -ForegroundColor Green
 exit 0
