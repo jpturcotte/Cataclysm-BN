@@ -180,7 +180,11 @@ def load_snapshot(session_dir, rel_name):
     before the response). The joined path must stay inside session_dir."""
     base = os.path.abspath(session_dir)
     path = os.path.abspath(os.path.join(base, rel_name))
-    if os.path.commonpath([base, path]) != base:
+    try:
+        contained = os.path.commonpath([base, path]) == base
+    except ValueError:  # e.g. different drives on Windows -> cannot be inside session_dir
+        contained = False
+    if not contained:
         raise BackendError("protocol_violation",
                            f"response snapshot name escapes the session dir: {rel_name!r}")
     try:
@@ -509,9 +513,17 @@ class BackendSession:
                                    f"backend closed stdout (exit {self.proc.poll()}) "
                                    f"before {expect}")
             stripped = raw.strip()
-            if self.tee is not None:
-                self.tee.write(stripped + "\n")
-                self.tee.flush()
+            # Local ref + swallowed teardown errors: the no-lock emergency
+            # branches (op_shutdown/emergency_stop after a lock timeout) may
+            # close the tee while a wedged recv is mid-loop; the tee is an
+            # audit trail only and must never turn that into a new failure.
+            tee = self.tee
+            if tee is not None:
+                try:
+                    tee.write(stripped + "\n")
+                    tee.flush()
+                except (OSError, ValueError):
+                    pass
             if not stripped:
                 continue
             try:
