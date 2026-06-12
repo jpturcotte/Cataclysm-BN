@@ -142,8 +142,9 @@ Two findings sharpen this:
   `src/options.cpp:1709-1714`)** changes whether the direction prompt happens at all: 0 valid
   targets → failure message and return (no prompt); exactly 1 → that tile is returned **without
   any prompt**; 2+ (or option off) → the blocking `choose_direction`. Backend correctness must
-  **never** depend on this option: it is world-config state, and it silently changes _which tile
-  gets examined_.
+  **never** depend on this option's value: it is player-interface config loaded with the session's
+  userdir (`interface` options page), and it silently changes _which tile gets examined_ — see the
+  recommendation's design point 2 for how the implementation must handle it without overriding it.
 - **No existing backstop can catch a nested block.** Both runner loops check progress **between**
   `g->do_turn()` returns — the script runner's cursor backstop (`src/arcopolis_script.cpp:226-256`)
   and the live runner's request-counter backstop (`src/arcopolis_live.cpp:445-478`). A nested read
@@ -332,20 +333,52 @@ path, and no state is faked.
 
 Design points the implementation must carry (all source-grounded):
 
-1. **Stale-slot leak.** With autoselect on, the 0-valid and 1-valid branches return **without ever
-   calling `handle_input`** (`src/action.cpp:1163-1169`) — a pre-armed answer would survive and be
-   consumed by a _later_ prompt as a real action (the `"PICKUP"` context registers
-   `UP/DOWN/LEFT/RIGHT`, `src/pickup.cpp:722-725` — it would scroll the menu). Therefore:
-   force-clear the slot whenever control returns to the top-level seam, emit a transcript event if
-   an answer went unconsumed, and **pin `AUTOSELECT_SINGLE_VALID_TARGET = false` for backend
-   sessions** (proposed as session configuration, the same class as Spike 9B's in-memory
-   `AUTOSAVE` pin and the `TURN_DURATION` guard) so the commanded direction is _always_ consulted
-   and protocol semantics are deterministic. Pre-validating the target tile backend-side is
-   rejected — it would re-implement `can_examine_at` outside the engine.
-2. **Guard observability.** Every guard fire emits a transcript event (asking input-context
+1. **Stale-slot leak, and what `direction` faithfully means.** With autoselect on, the 0-valid and
+   1-valid branches return **without ever calling `handle_input`**
+   (`src/action.cpp:1163-1169`) — a pre-armed answer would survive and be consumed by a _later_
+   prompt as a real action (the `"PICKUP"` context registers `UP/DOWN/LEFT/RIGHT`,
+   `src/pickup.cpp:722-725` — it would scroll the menu). Therefore: force-clear the slot whenever
+   control returns to the top-level seam, and emit a transcript `answer_unconsumed` event when an
+   armed answer was never asked for. The `direction` field's meaning follows: **it is the answer
+   to the engine's prompt _if the engine asks_** — the mirror of the keypress a GUI player would
+   make — not a commanded target tile. The post-command snapshot shows what the engine actually
+   did. Pre-validating the target tile backend-side stays rejected — it would re-implement
+   `can_examine_at` outside the engine.
+2. **No in-memory autoselect pin (review objection upheld — the fidelity walk, line by line).**
+   The first draft of this record proposed forcing `AUTOSELECT_SINGLE_VALID_TARGET = false` in
+   memory for backend sessions. PR review objected on fidelity grounds, and the objection survives
+   a line-by-line check of `choose_adjacent_highlight` against the rule — "reproduce EXACTLY what
+   the engine does for the same action" (AGENTS.md, "Arcopolis backend fidelity"). With the loaded
+   config carrying the default `true`:
+
+   | Line                       | Engine code                                                          | GUI, loaded config (`true`)                     | Backend under the rejected pin (`false`)            |
+   | -------------------------- | -------------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------- |
+   | `src/action.cpp:1163`      | `auto_select = get_option<bool>( "AUTOSELECT_SINGLE_VALID_TARGET" )` | `true`                                          | forced `false` — every branch below flips           |
+   | `src/action.cpp:1164-1166` | `valid.empty() && auto_select` → failure message + nullopt           | failure **message**, no prompt                  | branch skipped → prompt runs → message-free nullopt |
+   | `src/action.cpp:1167-1169` | `valid.size() == 1 && auto_select` → return the sole target          | sole target examined; direction never consulted | branch skipped → the requested tile, or a no-op     |
+   | `src/action.cpp:1181-1186` | prompt + valid-set membership filter                                 | reached only at ≥2 valid targets                | always reached                                      |
+
+   Two of the four rows produce **observably different gameplay outcomes for the same loaded
+   config** — different messages at 0 valid targets, a different examined tile at 1 — exactly the
+   class the fidelity rule protects. The repo's own precedents split the same way: the
+   `TURN_DURATION` guard **demands** config and exits instead of overriding
+   ("set it to 0 in the world's options" — `src/arcopolis_live.cpp:399-406`,
+   `src/arcopolis_script.cpp:191-200`), while the one approved in-memory pin, Spike 9B's
+   `AUTOSAVE`, changes **no gameplay-observable state** (its own justification block: "NOT
+   simulation state — the calendar, moves and new_game stay engine-owned",
+   `src/arcopolis_live.cpp:408-416`). Autoselect changes which tile gets examined, so it sits in
+   the protected class. **Resolution: never override it — follow the `TURN_DURATION` pattern.**
+   Set `AUTOSELECT_SINGLE_VALID_TARGET = false` in the **fixture userdir's options config** (a
+   legitimate player-interface preference, `interface` options page `src/options.cpp:1709`; the
+   GUI run of that same fixture then behaves identically to the backend), and record the loaded
+   value at session start (gate (h)). Under any other deployment config the backend still matches
+   that config's GUI exactly — an unconsumed direction is cleared and logged per point 1. Whether
+   the next spike hard-requires `false` at session start (TURN_DURATION-style) or merely records
+   it is that spike's decision; both preserve fidelity because nothing is overridden.
+3. **Guard observability.** Every guard fire emits a transcript event (asking input-context
    category, action returned, running count). Deny-by-default **and observable**; a silent
    auto-cancel would mask real bugs.
-3. **Direction vocabulary mapping — pinned.** The chooser consumes registered **input-context
+4. **Direction vocabulary mapping — settled.** The chooser consumes registered **input-context
    action ids** (`UP/DOWN/LEFT/RIGHT` + diagonals from `register_directions`,
    `src/input.cpp:994-1001`), not engine `action_id`s, resolved by `ctxt.get_direction()`:
    `"UP"` → north, `"DOWN"` → south, `"LEFT"` → west, `"RIGHT"` → east
@@ -356,10 +389,10 @@ Design points the implementation must carry (all source-grounded):
    (`src/main.cpp:881-887`). So the mapping is the plain one: `move_n`→`"UP"`, `move_s`→`"DOWN"`,
    `move_e`→`"RIGHT"`, `move_w`→`"LEFT"`. Reserve a `here` token for the engine's `"pause"`
    self-tile path.
-4. **Parser extension.** Extend `parse_command`/`command_to_action` so `examine` requires and
+5. **Parser extension.** Extend `parse_command`/`command_to_action` so `examine` requires and
    validates `direction` the way `move` does today (currently move-only,
    `src/arcopolis_command.cpp:59-70`).
-5. **Hook point — concrete candidate, zero new engine accessors.** `input_context` already
+6. **Hook point — concrete candidate, zero new engine accessors.** `input_context` already
    publicly exposes `is_action_registered()` (`src/input.h:475-478`) and `get_category()`
    (`:469-471`), so the guard can validate a served answer against the asking context and name the
    context in transcript events without touching the engine's API. The candidate site is the top
@@ -391,6 +424,11 @@ fixture root convention the regressions already use via their `-FixtureSrc` defa
 - **Furniture-with-actor and computer-console witnesses — deferred.** Enumerate candidates from a
   snapshot export at implementation time rather than over-claiming shelter contents here; if none
   is reachable, a save-edit fixture (the `make_monster_fixture.py` precedent) is the fallback.
+- **Fixture-config requirement (new, design point 2):** the fixture userdir's options config must
+  set `AUTOSELECT_SINGLE_VALID_TARGET = false` — a declared fixture property in the same class as
+  the existing `TURN_DURATION <= 0.005` requirement, documented in the fixture README when the
+  spike lands. The GUI run of the same fixture then behaves identically to the backend; nothing is
+  overridden in memory.
 
 ## Future regression plan
 
@@ -410,25 +448,29 @@ a stuck script):
 - **(d) Recoverability, two distinct cases:** a malformed direction token → `ok:false`, session
   continues, next request succeeds; a **valid** direction at a non-interactable tile → `ok:true`
   with a faithful silent engine no-op (the valid-set filter is message-free,
-  `src/action.cpp:1182`, once autoselect is pinned off).
+  `src/action.cpp:1182`, with the fixture's `AUTOSELECT_SINGLE_VALID_TARGET = false` — the
+  fixture-config requirement of design point 2).
 - **(e) No-regression gate:** the existing live-protocol gates (`move`/`wait` sequence,
   `blocked_no_op,moved,waited,no_command`) re-run unchanged.
 - **(f) Guard-observability gate:** the item-pile witness also asserts a guard transcript event
   naming the `"PICKUP"` context.
 - **(g) Stale-slot gate:** `examine` followed by `wait` — assert no guard-serve event fires during
   the `wait` and its outcome equals the plain-wait baseline.
-- **(h) Session-invariant gate:** the pinned autoselect value is recorded (session_start or
-  diagnostics) so per-target witnesses are world-config-independent.
+- **(h) Session-invariant gate:** the loaded autoselect value is recorded (session_start or
+  diagnostics) and equals the fixture's declared `false`, so per-target witnesses are
+  config-explicit instead of silently config-dependent — and nothing was overridden to get there.
 - **Frontend:** no frontend work until all backend gates pass; the frontend then only adds a
   consumer surface over the same protocol.
 
 ## Risks and open questions
 
 Real uncertainties that remain after source reading (carried into the implementation spike).
-Resolved since the first draft of this record, by further source reading: the blocked-read failure
-mode (pure busy-wait hang, not a crash — see "Input requirements"), the iso direction mapping
-(plain, no rotation headless — design point 3), the `handle_input` hook mechanics (public API
-suffices — design point 5), the first-order actor audit, and the QUIT registration inventory
+Resolved since the first draft of this record — by further source reading and one upheld review
+objection: the blocked-read failure mode (pure busy-wait hang, not a crash — see "Input
+requirements"), the iso direction mapping (plain, no rotation headless — design point 4), the
+`handle_input` hook mechanics (public API suffices — design point 6), the first-order actor audit,
+the **withdrawal of the in-memory autoselect pin** (replaced by the fixture-config requirement —
+design point 2), and the QUIT registration inventory
 (`"DEFAULTMODE"` chooser `src/action.cpp:1085`, `"PICKUP"` `src/pickup.cpp:732`, `"LOOK"`
 `src/game.cpp:9957`, `"INVENTORY"` `src/inventory_ui.cpp:1851`, `"VENDING_MACHINE"`
 `src/iexamine.cpp:936` all register `QUIT`; `"STRING_INPUT"` registers `TEXT.QUIT` instead,
@@ -445,7 +487,7 @@ suffices — design point 5), the first-order actor audit, and the QUIT registra
   to a logged auto-cancel.
 - **`lua_examine`:** behavior depends on mod script content (`src/iexamine.cpp:8145-8147`) — not
   statically auditable from C++; treat as unaudited-by-definition.
-- **Final hook placement:** design point 5 names a concrete candidate site and the API it needs,
+- **Final hook placement:** design point 6 names a concrete candidate site and the API it needs,
   but the exact placement (and the stable-storage detail for the returned reference) is the
   implementation spike's to validate.
 - **Guard fire-limit:** a loop that ignores the returned cancel action would spin; the proposed
@@ -463,38 +505,44 @@ Intentionally **not** done now:
 - No generic UI/menu abstraction yet (Option C deferred with reasons above).
 - No broad pickup/talk/menu/computer implementation until the input model is proven.
 - No reliance on `AUTOSELECT_SINGLE_VALID_TARGET` (or any interface option) for correctness.
+- No in-memory overrides of gameplay-observable options: config the backend needs is **demanded**
+  of the fixture/deployment (the `TURN_DURATION` pattern), never flipped at runtime; the
+  `AUTOSAVE`-style in-memory pin stays reserved for non-gameplay session-contract breaks.
 
 ## Citation audit
 
-| Claim                                                                                        | Implementing line(s)                                                                                                                                    |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Seam feeds only the top-level action; first branch of the input chain                        | `src/handle_action.cpp:1778-1779`                                                                                                                       |
-| `ACTION_EXAMINE` case dispatches `examine()`                                                 | `src/handle_action.cpp:2279-2287`                                                                                                                       |
-| Examine prompts via `choose_adjacent_highlight`                                              | `src/game.cpp:8522-8541`                                                                                                                                |
-| Valid-target predicate composition (vehicle/console/items/actor/creature/trap)               | `src/action.cpp:631-659`, `:673-701`                                                                                                                    |
-| Autoselect skips the prompt at 0/1 valid targets; default `true`                             | `src/action.cpp:1163-1169`, `src/options.cpp:1709-1714`                                                                                                 |
-| Filtered selection returns message-free nullopt                                              | `src/action.cpp:1181-1186`                                                                                                                              |
-| `choose_direction` is an ungated raw `handle_input` loop; `pause` = self-tile                | `src/action.cpp:1078-1119`                                                                                                                              |
-| `handle_input` → `get_input_event` has no `test_mode` branch; blocking SDL wait              | `src/input.cpp:925-992`, `src/sdltiles.cpp:3951-3996`                                                                                                   |
-| All arcopolis modes set `test_mode`; curses never initialized headless                       | `src/main.cpp:528-580`, `:881-887`                                                                                                                      |
-| `uilist`/`query_popup` auto-cancel under `test_mode`; redraw is a no-op                      | `src/ui.cpp:916-922`, `src/popup.cpp:269-271`, `src/ui_manager.cpp:325-330`                                                                             |
-| NPC examine auto-cancels and returns cleanly                                                 | `src/game.cpp:8101, :8121, :8519`                                                                                                                       |
-| Examine's auto-pickup tail reaches the ungated `"PICKUP"` loop                               | `src/game.cpp:8755`, `src/pickup.cpp:627, :721, :1164`                                                                                                  |
-| Script & live stall backstops run **between** `do_turn` returns (can't catch a nested block) | `src/arcopolis_script.cpp:226-256`, `src/arcopolis_live.cpp:445-478`                                                                                    |
-| Live command response is written at the **next** provider call                               | `src/arcopolis_live.cpp:108-124`                                                                                                                        |
-| Vocabulary is `wait`/`move`-only; `direction` validated for `move` only                      | `src/arcopolis_command.cpp:102-119`, `:59-70`                                                                                                           |
-| `t_door_c` has no `examine_action`; `t_door_locked` → `locked_object`                        | `data/json/furniture_and_terrain/terrain-doors.json:194-231`, `:1440-1462`                                                                              |
-| `open()`/`close()` move costs; smash/grab always prompt                                      | `src/handle_action.cpp:617, :628, :761, :670`, `src/gates.cpp:361, :378-381`                                                                            |
-| Chooser action ids come from `register_directions`                                           | `src/input.cpp:994-1001`                                                                                                                                |
-| Blocked read cannot crash: null `stdscr` guarded; `refresh_display` test_mode-gated          | `src/cursesport.cpp:36, :186-190, :206-209`, `src/sdltiles.cpp:109, :502-509`                                                                           |
-| `CheckMessages` headless: null-joystick probe + empty poll + gated refresh tail              | `src/sdltiles.cpp:1810-1813, :151, :374-386, :2903, :3218, :3614-3615`                                                                                  |
-| Engine precedent: `pump_events` already test_mode-guards `CheckMessages`                     | `src/sdltiles.cpp:3936-3940`                                                                                                                            |
-| `get_direction` rotates only under `iso_mode && tile_iso && use_tiles`; plain map otherwise  | `src/input.cpp:1040-1072` (`:1051`), `src/cached_options.cpp:26`, `src/cata_tiles.cpp:2220`                                                             |
-| `is_action_registered`/`get_category` are existing public API                                | `src/input.h:469-478`                                                                                                                                   |
-| Actor map: ~95 names, `lua:` routing, `none` fallback, JSON default                          | `src/iexamine.cpp:8143-8253`, `src/mapdata.cpp:1366-1373`                                                                                               |
-| Raw-actor inventory (string-input ×7, vending loop, inventory menus ×6)                      | see "Examine-actor surface audit" table                                                                                                                 |
-| QUIT registration: chooser/PICKUP/LOOK/INVENTORY/VENDING yes; STRING_INPUT → `TEXT.QUIT`     | `src/action.cpp:1085`, `src/pickup.cpp:732`, `src/game.cpp:9957`, `src/inventory_ui.cpp:1851`, `src/iexamine.cpp:936`, `src/string_input_popup.cpp:109` |
-| `vehicle::interact_with` is a gated `uilist`; monexamine menus gated, rename branch raw      | `src/vehicle_use.cpp:2001, :2047, :2127`, `src/monexamine.cpp:298, :692-697`                                                                            |
+| Claim                                                                                         | Implementing line(s)                                                                                                                                    |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Seam feeds only the top-level action; first branch of the input chain                         | `src/handle_action.cpp:1778-1779`                                                                                                                       |
+| `ACTION_EXAMINE` case dispatches `examine()`                                                  | `src/handle_action.cpp:2279-2287`                                                                                                                       |
+| Examine prompts via `choose_adjacent_highlight`                                               | `src/game.cpp:8522-8541`                                                                                                                                |
+| Valid-target predicate composition (vehicle/console/items/actor/creature/trap)                | `src/action.cpp:631-659`, `:673-701`                                                                                                                    |
+| Autoselect skips the prompt at 0/1 valid targets; default `true`                              | `src/action.cpp:1163-1169`, `src/options.cpp:1709-1714`                                                                                                 |
+| Filtered selection returns message-free nullopt                                               | `src/action.cpp:1181-1186`                                                                                                                              |
+| `choose_direction` is an ungated raw `handle_input` loop; `pause` = self-tile                 | `src/action.cpp:1078-1119`                                                                                                                              |
+| `handle_input` → `get_input_event` has no `test_mode` branch; blocking SDL wait               | `src/input.cpp:925-992`, `src/sdltiles.cpp:3951-3996`                                                                                                   |
+| All arcopolis modes set `test_mode`; curses never initialized headless                        | `src/main.cpp:528-580`, `:881-887`                                                                                                                      |
+| `uilist`/`query_popup` auto-cancel under `test_mode`; redraw is a no-op                       | `src/ui.cpp:916-922`, `src/popup.cpp:269-271`, `src/ui_manager.cpp:325-330`                                                                             |
+| NPC examine auto-cancels and returns cleanly                                                  | `src/game.cpp:8101, :8121, :8519`                                                                                                                       |
+| Examine's auto-pickup tail reaches the ungated `"PICKUP"` loop                                | `src/game.cpp:8755`, `src/pickup.cpp:627, :721, :1164`                                                                                                  |
+| Script & live stall backstops run **between** `do_turn` returns (can't catch a nested block)  | `src/arcopolis_script.cpp:226-256`, `src/arcopolis_live.cpp:445-478`                                                                                    |
+| Live command response is written at the **next** provider call                                | `src/arcopolis_live.cpp:108-124`                                                                                                                        |
+| Vocabulary is `wait`/`move`-only; `direction` validated for `move` only                       | `src/arcopolis_command.cpp:102-119`, `:59-70`                                                                                                           |
+| `t_door_c` has no `examine_action`; `t_door_locked` → `locked_object`                         | `data/json/furniture_and_terrain/terrain-doors.json:194-231`, `:1440-1462`                                                                              |
+| `open()`/`close()` move costs; smash/grab always prompt                                       | `src/handle_action.cpp:617, :628, :761, :670`, `src/gates.cpp:361, :378-381`                                                                            |
+| Chooser action ids come from `register_directions`                                            | `src/input.cpp:994-1001`                                                                                                                                |
+| Blocked read cannot crash: null `stdscr` guarded; `refresh_display` test_mode-gated           | `src/cursesport.cpp:36, :186-190, :206-209`, `src/sdltiles.cpp:109, :502-509`                                                                           |
+| `CheckMessages` headless: null-joystick probe + empty poll + gated refresh tail               | `src/sdltiles.cpp:1810-1813, :151, :374-386, :2903, :3218, :3614-3615`                                                                                  |
+| Engine precedent: `pump_events` already test_mode-guards `CheckMessages`                      | `src/sdltiles.cpp:3936-3940`                                                                                                                            |
+| `get_direction` rotates only under `iso_mode && tile_iso && use_tiles`; plain map otherwise   | `src/input.cpp:1040-1072` (`:1051`), `src/cached_options.cpp:26`, `src/cata_tiles.cpp:2220`                                                             |
+| `is_action_registered`/`get_category` are existing public API                                 | `src/input.h:469-478`                                                                                                                                   |
+| Actor map: ~95 names, `lua:` routing, `none` fallback, JSON default                           | `src/iexamine.cpp:8143-8253`, `src/mapdata.cpp:1366-1373`                                                                                               |
+| Raw-actor inventory (string-input ×7, vending loop, inventory menus ×6)                       | see "Examine-actor surface audit" table                                                                                                                 |
+| QUIT registration: chooser/PICKUP/LOOK/INVENTORY/VENDING yes; STRING_INPUT → `TEXT.QUIT`      | `src/action.cpp:1085`, `src/pickup.cpp:732`, `src/game.cpp:9957`, `src/inventory_ui.cpp:1851`, `src/iexamine.cpp:936`, `src/string_input_popup.cpp:109` |
+| `vehicle::interact_with` is a gated `uilist`; monexamine menus gated, rename branch raw       | `src/vehicle_use.cpp:2001, :2047, :2127`, `src/monexamine.cpp:298, :692-697`                                                                            |
+| In-memory autoselect pin rejected: 0/1-valid branches diverge observably from same-config GUI | `src/action.cpp:1163-1169, :1181-1186` (line-by-line walk, design point 2)                                                                              |
+| Config is demanded, never overridden: the `TURN_DURATION` guards exit with "set it to 0…"     | `src/arcopolis_live.cpp:399-406`, `src/arcopolis_script.cpp:191-200`                                                                                    |
+| The one approved in-memory pin (`AUTOSAVE`, 9B) changes no gameplay-observable state          | `src/arcopolis_live.cpp:408-416`                                                                                                                        |
 
 ## Conclusion
 
@@ -504,8 +552,9 @@ the pickup tail), invisible to every existing backstop — and proven from sourc
 busy-wait hang, not a crash. What must be built first is small and generic: a one-slot queued
 direction answer plus an auto-cancel guard at the `input_context::handle_input` choke point, gated
 on the backend session — the engine already exposes the membership/category API the guard needs,
-the direction mapping is pinned (no iso rotation headless), and the first-order actor audit bounds
-the raw-read surface to a known list. After that, a one-shot
+the direction mapping is settled (no iso rotation headless), and the first-order actor audit
+bounds the raw-read surface to a known list — with determinism obtained by demanding fixture
+config, never by overriding the engine's loaded options. After that, a one-shot
 `{"op":"command","command":"examine","direction":"…"}` completes faithfully against every audited
 target class. The next PR is **Spike 11A — directed examine through a backend nested-input seam**,
 implementing exactly that mechanism with the fixtures and regression gates designed above.
