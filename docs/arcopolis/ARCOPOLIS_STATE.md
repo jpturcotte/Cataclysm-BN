@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 10C, 2026-06-11)
+# Arcopolis backend — current state (truth as of Spike 10C, 2026-06-12; Spike 11A-prep is a documentation-only decision record — nothing new built)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -251,8 +251,15 @@ stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROT
   contract surface), sprite overhang for oversized art, progressive sheet loading, and avatar/NPC
   sprite identity (blocked on export fields, not frontend work); unresolved ids keep the glyph,
   the safe visual fallback (see [24_SPIKE10C_FRONTEND_TILESET_RENDERING.md](24_SPIKE10C_FRONTEND_TILESET_RENDERING.md)).
-- **Richer commands:** examine/look, interaction (open/close/smash/pickup), **NPC interaction
-  (talk/attack/swap/push — needed to act on a creature-occupied destination, the move-into-NPC no-op in
+- **Richer commands:** examine/look — **examine feasibility is now answered from source (Spike
+  11A-prep, a documentation-only decision record:
+  [25_SPIKE11A_EXAMINE_FEASIBILITY.md](25_SPIKE11A_EXAMINE_FEASIBILITY.md)): the nested direction
+  prompt (`choose_direction`) has no `test_mode` gate and neither runner's stall backstop can fire
+  mid-`do_turn`, so naively wiring the verb would deadlock headless; the recommended next
+  implementation PR is a directed examine via a backend-gated nested-input answer + auto-cancel
+  guard at `input_context::handle_input`, per that record — nothing is implemented yet** —
+  interaction (open/close/smash/pickup), **NPC interaction (talk/attack/swap/push — needed to act
+  on a creature-occupied destination, the move-into-NPC no-op in
   [15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md](15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md))**, inventory, targeting,
   diagonals, vertical.
 
