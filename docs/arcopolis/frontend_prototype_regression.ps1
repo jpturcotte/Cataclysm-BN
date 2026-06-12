@@ -13,6 +13,13 @@
              computeSnapshotDiff + the changed-tile class, style.css styles .changed-tile and
              .g-door-open, the page carries the diff-summary panel). Static-content asserts only;
              diff BEHAVIOR is browser-side JS and deliberately not automated here.
+    Gate 2c: Spike 10C tileset asset serving + UI hooks: /tileset/info reports the enabled
+             tileset, /tileset/tile_config.json serves with tile_info + tiles-new, sheet PNGs
+             DERIVED FROM THE SERVED CONFIG serve as non-empty image/png, unwhitelisted and
+             traversal-shaped names 404, and the served assets carry the tileset hooks
+             (loadTileset / setRenderMode / renderSpriteCell / mode-tileset / tileset-status /
+             tileset-mode). Server/static/API-level only - sprite RENDERING is browser-side JS
+             covered by the manual smoke (doc 24), never asserted here.
     Gate  3: POST /api/start -> phase "ready", session_001, a NNN_start.json snapshot on disk,
              avatar present, 625 tiles (FIXTURE-SPECIFIC: ArcopolisTest's avatar sits
              mid-bubble so its radius-12 window is the full 25x25; the general contract is
@@ -33,6 +40,9 @@
              on disk, session.jsonl present.
     Gate 13: restartability: a second session starts as session_002 and quits cleanly.
     Gate 14: POST /api/shutdown -> HTTP 200, the server process exits, the port is released.
+    Gate 15: tileset fail-safe: a SECOND short-lived server started with --disable-tileset still
+             serves the UI, /tileset/info answers enabled:false, /tileset/tile_config.json 404s,
+             and the server shuts down cleanly (glyph mode never needs the tileset).
 
   Together gates 3..12 reproduce the fixture-proven live sequence
   (blocked_no_op, moved, waited, no_command) through the HTTP bridge.
@@ -59,6 +69,10 @@
 .PARAMETER Port
   Loopback HTTP port (deliberately NOT the server's 8765 default, so the regression never
   collides with a manually running prototype).
+.PARAMETER TilesetDir
+  The in-repo BN tileset dir Gate 2c serves (tile_config.json + referenced spritesheets).
+  Tileset failures are fail-safe server-side, so a broken tileset cannot take gates 1..14
+  down - only Gate 2c would fail.
 
 .EXAMPLE
   pwsh -File docs/arcopolis/frontend_prototype_regression.ps1
@@ -75,7 +89,8 @@ param(
     [string]$World      = "ArcopolisTest",
     [string]$OutRoot    = ".\out\arco_frontend_regress",
     [string]$Server     = "tools\arcopolis_frontend\prototype_server.py",
-    [int]$Port          = 8799
+    [int]$Port          = 8799,
+    [string]$TilesetDir = ".\gfx\UltimateCataclysm"
 )
 
 $ErrorActionPreference = "Stop"
@@ -91,7 +106,8 @@ function Stop-WithCode {
 }
 
 # --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python,
-# --- 7=server script, 8=static files, 9=port already in use). ---
+# --- 7=server script, 8=static files, 9=port already in use, 10=tileset dir). NOTE:
+# --- prereq exit 10 here is unrelated to the backend's exit 10 (backend_stalled). ---
 if( -not (Test-Path $Exe) ) {
     Stop-WithCode "Binary not found: $Exe  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
@@ -116,6 +132,9 @@ foreach( $name in @("index.html", "app.js", "style.css") ) {
 }
 if( Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue ) {
     Stop-WithCode "Port $Port is already listening -- is a prototype server (or another service) running? Rerun with -Port <free port>." 9
+}
+if( -not (Test-Path (Join-Path $TilesetDir "tile_config.json")) ) {
+    Stop-WithCode "Tileset config not found: $(Join-Path $TilesetDir 'tile_config.json') -- Gate 2c serves the in-repo UltimateCataclysm tileset (or pass -TilesetDir)." 10
 }
 
 # Refresh the gitignored sandbox world from the external fixture. `Copy-Item -Recurse` nests the
@@ -165,10 +184,15 @@ function Assert-True {
 Write-Host "Starting the prototype server on port $Port ..." -ForegroundColor Cyan
 $serverOut = Join-Path $OutRoot "server_stdout.txt"
 $serverErr = Join-Path $OutRoot "server_stderr.txt"   # MUST be two distinct redirect files
+# --tileset-dir is safe on the one shared server: tileset failures are fail-safe
+# server-side (serving disabled, UI glyph-only), so a broken tileset cannot take
+# gates 1..14 down - only Gate 2c would fail.
 $serverProc = Start-Process python -ArgumentList @(
         $Server, "--exe", $Exe, "--userdir", $UserDir, "--world", $World,
-        "--out-root", $sessionsRoot, "--port", $Port
+        "--out-root", $sessionsRoot, "--port", $Port,
+        "--tileset-dir", $TilesetDir
     ) -NoNewWindow -PassThru -RedirectStandardOutput $serverOut -RedirectStandardError $serverErr
+$serverProc2 = $null   # Gate 15's second server; predeclared so `finally` can reap it
 
 try {
     try {
@@ -228,6 +252,49 @@ try {
             "served style.css styles .g-door-open"
         Assert-True ($page.Raw.Content -like "*diff-summary*") `
             "served page carries the diff-summary panel"
+
+        # --- Gate 2c: Spike 10C tileset asset serving + UI hooks (server/static/API level ----
+        # --- only; sprite RENDERING is browser-side JS, covered by the manual smoke). --------
+        Write-Host "Gate 2c: tileset asset serving + UI hooks" -ForegroundColor Cyan
+        $tinfo = Invoke-Api GET "/tileset/info"
+        Assert-True ($tinfo.Status -eq 200 -and $tinfo.Json.enabled -eq $true) `
+            "/tileset/info reports an enabled tileset" "(status $($tinfo.Status), enabled $($tinfo.Json.enabled))"
+        Assert-True ($tinfo.Json.name -eq "UltimateCataclysm") `
+            "tileset name is UltimateCataclysm" "(got $($tinfo.Json.name))"
+        $tcfg = Invoke-Api GET "/tileset/tile_config.json"
+        Assert-True ($tcfg.Status -eq 200 -and "$($tcfg.Raw.Headers['Content-Type'])" -like "application/json*") `
+            "tile_config.json serves as application/json" "(status $($tcfg.Status))"
+        Assert-True ("$($tcfg.Raw.Headers['Cache-Control'])" -eq "no-store") `
+            "tile_config.json carries Cache-Control: no-store"
+        Assert-True ($null -ne $tcfg.Json.tile_info -and $null -ne $tcfg.Json.'tiles-new') `
+            "served config carries tile_info and tiles-new"
+        # PNG asserts are DERIVED FROM THE SERVED CONFIG (future-proof): probe the known
+        # UltimateCataclysm sheets when referenced, else the config's first sheet. Tolerant
+        # body check: status + content type + non-empty bytes; Content-Length is deliberately
+        # NOT asserted (it may be absent depending on how the server writes files).
+        $sheetFiles = @($tcfg.Json.'tiles-new' | ForEach-Object { $_.file })
+        Assert-True ($sheetFiles.Count -gt 0) "served config references at least one sheet"
+        $probeNames = @("small.png", "normal.png") | Where-Object { $sheetFiles -contains $_ }
+        if( @($probeNames).Count -eq 0 -and $sheetFiles.Count -gt 0 ) { $probeNames = @($sheetFiles[0]) }
+        foreach( $sheetName in $probeNames ) {
+            $img = Invoke-Api GET "/tileset/$sheetName"
+            Assert-True ($img.Status -eq 200 -and "$($img.Raw.Headers['Content-Type'])" -like "image/png*") `
+                "GET /tileset/$sheetName is 200 image/png" "(status $($img.Status), type $($img.Raw.Headers['Content-Type']))"
+            Assert-True ($img.Raw.Content.Length -gt 0) "/tileset/$sheetName body is non-empty"
+        }
+        $tbad = Invoke-Api GET "/tileset/nope.png"
+        Assert-True ($tbad.Status -eq 404) "GET /tileset/nope.png is 404 (whitelist)" "(status $($tbad.Status))"
+        # The %2F-encoded probe reaches the server literally (Invoke-WebRequest collapses a
+        # literal ../ client-side); either client behavior must end in 404 - the real
+        # guarantee is the exact-name whitelist with no path arithmetic on client input.
+        $trav = Invoke-Api GET "/tileset/..%2Ftile_config.json"
+        Assert-True ($trav.Status -eq 404) "traversal-shaped name is 404 (containment)" "(status $($trav.Status))"
+        Assert-True ($js.Raw.Content -like "*loadTileset*") "served app.js carries loadTileset"
+        Assert-True ($js.Raw.Content -like "*setRenderMode*") "served app.js carries setRenderMode"
+        Assert-True ($js.Raw.Content -like "*renderSpriteCell*") "served app.js carries renderSpriteCell"
+        Assert-True ($page.Raw.Content -like "*mode-tileset*" -and $page.Raw.Content -like "*tileset-status*") `
+            "served page carries the render-mode UI"
+        Assert-True ($css.Raw.Content -like "*tileset-mode*") "served style.css styles tileset-mode"
 
         # --- Gate 3: start -> ready + initial snapshot. --------------------------------------
         Write-Host "Gate 3: POST /api/start" -ForegroundColor Cyan
@@ -353,18 +420,58 @@ try {
         Assert-True ($serverProc.WaitForExit(8000)) "server process exits within 8s"
         $stillListening = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
         Assert-True (@($stillListening).Count -eq 0) "port $Port is released"
+
+        # --- Gate 15: tileset-disabled fail-safe (a second, short-lived server on the now- ---
+        # --- released port; own out-root + redirect files so server 1's diagnostics survive). -
+        Write-Host "Gate 15: --disable-tileset fail-safe" -ForegroundColor Cyan
+        $server2Out = Join-Path $OutRoot "server2_stdout.txt"
+        $server2Err = Join-Path $OutRoot "server2_stderr.txt"
+        $serverProc2 = Start-Process python -ArgumentList @(
+                $Server, "--exe", $Exe, "--userdir", $UserDir, "--world", $World,
+                "--out-root", (Join-Path $OutRoot "sessions_gate15"), "--port", $Port,
+                "--disable-tileset"
+            ) -NoNewWindow -PassThru -RedirectStandardOutput $server2Out -RedirectStandardError $server2Err
+        $state2 = $null
+        foreach( $i in 1..40 ) {
+            if( $serverProc2.HasExited ) { break }
+            try {
+                $state2 = Invoke-Api GET "/api/state" -TimeoutSec 3
+                break
+            } catch {
+                Start-Sleep -Milliseconds 500
+            }
+        }
+        Assert-True ($null -ne $state2 -and $state2.Status -eq 200) `
+            "second server (tileset disabled) answers /api/state"
+        $page2 = Invoke-Api GET "/"
+        Assert-True ($page2.Status -eq 200) "UI still serves with the tileset disabled" "(status $($page2.Status))"
+        $info2 = Invoke-Api GET "/tileset/info"
+        Assert-True ($info2.Status -eq 200 -and $info2.Json.enabled -eq $false) `
+            "/tileset/info reports enabled:false" "(status $($info2.Status), enabled $($info2.Json.enabled))"
+        $cfg2 = Invoke-Api GET "/tileset/tile_config.json"
+        Assert-True ($cfg2.Status -eq 404) "/tileset/tile_config.json is 404 when disabled" "(status $($cfg2.Status))"
+        $down2 = Invoke-Api POST "/api/shutdown" "{}"
+        Assert-True ($down2.Status -eq 200) "second server shuts down" "(status $($down2.Status))"
+        Assert-True ($serverProc2.WaitForExit(8000)) "second server process exits within 8s"
     } catch {
         Write-Host "  FATAL: unexpected error: $_" -ForegroundColor Red
         $script:fail++
     }
 } finally {
-    # Belt and braces: never leave the server (and through its atexit quit ladder, the
-    # backend) running past this script.
+    # Belt and braces: never leave either server (and through their atexit quit ladders,
+    # the backend) running past this script.
     if( -not $serverProc.HasExited ) {
         try { Invoke-Api POST "/api/shutdown" "{}" -TimeoutSec 5 | Out-Null } catch {}
         if( -not $serverProc.WaitForExit(5000) ) {
             Write-Host "  WARN: force-stopping the server process (check for an orphan cataclysm-bn-tiles process)" -ForegroundColor Yellow
             Stop-Process -Id $serverProc.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+    if( $null -ne $serverProc2 -and -not $serverProc2.HasExited ) {
+        try { Invoke-Api POST "/api/shutdown" "{}" -TimeoutSec 5 | Out-Null } catch {}
+        if( -not $serverProc2.WaitForExit(5000) ) {
+            Write-Host "  WARN: force-stopping the second (Gate 15) server process" -ForegroundColor Yellow
+            Stop-Process -Id $serverProc2.Id -Force -ErrorAction SilentlyContinue
         }
     }
 }
@@ -373,5 +480,5 @@ if( $script:fail -gt 0 ) {
     Write-Host "FRONTEND PROTOTYPE REGRESSION: $script:fail hard assertion(s) failed." -ForegroundColor Red
     exit 1
 }
-Write-Host "FRONTEND PROTOTYPE REGRESSION: all 15 gates passed." -ForegroundColor Green
+Write-Host "FRONTEND PROTOTYPE REGRESSION: all 17 gates passed." -ForegroundColor Green
 exit 0

@@ -42,11 +42,26 @@ and docs/arcopolis/21_SPIKE9B_LIVE_PROTOCOL.md):
   * a command response is DEFERRED to the next input-rest instant, so the
     response's snapshot is the post-command state.
 
+Spike 10C adds OPTIONAL tileset asset serving: with --tileset-dir pointing at a
+BN tileset (default .\\gfx\\UltimateCataclysm), the bridge re-serves that dir's
+tile_config.json plus exactly the spritesheet files it references, under
+/tileset/. The bridge stays an asset file server here - it never parses sprite
+meaning (the browser does), and tileset availability is frontend/RENDERING
+metadata, deliberately NOT part of /api/state: the state document remains the
+unreshaped snapshot contract every consumer re-derives. Any tileset problem
+disables /tileset/ serving with a warning and the server still starts - the UI
+falls back to glyph rendering (the backend snapshot is the only authority;
+glyphs are a frontend interpretation too).
+
 HTTP API (one state-document shape everywhere; see docs/arcopolis/
 22_SPIKE10A_FRONTEND_PROTOTYPE.md for the full contract):
   GET  /                      static UI (whitelisted files only)
   GET  /static/app.js
   GET  /static/style.css
+  GET  /tileset/info          tileset serving status {enabled, name, reason,
+                              files}; always answers, even when disabled
+  GET  /tileset/<file>        tile_config.json or a spritesheet PNG it
+                              references (exact-name whitelist; 404 otherwise)
   GET  /api/state             cached state document; never touches the backend
   POST /api/start             spawn backend -> ready -> initial "start" export
   POST /api/command           {"command":"wait"} or {"command":"move",
@@ -85,7 +100,7 @@ import traceback
 import urllib.parse
 
 TOOL_NAME = "arcopolis_frontend_prototype"
-TOOL_VERSION = "0.1.0"
+TOOL_VERSION = "0.2.0"
 
 # The only live-protocol version this bridge speaks (asserted against `ready`).
 LIVE_PROTOCOL_VERSION = 1
@@ -129,6 +144,13 @@ API_POST_ROUTES = {
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
+# Tileset asset serving (Spike 10C). /tileset/<name> resolves by EXACT lookup
+# in a whitelist built once at startup from tile_config.json's "tiles-new"
+# file inventory - no path arithmetic ever touches client input.
+TILESET_CONFIG_NAME = "tile_config.json"
+TILESET_INFO_ROUTE = "/tileset/info"
+TILESET_PREFIX = "/tileset/"
+
 
 def warn(message):
     """Diagnostics go to stderr (stdout is not protocol here, but stay tidy)."""
@@ -162,6 +184,68 @@ def safe_token(text):
     ([A-Za-z0-9_.-]) so bridge-built labels are valid by construction."""
     token = re.sub(r"[^A-Za-z0-9_.-]", "_", str(text or ""))[:24]
     return token or "cmd"
+
+
+def build_tileset_state(tileset_dir, disabled):
+    """Build the /tileset/ serving state once at startup: an exact-name
+    whitelist {name: (abspath, content_type)} of tile_config.json plus the
+    spritesheet files its "tiles-new" entries reference, and the /tileset/info
+    document. The shape check is deliberately shallow (a file inventory): the
+    bridge re-serves tileset ASSETS, it never interprets sprite meaning - that
+    is the browser's job, just as snapshot meaning belongs to the backend.
+
+    Fail-safe by contract: ANY problem returns enabled:false with a short
+    reason (no local paths - the info doc is browser-visible) and the server
+    still starts; the UI then stays in glyph mode, the safe visual fallback."""
+    info = {"enabled": False, "name": None, "reason": None, "files": 0}
+    routes = {}
+    if disabled:
+        info["reason"] = "disabled by --disable-tileset"
+        return routes, info
+    base = os.path.abspath(tileset_dir)
+    config_path = os.path.join(base, TILESET_CONFIG_NAME)
+    if not os.path.isdir(base):
+        info["reason"] = "tileset dir not found"
+        warn(f"tileset: dir not found: {base}")
+        return routes, info
+    if not os.path.isfile(config_path):
+        info["reason"] = f"{TILESET_CONFIG_NAME} not found in the tileset dir"
+        warn(f"tileset: missing {config_path}")
+        return routes, info
+    try:
+        with open(config_path, encoding="utf-8-sig") as handle:
+            config = json.load(handle)
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as err:
+        info["reason"] = f"{TILESET_CONFIG_NAME} is unreadable or not valid JSON"
+        warn(f"tileset: cannot load {config_path}: {err}")
+        return routes, info
+    if not isinstance(config, dict) or not isinstance(config.get("tile_info"), list) \
+            or not isinstance(config.get("tiles-new"), list):
+        info["reason"] = f"{TILESET_CONFIG_NAME} lacks the tile_info/tiles-new shape"
+        warn(f"tileset: {config_path} is not a tiles-new tileset config")
+        return routes, info
+    routes[TILESET_CONFIG_NAME] = (config_path, "application/json; charset=utf-8")
+    for sheet in config["tiles-new"]:
+        name = sheet.get("file") if isinstance(sheet, dict) else None
+        # Flat basenames only: anything else cannot be a sibling spritesheet.
+        if not isinstance(name, str) or not name or name in (".", "..") \
+                or name != os.path.basename(name):
+            warn(f"tileset: skipping non-basename tiles-new file entry: {name!r}")
+            continue
+        path = os.path.abspath(os.path.join(base, name))
+        try:
+            contained = os.path.commonpath([base, path]) == base
+        except ValueError:  # different drives on Windows -> cannot be inside base
+            contained = False
+        if not contained or not os.path.isfile(path):
+            warn(f"tileset: skipping missing/escaping sheet file: {name!r}")
+            continue
+        # BN tileset sheets are PNGs; the whitelist serves them as such.
+        routes[name] = (path, "image/png")
+    info["enabled"] = True
+    info["name"] = os.path.basename(base)
+    info["files"] = len(routes)
+    return routes, info
 
 
 class BackendError(Exception):
@@ -996,6 +1080,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._serve_static(path)
         elif path == "/api/state":
             self._send_json(200, self.bridge.get_state_doc())
+        elif path == TILESET_INFO_ROUTE:
+            # Always answers (also when disabled): the UI's status line needs
+            # to distinguish "not configured" from "fetch failed".
+            self._send_json(200, self.server.tileset_info)
+        elif path.startswith(TILESET_PREFIX):
+            self._serve_tileset(path)
         elif path in API_POST_ROUTES:
             self._send_json(405, Bridge.error_doc("method_not_allowed", f"POST {path}"),
                             extra_headers=[("Allow", "POST")])
@@ -1046,7 +1136,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # serve_forever() exits, so calling it inline would deadlock.
             threading.Thread(target=self.server.shutdown, daemon=True).start()
             return
-        elif path in STATIC_ROUTES or path in API_GET_ROUTES:
+        elif path in STATIC_ROUTES or path in API_GET_ROUTES \
+                or path == TILESET_INFO_ROUTE or path.startswith(TILESET_PREFIX):
             self._send_json(405, Bridge.error_doc("method_not_allowed", f"GET {path}"),
                             extra_headers=[("Allow", "GET")])
             return
@@ -1085,6 +1176,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 payload = handle.read()
         except OSError:
             self._send_json(404, Bridge.error_doc("not_found", f"static file {filename}"))
+            return
+        self._send_bytes(200, content_type, payload)
+
+    def _serve_tileset(self, path):
+        """One whitelisted tileset asset. The name after /tileset/ is resolved
+        by EXACT dict lookup only (whitelist keys are flat basenames, so a
+        name carrying a separator can never match - the explicit reject is
+        belt and braces and a clearer refusal). urlsplit does not
+        percent-decode, so an encoded ..%2F arrives literally and misses."""
+        name = path[len(TILESET_PREFIX):]
+        routes = self.server.tileset_routes
+        if "/" in name or "\\" in name or name not in routes:
+            self._send_json(404, Bridge.error_doc("not_found", path))
+            return
+        file_path, content_type = routes[name]
+        try:
+            with open(file_path, "rb") as handle:
+                payload = handle.read()
+        except OSError:
+            self._send_json(404, Bridge.error_doc("not_found", f"tileset file {name}"))
             return
         self._send_bytes(200, content_type, payload)
 
@@ -1132,6 +1243,13 @@ def parse_args(argv):
                         help="optional --seed string forwarded to the backend")
     parser.add_argument("--response-timeout", type=float, default=60.0,
                         help="seconds to wait for ready and for each protocol response")
+    parser.add_argument("--tileset-dir",
+                        default=os.path.join(".", "gfx", "UltimateCataclysm"),
+                        help="BN tileset dir whose tile_config.json + referenced "
+                             "spritesheets are re-served under /tileset/ (optional "
+                             "rendering mode; if unusable the UI stays glyph-only)")
+    parser.add_argument("--disable-tileset", action="store_true",
+                        help="never serve /tileset/ assets, even if --tileset-dir exists")
     return parser.parse_args(argv)
 
 
@@ -1158,6 +1276,15 @@ def main(argv=None):
         "response_timeout": args.response_timeout,
     })
 
+    # Tileset serving is strictly optional: a failure here only disables
+    # /tileset/ (the UI stays glyph-only) - the server must still start.
+    tileset_routes, tileset_info = build_tileset_state(args.tileset_dir, args.disable_tileset)
+    if tileset_info["enabled"]:
+        warn(f"tileset serving enabled: {tileset_info['name']} "
+             f"({tileset_info['files']} whitelisted files)")
+    else:
+        warn(f"tileset serving disabled: {tileset_info['reason']} (UI stays glyph-only)")
+
     try:
         httpd = http.server.ThreadingHTTPServer((args.host, args.port), Handler)
     except OSError as err:
@@ -1165,6 +1292,8 @@ def main(argv=None):
         return 1
     httpd.daemon_threads = True  # a wedged handler must not block process exit
     httpd.bridge = bridge
+    httpd.tileset_routes = tileset_routes
+    httpd.tileset_info = tileset_info
 
     atexit.register(bridge.emergency_stop)
 
