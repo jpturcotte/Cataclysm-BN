@@ -253,3 +253,68 @@ button:disabled { opacity: 0.4; cursor: default; }
     justify-content: center;
     color: var(--muted);
 }
+
+/* --- tileset rendering mode (Spike 10C) ----------------------------------- */
+/* Sprites are an OPTIONAL rendering skin: the backend snapshot stays the only
+ * authority, and the glyph renderer remains the SAFE VISUAL FALLBACK (glyphs
+ * are a frontend interpretation too). Every grid rule below is scoped under
+ * .grid.tileset-mode so glyph mode stays byte-identical. */
+
+#render-mode-cluster {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    margin-left: auto;
+}
+button.mode-active { background: #3f51b5; border-color: #5c6bc0; }
+.tileset-status { color: var(--muted); font-size: 0.85em; }
+.tileset-status.tileset-warn { color: #ffb74d; }
+
+.grid.tileset-mode .cell {
+    /* cell box = tile_info width/height (set by app.js; 32x32 for
+     * UltimateCataclysm); sprites larger than a tile (tall/large/giant
+     * sheets) CLIP to their cell - the documented v0 limitation (no
+     * overhang drawing). */
+    width: var(--tile-w, 32px);
+    height: var(--tile-h, 32px);
+    position: relative;
+    overflow: hidden;
+}
+.grid.tileset-mode .sprite-layer {
+    position: absolute;
+    background-repeat: no-repeat;
+    image-rendering: pixelated;
+    pointer-events: none;
+}
+.grid.tileset-mode .cell-glyph {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    /* halo so fallback glyphs (@/N/M/i) stay readable over bright sprites */
+    text-shadow: 0 0 2px #000, 0 0 3px #000, 0 0 4px #000;
+}
+
+/* Diff rings in tileset mode: the cell's own inset box-shadow (the Spike 10B
+ * mechanism above) paints UNDER absolutely-positioned sprite children, so the
+ * ring is re-drawn on an ::after overlay - generated as the LAST child, it
+ * paints above the sprite layers. pointer-events: none is REQUIRED: the ring
+ * must never block cell clicks. Same SOURCE ORDER = same precedence as the
+ * glyph-mode block (entities > terrain > furniture > seen). */
+.grid.tileset-mode .cell.changed-tile::after,
+.grid.tileset-mode .cell.changed-seen::after,
+.grid.tileset-mode .cell.changed-furniture::after,
+.grid.tileset-mode .cell.changed-terrain::after,
+.grid.tileset-mode .cell.changed-entities::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.grid.tileset-mode .cell.changed-tile::after { box-shadow: inset 0 0 0 2px #d4b106; }
+.grid.tileset-mode .cell.changed-seen::after { box-shadow: inset 0 0 0 2px #4f6b8f; }
+.grid.tileset-mode .cell.changed-furniture::after { box-shadow: inset 0 0 0 2px #b48ead; }
+.grid.tileset-mode .cell.changed-terrain::after { box-shadow: inset 0 0 0 2px #e2b714; }
+.grid.tileset-mode .cell.changed-entities::after { box-shadow: inset 0 0 0 2px #ff8a65; }
