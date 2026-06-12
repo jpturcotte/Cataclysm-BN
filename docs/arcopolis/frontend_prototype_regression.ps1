@@ -285,8 +285,9 @@ try {
         $tbad = Invoke-Api GET "/tileset/nope.png"
         Assert-True ($tbad.Status -eq 404) "GET /tileset/nope.png is 404 (whitelist)" "(status $($tbad.Status))"
         # The %2F-encoded probe reaches the server literally (Invoke-WebRequest collapses a
-        # literal ../ client-side); either client behavior must end in 404 - the real
-        # guarantee is the exact-name whitelist with no path arithmetic on client input.
+        # literal ../ client-side). The server percent-decodes ONCE, then rejects separators
+        # before the exact-name lookup, so either client behavior must end in 404 - the real
+        # guarantee is the flat-basename whitelist with no path arithmetic on client input.
         $trav = Invoke-Api GET "/tileset/..%2Ftile_config.json"
         Assert-True ($trav.Status -eq 404) "traversal-shaped name is 404 (containment)" "(status $($trav.Status))"
         Assert-True ($js.Raw.Content -like "*loadTileset*") "served app.js carries loadTileset"

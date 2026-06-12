@@ -453,7 +453,8 @@ async function loadTileset() {
         const config = await api("/tileset/tile_config.json");
         const tileInfo = Array.isArray(config.tile_info) ? config.tile_info[0] : null;
         const sheetsRaw = config["tiles-new"];
-        if (!tileInfo || !Number.isInteger(tileInfo.width) || !Number.isInteger(tileInfo.height)
+        if (!tileInfo || !Number.isInteger(tileInfo.width) || tileInfo.width <= 0
+            || !Number.isInteger(tileInfo.height) || tileInfo.height <= 0
             || !Array.isArray(sheetsRaw) || !sheetsRaw.length) {
             throw new Error("tile_config.json lacks the tile_info/tiles-new shape");
         }
@@ -465,10 +466,21 @@ async function loadTileset() {
         // accepted for the spike: the Tileset button stays disabled until all
         // sheets finish loading; progressive loading is deferred.
         const images = await Promise.all(
-            sheetsRaw.map((sheet) => loadImage(`/tileset/${sheet.file}`)));
+            sheetsRaw.map((sheet) => loadImage(`/tileset/${encodeURIComponent(sheet.file)}`)));
         let offset = 0;
         sheetsRaw.forEach((sheetDef, i) => {
             const img = images[i];
+            // A present-but-invalid sprite dimension would corrupt the WHOLE
+            // index table (cols = floor(w/0) = Infinity shifts every later
+            // sheet's start), so it fails the load outright: the fail-safe
+            // contract is "tileset unavailable -> glyph", never
+            // silently-wrong sprites under a "ready" status.
+            for (const key of ["sprite_width", "sprite_height"]) {
+                if (key in sheetDef
+                    && (!Number.isInteger(sheetDef[key]) || sheetDef[key] <= 0)) {
+                    throw new Error(`sheet ${sheetDef.file}: invalid ${key}`);
+                }
+            }
             const spriteW = Number.isInteger(sheetDef.sprite_width)
                 ? sheetDef.sprite_width : tileset.tileW;
             const spriteH = Number.isInteger(sheetDef.sprite_height)
@@ -604,7 +616,7 @@ function renderSpriteCell(div, cell) {
             span.style.top = `${loc.sheet.offY}px`;
             span.style.width = `${loc.sheet.spriteW}px`;
             span.style.height = `${loc.sheet.spriteH}px`;
-            span.style.backgroundImage = `url(/tileset/${loc.sheet.file})`;
+            span.style.backgroundImage = `url("/tileset/${encodeURIComponent(loc.sheet.file)}")`;
             span.style.backgroundPosition = `${-loc.px}px ${-loc.py}px`;
             div.appendChild(span);
             drawn = true;

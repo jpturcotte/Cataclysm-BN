@@ -1180,12 +1180,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._send_bytes(200, content_type, payload)
 
     def _serve_tileset(self, path):
-        """One whitelisted tileset asset. The name after /tileset/ is resolved
-        by EXACT dict lookup only (whitelist keys are flat basenames, so a
-        name carrying a separator can never match - the explicit reject is
-        belt and braces and a clearer refusal). urlsplit does not
-        percent-decode, so an encoded ..%2F arrives literally and misses."""
-        name = path[len(TILESET_PREFIX):]
+        """One whitelisted tileset asset. The name after /tileset/ is
+        percent-decoded ONCE (browsers encode specials in sheet filenames and
+        the frontend encodes them explicitly), then resolved by EXACT dict
+        lookup only - whitelist keys are flat basenames, so a decoded name
+        carrying a separator (e.g. an encoded ..%2F traversal) can never
+        match; the explicit separator reject in front is belt and braces and
+        a clearer refusal."""
+        name = urllib.parse.unquote(path[len(TILESET_PREFIX):])
         routes = self.server.tileset_routes
         if "/" in name or "\\" in name or name not in routes:
             self._send_json(404, Bridge.error_doc("not_found", path))

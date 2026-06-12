@@ -184,9 +184,10 @@ sprite` / `furn sprite` / `entity sprite` rows showing `#<global index> (<sheet 
 
 `/tileset/<name>` resolves **only** by exact lookup in a whitelist built once at startup:
 `tile_config.json` plus each `tiles-new` `file` value that is a flat basename, exists, and stays
-under `--tileset-dir` (commonpath check). Names containing a separator are rejected before
-lookup; `urlsplit` does not percent-decode, so `..%2F…` arrives literally and misses the dict.
-Files on disk but not referenced by the config (e.g. `tileset.txt`) are 404s. `/tileset/info`
+under `--tileset-dir` (commonpath check). The name is percent-decoded **once** (browsers encode
+specials in sheet filenames, and the frontend encodes them explicitly), then names containing a
+separator are rejected before the lookup — an encoded `..%2F…` decodes into the separator
+reject. Files on disk but not referenced by the config (e.g. `tileset.txt`) are 404s. `/tileset/info`
 always answers `{enabled, name, reason, files}` — with no local paths in any browser-visible
 field. Every response keeps `Cache-Control: no-store` (prototype debuggability; the ~2.4 MB of
 sheets re-fetch per page load on loopback, which is fine and not worth caching politics yet).
@@ -222,6 +223,11 @@ failures only disable `/tileset/` serving (the regression header documents the c
   SDL_GPU at startup and needs the shadercross-compiled blobs under `data/shaders/`, which exist
   only where a build ran; from a never-built worktree it exits 1 before reaching any test.
 - Manual browser smoke: see below.
+- Post-review hardening (PR #29 bot review, all four comments addressed — one with a modified
+  remedy): decode-once asset serving, strictly-positive tile/sprite dimension validation
+  (invalid dims now **fail the load to glyph mode** instead of corrupting the index table under
+  a `ready` status), and quoted/percent-encoded sprite URLs. Frontend regression re-run after
+  the changes: **all 17 gates passed, exit 0**.
 
 ## Manual browser smoke (required by the spike, performed against a real backend)
 
