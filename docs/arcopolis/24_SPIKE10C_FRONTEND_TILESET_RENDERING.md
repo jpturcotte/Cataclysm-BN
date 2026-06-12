@@ -274,12 +274,19 @@ Performed 2026-06-11 against a real `--arcopolis-live` backend (nothing committe
   (the documented no-overhang v0) with no `M` overlay; the cell dimmed as `unseen`
   (out-of-LOS authoritative export, as in 10A). Clean quit, exit 0.
 - **Zero browser console messages** (errors, warnings or logs) across both sessions.
-- Tooling honesty: Start, d-pad, and mode buttons were exercised with real pointer clicks; cell
-  clicks and part of the door walk were driven as synthetic bubbling `MouseEvent`s through the
-  page's own unchanged delegated handlers, because the preview harness's coordinate-based clicks
-  proved unreliable on a resized viewport (it reported success without delivering events — it
-  also silently swallowed three d-pad clicks, caught by the snapshot counter). The app's own
-  behavior — including the deliberate one-in-flight click-drop rule — was correct throughout.
+- Tooling note, **root-caused after the fact** (instrumented with capture-phase event logging):
+  part of the smoke was driven as synthetic bubbling `MouseEvent`s because the preview harness's
+  clicks stopped landing after a viewport resize. The instrumentation showed why: the harness
+  synthesizes a fully **trusted** pointer sequence, but when the emulated viewport is larger
+  than the preview panel it fails to compensate for the panel's scale-to-fit display transform —
+  every click lands at `target_center × (emulatedW / naturalW)` (measured: a uniform ×2.33701 on
+  both axes at a 980px emulation over a 419.34px panel, delivered onto `<html>`). At the panel's
+  **natural** size the same clicks land pixel-exactly. After the diagnosis, the load-bearing
+  claims were re-verified with **real trusted pointer clicks at natural size**: a cell click in
+  tileset mode hit its exact cell and produced `move_s → moved [0,1,0]`, and a far-cell click
+  inspected the precise cell clicked. The app — including its deliberate one-in-flight
+  click-drop rule — behaved correctly under every delivered event; the earlier "swallowed"
+  clicks were all mis-scaled deliveries that genuinely hit nothing interactive.
 
 ## Known limitations
 
