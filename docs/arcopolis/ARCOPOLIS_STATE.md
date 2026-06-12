@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 10B, 2026-06-11)
+# Arcopolis backend — current state (truth as of Spike 10C, 2026-06-11)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -145,6 +145,7 @@ in the snapshot itself — the `before` snapshot carries a neutral NPC at the mo
 | 9B    | minimal persistent live protocol over stdin/stdout JSONL (`--arcopolis-live`, one request at a time, same seam)         | ✅                                      |
 | 10A   | browser frontend prototype: stdlib HTTP bridge + plain HTML/JS driving `--arcopolis-live` (`tools/arcopolis_frontend/`) | ✅                                      |
 | 10B   | frontend-side snapshot diff: changed-tile highlights, before→after inspector, change summary, open/closed door glyphs   | ✅                                      |
+| 10C   | optional frontend tileset rendering: bridge re-serves `gfx/UltimateCataclysm`, browser paints sprites, glyph fallback   | ✅                                      |
 
 ## Source & tests
 
@@ -173,7 +174,15 @@ adds **frontend-side snapshot diffing** to the same static assets — changed-ti
 on snapshot identity with an origin-delta correction across bubble rebases, a before→after tile
 inspector, a change-summary panel, per-cell exact-id tooltips, and open/closed door glyphs, with
 zero bridge/snapshot/protocol change; see
-[23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md](23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md)). Fixture-driven
+[23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md](23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md); Spike 10C adds
+**optional tileset rendering** — the bridge re-serves a whitelisted `gfx/UltimateCataclysm`
+asset set under `/tileset/`, the browser parses `tile_config.json` itself (global 0-based sprite
+indices over concatenated sheets, engine-cited) and paints cells as sprite layers behind a
+[Glyph]/[Tileset] toggle, with the glyph renderer as the **safe visual fallback** per cell and
+wholesale — NOT a faithful BN renderer (no multitile/rotation/variation-weights/animation/
+looks_like/overhang); see
+[24_SPIKE10C_FRONTEND_TILESET_RENDERING.md](24_SPIKE10C_FRONTEND_TILESET_RENDERING.md)).
+Fixture-driven
 regressions (need a loaded world, so not in CI):
 [`docs/arcopolis/movement_regression.ps1`](movement_regression.ps1) gates movement/NPC on **`ArcopolisTest`**,
 [`docs/arcopolis/npc_export_regression.ps1`](npc_export_regression.ps1) gates the **NPC export** on the same
@@ -208,12 +217,15 @@ see [21_SPIKE9B_LIVE_PROTOCOL.md](21_SPIKE9B_LIVE_PROTOCOL.md).
 [`docs/arcopolis/frontend_prototype_regression.ps1`](frontend_prototype_regression.ps1) gates the
 **Spike 10A browser-frontend bridge** on **`ArcopolisTest`**: it starts
 `tools/arcopolis_frontend/prototype_server.py`, drives the whole HTTP API (start → move_n → move_s
-→ wait → export → a `move_up` recoverability probe → quit → restart → shutdown; 15 gates incl.
-the Spike 10B diff-UI static-hook gate 2b) and
+→ wait → export → a `move_up` recoverability probe → quit → restart → shutdown; **17 gates** incl.
+the Spike 10B diff-UI static-hook gate 2b, the Spike 10C tileset gate 2c — `/tileset/info` +
+config + config-derived sheet PNGs + whitelist/traversal 404s + served UI hooks — and the Spike
+10C gate 15, a second `--disable-tileset` server proving the glyph-only fail-safe) and
 asserts the bridge re-derives the SAME `blocked_no_op,moved,waited,no_command` sequence through the
 live protocol, that the backend exits 0 with a final snapshot + transcript, and that the server
-stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROTOTYPE.md) and
-[23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md](23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md).
+stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROTOTYPE.md),
+[23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md](23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md) and
+[24_SPIKE10C_FRONTEND_TILESET_RENDERING.md](24_SPIKE10C_FRONTEND_TILESET_RENDERING.md).
 
 ## Deferred backlog
 
@@ -233,6 +245,12 @@ stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROT
   save/resume of a live session, and a transcript record for rejected requests (an additive
   `"rejected"` event kind). The Spike 10A browser prototype consumes v0 as-is over a polling HTTP
   bridge; push updates (SSE/long-poll) are deferred with the rest.
+- **Frontend tileset rendering depth:** 10C's browser tileset mode is deliberately a v0 render
+  skin, **not** a faithful BN renderer — still deferred: multitile/connection subtiles, rotation
+  and variation-weight selection, animation, `looks_like` resolution (game-data JSON, a separate
+  contract surface), sprite overhang for oversized art, progressive sheet loading, and avatar/NPC
+  sprite identity (blocked on export fields, not frontend work); unresolved ids keep the glyph,
+  the safe visual fallback (see [24_SPIKE10C_FRONTEND_TILESET_RENDERING.md](24_SPIKE10C_FRONTEND_TILESET_RENDERING.md)).
 - **Richer commands:** examine/look, interaction (open/close/smash/pickup), **NPC interaction
   (talk/attack/swap/push — needed to act on a creature-occupied destination, the move-into-NPC no-op in
   [15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md](15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md))**, inventory, targeting,
