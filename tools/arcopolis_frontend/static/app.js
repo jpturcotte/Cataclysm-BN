@@ -15,6 +15,13 @@
  * new ones, changed cells get highlighted, the inspector shows before/after
  * detail, and a summary panel reports counts. Pure observability over the
  * snapshots the bridge re-serves - nothing here invents or mutates state.
+ *
+ * Spike 10C adds an OPTIONAL tileset rendering mode: the page parses the
+ * bridge-served tile_config.json + spritesheets and paints cells as sprite
+ * layers instead of glyphs. The backend snapshot stays the only authority;
+ * the glyph renderer remains the SAFE VISUAL FALLBACK (glyphs are a frontend
+ * interpretation too), used per-cell whenever an id has no usable sprite and
+ * wholesale whenever the tileset is absent or fails to load.
  */
 "use strict";
 
@@ -24,6 +31,8 @@ let inFlight = false;      // one in-flight POST at a time (mirrors the bridge)
 let inspectKey = null;     // "x,y" of the inspected tile, or null
 let lastCells = null;      // cell bundles of the CURRENT snapshot (updateDiff owns it)
 let diffState = emptyDiffState(); // diff of the current snapshot vs the previous one
+let renderMode = "glyph";  // "glyph" | "tileset" - glyph is the safe default
+let tileset = emptyTilesetState(); // optional sprite-skin state (Spike 10C)
 
 const MAX_MAP_SPAN = 64;   // defensive render cap (the window is 25x25 today)
 const DIRECTION_FOR_DELTA = {
@@ -353,10 +362,302 @@ function cellGlyph(cell) {
     return terrainGlyph(cell.tile);
 }
 
+/* --------------------------------------- tileset rendering (Spike 10C) -- */
+/* An OPTIONAL sprite skin over the SAME consumed snapshots. The backend
+ * snapshot stays the only authority; the glyph renderer above remains the
+ * safe visual fallback (glyphs are a frontend interpretation too).
+ *
+ * Sprite-index interpretation mirrors the engine's tileset loader (the
+ * implementing lines are cited in docs/arcopolis/
+ * 24_SPIKE10C_FRONTEND_TILESET_RENDERING.md): fg/bg integers in a MAIN
+ * tileset's tile_config.json are GLOBAL 0-based sprite indices over the
+ * concatenation of every "tiles-new" sheet, each sheet's capacity derived
+ * from its ACTUAL image dimensions (floor(w/spriteW) * floor(h/spriteH)),
+ * sheets in file order, sprites row-major left-to-right top-to-bottom.
+ * Entries may reference sprites in OTHER sheets, so index->sheet resolution
+ * always goes through the global table.
+ *
+ * v0 renders ONE sprite per fg/bg: a plain int as-is; an array of ints
+ * (rotations) -> the first entry (the unrotated/north sprite); a weighted
+ * object array -> the first object's sprite (again first entry when that is
+ * itself a rotation array). multitile additional_tiles, rotation selection,
+ * variation weights, animation and the engine's looks_like fallback chain
+ * are all out of scope: anything unresolved falls back to the glyph. */
+
+function emptyTilesetState() {
+    return {
+        status: "none",   // none | loading | ready | error
+        reason: null,
+        name: null,
+        tileW: 32,        // tile_info width/height: the cell box in pixels
+        tileH: 32,
+        total: 0,         // grand total sprite count across all sheets
+        sheets: [],       // {file, spriteW, spriteH, offX, offY, start, count, cols}
+        ids: null,        // Map id -> {fg: int|null, bg: int|null} (global indices)
+    };
+}
+
+function tilesetActive() {
+    return renderMode === "tileset" && tileset.status === "ready";
+}
+
+function asIndex(value) {
+    return Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+/* One sprite index from a tile_config fg/bg value (the v0 simplifications
+ * from the section comment). Returns a non-negative int or null. */
+function resolveSpriteIndex(value) {
+    if (Number.isInteger(value)) return asIndex(value);
+    if (Array.isArray(value) && value.length) {
+        const first = value[0];
+        if (Number.isInteger(first)) return asIndex(first);     // rotation array
+        if (first && typeof first === "object") {               // weighted variations
+            const sprite = first.sprite;
+            if (Number.isInteger(sprite)) return asIndex(sprite);
+            if (Array.isArray(sprite) && Number.isInteger(sprite[0])) {
+                return asIndex(sprite[0]);                      // weighted rotations
+            }
+        }
+    }
+    return null;
+}
+
+/* Mirrors the engine's post-load range erase: indices outside [0, total)
+ * are dropped, so the entry falls back to the glyph. */
+function validIndex(idx) {
+    return idx !== null && idx >= 0 && idx < tileset.total ? idx : null;
+}
+
+function loadImage(url) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error(`image failed to load: ${url}`));
+        img.src = url;
+    });
+}
+
+async function loadTileset() {
+    tileset = emptyTilesetState();
+    tileset.status = "loading";
+    renderTilesetStatus();
+    try {
+        const info = await api("/tileset/info");
+        if (!info || info.enabled !== true) {
+            tileset.status = "none";
+            tileset.reason = (info && info.reason) || "no tileset configured";
+            return;
+        }
+        tileset.name = typeof info.name === "string" && info.name ? info.name : "tileset";
+        const config = await api("/tileset/tile_config.json");
+        const tileInfo = Array.isArray(config.tile_info) ? config.tile_info[0] : null;
+        const sheetsRaw = config["tiles-new"];
+        if (!tileInfo || !Number.isInteger(tileInfo.width) || tileInfo.width <= 0
+            || !Number.isInteger(tileInfo.height) || tileInfo.height <= 0
+            || !Array.isArray(sheetsRaw) || !sheetsRaw.length) {
+            throw new Error("tile_config.json lacks the tile_info/tiles-new shape");
+        }
+        tileset.tileW = tileInfo.width;
+        tileset.tileH = tileInfo.height;
+        // ALL-OR-NOTHING image load: every sheet's start index depends on the
+        // ACTUAL dimensions of every sheet before it (exactly like the engine
+        // loader), so one missing sheet invalidates the whole table. UX cost,
+        // accepted for the spike: the Tileset button stays disabled until all
+        // sheets finish loading; progressive loading is deferred.
+        const images = await Promise.all(
+            sheetsRaw.map((sheet) => loadImage(`/tileset/${encodeURIComponent(sheet.file)}`)));
+        let offset = 0;
+        sheetsRaw.forEach((sheetDef, i) => {
+            const img = images[i];
+            // A present-but-invalid sprite dimension would corrupt the WHOLE
+            // index table (cols = floor(w/0) = Infinity shifts every later
+            // sheet's start), so it fails the load outright: the fail-safe
+            // contract is "tileset unavailable -> glyph", never
+            // silently-wrong sprites under a "ready" status.
+            for (const key of ["sprite_width", "sprite_height"]) {
+                if (key in sheetDef
+                    && (!Number.isInteger(sheetDef[key]) || sheetDef[key] <= 0)) {
+                    throw new Error(`sheet ${sheetDef.file}: invalid ${key}`);
+                }
+            }
+            const spriteW = Number.isInteger(sheetDef.sprite_width)
+                ? sheetDef.sprite_width : tileset.tileW;
+            const spriteH = Number.isInteger(sheetDef.sprite_height)
+                ? sheetDef.sprite_height : tileset.tileH;
+            const cols = Math.floor(img.naturalWidth / spriteW);
+            const count = cols * Math.floor(img.naturalHeight / spriteH);
+            tileset.sheets.push({
+                file: String(sheetDef.file),
+                spriteW,
+                spriteH,
+                offX: Number.isInteger(sheetDef.sprite_offset_x) ? sheetDef.sprite_offset_x : 0,
+                offY: Number.isInteger(sheetDef.sprite_offset_y) ? sheetDef.sprite_offset_y : 0,
+                start: offset,
+                count,
+                cols,
+            });
+            offset += count;
+        });
+        tileset.total = offset;
+        // Register ids only AFTER the full capacity table exists: fg/bg are
+        // global indices that may point into other sheets, so range
+        // validation needs the grand total. additional_tiles are skipped
+        // (the engine registers those under suffixed ids - out of scope).
+        // Duplicate ids: last one wins, like the engine's map assignment.
+        const ids = new Map();
+        for (const sheetDef of sheetsRaw) {
+            for (const entry of sheetDef.tiles || []) {
+                if (!entry || typeof entry !== "object") continue;
+                const fg = validIndex(resolveSpriteIndex(entry.fg));
+                const bg = validIndex(resolveSpriteIndex(entry.bg));
+                if (fg === null && bg === null) continue;
+                const entryIds = Array.isArray(entry.id) ? entry.id : [entry.id];
+                for (const id of entryIds) {
+                    if (typeof id === "string" && id) ids.set(id, { fg, bg });
+                }
+            }
+        }
+        tileset.ids = ids;
+        tileset.status = "ready";
+    } catch (err) {
+        tileset.status = "error";
+        tileset.reason = String((err && err.message) || err);
+    } finally {
+        if (renderMode === "tileset" && tileset.status !== "ready") {
+            renderMode = "glyph"; // fail safe: never leave a dead mode active
+        }
+        renderTilesetStatus();
+        renderGrid();
+        renderInspector();
+    }
+}
+
+function setRenderMode(mode) {
+    if (mode === "tileset" && tileset.status !== "ready") mode = "glyph";
+    if (mode !== renderMode) {
+        renderMode = mode;
+        // Pure consumers only: a view toggle re-renders but can never touch
+        // updateDiff, so the 10B diff baseline stays put by construction.
+        renderGrid();
+        renderInspector();
+    }
+    renderTilesetStatus();
+}
+
+/* The footer status line + the mode buttons (view toggles - deliberately
+ * NOT gated on canAct(): switching the skin is always allowed). */
+function renderTilesetStatus() {
+    const texts = {
+        none: `glyph only — ${tileset.reason || "no tileset configured"}`,
+        loading: "loading tileset…",
+        ready: `tileset loaded: ${tileset.name}`,
+        error: `tileset unavailable: ${tileset.reason || "load failed"}`,
+    };
+    const status = $("tileset-status");
+    status.textContent = texts[tileset.status] || "";
+    status.classList.toggle("tileset-warn", tileset.status === "error");
+    $("mode-tileset").disabled = tileset.status !== "ready";
+    $("mode-glyph").classList.toggle("mode-active", renderMode === "glyph");
+    $("mode-tileset").classList.toggle("mode-active", renderMode === "tileset");
+}
+
+function tilesetEntry(id) {
+    if (!tileset.ids || !id) return null;
+    return tileset.ids.get(String(id)) || null;
+}
+
+/* Global sprite index -> its sheet + pixel position, mirroring the engine's
+ * row-major bookkeeping. A linear scan over ~17 sheets is fine here. */
+function spriteLocation(idx) {
+    for (const sheet of tileset.sheets) {
+        if (idx >= sheet.start && idx < sheet.start + sheet.count) {
+            const local = idx - sheet.start;
+            return {
+                sheet,
+                px: (local % sheet.cols) * sheet.spriteW,
+                py: Math.floor(local / sheet.cols) * sheet.spriteH,
+            };
+        }
+    }
+    return null;
+}
+
+/* Inspector debug: where an id resolved ("#3239 (normal.png)") or why the
+ * cell will glyph-fallback for it. */
+function spriteDebugLabel(id) {
+    const entry = tilesetEntry(id);
+    const idx = entry === null ? null : (entry.fg !== null ? entry.fg : entry.bg);
+    const loc = idx === null ? null : spriteLocation(idx);
+    if (!loc) return "unresolved → glyph";
+    return `#${idx} (${loc.sheet.file})`;
+}
+
+/* Paint one cell as sprite layers plus, when something has no sprite, the
+ * glyph overlay. Layer order bottom->top: terrain bg/fg, furniture bg/fg,
+ * top ground item bg/fg, first monster bg/fg. "Top item" = the LAST entry
+ * of the exported tile stack and "first monster" = entities order - both
+ * are frontend heuristics; the snapshot defines no stacking order. The
+ * avatar always stays a glyph (the export carries no avatar sprite
+ * identity) and NPCs stay 'N' (no npc type_id in the export). Sprites
+ * larger than the cell clip to it (no overhang in v0). */
+function renderSpriteCell(div, cell) {
+    div.textContent = "";
+    const addLayers = (id) => {
+        const entry = tilesetEntry(id);
+        if (!entry) return false;
+        let drawn = false;
+        for (const key of ["bg", "fg"]) {
+            const loc = entry[key] === null ? null : spriteLocation(entry[key]);
+            if (!loc) continue;
+            const span = document.createElement("span");
+            span.className = "sprite-layer";
+            span.style.left = `${loc.sheet.offX}px`;
+            span.style.top = `${loc.sheet.offY}px`;
+            span.style.width = `${loc.sheet.spriteW}px`;
+            span.style.height = `${loc.sheet.spriteH}px`;
+            span.style.backgroundImage = `url("/tileset/${encodeURIComponent(loc.sheet.file)}")`;
+            span.style.backgroundPosition = `${-loc.px}px ${-loc.py}px`;
+            div.appendChild(span);
+            drawn = true;
+        }
+        return drawn;
+    };
+
+    const terDrawn = addLayers(cell.tile.ter);
+    const furnId = String(cell.tile.furn || "");
+    const hasFurn = furnId !== "" && furnId !== "f_null";
+    const furnDrawn = hasFurn ? addLayers(furnId) : false;
+    const topItem = cell.items.length ? cell.items[cell.items.length - 1] : null;
+    const itemDrawn = topItem ? addLayers(topItem.type_id) : false;
+    const monster = cell.monsters.length ? cell.monsters[0] : null;
+    const monsterDrawn = monster ? addLayers(monster.type_id) : false;
+
+    // ONE glyph overlay: the existing glyph logic picks the cell's
+    // representative glyph, and it is shown unless its referent just
+    // rendered as a sprite. With furniture present, terrainGlyph's verdict
+    // is always furniture-derived, so the furn layer decides suppression.
+    const [glyph, family] = cellGlyph(cell);
+    let show;
+    if (family === "avatar" || family === "npc") show = true;
+    else if (family === "monster") show = !monsterDrawn;
+    else if (family === "item") show = !itemDrawn;
+    else if (hasFurn) show = !furnDrawn;
+    else show = !terDrawn;
+    if (show && glyph !== " ") {
+        const overlay = document.createElement("span");
+        overlay.className = `cell-glyph g-${family}`;
+        overlay.textContent = glyph;
+        div.appendChild(overlay);
+    }
+}
+
 function renderGrid() {
     const grid = $("grid");
     grid.innerHTML = "";
     grid.style.gridTemplateColumns = "";
+    const tilesetOn = tilesetActive();
+    grid.classList.toggle("tileset-mode", tilesetOn);
     // Cells are built ONLY by updateDiff, so a click-driven repaint can never
     // rebuild them or shift the diff baseline; this is a pure consumer.
     const cells = lastCells;
@@ -376,7 +677,13 @@ function renderGrid() {
         grid.appendChild(placeholder("snapshot window too large to render"));
         return;
     }
-    grid.style.gridTemplateColumns = `repeat(${maxX - minX + 1}, 1.25em)`;
+    grid.style.gridTemplateColumns =
+        `repeat(${maxX - minX + 1}, ${tilesetOn ? tileset.tileW + "px" : "1.25em"})`;
+    if (tilesetOn) {
+        // The cell box tracks tile_info (32x32 for UltimateCataclysm).
+        grid.style.setProperty("--tile-w", `${tileset.tileW}px`);
+        grid.style.setProperty("--tile-h", `${tileset.tileH}px`);
+    }
     for (let y = minY; y <= maxY; y++) {
         for (let x = minX; x <= maxX; x++) {
             const cell = cells.get(`${x},${y}`);
@@ -402,6 +709,9 @@ function renderGrid() {
                     if (record.entities) div.classList.add("changed-entities");
                 }
             }
+            // Tileset mode repaints the cell as sprite layers + an optional
+            // glyph overlay; glyph mode keeps the text node above untouched.
+            if (tilesetOn && cell) renderSpriteCell(div, cell);
             if (inspectKey === `${x},${y}`) div.classList.add("inspected");
             grid.appendChild(div);
         }
@@ -547,6 +857,19 @@ function renderInspector() {
         const direction = DIRECTION_FOR_DELTA[`${dx},${dy}`];
         if (direction) rows.push(["reachable via", direction]);
     }
+    // Spike 10C debug affordance: how each aspect resolves against the
+    // loaded tileset (reported in glyph mode too - resolution is a property
+    // of the tileset, not of the active skin).
+    if (tileset.status === "ready") {
+        rows.push(["ter sprite", spriteDebugLabel(cell.tile.ter)]);
+        const furnId = String(cell.tile.furn || "");
+        if (furnId && furnId !== "f_null") {
+            rows.push(["furn sprite", spriteDebugLabel(furnId)]);
+        }
+        const topEntity = cell.monsters.length ? cell.monsters[0]
+            : cell.items.length ? cell.items[cell.items.length - 1] : null;
+        if (topEntity) rows.push(["entity sprite", spriteDebugLabel(topEntity.type_id)]);
+    }
     for (const [label, value] of rows) {
         const dt = document.createElement("dt");
         dt.textContent = label;
@@ -664,6 +987,8 @@ function init() {
             post("/api/command", { command: "move", direction: button.dataset.direction }));
     }
     $("error-dismiss").addEventListener("click", clearError);
+    $("mode-glyph").addEventListener("click", () => setRenderMode("glyph"));
+    $("mode-tileset").addEventListener("click", () => setRenderMode("tileset"));
 
     // Click an adjacent cardinal tile to move; click anything else (or
     // Shift-click anywhere, so adjacent tiles stay inspectable) to inspect.
@@ -686,6 +1011,7 @@ function init() {
         renderInspector();
     });
 
+    loadTileset(); // async; the UI stays glyph-only until (and unless) it succeeds
     refresh();
     setInterval(refresh, 1000); // freshness fallback; POSTs render immediately
 }
