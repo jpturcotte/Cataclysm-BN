@@ -1472,6 +1472,16 @@ int input_manager::get_previously_pressed_key() const
 
 void input_manager::wait_for_any_key()
 {
+    // Arcopolis backend sessions (the headless --arcopolis-* modes) have no key source. This raw
+    // "press any key" prompt reads inp_mngr.get_input_event() DIRECTLY, bypassing the
+    // input_context::handle_input seam, so the backend's input guard there does not cover it; headless
+    // it would busy-wait forever (get_input_event loops internally on inputdelay < 0). It is reachable
+    // e.g. by examining a CONSOLE tile -> game::use_computer -> computer_session::query_any. Return
+    // immediately during a backend session -- faithfully equivalent to the player pressing a key to
+    // dismiss the prompt -- so this raw-read class cannot hang the backend.
+    if( arcopolis::backend_session_active() ) {
+        return;
+    }
 #if defined(__ANDROID__)
     input_context ctxt( "WAIT_FOR_ANY_KEY" );
 #endif
