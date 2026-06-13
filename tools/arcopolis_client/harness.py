@@ -80,20 +80,33 @@ SESSION_LOG_NAME = "session.jsonl"
 # the render loops. Same cap as the Spike 4 viewer.
 MAX_MAP_SPAN = 256
 
-# The backend's COMPLETE command vocabulary (src/arcopolis_command.cpp,
-# command_to_action): "wait" -> ACTION_PAUSE and "move" + a cardinal direction.
-# run mode whitelists EXACTLY these tokens and rejects anything else BEFORE
-# launching a subprocess, so a harness-vocabulary mistake can never be confused
-# with a backend command failure (backend exit 6).
-COMMAND_TOKENS = ("wait", "move_n", "move_s", "move_e", "move_w")
+# The harness's run/live MOVEMENT vocabulary: "wait" -> ACTION_PAUSE and "move" +
+# any of the EIGHT planar directions (the four cardinals plus the four diagonals --
+# all dispatched through the same avatar_action::move body). This is INTENTIONALLY
+# wait + planar-move only: it is NOT the backend's complete vocabulary, which since
+# Spike 11A also includes "examine" (src/arcopolis_command.cpp, command_to_action).
+# examine is a prompted/nested-input interaction driven by its own regression path
+# (docs/arcopolis/examine_live_driver.py + examine_regression.ps1), not through this
+# movement-oriented harness. run/live whitelist EXACTLY these tokens and reject
+# anything else BEFORE launching a subprocess, so a harness-vocabulary mistake can
+# never be confused with a backend command failure (backend exit 6).
+COMMAND_TOKENS = ("wait",
+                  "move_n", "move_s", "move_e", "move_w",
+                  "move_ne", "move_nw", "move_se", "move_sw")
 
 # Local/absolute coordinate frames share orientation: y grows SOUTH (move_s is
-# +y), x grows EAST. Deltas are (dx, dy) on the same z-level.
+# +y), x grows EAST. Deltas are (dx, dy) on the same z-level. Diagonals combine
+# the two axes (move_ne = +x,-y; move_sw = -x,+y), matching the engine's
+# get_direction mapping the backend mirrors.
 DIRECTION_DELTAS = {
     "move_n": (0, -1),
     "move_s": (0, 1),
     "move_e": (1, 0),
     "move_w": (-1, 0),
+    "move_ne": (1, -1),
+    "move_nw": (-1, -1),
+    "move_se": (1, 1),
+    "move_sw": (-1, 1),
 }
 DELTA_DIRECTIONS = {v: k for k, v in DIRECTION_DELTAS.items()}
 
