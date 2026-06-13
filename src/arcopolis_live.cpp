@@ -187,6 +187,15 @@ auto live_next_action() -> action_id
                                               .command = req->command,
                                               .direction = req->direction,
                                               .action_id = std::optional<std::string>( action_ident( *resolved ) ) } );
+            // Spike 11A: arm the one-shot direction answer AFTER the command event (arming emits
+            // nothing, so this dispatch's nested_input_* events all order after its command event).
+            if( req->command == "examine" ) {
+                if( const auto answer = arcopolis::examine_nested_answer( req->direction ) ) {
+                    arcopolis::backend_arm_nested_input( { .action = *answer,
+                                                           .direction = req->direction,
+                                                           .step_index = step_index } );
+                }
+            }
             pump.pending = live_pending{ .id = req->id, .name = req->name, .step_index = step_index };
             return *resolved;
         }
@@ -425,7 +434,10 @@ auto arcopolis::run_live( const live_options &opts ) -> int
     if( !begin_session_log( { .world = opts.world,
                               .seed = opts.seed,
                               .export_dir = opts.export_dir,
-                              .game_version = std::string( getVersionString() ) } ) ) {
+                              .game_version = std::string( getVersionString() ),
+                              // Spike 11A: record (never override) the loaded chooser-autoselect option, so
+                              // examine witnesses are config-explicit (docs/arcopolis/25, gate (h)).
+                              .autoselect_single_valid_target = get_option<bool>( "AUTOSELECT_SINGLE_VALID_TARGET" ) } ) ) {
         std::cerr << "arcopolis: failed to open session transcript in '" << opts.export_dir << "'\n";
         end_backend_session();
         return exit_code_for( command_error_kind::export_failed );

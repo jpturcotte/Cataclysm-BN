@@ -58,6 +58,8 @@ auto error_kind_name( arcopolis::command_error_kind kind ) -> std::string
             return "backend_stalled";
         case kind_t::game_over:
             return "game_over";
+        case kind_t::nested_input_failed:
+            return "nested_input_failed";
     }
     return "unknown";
 }
@@ -85,6 +87,7 @@ auto arcopolis::write_session_start_line( std::ostream &out, const session_start
     }
     json.member( "export_dir", ev.export_dir );
     json.member( "game_version", ev.game_version );
+    json.member( "autoselect_single_valid_target", ev.autoselect_single_valid_target );
     json.end_object();
     out << '\n';
 }
@@ -139,6 +142,52 @@ auto arcopolis::write_error_line( std::ostream &out, const error_event &ev ) -> 
     json.member( "kind", error_kind_name( ev.kind ) );
     json.member( "detail", ev.detail );
     json.member( "exit_code", exit_code_for( ev.kind ) );
+    json.end_object();
+    out << '\n';
+}
+
+auto arcopolis::write_nested_input_answer_line( std::ostream &out,
+        const nested_input_answer_event &ev ) -> void
+{
+    JsonOut json( out, /*pretty_print=*/false );
+    begin_record( json, "nested_input_answer" );
+    if( ev.step_index ) {
+        json.member( "step_index", *ev.step_index );
+    }
+    json.member( "context", ev.context );
+    json.member( "direction", ev.direction );
+    json.member( "action", ev.action );
+    json.end_object();
+    out << '\n';
+}
+
+auto arcopolis::write_nested_input_guard_line( std::ostream &out,
+        const nested_input_guard_event &ev ) -> void
+{
+    JsonOut json( out, /*pretty_print=*/false );
+    begin_record( json, "nested_input_guard" );
+    if( ev.step_index ) {
+        json.member( "step_index", *ev.step_index );
+    }
+    json.member( "context", ev.context );
+    json.member( "action", ev.action );
+    json.member( "reason", ev.reason );
+    json.member( "fires", ev.fires );
+    json.end_object();
+    out << '\n';
+}
+
+auto arcopolis::write_nested_input_unconsumed_line( std::ostream &out,
+        const nested_input_unconsumed_event &ev ) -> void
+{
+    JsonOut json( out, /*pretty_print=*/false );
+    begin_record( json, "nested_input_unconsumed" );
+    if( ev.step_index ) {
+        json.member( "step_index", *ev.step_index );
+    }
+    json.member( "direction", ev.direction );
+    json.member( "action", ev.action );
+    json.member( "reason", ev.reason );
     json.end_object();
     out << '\n';
 }
@@ -206,6 +255,34 @@ auto arcopolis::session_log_error( const error_event &ev ) -> void
         return;
     }
     write_error_line( *s_log.stream, ev );
+    s_log.stream.flush();
+}
+
+auto arcopolis::session_log_nested_input_answer( const nested_input_answer_event &ev ) -> void
+{
+    if( !s_log.active ) {
+        return;
+    }
+    write_nested_input_answer_line( *s_log.stream, ev );
+    s_log.stream.flush();
+}
+
+auto arcopolis::session_log_nested_input_guard( const nested_input_guard_event &ev ) -> void
+{
+    if( !s_log.active ) {
+        return;
+    }
+    write_nested_input_guard_line( *s_log.stream, ev );
+    s_log.stream.flush();
+}
+
+auto arcopolis::session_log_nested_input_unconsumed( const nested_input_unconsumed_event &ev ) ->
+void
+{
+    if( !s_log.active ) {
+        return;
+    }
+    write_nested_input_unconsumed_line( *s_log.stream, ev );
     s_log.stream.flush();
 }
 

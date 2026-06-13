@@ -23,11 +23,16 @@ struct session_log_point {
 
 /// `session_start`: the run is about to begin. `seed` is omitted when absent (the CLI seed is not currently
 /// threaded into the backend -- see docs/arcopolis/11). `game_version` is getVersionString().
+/// `autoselect_single_valid_target` records the loaded AUTOSELECT_SINGLE_VALID_TARGET interface option
+/// (Spike 11A): it decides whether the engine's direction chooser prompts at 0/1 valid targets, so
+/// recording it makes examine witnesses config-explicit -- the option itself is NEVER overridden
+/// (docs/arcopolis/25, design point 2).
 struct session_start_event {
     std::string world;
     std::optional<std::string> seed;
     std::string export_dir;
     std::string game_version;
+    bool autoselect_single_valid_target = false;
 };
 
 /// `command`: one backend command was queued into the engine at the input seam. `direction` is omitted
@@ -81,6 +86,42 @@ struct session_end_summary {
     std::optional<session_log_point> final_pos_abs;
 };
 
+// --- Spike 11A nested-input observability: every backend intervention at a nested input read is a
+// transcript event, so auto-cancels can never silently mask a real interaction. ---
+
+/// `nested_input_answer`: the one-shot armed direction answer was served to a nested input read (the
+/// engine's direction chooser). `context` is the asking input_context category; `action` is the served
+/// input-context action id -- the keystroke mirror, not an engine action_id.
+struct nested_input_answer_event {
+    std::optional<int> step_index;  ///< the arming command's step index; omitted when unknown
+    std::string context;            ///< asking input_context category (e.g. "DEFAULTMODE")
+    std::string direction;          ///< the arming command's direction token (e.g. "move_n")
+    std::string action;             ///< the served action id (e.g. "UP", "pause")
+};
+
+/// `nested_input_guard`: the auto-cancel guard answered a nested input read with the context's registered
+/// cancel action (== the GUI player pressing ESC; the engine runs its own cancel path). `reason` is
+/// "no_answer" (nothing armed), "context_mismatch" (an answer is armed but this context is not the
+/// direction chooser), or "answer_not_registered" (the chooser-category context did not register the
+/// armed action). `fires` is the running guard-fire count for the current command.
+struct nested_input_guard_event {
+    std::optional<int> step_index;  ///< the current command's step index; omitted when unknown
+    std::string context;            ///< asking input_context category (e.g. "PICKUP")
+    std::string action;             ///< the cancel action returned ("QUIT" or "TEXT.QUIT")
+    std::string reason;
+    int fires = 0;
+};
+
+/// `nested_input_unconsumed`: an armed answer was never asked for by the time control returned to the
+/// top-level input seam (e.g. the engine auto-selected the sole valid target and skipped the chooser);
+/// the slot was force-cleared so it cannot leak into a later prompt.
+struct nested_input_unconsumed_event {
+    std::optional<int> step_index;  ///< the arming command's step index; omitted when unknown
+    std::string direction;          ///< the armed direction token
+    std::string action;             ///< the armed (never served) action id
+    std::string reason;             ///< "command_completed"
+};
+
 // --- Pure formatters: each writes exactly one JSON Lines record (a compact object + trailing '\n') to
 // `out`. Exposed so the transcript format can be unit-tested without a file or a loaded world. ---
 
@@ -89,6 +130,11 @@ auto write_command_line( std::ostream &out, const command_event &ev ) -> void;
 auto write_export_line( std::ostream &out, const export_event &ev ) -> void;
 auto write_error_line( std::ostream &out, const error_event &ev ) -> void;
 auto write_session_end_line( std::ostream &out, const session_end_event &ev ) -> void;
+auto write_nested_input_answer_line( std::ostream &out,
+                                     const nested_input_answer_event &ev ) -> void;
+auto write_nested_input_guard_line( std::ostream &out, const nested_input_guard_event &ev ) -> void;
+auto write_nested_input_unconsumed_line( std::ostream &out,
+        const nested_input_unconsumed_event &ev ) -> void;
 
 // --- Stateful session transcript (one file-scoped session at a time). All of these are no-ops while no
 // log is open, so they stay inert during normal play and in unit tests that drive the input provider
@@ -108,6 +154,15 @@ auto session_log_export( const export_event &ev ) -> void;
 
 /// Writes an `error` record. No-op if no log is open.
 auto session_log_error( const error_event &ev ) -> void;
+
+/// Writes a `nested_input_answer` record. No-op if no log is open. (Spike 11A)
+auto session_log_nested_input_answer( const nested_input_answer_event &ev ) -> void;
+
+/// Writes a `nested_input_guard` record. No-op if no log is open. (Spike 11A)
+auto session_log_nested_input_guard( const nested_input_guard_event &ev ) -> void;
+
+/// Writes a `nested_input_unconsumed` record. No-op if no log is open. (Spike 11A)
+auto session_log_nested_input_unconsumed( const nested_input_unconsumed_event &ev ) -> void;
 
 /// Writes the final `session_end` record (filling snapshots/commands from the counters), flushes, closes
 /// the file, and clears the session. No-op if no log is open.

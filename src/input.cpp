@@ -14,6 +14,7 @@
 #include <utility>
 
 #include "action.h"
+#include "arcopolis_backend_input.h"
 #include "catacharset.h"
 #include "cursesdef.h"
 #include "debug.h"
@@ -930,6 +931,21 @@ const std::string &input_context::handle_input()
 const std::string &input_context::handle_input( const int timeout )
 {
     ZoneScopedN( "input_context_handle_input" );
+    // Arcopolis backend sessions (the headless --arcopolis-* modes) answer blocking reads here: the
+    // backend seam in handle_action() supplies the only top-level action, so any blocking read that
+    // reaches this point during a session is a nested prompt that would otherwise busy-wait forever
+    // (no input can ever arrive headless). The hook returns the session's armed one-shot answer or
+    // this context's registered cancel action ("the player pressed ESC"); it returns null for
+    // timeout-bounded polls and always outside a session, leaving this read untouched. The private
+    // category/registered_actions are passed directly because their accessors are Android-only.
+    if( arcopolis::backend_session_active() ) {
+        const std::string *backend_action =
+            arcopolis::backend_nested_input_action( category, registered_actions, timeout );
+        if( backend_action != nullptr ) {
+            next_action = input_event();
+            return *backend_action;
+        }
+    }
     const auto old_timeout = inp_mngr.get_timeout();
     if( timeout >= 0 ) {
         inp_mngr.set_timeout( timeout );

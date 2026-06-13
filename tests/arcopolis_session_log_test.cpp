@@ -284,3 +284,97 @@ TEST_CASE( "arcopolis transcript is valid JSON Lines: every line parses as a JSO
     }
     CHECK( parsed == 5 );
 }
+
+TEST_CASE( "arcopolis session_start records the loaded autoselect option", "[arcopolis]" )
+{
+    // Spike 11A, doc 25 gate (h): the loaded AUTOSELECT_SINGLE_VALID_TARGET value is RECORDED (never
+    // overridden) so examine witnesses are config-explicit.
+    std::ostringstream out_true;
+    arcopolis::write_session_start_line( out_true, { .world = "W", .export_dir = "d",
+                                         .game_version = "v",
+                                         .autoselect_single_valid_target = true
+                                                   } );
+    with_record( out_true.str(), []( const auto & obj ) {
+        REQUIRE( obj.has_member( "autoselect_single_valid_target" ) );
+        CHECK( obj.get_bool( "autoselect_single_valid_target" ) );
+    } );
+
+    std::ostringstream out_false;
+    arcopolis::write_session_start_line( out_false, { .world = "W", .export_dir = "d",
+                                         .game_version = "v",
+                                         .autoselect_single_valid_target = false
+                                                    } );
+    with_record( out_false.str(), []( const auto & obj ) {
+        REQUIRE( obj.has_member( "autoselect_single_valid_target" ) );
+        CHECK_FALSE( obj.get_bool( "autoselect_single_valid_target" ) );
+    } );
+}
+
+TEST_CASE( "arcopolis nested_input_answer record carries context, direction and action",
+           "[arcopolis]" )
+{
+    std::ostringstream out;
+    arcopolis::write_nested_input_answer_line( out, { .step_index = std::optional<int>( 3 ),
+            .context = "DEFAULTMODE",
+            .direction = "move_n",
+            .action = "UP"
+                                                    } );
+    with_record( out.str(), []( const auto & obj ) {
+        CHECK( obj.get_string( "event" ) == "nested_input_answer" );
+        CHECK( obj.get_int( "step_index" ) == 3 );
+        CHECK( obj.get_string( "context" ) == "DEFAULTMODE" );
+        CHECK( obj.get_string( "direction" ) == "move_n" );
+        CHECK( obj.get_string( "action" ) == "UP" );
+    } );
+}
+
+TEST_CASE( "arcopolis nested_input_guard record carries the cancel, reason and fire count",
+           "[arcopolis]" )
+{
+    std::ostringstream out;
+    arcopolis::write_nested_input_guard_line( out, { .step_index = std::nullopt,
+            .context = "PICKUP",
+            .action = "QUIT",
+            .reason = "no_answer",
+            .fires = 1
+                                                   } );
+    with_record( out.str(), []( const auto & obj ) {
+        CHECK( obj.get_string( "event" ) == "nested_input_guard" );
+        CHECK_FALSE( obj.has_member( "step_index" ) );  // omitted when unknown
+        CHECK( obj.get_string( "context" ) == "PICKUP" );
+        CHECK( obj.get_string( "action" ) == "QUIT" );
+        CHECK( obj.get_string( "reason" ) == "no_answer" );
+        CHECK( obj.get_int( "fires" ) == 1 );
+    } );
+}
+
+TEST_CASE( "arcopolis nested_input_unconsumed record explains the force-clear", "[arcopolis]" )
+{
+    std::ostringstream out;
+    arcopolis::write_nested_input_unconsumed_line( out, { .step_index = std::optional<int>( 4 ),
+            .direction = "move_w",
+            .action = "LEFT",
+            .reason = "command_completed"
+                                                        } );
+    with_record( out.str(), []( const auto & obj ) {
+        CHECK( obj.get_string( "event" ) == "nested_input_unconsumed" );
+        CHECK( obj.get_int( "step_index" ) == 4 );
+        CHECK( obj.get_string( "direction" ) == "move_w" );
+        CHECK( obj.get_string( "action" ) == "LEFT" );
+        CHECK( obj.get_string( "reason" ) == "command_completed" );
+    } );
+}
+
+TEST_CASE( "arcopolis error record names nested_input_failed with exit code 12", "[arcopolis]" )
+{
+    std::ostringstream out;
+    arcopolis::write_error_line( out, { .step_index = std::nullopt,
+                                        .kind = arcopolis::command_error_kind::nested_input_failed,
+                                        .detail = "no cancel action registered"
+                                      } );
+    with_record( out.str(), []( const auto & obj ) {
+        CHECK( obj.get_string( "event" ) == "error" );
+        CHECK( obj.get_string( "kind" ) == "nested_input_failed" );
+        CHECK( obj.get_int( "exit_code" ) == 12 );
+    } );
+}

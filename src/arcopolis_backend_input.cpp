@@ -1,7 +1,10 @@
 #include "arcopolis_backend_input.h"
 
+#include <algorithm>
 #include <cstddef>
+#include <cstdlib>
 #include <filesystem>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <vector>
@@ -16,6 +19,16 @@
 namespace
 {
 
+/// The Spike 11A one-shot nested-input slot. Kept (with `consumed` set) until control returns to the
+/// top-level seam, so guard events fired later in the SAME dispatch (e.g. examine's pickup tail) can
+/// still cite the arming command's step_index.
+struct nested_input_slot {
+    std::string action;             ///< input-context action id to serve (e.g. "UP", "pause")
+    std::string direction;          ///< the arming command's direction token (e.g. "move_n")
+    std::optional<int> step_index;  ///< the arming command's step index
+    bool consumed = false;          ///< the answer was served (one-shot)
+};
+
 /// Translation-unit-local backend session. A single instance; begin/end toggle `active`. While `active`,
 /// game::handle_action() pulls its per-iteration action from next_backend_action() (the seam in
 /// handle_action.cpp), so the engine's do_turn runs verbatim with the backend as its input source.
@@ -28,9 +41,80 @@ struct backend_session {
     bool done = false;
     std::optional<arcopolis::command_error> failure;
     arcopolis::backend_action_source live_source;  ///< Spike 9B: replaces the steps walk when set
+    std::optional<nested_input_slot> nested;       ///< Spike 11A: the one-shot nested-input answer
+    int nested_guard_fires = 0;                    ///< Spike 11A: guard fires for the current command
 };
 
 backend_session session;
+
+/// The category of the engine's direction chooser (`choose_direction`, src/action.cpp) -- the only
+/// context the armed answer may be served to. Anything else asking is not the question the command
+/// armed an answer for, so the guard cancels it instead (docs/arcopolis/25, design point 1).
+const std::string nested_chooser_category = "DEFAULTMODE";
+/// The cancel action ids the guard may return: "QUIT" everywhere it is registered, "TEXT.QUIT" for the
+/// engine's text-input context (src/string_input_popup.cpp registers no plain QUIT).
+const std::string nested_cancel_quit = "QUIT";
+const std::string nested_cancel_text_quit = "TEXT.QUIT";
+/// Stable storage for a served answer: input_context::handle_input returns a const reference, so the
+/// returned string must outlive the call (same pattern as input.cpp's own CATA_ERROR/TIMEOUT statics).
+std::string nested_served_action;
+
+/// Force-clears the nested slot at a return to the top-level seam. An armed-but-unconsumed answer is
+/// recorded as a `nested_input_unconsumed` transcript event BEFORE any pending live response is written
+/// (the caller runs this before the live pull), then dropped so it can never leak into a later
+/// command's prompts (docs/arcopolis/25, design point 1). Also resets the per-command fire counter.
+auto clear_stale_nested_input() -> void
+{
+    if( session.nested && !session.nested->consumed ) {
+        arcopolis::session_log_nested_input_unconsumed( {
+            .step_index = session.nested->step_index,
+            .direction = session.nested->direction,
+            .action = session.nested->action,
+            .reason = "command_completed",
+        } );
+    }
+    session.nested.reset();
+    session.nested_guard_fires = 0;
+}
+
+/// The machine-readable name a `nested_input_guard` event records for its reason.
+auto nested_guard_reason_name( arcopolis::nested_input_guard_reason reason ) -> std::string
+{
+    switch( reason ) {
+        case arcopolis::nested_input_guard_reason::no_answer:
+            return "no_answer";
+        case arcopolis::nested_input_guard_reason::context_mismatch:
+            return "context_mismatch";
+        case arcopolis::nested_input_guard_reason::answer_not_registered:
+            return "answer_not_registered";
+        case arcopolis::nested_input_guard_reason::none:
+            break;
+    }
+    return "none";
+}
+
+/// Last-resort hard-fail for a nested read the backend can neither answer nor cancel: a transcript
+/// `error`, a stderr line, then an immediate process exit. Deliberately NOT a recoverable path -- the
+/// alternative is a silent headless busy-wait no backstop can see (docs/arcopolis/25). Skipping the
+/// final snapshot / session_end tail is accepted: the exit code (12) and the flushed error event are
+/// the observable contract ("fatal backend contract violation, observed as EOF + exit 12").
+[[noreturn]] auto nested_input_hard_fail( const std::string &category,
+        const std::optional<int> &step_index, int fires ) -> void
+{
+    const auto detail = fires >= arcopolis::nested_input_guard_fire_limit
+                        ? string_format( "nested input guard fire limit (%d) exceeded in input context '%s' "
+                                         "(a nested loop is ignoring its cancel action)",
+                                         arcopolis::nested_input_guard_fire_limit, category )
+                        : string_format( "nested input read in input context '%s' has no servable answer and no "
+                                         "registered cancel action", category );
+    arcopolis::session_log_error( {
+        .step_index = step_index,
+        .kind = arcopolis::command_error_kind::nested_input_failed,
+        .detail = detail,
+    } );
+    std::cerr << "arcopolis: " << detail << "\n";
+    std::_Exit( arcopolis::exit_code_for( arcopolis::command_error_kind::nested_input_failed ) );
+}
 
 /// Writes one session snapshot (an `export` step, a live-protocol export, or the final-on-exit terminal
 /// snapshot) using the live session's export dir + running index. On failure records session.failure,
@@ -131,6 +215,11 @@ auto arcopolis::backend_session_failure() -> std::optional<command_error>
 
 auto arcopolis::next_backend_action() -> action_id
 {
+    // Spike 11A: control is back at the top-level seam, so the previous command's dispatch is complete
+    // and an armed-but-unconsumed nested answer is stale -- force-clear it (with its transcript event)
+    // BEFORE the live pull below, so the event precedes the pending live response written inside the
+    // pull and can never leak into the next command's prompts.
+    clear_stale_nested_input();
     // Spike 9B live mode: the session's pull source replaces the steps walk entirely. It runs at this
     // same faithful input-loop instant and owns its exports/termination (backend_mark_input_done()).
     if( session.live_source ) {
@@ -165,6 +254,15 @@ auto arcopolis::next_backend_action() -> action_id
             .direction = step.direction,
             .action_id = resolved ? std::optional<std::string>( action_ident( *resolved ) ) : std::nullopt,
         } );
+        // Spike 11A: arm the one-shot direction answer AFTER the command event (arming emits nothing,
+        // so every nested_input_* event of this dispatch orders after its command event).
+        if( step.command == "examine" && resolved ) {
+            if( const auto answer = examine_nested_answer( step.direction ) ) {
+                backend_arm_nested_input( { .action = *answer,
+                                            .direction = step.direction,
+                                            .step_index = step_index } );
+            }
+        }
         return resolved.value_or( ACTION_NULL );
     }
     // Cursor exhausted: signal "done" so do_turn's clean-stop parks the turn before the bottom half.
@@ -179,6 +277,111 @@ auto arcopolis::backend_mark_input_done() -> void
     if( session.active ) {
         session.done = true;
     }
+}
+
+auto arcopolis::backend_arm_nested_input( const nested_input_request &req ) -> void
+{
+    // Inert outside a session, like every other public mutator: normal play must never see a slot.
+    if( !session.active ) {
+        return;
+    }
+    session.nested = nested_input_slot{
+        .action = req.action,
+        .direction = req.direction,
+        .step_index = req.step_index,
+        .consumed = false,
+    };
+    session.nested_guard_fires = 0;
+}
+
+auto arcopolis::backend_nested_input_armed() -> bool
+{
+    return session.nested.has_value() && !session.nested->consumed;
+}
+
+auto arcopolis::decide_nested_input( const nested_input_observation &obs ) -> nested_input_decision
+{
+    // A timeout >= 0 read is a poll (e.g. the activity-interrupt check, game.cpp
+    // handle_key_blocking_activity's handle_input( 0 )): it returns by itself headless, so the engine's
+    // own read runs untouched. Only a timeout < 0 read blocks forever headless -- that is the moment a
+    // keypress (the armed answer) or ESC (the cancel) is THE faithful input.
+    if( obs.timeout >= 0 ) {
+        return { .outcome = nested_input_outcome::pass_through };
+    }
+    if( obs.armed && obs.category == nested_chooser_category && obs.answer_registered ) {
+        return { .outcome = nested_input_outcome::serve };
+    }
+    const auto reason = !obs.armed
+                        ? nested_input_guard_reason::no_answer
+                        : obs.category != nested_chooser_category
+                        ? nested_input_guard_reason::context_mismatch
+                        : nested_input_guard_reason::answer_not_registered;
+    if( obs.fires >= nested_input_guard_fire_limit ) {
+        return { .outcome = nested_input_outcome::hard_fail, .reason = reason };
+    }
+    if( obs.quit_registered ) {
+        return { .outcome = nested_input_outcome::cancel_quit, .reason = reason };
+    }
+    if( obs.text_quit_registered ) {
+        return { .outcome = nested_input_outcome::cancel_text_quit, .reason = reason };
+    }
+    return { .outcome = nested_input_outcome::hard_fail, .reason = reason };
+}
+
+auto arcopolis::backend_nested_input_action( const std::string &category,
+        const std::vector<std::string> &registered_actions,
+        const int timeout ) -> const std::string * // *NOPAD*
+{
+    namespace ranges = std::ranges;
+    // Defense in depth: the engine call site is already gated on backend_session_active().
+    if( !session.active ) {
+        return nullptr;
+    }
+    const auto armed = backend_nested_input_armed();
+    const auto decision = decide_nested_input( {
+        .armed = armed,
+        .timeout = timeout,
+        .category = category,
+        .answer_registered = armed && ranges::contains( registered_actions, session.nested->action ),
+        .quit_registered = ranges::contains( registered_actions, nested_cancel_quit ),
+        .text_quit_registered = ranges::contains( registered_actions, nested_cancel_text_quit ),
+        .fires = session.nested_guard_fires,
+    } );
+    // The guard cites the arming command's step_index while the slot survives (it is kept, consumed,
+    // until the next seam return); a guard fire with no slot at all has no index to cite.
+    const auto step_index = session.nested ? session.nested->step_index : std::nullopt;
+    switch( decision.outcome ) {
+        case nested_input_outcome::pass_through:
+            return nullptr;
+        case nested_input_outcome::serve:
+            session.nested->consumed = true;
+            nested_served_action = session.nested->action;
+            session_log_nested_input_answer( {
+                .step_index = session.nested->step_index,
+                .context = category,
+                .direction = session.nested->direction,
+                .action = nested_served_action,
+            } );
+            return &nested_served_action;
+        case nested_input_outcome::cancel_quit:
+        case nested_input_outcome::cancel_text_quit: {
+            ++session.nested_guard_fires;
+            const auto &cancel = decision.outcome == nested_input_outcome::cancel_quit
+                                 ? nested_cancel_quit
+                                 : nested_cancel_text_quit;
+            session_log_nested_input_guard( {
+                .step_index = step_index,
+                .context = category,
+                .action = cancel,
+                .reason = nested_guard_reason_name( decision.reason ),
+                .fires = session.nested_guard_fires,
+            } );
+            return &cancel;
+        }
+        case nested_input_outcome::hard_fail:
+            nested_input_hard_fail( category, step_index, session.nested_guard_fires );
+    }
+    return nullptr;  // unreachable; defensive default
 }
 
 auto arcopolis::backend_write_step_snapshot( const std::string &label,

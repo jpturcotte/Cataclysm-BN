@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 10C, 2026-06-12; Spike 11A-prep is a documentation-only decision record — nothing new built)
+# Arcopolis backend — current state (truth as of Spike 11A, 2026-06-12)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -31,11 +31,14 @@ git switch arcopolis && git rebase main                                        #
 git push --force-with-lease origin arcopolis
 ```
 
-`git rerere` replays the two recurring rebase conflicts automatically **once trained** (shapes as of
+`git rerere` replays the recurring rebase conflicts automatically **once trained** (shapes as of
 the 2026-06-10 sync): the `first_pass_arguments` array tail in `src/main.cpp` (upstream and Arcopolis
 both append entries at the same spot), and the backend input branch in `src/handle_action.cpp` (it
 leads `handle_action()`'s input-dispatch chain, inside upstream's `handle_action_get_action` scope).
-The `do_turn` clean-park (`src/game.cpp`) currently merges clean without a conflict. The resolution
+Spike 11A adds a **third collision surface**: the nested-input hook at the top of
+`input_context::handle_input( const int timeout )` in `src/input.cpp` — any upstream change to that
+function's head collides there. The `do_turn` clean-park (`src/game.cpp`) currently merges clean
+without a conflict. The resolution
 cache (`.git/rr-cache`) is **local to each clone** and is not shared by git, so a fresh checkout hits
 the conflicts and must resolve them by hand the first time (which trains that clone's cache); they
 auto-replay only afterward. Enable it per clone with `git config rerere.enabled true`. Either way,
@@ -70,6 +73,16 @@ The backend is a **pure input source**, not a turn driver:
   M1 seam** with a blocking pull source: the provider blocks on a stdin `getline` exactly where the
   GUI blocks on a keypress, so a persistent process serves one request at a time with zero new
   engine seams. M2 (split `do_turn`) and M3 (coroutine) remain designed-but-unused.
+- **Nested-input answer + auto-cancel guard (Spike 11A):** during a session, every
+  `input_context::handle_input` call is by definition a NESTED read (the seam owns the only
+  top-level one), and a **blocking** one (`timeout < 0`) would busy-wait forever headless. A hook
+  at the top of `handle_input` therefore serves the command's armed one-shot direction answer when
+  the engine's own chooser (`"DEFAULTMODE"`, with the action registered) is asking, else returns
+  the context's registered cancel (`QUIT`/`TEXT.QUIT` — the engine runs its own ESC path), else
+  hard-exits (code 12) rather than hang. Timeout-bounded polls (e.g. the activity-interrupt check)
+  pass through untouched. Stale answers are force-cleared (and logged) at every seam return.
+  Every intervention is a transcript event. See
+  [26_SPIKE11A_DIRECTED_EXAMINE.md](26_SPIKE11A_DIRECTED_EXAMINE.md).
 
 **Fidelity rules (non-negotiable):** GUI behavior == engine behavior == the behavior. Never fake
 engine state. Answer GUI-vs-headless questions **from the code**, never by spinning up experiments.
@@ -101,16 +114,31 @@ out-of-LOS entities (flagged via `hallucination`), not a "what the player sees" 
 
 ### Transcript `session.jsonl` (`schema_version` 1, one JSON object per line, flushed per event)
 
-`session_start` (world, **seed** opt — Spike 5, export_dir, game_version) · `command` (step_index,
-command, direction opt, action_id opt, status="queued") · `export` (step_index|null, export_index,
-name, path, final, turn, pos_abs, moves — scalars equal the named snapshot) · `error` (step_index
-opt, kind, detail, exit_code) · `session_end` (status, snapshots, commands, final_turn opt,
-final_pos_abs opt).
+`session_start` (world, **seed** opt — Spike 5, export_dir, game_version,
+**autoselect_single_valid_target** — Spike 11A records the loaded option, never overrides it) ·
+`command` (step_index, command, direction opt, action_id opt, status="queued") · `export`
+(step_index|null, export_index, name, path, final, turn, pos_abs, moves — scalars equal the named
+snapshot) · `error` (step_index opt, kind, detail, exit_code) · `session_end` (status, snapshots,
+commands, final_turn opt, final_pos_abs opt) · **Spike 11A nested-input events**:
+`nested_input_answer` (step_index, context, direction, action — the armed answer was served to the
+engine's chooser) · `nested_input_guard` (step_index opt, context, action QUIT/TEXT.QUIT, reason
+no_answer/context_mismatch/answer_not_registered, fires — the guard auto-cancelled a nested read) ·
+`nested_input_unconsumed` (step_index, direction, action, reason="command_completed" — an armed
+answer was never asked for and was force-cleared at the seam return). New fatal error kind
+`nested_input_failed` → exit code 12.
 
 ### Commands
 
 `wait` → `ACTION_PAUSE` (`do_pause`); `move` + cardinal `direction` (`move_n`/`move_s`/`move_e`/`move_w`)
-→ `ACTION_MOVE_*`. Diagonals, vertical, and everything else are rejected with a typed error.
+→ `ACTION_MOVE_*`; **`examine` + `direction` → `ACTION_EXAMINE` (Spike 11A)**, where `direction` is
+any of the **eight planar directions** (`move_n`/`move_s`/`move_e`/`move_w` + the diagonals
+`move_ne`/`move_nw`/`move_se`/`move_sw`) or `here` (the avatar's own tile) — the complete planar
+target set the GUI examine chooser offers (vertical excluded: `game::examine` passes
+`allow_vertical=false`). The direction is the answer to the engine's "Examine where?" prompt IF it
+asks (a keystroke mirror, served through the nested-input seam), never a commanded target tile; with
+the engine's autoselect option on, the engine may pick the target itself and the unconsumed answer is
+force-cleared + logged. For `move`, diagonals/vertical stay rejected (a separate verb's cardinals-only
+limitation); for examine, only vertical and garbage are rejected, with a typed error.
 
 **Movement into an occupied/obstructed tile is a faithful no-op.** A `move` whose destination holds a
 creature, or a closed-but-not-bump-openable obstacle, runs the engine's real `avatar_action::move` leaf
@@ -146,18 +174,23 @@ in the snapshot itself — the `before` snapshot carries a neutral NPC at the mo
 | 10A   | browser frontend prototype: stdlib HTTP bridge + plain HTML/JS driving `--arcopolis-live` (`tools/arcopolis_frontend/`) | ✅                                      |
 | 10B   | frontend-side snapshot diff: changed-tile highlights, before→after inspector, change summary, open/closed door glyphs   | ✅                                      |
 | 10C   | optional frontend tileset rendering: bridge re-serves `gfx/UltimateCataclysm`, browser paints sprites, glyph fallback   | ✅                                      |
+| 11A   | directed `examine` via a one-shot nested-input answer + auto-cancel guard at `input_context::handle_input`              | ✅                                      |
 
 ## Source & tests
 
 `src/arcopolis_export.{h,cpp}` (snapshot; `write_entities` → `entities.monsters[]` Spike 6A +
 `entities.npcs[]` Spike 7A + `entities.items[]` Spike 8A, one shared `in_export_window` predicate; items
 iterate the tile window and read `map::i_at`) ·
-`arcopolis_command.{h,cpp}` (verb→action_id, errors) ·
+`arcopolis_command.{h,cpp}` (verb→action_id, errors; Spike 11A adds the examine vocabulary + the
+direction→chooser-action mapping) ·
 `arcopolis_script.{h,cpp}` (script runner) · `arcopolis_backend_input.{h,cpp}` (input-seam provider,
 clean-park, final snapshot; Spike 9B adds the pluggable `live_source` pull hook + the public
-step-snapshot writer) · `arcopolis_live.{h,cpp}` (Spike 9B: the JSONL protocol parser/formatters +
+step-snapshot writer; Spike 11A adds the one-shot nested-input slot, the pure guard decision and
+the hard-fail) · `arcopolis_live.{h,cpp}` (Spike 9B: the JSONL protocol parser/formatters +
 the blocking stdin pump + `run_live`) · `arcopolis_session_log.{h,cpp}` (transcript). Flags wired in
-`src/main.cpp`; the seam branch lives at `src/handle_action.cpp`, the clean-park at `src/game.cpp`.
+`src/main.cpp`; the seam branch lives at `src/handle_action.cpp`, the clean-park at `src/game.cpp`,
+and the Spike 11A nested-input hook at the top of `input_context::handle_input` in `src/input.cpp`
+(the third engine touch point — and a third recurring upstream-rebase collision surface).
 Unit tests: `tests/arcopolis_*_test.cpp` (`[arcopolis]` tag). Consumers (all stdlib-only,
 deliberately share-nothing so each independently re-derives the contract):
 `tools/arcopolis_viewer/make_report.py` (Spike 4 offline HTML report) and
@@ -214,6 +247,17 @@ stdout line verified JSON) and must re-derive the SAME `blocked_no_op,moved,wait
 sequence through the unchanged explain pipeline, plus a recoverability scenario (a rejected `move_up`
 answers `ok=false`/`unsupported_command` without ending the session, then a recovery `wait` succeeds);
 see [21_SPIKE9B_LIVE_PROTOCOL.md](21_SPIKE9B_LIVE_PROTOCOL.md).
+[`docs/arcopolis/examine_regression.ps1`](examine_regression.ps1) gates the **Spike 11A directed
+examine** on **`ArcopolisTest`** (raw requests through
+[`docs/arcopolis/examine_live_driver.py`](examine_live_driver.py), strict per-response timeouts —
+a hang kills the backend and FAILS; two scenarios with `AUTOSELECT_SINGLE_VALID_TARGET` pinned in
+the sandbox options per scenario (13 gates): `false` witnesses the served cardinal answer toward the
+shelter NPC, the pickup-tail `"PICKUP"` guard-cancel on the adjacent item pile with zero items taken,
+a **diagonal** `examine move_sw` serving `"LEFTDOWN"` to the engine chooser (the full eight-direction
+vocabulary, not a cardinal subset), the engine message stream as an independent second witness chain,
+the recoverable bad-direction rejections and the unchanged move/wait baseline; `true` witnesses the
+engine auto-select skip + the `nested_input_unconsumed` force-clear); see
+[26_SPIKE11A_DIRECTED_EXAMINE.md](26_SPIKE11A_DIRECTED_EXAMINE.md).
 [`docs/arcopolis/frontend_prototype_regression.ps1`](frontend_prototype_regression.ps1) gates the
 **Spike 10A browser-frontend bridge** on **`ArcopolisTest`**: it starts
 `tools/arcopolis_frontend/prototype_server.py`, drives the whole HTTP API (start → move_n → move_s
@@ -251,17 +295,18 @@ stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROT
   contract surface), sprite overhang for oversized art, progressive sheet loading, and avatar/NPC
   sprite identity (blocked on export fields, not frontend work); unresolved ids keep the glyph,
   the safe visual fallback (see [24_SPIKE10C_FRONTEND_TILESET_RENDERING.md](24_SPIKE10C_FRONTEND_TILESET_RENDERING.md)).
-- **Richer commands:** examine/look — **examine feasibility is now answered from source (Spike
-  11A-prep, a documentation-only decision record:
-  [25_SPIKE11A_EXAMINE_FEASIBILITY.md](25_SPIKE11A_EXAMINE_FEASIBILITY.md)): the nested direction
-  prompt (`choose_direction`) has no `test_mode` gate and neither runner's stall backstop can fire
-  mid-`do_turn`, so naively wiring the verb would deadlock headless; the recommended next
-  implementation PR is a directed examine via a backend-gated nested-input answer + auto-cancel
-  guard at `input_context::handle_input`, per that record — nothing is implemented yet** —
-  interaction (open/close/smash/pickup), **NPC interaction (talk/attack/swap/push — needed to act
-  on a creature-occupied destination, the move-into-NPC no-op in
+- **Richer commands:** **directed `examine` is implemented and runtime-proven (Spike 11A,
+  [26_SPIKE11A_DIRECTED_EXAMINE.md](26_SPIKE11A_DIRECTED_EXAMINE.md), built exactly per the
+  decision record [25_SPIKE11A_EXAMINE_FEASIBILITY.md](25_SPIKE11A_EXAMINE_FEASIBILITY.md)) — the
+  nested-input answer + auto-cancel guard now exists for every future prompted verb.** Still
+  deferred: `look`, interaction (**open/close are the near-free follow-ups** — same chooser shape,
+  prompt-free bodies, plus the `moves -= 100` turn-economy witness — then smash; pickup as a
+  user-selectable action stays unimplemented: the guard only ESCs the examine pickup tail), **NPC
+  interaction (talk/attack/swap/push — needed to act on a creature-occupied destination, the
+  move-into-NPC no-op in
   [15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md](15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md))**, inventory, targeting,
-  diagonals, vertical.
+  diagonals, vertical, and a prompt-aware protocol (doc 25's Option C — the guard's transcript
+  events are its survey data).
 
 ## Build (Windows)
 
