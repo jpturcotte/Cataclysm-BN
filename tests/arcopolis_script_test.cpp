@@ -51,15 +51,18 @@ TEST_CASE( "arcopolis parse_script accepts examine command steps", "[arcopolis]"
 {
     std::istringstream is( R"({ "schema_version": 1, "steps": [
         { "op": "command", "command": "examine", "direction": "move_n" },
+        { "op": "command", "command": "examine", "direction": "move_sw" },
         { "op": "command", "command": "examine", "direction": "here" }
     ] })" );
     const auto result = arcopolis::parse_script( is );
     REQUIRE( result.has_value() );
-    REQUIRE( result->size() == 2 );
+    REQUIRE( result->size() == 3 );
     CHECK( ( *result )[0].command == "examine" );
     CHECK( ( *result )[0].direction == "move_n" );
     CHECK( ( *result )[1].command == "examine" );
-    CHECK( ( *result )[1].direction == "here" );
+    CHECK( ( *result )[1].direction == "move_sw" );  // a diagonal -- the GUI chooser offers all 8
+    CHECK( ( *result )[2].command == "examine" );
+    CHECK( ( *result )[2].direction == "here" );
 }
 
 TEST_CASE( "arcopolis parse_script rejects an examine step without a direction", "[arcopolis]" )

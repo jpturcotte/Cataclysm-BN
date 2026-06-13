@@ -108,7 +108,7 @@ std::expected<std::vector<script_step>, command_error>
                     if( !is_supported_examine_direction( direction ) ) {
                         return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
                                                                .detail = at + "unsupported examine direction '" + direction +
-                                                                       "' (expected move_n/move_s/move_e/move_w/here)" } );
+                                                                       "' (expected move_n/move_s/move_e/move_w/move_ne/move_nw/move_se/move_sw/here)" } );
                     }
                 }
                 steps.push_back( script_step{ .op = op, .command = command, .direction = direction } );

@@ -76,16 +76,19 @@ auto exit_code_for( command_error_kind kind ) -> int;
 /// intentionally rejected. Shared by the command/script parsers and command_to_action to gate "move".
 auto is_supported_move_direction( std::string_view ident ) -> bool;
 
-/// True iff `ident` is a direction the "examine" verb accepts: the four cardinals plus "here" (the
-/// avatar's own tile -- the engine chooser's real "pause" path). Shared by the parsers and
-/// command_to_action to gate "examine". (Spike 11A)
+/// True iff `ident` is a direction the "examine" verb accepts: the EIGHT planar directions the GUI
+/// examine chooser registers (the four cardinals plus the four diagonals move_ne/move_nw/move_se/move_sw)
+/// plus "here" (the avatar's own tile -- the engine chooser's "pause" path) -- exactly the planar target
+/// set a GUI player can pick at "Examine where?". Vertical (move_up/move_down) is rejected because
+/// game::examine passes allow_vertical=false. Shared by the parsers and command_to_action to gate
+/// "examine". (Spike 11A; diagonals added so the backend mirrors the full GUI chooser, not a subset.)
 auto is_supported_examine_direction( std::string_view ident ) -> bool;
 
 /// Maps a supported examine direction to the input-context ACTION ID the engine's direction chooser
-/// (`choose_direction`, src/action.cpp) consumes -- "UP"/"DOWN"/"RIGHT"/"LEFT" from
-/// register_directions(), or "pause" for the self-tile. This is the keystroke a GUI player would press
-/// at the "Examine where?" prompt, NOT an engine action_id and NOT a target tile. Returns nullopt for
-/// an unsupported ident. Pure. (Spike 11A)
+/// (`choose_direction`, src/action.cpp) consumes -- "UP"/"DOWN"/"RIGHT"/"LEFT" + the diagonals
+/// "RIGHTUP"/"LEFTUP"/"RIGHTDOWN"/"LEFTDOWN" from register_directions(), or "pause" for the self-tile.
+/// This is the keystroke a GUI player would press at the "Examine where?" prompt, NOT an engine
+/// action_id and NOT a target tile. Returns nullopt for an unsupported ident. Pure. (Spike 11A)
 auto examine_nested_answer( std::string_view direction ) -> std::optional<std::string>;
 
 } // namespace arcopolis

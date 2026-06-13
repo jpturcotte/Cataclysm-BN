@@ -130,12 +130,15 @@ answer was never asked for and was force-cleared at the seam return). New fatal 
 ### Commands
 
 `wait` → `ACTION_PAUSE` (`do_pause`); `move` + cardinal `direction` (`move_n`/`move_s`/`move_e`/`move_w`)
-→ `ACTION_MOVE_*`; **`examine` + `direction` (the cardinals or `here` for the avatar's own tile) →
-`ACTION_EXAMINE` (Spike 11A)** — the direction is the answer to the engine's "Examine where?"
-prompt IF it asks (a keystroke mirror, served through the nested-input seam), never a commanded
-target tile; with the engine's autoselect option on, the engine may pick the target itself and the
-unconsumed answer is force-cleared + logged. Diagonals, vertical, and everything else are rejected
-with a typed error.
+→ `ACTION_MOVE_*`; **`examine` + `direction` → `ACTION_EXAMINE` (Spike 11A)**, where `direction` is
+any of the **eight planar directions** (`move_n`/`move_s`/`move_e`/`move_w` + the diagonals
+`move_ne`/`move_nw`/`move_se`/`move_sw`) or `here` (the avatar's own tile) — the complete planar
+target set the GUI examine chooser offers (vertical excluded: `game::examine` passes
+`allow_vertical=false`). The direction is the answer to the engine's "Examine where?" prompt IF it
+asks (a keystroke mirror, served through the nested-input seam), never a commanded target tile; with
+the engine's autoselect option on, the engine may pick the target itself and the unconsumed answer is
+force-cleared + logged. For `move`, diagonals/vertical stay rejected (a separate verb's cardinals-only
+limitation); for examine, only vertical and garbage are rejected, with a typed error.
 
 **Movement into an occupied/obstructed tile is a faithful no-op.** A `move` whose destination holds a
 creature, or a closed-but-not-bump-openable obstacle, runs the engine's real `avatar_action::move` leaf
@@ -248,9 +251,11 @@ see [21_SPIKE9B_LIVE_PROTOCOL.md](21_SPIKE9B_LIVE_PROTOCOL.md).
 examine** on **`ArcopolisTest`** (raw requests through
 [`docs/arcopolis/examine_live_driver.py`](examine_live_driver.py), strict per-response timeouts —
 a hang kills the backend and FAILS; two scenarios with `AUTOSELECT_SINGLE_VALID_TARGET` pinned in
-the sandbox options per scenario: `false` witnesses the served chooser answer toward the shelter
-NPC, the pickup-tail `"PICKUP"` guard-cancel on the adjacent item pile with zero items taken, the
-recoverable bad-direction rejections and the unchanged move/wait baseline; `true` witnesses the
+the sandbox options per scenario (13 gates): `false` witnesses the served cardinal answer toward the
+shelter NPC, the pickup-tail `"PICKUP"` guard-cancel on the adjacent item pile with zero items taken,
+a **diagonal** `examine move_sw` serving `"LEFTDOWN"` to the engine chooser (the full eight-direction
+vocabulary, not a cardinal subset), the engine message stream as an independent second witness chain,
+the recoverable bad-direction rejections and the unchanged move/wait baseline; `true` witnesses the
 engine auto-select skip + the `nested_input_unconsumed` force-clear); see
 [26_SPIKE11A_DIRECTED_EXAMINE.md](26_SPIKE11A_DIRECTED_EXAMINE.md).
 [`docs/arcopolis/frontend_prototype_regression.ps1`](frontend_prototype_regression.ps1) gates the

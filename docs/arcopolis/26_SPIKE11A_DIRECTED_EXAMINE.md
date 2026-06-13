@@ -16,9 +16,17 @@ verb.
 { "id": 2, "op": "command", "command": "examine", "direction": "move_n", "name": "examine_npc" }
 ```
 
-- `direction` is **required** and is one of `move_n` / `move_s` / `move_e` / `move_w` / `here`
-  (`here` = the avatar's own tile, the engine chooser's real `"pause"` path —
-  `src/action.cpp:1108-1109`). Diagonals and vertical stay rejected, exactly like `move`.
+- `direction` is **required** and is one of the **eight planar directions** the GUI examine chooser
+  offers — `move_n` / `move_s` / `move_e` / `move_w` / `move_ne` / `move_nw` / `move_se` / `move_sw`
+  — or `here` (the avatar's own tile, the engine chooser's `"pause"` path, `src/action.cpp:1108-1109`).
+  This is the **complete** planar target set a GUI player can pick at "Examine where?", not a subset:
+  `choose_adjacent_highlight` scans the full 3×3 `points_in_radius(pos,1)` (`src/action.cpp:1153-1160`)
+  and `choose_direction` registers all eight directions via `register_directions()`
+  (`src/action.cpp:1083`, `src/input.cpp:1010-1017`). **Vertical** (`move_up`/`move_down`) stays
+  rejected because `game::examine()` passes `allow_vertical=false` (`src/game.cpp:8532-8534`), so the
+  chooser never registers `LEVEL_UP`/`LEVEL_DOWN`. (The four diagonals were a fidelity gap in the
+  initial Spike-11A landing — the command claimed to mirror the GUI prompt but exposed only the four
+  cardinals + `here`; corrected here.)
 - All three entry points accept it identically: the live protocol, `--arcopolis-run-script` step
   scripts, and the one-shot `--arcopolis-command` file (which reuses the steps walk).
 - The top-level action is the engine's own `ACTION_EXAMINE` dispatched at the unchanged
@@ -42,9 +50,15 @@ written (arming itself emits nothing, so each dispatch's events always order
 - script/one-shot: the steps walk in `next_backend_action()`;
 - live: the `op:"command"` branch of `live_next_action()` (`src/arcopolis_live.cpp`).
 
-The slot stores the chooser action id (`move_n→"UP"`, `move_s→"DOWN"`, `move_e→"RIGHT"`,
-`move_w→"LEFT"`, `here→"pause"` — register_directions ids, `src/input.cpp:994-1001`; no iso
-rotation can apply headless, doc 25 point 4), the direction token, and the arming step_index. It
+The slot stores the chooser action id from the single source-of-truth table in
+`src/arcopolis_command.cpp` (`examine_direction_answers`, which both `is_supported_examine_direction`
+and `examine_nested_answer` derive from, so they cannot drift): `move_n→"UP"`, `move_s→"DOWN"`,
+`move_e→"RIGHT"`, `move_w→"LEFT"`, `move_ne→"RIGHTUP"`, `move_nw→"LEFTUP"`, `move_se→"RIGHTDOWN"`,
+`move_sw→"LEFTDOWN"`, `here→"pause"` — the `register_directions()` action ids
+(`src/input.cpp:1010-1017`), the diagonal compass→string pairings verified against `get_direction`
+(`src/input.cpp:1077-1084`, screen convention north=−y/east=+x; e.g. `move_ne` = north_east = +x,−y =
+`"RIGHTUP"`); no iso rotation can apply headless (doc 25 point 4). Plus the direction token and the
+arming step_index. It
 is kept (marked consumed) until control returns to the top-level seam, so later guard events in
 the **same** dispatch still cite the arming command.
 
@@ -160,7 +174,7 @@ document (`here`→`pause` end-to-end, and the actor audit the guard exists to b
 All existing consumers (harness.py view/explain/run/live, make_report.py, the frontend bridge)
 tolerate unknown event types by construction — verified before shipping; none were changed.
 
-## What the regression proves (`examine_regression.ps1`, 12 gates, exit 0)
+## What the regression proves (`examine_regression.ps1`, 13 gates, exit 0)
 
 Driven raw through the new stdlib-only `examine_live_driver.py` (reuses the client harness's
 `LiveSession`; **every response is read under a strict per-response timeout, and a breach kills
@@ -170,7 +184,7 @@ sandbox copy's `options.json` (deployment config — never an in-memory override
 
 Scenario A (`false`, the fixture's declared value):
 
-1. 10 requests → 10 in-time responses, ready seen, backend exit 0 (the no-deadlock gate).
+1. 11 requests → 11 in-time responses, ready seen, backend exit 0 (the no-deadlock gate).
 2. `session_start` records `autoselect_single_valid_target=false`; zero `error` events;
    `session_end` ok.
 3. `examine move_n` toward the shelter NPC: `command` event carries `action_id:"examine"`; exactly
@@ -189,31 +203,38 @@ Scenario A (`false`, the fixture's declared value):
    item count at the tile is unchanged — **nothing taken, no hang**.
 8. The session stays usable after the guard (wait ticks), quit answers, final snapshot +
    transcript present.
-9. **The engine's own message stream corroborates every path** — a second witness chain,
-   independent of the backend's transcript events. The served-chooser NPC examine adds **no**
-   message (the chooser was answered, so no "Never mind." from its cancel, `src/action.cpp:1117`;
-   the NPC menu's test_mode cancel is message-silent). The item examine adds **exactly two, in
-   order**: `iexamine::none`'s "That is a %s." (`src/iexamine.cpp:255` — engine-side proof the
-   examine actor really ran on the chosen tile; observed: "That is a cupboard.") and the pickup
-   UI's own cancel "Never mind." (`src/pickup.cpp:1177` — the engine's real ESC path answering the
-   guard's QUIT). And "Never mind." appears **nowhere** before the item examine (no hidden chooser
-   cancel anywhere in the session) and nothing further after it.
+9. **The diagonal witness**: `examine move_sw` toward the cupboard diagonally SW of the avatar
+   (witness prereq asserted: `f_cupboard` at `pos_local−1,+1`) serves **`"LEFTDOWN"`** (south_west)
+   to the `DEFAULTMODE` chooser — proving the **full eight-direction** vocabulary reaches the real
+   engine chooser with the correct diagonal action string, not a cardinal subset. The tile has no
+   items, so no pickup tail and no guard event; faithful no-state-change. (This gate is what would
+   have caught the original cardinal-only fidelity gap.)
+10. **The engine's own message stream corroborates every path** — a second witness chain,
+    independent of the backend's transcript events. The served-chooser NPC examine adds **no**
+    message (the chooser was answered, so no "Never mind." from its cancel, `src/action.cpp:1117`;
+    the NPC menu's test_mode cancel is message-silent). The item examine adds **exactly two, in
+    order**: `iexamine::none`'s "That is a %s." (`src/iexamine.cpp:255` — engine-side proof the
+    examine actor really ran on the chosen tile; observed: "That is a cupboard.") and the pickup
+    UI's own cancel "Never mind." (`src/pickup.cpp:1177` — the engine's real ESC path answering the
+    guard's QUIT). And "Never mind." appears **nowhere** before the item examine (no hidden chooser
+    cancel anywhere in the session) and nothing further after it.
 
 Scenario B (`true`, the engine default):
 
-10. Same examine, no hang, 4 in-time responses, exit 0; `session_start` records `true`.
-11. **The unconsumed witness, pinned from observed fixture truth**: at spawn the NPC's tile is the
+11. Same examine, no hang, 4 in-time responses, exit 0; `session_start` records `true`.
+12. **The unconsumed witness, pinned from observed fixture truth**: at spawn the NPC's tile is the
     only valid adjacent target, so the engine auto-selects it, the chooser never asks, and the
     armed answer is force-cleared as `nested_input_unconsumed` — the doc-25 stale-slot class,
     witnessed live instead of leaking.
-12. The autoselect examine adds **no message at all** — in particular not the 0-valid failure text
-    ("There is nothing that can be examined nearby."), which independently confirms the engine
-    took the **1-valid** auto-select branch (`src/action.cpp:1167-1169`) that gate 11's pinned
-    interpretation rests on.
+13. The autoselect examine adds **no message at all** — in particular not the 0-valid failure text
+    ("There is nothing that can be examined nearby."), independently confirming the engine took the
+    **1-valid** auto-select branch (`src/action.cpp:1167-1169`) that gate 12's pinned interpretation
+    rests on.
 
-Also validated: the full `[arcopolis]` unit suite (70 cases / 430 assertions — parser, mapping,
-slot lifecycle, the pure decision matrix incl. the timeout gate and cancel preference, the new
-formatters), and the three sibling regressions unchanged
+Also validated: the full `[arcopolis]` unit suite (71 cases / 465 assertions — parser, the full
+8-direction mapping table, the diagonal arm→serve path, slot lifecycle, the pure decision matrix
+incl. the timeout gate and cancel preference, the new formatters), and the three sibling regressions
+unchanged
 (`live_protocol_regression.ps1`, `client_harness_regression.ps1`,
 `frontend_prototype_regression.ps1` — all exit 0).
 
@@ -242,13 +263,28 @@ formatters), and the three sibling regressions unchanged
 - **`timeout >= 0` loops are out of guard scope**: a caller looping on TIMEOUT until a real key
   arrives would still spin headless — a pre-existing engine property, unreachable through the
   audited examine paths, and untouched by this spike.
-- `here` self-examine and the four cardinal targets beyond the two fixture witnesses are
-  vocabulary-complete but not individually fixture-witnessed.
+- **Non-target prompt actions are deliberately not exposed, and this is the precise extent of the
+  fidelity claim.** The vocabulary covers every **target** a GUI player can select at "Examine
+  where?" (the 8 planar tiles + self). The chooser also registers two **non-target** actions
+  (`src/action.cpp:1085-1086`): `QUIT` (abort the examine — "Never mind.", no target;
+  `src/action.cpp:1115-1118`) and `HELP_KEYBINDINGS` (open the keybindings UI, no game effect). Neither
+  gets a command token, by design: aborting an examine is equivalent to **not issuing the command**
+  (and the guard already runs the engine's real abort path on any unconsumed/cancelled read), and the
+  help UI has no simulation effect. So the claim is "mirrors every examine **target**," not "every key
+  pressable at the prompt" — stated explicitly here so it is not silently a subset.
+- Most of the eight directions and `here` self-examine are vocabulary-complete and unit-tested but not
+  each individually fixture-witnessed live; the regression witnesses one cardinal (NPC), one cardinal
+  into the pickup tail (item pile), and one diagonal (`move_sw`).
 
 ## Next
 
 - **`open` / `close`** are the near-free follow-ups: the same `choose_adjacent_highlight` shape,
   prompt-free bodies, plus the clean `moves -= 100` turn-economy witness examine cannot provide.
+- **`move` has the same diagonal gap examine just closed** (`is_supported_move_direction` is
+  cardinals-only, `src/arcopolis_command.cpp`), so the `move` verb cannot express the four diagonal
+  steps a GUI player makes. It is a separate verb and a pre-existing Spike-3 deferral — not folded
+  into this examine fix — but it is now the most visible remaining cardinal-only subset and a natural
+  next correction.
 - NPC interaction (the move-into-NPC no-op's missing half) and a prompt-aware protocol remain
   deferred per doc 25; the guard's transcript events are the survey data for designing the latter.
 

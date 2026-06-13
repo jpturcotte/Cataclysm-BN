@@ -184,16 +184,17 @@ $reqA = @(
     '{"id":7,"op":"command","command":"move","direction":"move_s","name":"move_s_step"}',
     '{"id":8,"op":"command","command":"examine","direction":"move_s","name":"examine_items"}',
     '{"id":9,"op":"command","command":"wait","name":"after_items_wait"}',
-    '{"id":10,"op":"quit"}'
+    '{"id":10,"op":"command","command":"examine","direction":"move_sw","name":"examine_sw_diag"}',
+    '{"id":11,"op":"quit"}'
 )
 $A = Invoke-LiveScenario -Name "autoselect_off" -RequestLines $reqA
 
 # --- Gate 1: no deadlock -- every response arrived in time, backend exited 0. ---
 $g1 = ($A.ExitCode -eq 0) -and $A.Result -and $A.Result.ok -and $A.Result.ready_seen -and
       ($A.Result.protocol_version -eq 1) -and ($A.Result.exit_code -eq 0) -and
-      (@($A.Result.responses).Count -eq 10)
+      (@($A.Result.responses).Count -eq 11)
 if( $g1 ) {
-    Write-Host "  PASS: scenario A -- 10 responses under the $TimeoutSec s per-response timeout, ready seen, backend exit 0." -ForegroundColor Green
+    Write-Host "  PASS: scenario A -- 11 responses under the $TimeoutSec s per-response timeout, ready seen, backend exit 0." -ForegroundColor Green
 } else {
     Write-Host "  FAIL: scenario A driver -- exit=$($A.ExitCode) result=$($A.Result | ConvertTo-Json -Compress -Depth 3) stderr: $($A.Stderr)" -ForegroundColor Red
     $fail++
@@ -333,6 +334,40 @@ if( $g8 ) {
 } else {
     Write-Host "  FAIL: tail -- wait=$($respA[9] | ConvertTo-Json -Compress) quit=$($quitResp | ConvertTo-Json -Compress) final=$($null -ne $finalSnap)" -ForegroundColor Red
     $fail++
+}
+
+# --- Gate 8b (DIAGONAL): examine move_sw must serve the DIAGONAL chooser action string "LEFTDOWN"
+# (south_west) to the engine's own DEFAULTMODE chooser -- proving the backend mirrors the FULL
+# 8-direction GUI examine chooser, not a cardinal-only subset. SW of the avatar (after move_s) is an
+# f_cupboard with no items (witness prereq asserted), so there is no pickup tail and no guard event;
+# the served diagonal answer either examines the cupboard or is filtered as out-of-set, both a faithful
+# no-state-change outcome. step_index 6 = accepted-request counter (export0, examine_npc1, wait2,
+# move_n3, move_s4, examine_s5, wait6, examine_sw7) -> the diagonal is step 7. ---
+$swTile = @(
+    ( [int]$snapMoved.avatar.pos_local[0] - 1 ),
+    ( [int]$snapMoved.avatar.pos_local[1] + 1 ),
+    ( [int]$snapMoved.avatar.pos_local[2] )
+)
+$swFurn = ($snapMoved.tiles | Where-Object {
+    $_.x -eq $swTile[0] -and $_.y -eq $swTile[1] -and $_.z -eq $swTile[2] } | Select-Object -First 1).furn
+if( $swFurn -ne 'f_cupboard' ) {
+    Write-Host "  FAIL: fixture witness not found: expected f_cupboard diagonally SW of the avatar at pos_local $($swTile -join ',') (got '$swFurn')." -ForegroundColor Red
+    $fail++
+} else {
+    $wDiag = Get-DispatchWindow -Events $evA -StepIndex 7
+    $ansDiag = @($wDiag.Between | Where-Object { $_.event -eq 'nested_input_answer' })
+    $guardDiag = @($wDiag.Between | Where-Object { $_.event -eq 'nested_input_guard' })
+    $gDiag = ($respA[10].ok -eq $true) -and $wDiag -and ($wDiag.Command.command -eq 'examine') -and
+             ($wDiag.Command.direction -eq 'move_sw') -and ($wDiag.Command.action_id -eq 'examine') -and
+             ($ansDiag.Count -eq 1) -and ($ansDiag[0].context -eq 'DEFAULTMODE') -and
+             ($ansDiag[0].direction -eq 'move_sw') -and ($ansDiag[0].action -eq 'LEFTDOWN') -and
+             ($guardDiag.Count -eq 0)
+    if( $gDiag ) {
+        Write-Host "  PASS: examine move_sw (diagonal) -- served 'LEFTDOWN' (south_west) to the DEFAULTMODE chooser; the full 8-direction vocabulary reaches the real engine chooser, no hang." -ForegroundColor Green
+    } else {
+        Write-Host "  FAIL: examine move_sw (diagonal) -- resp=$($respA[10] | ConvertTo-Json -Compress) cmd=$($wDiag.Command | ConvertTo-Json -Compress) answers=$($ansDiag | ConvertTo-Json -Compress) guards=$($guardDiag | ConvertTo-Json -Compress)" -ForegroundColor Red
+        $fail++
+    }
 }
 
 # --- Gate 11: the engine's own MESSAGE stream corroborates every witnessed path -- a second

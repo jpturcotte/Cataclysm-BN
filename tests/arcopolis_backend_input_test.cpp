@@ -125,12 +125,18 @@ TEST_CASE( "arcopolis backend input session keeps moves > 0 open across commands
 TEST_CASE( "arcopolis command_to_action resolves examine for every supported direction",
            "[arcopolis]" )
 {
-    for( const std::string &dir : { "move_n", "move_s", "move_e", "move_w", "here" } ) {
+    // All eight planar directions plus "here" resolve to the engine's ACTION_EXAMINE (the direction is
+    // carried as the nested-input answer, not encoded in the action_id).
+    for( const std::string &dir : {
+             "move_n", "move_s", "move_e", "move_w",
+             "move_ne", "move_nw", "move_se", "move_sw", "here"
+         } ) {
         CHECK( arcopolis::command_to_action( { .schema_version = 1, .command = "examine", .direction = dir } )
                .value_or( ACTION_NULL ) == ACTION_EXAMINE );
     }
-    // Same defense-in-depth gate as "move": vertical/diagonal/garbage directions are bad_schema.
-    for( const std::string &dir : { "move_up", "move_ne", "pause", "" } ) {
+    // Same defense-in-depth gate as "move": vertical/garbage directions are bad_schema. ("pause" is the
+    // chooser action id, not a protocol token.)
+    for( const std::string &dir : { "move_up", "move_down", "pause", "" } ) {
         const auto bad = arcopolis::command_to_action( { .schema_version = 1, .command = "examine", .direction = dir } );
         REQUIRE_FALSE( bad.has_value() );
         CHECK( bad.error().kind == arcopolis::command_error_kind::bad_schema );
@@ -263,6 +269,33 @@ TEST_CASE( "arcopolis provider arms examine steps and clears stale answers at th
     // Control returning to the seam (the next provider pull) force-clears the unconsumed answer
     // before the next command dispatches: nothing can leak into the wait.
     CHECK( arcopolis::next_backend_action() == ACTION_PAUSE );
+    CHECK_FALSE( arcopolis::backend_nested_input_armed() );
+
+    arcopolis::end_backend_session();
+    CHECK_FALSE( arcopolis::backend_nested_input_armed() );
+}
+
+TEST_CASE( "arcopolis provider arms a DIAGONAL examine and serves its action string",
+           "[arcopolis]" )
+{
+    // End-to-end at the provider level: a diagonal examine step must flow command -> armed slot ->
+    // the exact diagonal chooser action string the GUI uses, not just a cardinal subset. move_ne maps
+    // to "RIGHTUP" (north_east), verified against src/input.cpp get_direction.
+    const std::vector<std::string> chooser_actions = {
+        "UP", "DOWN", "LEFT", "RIGHT", "LEFTUP", "LEFTDOWN", "RIGHTUP", "RIGHTDOWN",
+        "pause", "QUIT", "HELP_KEYBINDINGS",
+    };
+    arcopolis::begin_backend_session( {
+        .steps = { { .op = "command", .command = "examine", .direction = "move_ne" } },
+    } );
+
+    CHECK( arcopolis::next_backend_action() == ACTION_EXAMINE );
+    REQUIRE( arcopolis::backend_nested_input_armed() );
+
+    const std::string *served =
+        arcopolis::backend_nested_input_action( "DEFAULTMODE", chooser_actions, -1 );
+    REQUIRE( served != nullptr );
+    CHECK( *served == "RIGHTUP" );
     CHECK_FALSE( arcopolis::backend_nested_input_armed() );
 
     arcopolis::end_backend_session();

@@ -386,9 +386,16 @@ Design points the implementation must carry (all source-grounded):
    (`src/action.cpp:1082`), but rotation applies only when `iso_mode && tile_iso && use_tiles`
    (`src/input.cpp:1051`), and `tile_iso` is a zero-initialized global set exclusively at tileset
    load (`src/cached_options.cpp:26`, `src/cata_tiles.cpp:2220`) — which never happens headless
-   (`src/main.cpp:881-887`). So the mapping is the plain one: `move_n`→`"UP"`, `move_s`→`"DOWN"`,
-   `move_e`→`"RIGHT"`, `move_w`→`"LEFT"`. Reserve a `here` token for the engine's `"pause"`
-   self-tile path.
+   (`src/main.cpp:881-887`). So the mapping is the plain one. **[Spike 11A implementation correction:
+   this design point under-specified the vocabulary as only the four cardinals, and the first landing
+   shipped that subset — a fidelity gap, since `register_directions()` registers ALL EIGHT planar
+   directions and `choose_adjacent_highlight` scans the full 3×3, so a GUI player examines diagonals
+   routinely. The shipped vocabulary is the complete eight + `here`: `move_n`→`"UP"`, `move_s`→`"DOWN"`,
+   `move_e`→`"RIGHT"`, `move_w`→`"LEFT"`, `move_ne`→`"RIGHTUP"` (north_east), `move_nw`→`"LEFTUP"`
+   (north_west), `move_se`→`"RIGHTDOWN"` (south_east), `move_sw`→`"LEFTDOWN"` (south_west), and the
+   `here` token for the engine's `"pause"` self-tile path — all verified against `get_direction`
+   (`src/input.cpp:1069-1084`). See doc 26.]** Vertical stays excluded because `game::examine` passes
+   `allow_vertical=false`.
 5. **Parser extension.** Extend `parse_command`/`command_to_action` so `examine` requires and
    validates `direction` the way `move` does today (currently move-only,
    `src/arcopolis_command.cpp:59-70`).
