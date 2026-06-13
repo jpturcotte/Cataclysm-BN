@@ -46,20 +46,25 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 9> examine_d
     }
 };
 
-/// The human-readable list of accepted examine directions, for parser error details.
-constexpr auto examine_direction_list =
-    "move_n/move_s/move_e/move_w/move_ne/move_nw/move_se/move_sw/here";
-
 } // namespace
 
 auto arcopolis::is_supported_move_direction( std::string_view ident ) -> bool
 {
     using namespace std::string_view_literals;
     namespace ranges = std::ranges;
-    // The four cardinals this spike supports. look_up_action() also resolves diagonals and vertical
-    // moves, so this cardinal-set membership check is what actually rejects move_ne.../move_up/move_down.
-    static constexpr std::array cardinals = { "move_n"sv, "move_s"sv, "move_e"sv, "move_w"sv };
-    return ranges::contains( cardinals, ident );
+    // The EIGHT planar move directions a BN GUI player can step -- the four cardinals plus the four
+    // diagonals -- exactly the set the engine's shared planar-move case dispatches. look_up_action()
+    // resolves all eight to the matching ACTION_MOVE_* (cardinals -> FORTH/BACK/LEFT/RIGHT, diagonals
+    // -> FORTH_RIGHT/FORTH_LEFT/BACK_RIGHT/BACK_LEFT), and handle_action()'s switch routes every one
+    // through the SAME avatar_action::move body (src/handle_action.cpp), so the diagonals are as
+    // faithful as the cardinals -- this membership check is purely the vocabulary gate. VERTICAL
+    // (move_up/move_down) is intentionally excluded: it dispatches the separate ACTION_MOVE_UP/DOWN ->
+    // game::vertical_move primitive (stairs/ropes/climb), a different command, not a planar step.
+    static constexpr std::array planar = {
+        "move_n"sv, "move_s"sv, "move_e"sv, "move_w"sv,
+        "move_ne"sv, "move_nw"sv, "move_se"sv, "move_sw"sv
+    };
+    return ranges::contains( planar, ident );
 }
 
 auto arcopolis::is_supported_examine_direction( std::string_view ident ) -> bool
@@ -121,7 +126,7 @@ std::expected<backend_command, command_error>
             if( !is_supported_move_direction( direction ) ) {
                 return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
                                                        .detail = "unsupported move direction '" + direction +
-                                                               "' (expected move_n/move_s/move_e/move_w)" } );
+                                                               "' (expected " + expected_move_directions + ")" } );
             }
         } else if( command == "examine" ) {
             if( !obj.has_string( "direction" ) ) {
@@ -132,7 +137,7 @@ std::expected<backend_command, command_error>
             if( !is_supported_examine_direction( direction ) ) {
                 return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
                                                        .detail = "unsupported examine direction '" + direction +
-                                                               "' (expected " + examine_direction_list + ")" } );
+                                                               "' (expected " + expected_examine_directions + ")" } );
             }
         }
         return backend_command{ .schema_version = version, .command = command, .direction = direction };
@@ -171,15 +176,16 @@ std::expected<action_id, command_error>
         return ACTION_PAUSE;
     }
     if( cmd.command == "move" ) {
-        // Defense in depth: the parsers already reject non-cardinals as bad_schema, but command_to_action
-        // is also reachable directly (and from tests), so re-validate before resolving.
+        // Defense in depth: the parsers already reject non-planar directions as bad_schema, but
+        // command_to_action is also reachable directly (and from tests), so re-validate before resolving.
         if( !is_supported_move_direction( cmd.direction ) ) {
             return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
                                                    .detail = "unsupported move direction '" + cmd.direction +
-                                                           "' (expected move_n/move_s/move_e/move_w)" } );
+                                                           "' (expected " + expected_move_directions + ")" } );
         }
-        // ident -> action_id the engine's own way (e.g. "move_e" -> ACTION_MOVE_RIGHT). The switch then
-        // computes the delta via get_delta_from_movement_action and calls avatar_action::move.
+        // ident -> action_id the engine's own way (e.g. "move_e" -> ACTION_MOVE_RIGHT, "move_ne" ->
+        // ACTION_MOVE_FORTH_RIGHT). The switch then computes the delta via get_delta_from_movement_action
+        // and calls avatar_action::move -- the same shared body for cardinals and diagonals alike.
         return look_up_action( cmd.direction );
     }
     if( cmd.command == "examine" ) {
@@ -188,7 +194,7 @@ std::expected<action_id, command_error>
         if( !is_supported_examine_direction( cmd.direction ) ) {
             return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
                                                    .detail = "unsupported examine direction '" + cmd.direction +
-                                                           "' (expected " + examine_direction_list + ")" } );
+                                                           "' (expected " + expected_examine_directions + ")" } );
         }
         // The 'e' key: handle_action()'s ACTION_EXAMINE case calls the engine's own prompting examine()
         // overload. The direction is NOT part of the action_id -- it is armed as the one-shot
