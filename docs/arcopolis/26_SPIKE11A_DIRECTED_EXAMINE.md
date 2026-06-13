@@ -160,7 +160,7 @@ document (`here`→`pause` end-to-end, and the actor audit the guard exists to b
 All existing consumers (harness.py view/explain/run/live, make_report.py, the frontend bridge)
 tolerate unknown event types by construction — verified before shipping; none were changed.
 
-## What the regression proves (`examine_regression.ps1`, 10 gates, exit 0)
+## What the regression proves (`examine_regression.ps1`, 12 gates, exit 0)
 
 Driven raw through the new stdlib-only `examine_live_driver.py` (reuses the client harness's
 `LiveSession`; **every response is read under a strict per-response timeout, and a breach kills
@@ -189,14 +189,27 @@ Scenario A (`false`, the fixture's declared value):
    item count at the tile is unchanged — **nothing taken, no hang**.
 8. The session stays usable after the guard (wait ticks), quit answers, final snapshot +
    transcript present.
+9. **The engine's own message stream corroborates every path** — a second witness chain,
+   independent of the backend's transcript events. The served-chooser NPC examine adds **no**
+   message (the chooser was answered, so no "Never mind." from its cancel, `src/action.cpp:1117`;
+   the NPC menu's test_mode cancel is message-silent). The item examine adds **exactly two, in
+   order**: `iexamine::none`'s "That is a %s." (`src/iexamine.cpp:255` — engine-side proof the
+   examine actor really ran on the chosen tile; observed: "That is a cupboard.") and the pickup
+   UI's own cancel "Never mind." (`src/pickup.cpp:1177` — the engine's real ESC path answering the
+   guard's QUIT). And "Never mind." appears **nowhere** before the item examine (no hidden chooser
+   cancel anywhere in the session) and nothing further after it.
 
 Scenario B (`true`, the engine default):
 
-9. Same examine, no hang, 4 in-time responses, exit 0; `session_start` records `true`.
-10. **The unconsumed witness, pinned from observed fixture truth**: at spawn the NPC's tile is the
+10. Same examine, no hang, 4 in-time responses, exit 0; `session_start` records `true`.
+11. **The unconsumed witness, pinned from observed fixture truth**: at spawn the NPC's tile is the
     only valid adjacent target, so the engine auto-selects it, the chooser never asks, and the
     armed answer is force-cleared as `nested_input_unconsumed` — the doc-25 stale-slot class,
     witnessed live instead of leaking.
+12. The autoselect examine adds **no message at all** — in particular not the 0-valid failure text
+    ("There is nothing that can be examined nearby."), which independently confirms the engine
+    took the **1-valid** auto-select branch (`src/action.cpp:1167-1169`) that gate 11's pinned
+    interpretation rests on.
 
 Also validated: the full `[arcopolis]` unit suite (70 cases / 430 assertions — parser, mapping,
 slot lifecycle, the pure decision matrix incl. the timeout gate and cancel preference, the new

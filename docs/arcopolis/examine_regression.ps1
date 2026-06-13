@@ -160,6 +160,13 @@ function Get-ItemCountAt {
     }).Count
 }
 
+# The engine's player-visible message texts at a snapshot instant (empty for a null snapshot).
+function Get-MessageTexts {
+    param($Snapshot)
+    if( -not $Snapshot ) { return @() }
+    return @($Snapshot.messages | ForEach-Object { $_.text })
+}
+
 $fail = 0
 
 # =============================================================================
@@ -328,6 +335,37 @@ if( $g8 ) {
     $fail++
 }
 
+# --- Gate 11: the engine's own MESSAGE stream corroborates every witnessed path -- a second
+# witness chain, independent of the backend's transcript events. The served-chooser NPC examine
+# adds NO message (the chooser was answered, so no "Never mind." from its cancel, action.cpp:1117;
+# the NPC menu's test_mode cancel is message-silent). The item examine adds EXACTLY two, in order:
+# iexamine::none's "That is a %s." (iexamine.cpp:255 -- proof the examine actor really ran on the
+# chosen tile) and the pickup UI's own cancel "Never mind." (pickup.cpp:1177 -- the engine's real
+# ESC path answering the guard's QUIT). And "Never mind." appears NOWHERE before the item examine
+# (no hidden chooser cancel anywhere) and nothing further after it. ---
+$snapExWait = Read-Snapshot -Dir $A.Dir -Name $respA[3].snapshot
+$msgStart = Get-MessageTexts $snapStart
+$msgNpc = Get-MessageTexts $snapNpc
+$msgMoved = Get-MessageTexts $snapMoved
+$msgItems = Get-MessageTexts $snapItems
+$msgWait2 = Get-MessageTexts $snapWait2
+$newItemMsgs = @( if( $msgItems.Count -ge 2 ) { $msgItems[-2..-1] } )
+$preItemNeverMind = @(($msgStart + $msgNpc + (Get-MessageTexts $snapExWait) +
+    (Get-MessageTexts $snapBlocked) + $msgMoved) | Where-Object { $_ -eq 'Never mind.' }).Count
+$itemNeverMind = @($msgItems | Where-Object { $_ -eq 'Never mind.' }).Count
+$g11 = ($msgNpc.Count -eq $msgStart.Count) -and
+       ($msgItems.Count -eq ($msgMoved.Count + 2)) -and
+       ($newItemMsgs.Count -eq 2) -and ($newItemMsgs[0] -like 'That is a *') -and
+       ($newItemMsgs[1] -eq 'Never mind.') -and
+       ($preItemNeverMind -eq 0) -and ($itemNeverMind -eq 1) -and
+       ($msgWait2.Count -eq $msgItems.Count)
+if( $g11 ) {
+    Write-Host "  PASS: engine message stream -- NPC examine added none; item examine added exactly '$($newItemMsgs[0])' + 'Never mind.' (the pickup UI's own cancel); no 'Never mind.' anywhere earlier." -ForegroundColor Green
+} else {
+    Write-Host "  FAIL: engine message stream -- npc=$($msgNpc.Count)/$($msgStart.Count) items=$($msgItems.Count)/$($msgMoved.Count)+2 new=$($newItemMsgs -join ' || ') preNeverMind=$preItemNeverMind itemNeverMind=$itemNeverMind wait=$($msgWait2.Count)" -ForegroundColor Red
+    $fail++
+}
+
 # =============================================================================
 # Scenario B (AUTOSELECT=true -- the engine default): the same examine must stay hang-free, and the
 # armed answer must be fully accounted for (served, or force-cleared as nested_input_unconsumed
@@ -378,6 +416,24 @@ if( $B.Result -and (@($B.Result.responses).Count -ge 2) ) {
 }
 if( -not $g10 ) {
     Write-Host "  FAIL: examine under autoselect=true -- resp=$($respB2 | ConvertTo-Json -Compress) window=$($wB | ConvertTo-Json -Compress -Depth 4)" -ForegroundColor Red
+    $fail++
+}
+
+# --- Gate 12: under autoselect=true the examine adds NO message at all -- in particular NOT the
+# 0-valid failure message ("There is nothing that can be examined nearby."), which independently
+# confirms the engine took the 1-VALID auto-select branch (action.cpp:1167-1169) that gate 10's
+# pinned nested_input_unconsumed interpretation rests on. ---
+$g12 = $false
+if( $B.Result -and (@($B.Result.responses).Count -ge 2) ) {
+    $respB1 = @($B.Result.responses) | Where-Object { $_.id -eq 1 } | Select-Object -First 1
+    $msgBStart = Get-MessageTexts (Read-Snapshot -Dir $B.Dir -Name $respB1.snapshot)
+    $msgBExamine = Get-MessageTexts (Read-Snapshot -Dir $B.Dir -Name $respB2.snapshot)
+    $g12 = ($msgBStart.Count -gt 0) -and ($msgBExamine.Count -eq $msgBStart.Count)
+}
+if( $g12 ) {
+    Write-Host "  PASS: autoselect message stream -- the examine added no message (and no 0-valid failure text): the 1-valid auto-select branch, as pinned." -ForegroundColor Green
+} else {
+    Write-Host "  FAIL: autoselect message stream -- start=$($msgBStart.Count) examine=$($msgBExamine.Count) (expected equal, nonzero)." -ForegroundColor Red
     $fail++
 }
 
