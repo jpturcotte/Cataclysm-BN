@@ -8,6 +8,7 @@
 #include "arcopolis_backend_input.h"
 #include "arcopolis_command.h"  // command_error_kind
 #include "arcopolis_script.h"   // script_step
+#include "input.h"              // inp_mngr, input_manager::wait_for_any_key (raw-read guard)
 
 // Unit tests for the Arcopolis backend INPUT SOURCE (Spike 3.1A, mechanism M1). These cover the pure,
 // world-independent parts: the command->action_id resolver (command_to_action) and the session/cursor
@@ -300,4 +301,21 @@ TEST_CASE( "arcopolis provider arms a DIAGONAL examine and serves its action str
 
     arcopolis::end_backend_session();
     CHECK_FALSE( arcopolis::backend_nested_input_armed() );
+}
+
+TEST_CASE( "arcopolis wait_for_any_key does not block during a backend session", "[arcopolis]" )
+{
+    // The raw "press any key" prompt (input_manager::wait_for_any_key, reached e.g. by examining a
+    // CONSOLE tile -> computer_session::query_any) reads inp_mngr.get_input_event() DIRECTLY, bypassing
+    // the input_context::handle_input seam where the backend's nested-input guard lives -- so headless
+    // it would busy-wait forever. The guard at the top of wait_for_any_key must make it return
+    // immediately while a backend session is active. This test would HANG (never reach the assert) if
+    // that guard regressed; it must only be called WITH a session active (without one it blocks on real
+    // input, so it is never exercised in the no-session case here).
+    arcopolis::begin_backend_session( { .steps = {} } );
+    CHECK( arcopolis::backend_session_active() );
+    inp_mngr.wait_for_any_key();  // returns at the guard; reaching the next line is the proof
+    CHECK( arcopolis::backend_session_active() );
+    arcopolis::end_backend_session();
+    CHECK_FALSE( arcopolis::backend_session_active() );
 }
