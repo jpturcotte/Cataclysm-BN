@@ -95,11 +95,14 @@ def main():
                                 "the response to: %s" % line[:120])
             result["responses"].append(resp)
             try:
-                if json.loads(line).get("op") == "quit":
-                    quit_sent = True
-                    break
+                parsed = json.loads(line)
             except ValueError:
-                pass  # a malformed probe still got its error response above; keep going
+                parsed = None  # a malformed probe still got its error response above; keep going
+            # A valid-JSON-but-non-object probe line (e.g. a bare `5`) parses without raising, so
+            # guard the .get() -- only a dict can carry an "op".
+            if isinstance(parsed, dict) and parsed.get("op") == "quit":
+                quit_sent = True
+                break
         if not quit_sent:
             proc.stdin.close()  # EOF is the protocol's other clean end
         result["exit_code"] = proc.wait(timeout=args.timeout)
@@ -121,6 +124,17 @@ def main():
         return finish(1)
     finally:
         session.close()
+        # Defense in depth: the except path above already reaps proc on the listed errors, but an
+        # exception outside that set (or a KeyboardInterrupt) would otherwise leave the backend
+        # orphaned -- on Windows it is not reaped on parent exit and would sit blocked on stdin
+        # holding a loaded world. poll() is non-None on every path that already exited/killed it,
+        # so this only fires for a genuinely-unreaped process.
+        if proc.poll() is None:
+            try:
+                proc.kill()
+                proc.wait(timeout=5)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
         stderr_handle.close()
 
 
