@@ -329,6 +329,37 @@ if( $runOk ) {
     $fail++
 }
 
+# --- Hard gate 9b: run mode drives a DIAGONAL move end-to-end. The 8-way move fix is only usable if
+# the official client harness can express it -- the harness whitelists COMMAND_TOKENS and rejects
+# unknown tokens BEFORE launching the backend, so a diagonal that the backend accepts but the harness
+# rejects would be undrivable through the contract consumer. move_se from spawn (SE tile (86,86) and
+# both orthogonal neighbors are open t_floor, so the diagonal is unobstructed) must be accepted, drive
+# the backend, and classify as 'moved'. ---
+$diagDir = Join-Path $OutRoot "run_diag"
+if( Test-Path $diagDir ) { Remove-Item $diagDir -Recurse -Force }
+$diagJson = Join-Path $OutRoot "run_diag_result.json"
+$pd = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', $Exe, '--world', $World, '--userdir', $UserDir,
+    '--out', $diagDir, '--commands', 'move_se', '--json') `
+    -StdoutPath $diagJson -StderrPath (Join-Path $OutRoot "run_diag_stderr.txt")
+$diagOk = $false
+if( $pd.ExitCode -eq 0 ) {
+    $dj = $pd.Stdout | ConvertFrom-Json
+    $dseq = (@($dj.summary.outcome_sequence) -join ',')
+    $movedPair = @($dj.pairs | Where-Object { $_.outcome -eq 'moved' }) | Select-Object -First 1
+    $ddelta = if( $movedPair ) { (@($movedPair.pos_abs_delta) -join ',') } else { '' }
+    $diagOk = ($dj.run.exit_code -eq 0) -and ($dseq -eq 'moved,no_command') -and ($ddelta -eq '1,1,0') -and $dj.contract_check.ok
+    if( -not $diagOk ) {
+        Write-Host "  FAIL: run-mode diagonal -- run.exit_code=$($dj.run.exit_code) outcomes='$dseq' moved_delta='$ddelta' contract_ok=$($dj.contract_check.ok) (expected moved,no_command / 1,1,0)." -ForegroundColor Red
+    }
+} else {
+    Write-Host "  FAIL: harness run --commands move_se exited $($pd.ExitCode) (expected 0 -- the diagonal token must NOT be rejected pre-launch). stderr: $(Get-Content (Join-Path $OutRoot 'run_diag_stderr.txt') -Raw -ErrorAction SilentlyContinue)" -ForegroundColor Red
+}
+if( $diagOk ) {
+    Write-Host "  PASS: run mode (diagonal) -- harness accepted move_se, drove the backend, classified 'moved' with pos_abs delta (1,1,0): 8-way movement is drivable through the contract consumer." -ForegroundColor Green
+} else {
+    $fail++
+}
+
 # --- Hard gate 10: the Spike 4 viewer agrees (two independent consumers, one contract). ---
 $report = Join-Path $dir "report.html"
 $pview = Invoke-PyTool -ToolArgs @($Viewer, '--session-dir', $dir, '--output', $report) `
