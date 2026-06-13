@@ -3,9 +3,10 @@
   Arcopolis movement regression scenario (the run-script / "RNS" integration layer).
 
 .DESCRIPTION
-  Drives the headless backend over the ArcopolisTest fixture and asserts that an UNOBSTRUCTED cardinal
-  move actually moves the avatar -- so a movement no-op (like the move_n-into-NPC case in
-  15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md) fails LOUDLY instead of passing silently.
+  Drives the headless backend over the ArcopolisTest fixture and asserts that an UNOBSTRUCTED move
+  (a cardinal AND a diagonal) actually moves the avatar -- so a movement no-op (like the
+  move_n-into-NPC case in 15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md) fails LOUDLY instead of passing silently,
+  and so the 8-way move fix is witnessed end-to-end (a diagonal step advances pos_abs diagonally).
 
   Why this is a fixture-driven script and not a CI catch2 test:
     * It needs a fully loaded world. The pure command/script parsing is already covered by the
@@ -118,6 +119,23 @@ Write-Host ("[move_s] pos {0} -> {1} (dy={2})  turn {3} -> {4} (d={5})  moves {6
 if( $dy -ne 1 ) { Write-Host "  FAIL: move_s did not advance pos_abs.y by 1 (movement no-op regression!)" -ForegroundColor Red; $fail++ }
 if( $dturn -le 0 ) { Write-Host "  FAIL: move_s did not advance backend.turn (the action did not complete!)" -ForegroundColor Red; $fail++ }
 if( $dy -eq 1 -and $dturn -gt 0 ) { Write-Host "  PASS: unobstructed move_s advanced the avatar and ticked the world." -ForegroundColor Green }
+
+# --- Hard gate: an unobstructed DIAGONAL move must advance the avatar diagonally and tick the world --
+# the end-to-end witness for the 8-way move fix. At spawn the SE tile (86,86) and both orthogonal
+# neighbors E (86,85) and S (85,86) are open t_floor, so the diagonal step is unobstructed (no
+# squeeze-through-a-corner block). move_se -> ACTION_MOVE_BACK_RIGHT -> +x,+y. ---
+$se = Invoke-Scenario -Name "move_se_walkable" -Direction "move_se"
+$sedx = $se.AfterPos[0] - $se.BeforePos[0]
+$sedy = $se.AfterPos[1] - $se.BeforePos[1]
+$sedturn = $se.AfterTurn - $se.BeforeTurn
+Write-Host ("[move_se] pos {0} -> {1} (dx={2},dy={3})  turn {4} -> {5} (d={6})" -f `
+    ($se.BeforePos -join ','), ($se.AfterPos -join ','), $sedx, $sedy, $se.BeforeTurn, $se.AfterTurn, $sedturn)
+if( $sedx -eq 1 -and $sedy -eq 1 -and $sedturn -gt 0 ) {
+    Write-Host "  PASS: unobstructed move_se advanced the avatar DIAGONALLY (+1,+1) and ticked -- 8-way move is GUI-faithful end-to-end." -ForegroundColor Green
+} else {
+    Write-Host "  FAIL: move_se did not advance pos_abs by (+1,+1) (the SE diagonal step did not happen)." -ForegroundColor Red
+    $fail++
+}
 
 # --- Informational: move_n into the stock shelter NPC is the documented faithful no-op. ---
 $n = Invoke-Scenario -Name "move_n_npc" -Direction "move_n"
