@@ -65,12 +65,28 @@ TEST_CASE( "arcopolis parse_command rejects a move without a direction", "[arcop
     CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
 }
 
-TEST_CASE( "arcopolis parse_command rejects non-cardinal move directions", "[arcopolis]" )
+TEST_CASE( "arcopolis parse_command accepts all eight planar move directions", "[arcopolis]" )
 {
-    // "east" is not an engine ident; move_ne is a diagonal; move_up/move_down are vertical; "" is empty.
-    // All four resolve to a valid action_id via look_up_action (except "east"/""), so the cardinal-set
-    // check is what rejects them.
-    for( const std::string &dir : { "east", "move_ne", "move_up", "move_down", "" } ) {
+    // The four cardinals plus the four diagonals -- the full planar set a GUI player can step (the
+    // diagonals dispatch through the same avatar_action::move body as cardinals).
+    for( const std::string &dir : {
+             "move_n", "move_s", "move_e", "move_w",
+             "move_ne", "move_nw", "move_se", "move_sw"
+         } ) {
+        const auto json = R"({ "schema_version": 1, "command": "move", "direction": ")" + dir + R"(" })";
+        std::istringstream is( json );
+        const auto result = arcopolis::parse_command( is );
+        REQUIRE( result.has_value() );
+        CHECK( result->command == "move" );
+        CHECK( result->direction == dir );
+    }
+}
+
+TEST_CASE( "arcopolis parse_command rejects vertical and garbage move directions", "[arcopolis]" )
+{
+    // Vertical (move_up/move_down) is the separate game::vertical_move primitive, not a planar step;
+    // "east" is not an engine ident; "" is empty. (Diagonals are now ACCEPTED -- see above.)
+    for( const std::string &dir : { "move_up", "move_down", "east", "move_nene", "" } ) {
         const auto json = R"({ "schema_version": 1, "command": "move", "direction": ")" + dir + R"(" })";
         std::istringstream is( json );
         const auto result = arcopolis::parse_command( is );
@@ -79,14 +95,18 @@ TEST_CASE( "arcopolis parse_command rejects non-cardinal move directions", "[arc
     }
 }
 
-TEST_CASE( "arcopolis is_supported_move_direction accepts only the four cardinals", "[arcopolis]" )
+TEST_CASE( "arcopolis is_supported_move_direction accepts the eight planar directions",
+           "[arcopolis]" )
 {
-    CHECK( arcopolis::is_supported_move_direction( "move_n" ) );
-    CHECK( arcopolis::is_supported_move_direction( "move_s" ) );
-    CHECK( arcopolis::is_supported_move_direction( "move_e" ) );
-    CHECK( arcopolis::is_supported_move_direction( "move_w" ) );
-    CHECK_FALSE( arcopolis::is_supported_move_direction( "move_ne" ) );
+    for( const std::string &dir : {
+             "move_n", "move_s", "move_e", "move_w",
+             "move_ne", "move_nw", "move_se", "move_sw"
+         } ) {
+        CHECK( arcopolis::is_supported_move_direction( dir ) );
+    }
+    // Vertical is a separate primitive; garbage/empty rejected.
     CHECK_FALSE( arcopolis::is_supported_move_direction( "move_up" ) );
+    CHECK_FALSE( arcopolis::is_supported_move_direction( "move_down" ) );
     CHECK_FALSE( arcopolis::is_supported_move_direction( "east" ) );
     CHECK_FALSE( arcopolis::is_supported_move_direction( "" ) );
 }
