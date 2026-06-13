@@ -59,6 +59,86 @@ auto next_backend_action() -> action_id;
 /// `done` itself. No-op while no session is active (gate inertness).
 auto backend_mark_input_done() -> void;
 
+// --- Spike 11A: one-shot nested-input answer + auto-cancel guard. During a backend session every
+// input_context::handle_input() call is by definition a NESTED read (the seam intercepts the only
+// top-level one), and a blocking nested read would otherwise busy-wait forever headless
+// (docs/arcopolis/25). The backend therefore answers every blocking nested read: with the armed
+// one-shot direction answer if the engine's direction chooser is asking, else with the context's own
+// registered cancel action (== the GUI player pressing ESC), else it hard-fails the process rather
+// than hang. Every intervention is a transcript event. ---
+
+/// What an `examine` command arms for the engine's possible direction prompt: the input-context action
+/// id to serve IF the chooser asks (the keystroke mirror), plus transcript correlation fields.
+struct nested_input_request {
+    std::string action;             ///< input-context action id to serve (e.g. "UP", "pause")
+    std::string direction;          ///< the command's direction token (e.g. "move_n")
+    std::optional<int> step_index;  ///< the arming command's step index
+};
+
+/// Arms the one-shot nested-input answer for the command about to be dispatched, and resets the
+/// per-command guard-fire counter. Inert while no session is active. The provider force-clears any
+/// stale answer at every return to the seam, so arming never stacks.
+auto backend_arm_nested_input( const nested_input_request &req ) -> void;
+
+/// True while an armed answer exists and has not been consumed (tests/diagnostics).
+auto backend_nested_input_armed() -> bool;
+
+/// Guard fires allowed within one command before the backend assumes a nested loop is ignoring its
+/// cancel action and hard-fails instead of spinning (docs/arcopolis/25, "guard fire-limit").
+constexpr auto nested_input_guard_fire_limit = 64;
+
+/// What the backend does for one nested input read.
+enum class nested_input_outcome {
+    pass_through,      ///< timeout >= 0: a poll, not a blocking read -- the engine's own read runs untouched
+    serve,             ///< serve the armed answer (one-shot)
+    cancel_quit,       ///< return "QUIT", the context's registered cancel
+    cancel_text_quit,  ///< return "TEXT.QUIT", the text-input context's registered cancel
+    hard_fail,         ///< no servable answer and no registered cancel (or fire limit hit) -- fatal
+};
+
+/// Why the guard (rather than the serve path) answered; `none` for pass_through/serve.
+enum class nested_input_guard_reason {
+    none,
+    no_answer,              ///< nothing armed (or already consumed)
+    context_mismatch,       ///< an answer is armed but the asking context is not the direction chooser
+    answer_not_registered,  ///< the chooser-category context did not register the armed action
+};
+
+/// The plain values one nested read is classified from, so the decision is unit-testable without an
+/// input_context or an active session.
+struct nested_input_observation {
+    bool armed = false;              ///< an unconsumed answer is armed
+    int timeout = -1;                ///< handle_input's timeout parameter; >= 0 polls, < 0 blocks
+    std::string category;            ///< the asking context's category
+    bool answer_registered = false;  ///< the asking context registered the armed action
+    bool quit_registered = false;    ///< the asking context registered "QUIT"
+    bool text_quit_registered = false;  ///< the asking context registered "TEXT.QUIT"
+    int fires = 0;                   ///< guard fires already taken for the current command
+};
+
+/// One classified decision: the outcome plus the guard reason recorded in its transcript event.
+struct nested_input_decision {
+    nested_input_outcome outcome = nested_input_outcome::pass_through;
+    nested_input_guard_reason reason = nested_input_guard_reason::none;
+};
+
+/// Pure classification of one nested input read (no side effects; see nested_input_observation).
+auto decide_nested_input( const nested_input_observation &obs ) -> nested_input_decision;
+
+/// The engine-side hook, called at the top of input_context::handle_input( timeout ) while a backend
+/// session is active. The call site is a MEMBER of input_context, so it passes the context's private
+/// `category` and `registered_actions` directly -- input_context's category/membership accessors are
+/// Android-only public API (src/input.h, the `#if defined(__ANDROID__)` block), and this keeps the
+/// backend decoupled from input.h entirely. Returns the action string handle_input must return
+/// (stable backend-owned storage -- handle_input returns a reference), or nullptr to let the engine's
+/// own read run (pass-through; also inert without an active session). Emits the matching transcript
+/// event. On a hard_fail decision it writes a transcript `error` (kind nested_input_failed), prints
+/// to stderr and hard-exits with exit code 12 INSTEAD of returning -- a deliberate last-resort:
+/// better a fatal, observable exit than a silent headless hang (docs/arcopolis/25).
+auto backend_nested_input_action( const std::string &category,
+                                  const std::vector<std::string> &registered_actions,
+                                  int timeout ) -> const std::string *; // *NOPAD*
+
 /// What backend_write_step_snapshot() wrote, for a live-protocol response: the snapshot's relative
 /// filename plus the scalars the response echoes (turn read at the same instant as the snapshot).
 struct backend_step_snapshot {

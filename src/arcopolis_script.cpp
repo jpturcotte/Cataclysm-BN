@@ -99,6 +99,17 @@ std::expected<std::vector<script_step>, command_error>
                                                                .detail = at + "unsupported move direction '" + direction +
                                                                        "' (expected move_n/move_s/move_e/move_w)" } );
                     }
+                } else if( command == "examine" ) {
+                    if( !e.has_string( "direction" ) ) {
+                        return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                               .detail = at + "command 'examine' requires a string 'direction'" } );
+                    }
+                    direction = e.get_string( "direction" );
+                    if( !is_supported_examine_direction( direction ) ) {
+                        return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                               .detail = at + "unsupported examine direction '" + direction +
+                                                                       "' (expected move_n/move_s/move_e/move_w/move_ne/move_nw/move_se/move_sw/here)" } );
+                    }
                 }
                 steps.push_back( script_step{ .op = op, .command = command, .direction = direction } );
             } else {
@@ -214,7 +225,10 @@ auto arcopolis::run_script( const run_script_options &opts ) -> int
     if( !begin_session_log( { .world = opts.world,
                               .seed = opts.seed,
                               .export_dir = opts.export_dir,
-                              .game_version = std::string( getVersionString() ) } ) ) {
+                              .game_version = std::string( getVersionString() ),
+                              // Spike 11A: record (never override) the loaded chooser-autoselect option, so
+                              // examine witnesses are config-explicit (docs/arcopolis/25, gate (h)).
+                              .autoselect_single_valid_target = get_option<bool>( "AUTOSELECT_SINGLE_VALID_TARGET" ) } ) ) {
         std::cerr << "arcopolis: failed to open session transcript in '" << opts.export_dir << "'\n";
         end_backend_session();
         return exit_code_for( command_error_kind::export_failed );

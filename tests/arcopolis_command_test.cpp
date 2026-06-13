@@ -101,4 +101,84 @@ TEST_CASE( "arcopolis exit_code_for maps error kinds to distinct nonzero codes",
     CHECK( arcopolis::exit_code_for( kind::unsupported_command ) == 6 );
     CHECK( arcopolis::exit_code_for( kind::apply_failed ) == 7 );
     CHECK( arcopolis::exit_code_for( kind::safe_mode_blocked ) == 8 );
+    CHECK( arcopolis::exit_code_for( kind::nested_input_failed ) == 12 );
+}
+
+TEST_CASE( "arcopolis parse_command accepts examine with every supported direction", "[arcopolis]" )
+{
+    // All EIGHT planar directions the GUI examine chooser offers, plus "here" (self tile) -- the backend
+    // must mirror the full chooser, not a cardinal-only subset.
+    for( const std::string &dir : {
+             "move_n", "move_s", "move_e", "move_w",
+             "move_ne", "move_nw", "move_se", "move_sw", "here"
+         } ) {
+        const auto json = R"({ "schema_version": 1, "command": "examine", "direction": ")" + dir +
+                          R"(" })";
+        std::istringstream is( json );
+        const auto result = arcopolis::parse_command( is );
+        REQUIRE( result.has_value() );
+        CHECK( result->command == "examine" );
+        CHECK( result->direction == dir );
+    }
+}
+
+TEST_CASE( "arcopolis parse_command rejects an examine without a direction", "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "command": "examine" })" );
+    const auto result = arcopolis::parse_command( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
+TEST_CASE( "arcopolis parse_command rejects unsupported examine directions", "[arcopolis]" )
+{
+    // Vertical stays rejected (game::examine passes allow_vertical=false). "pause" is the CHOOSER's
+    // action id, not a protocol token: the protocol spells the self-tile "here". "move_n_e"/garbage and
+    // empty are rejected. (Diagonals move_ne... are now ACCEPTED -- see the acceptance test above.)
+    for( const std::string &dir : { "move_up", "move_down", "east", "pause", "move_nene", "" } ) {
+        const auto json = R"({ "schema_version": 1, "command": "examine", "direction": ")" + dir +
+                          R"(" })";
+        std::istringstream is( json );
+        const auto result = arcopolis::parse_command( is );
+        REQUIRE_FALSE( result.has_value() );
+        CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+    }
+}
+
+TEST_CASE( "arcopolis is_supported_examine_direction accepts all 8 planar dirs plus here",
+           "[arcopolis]" )
+{
+    for( const std::string &dir : {
+             "move_n", "move_s", "move_e", "move_w",
+             "move_ne", "move_nw", "move_se", "move_sw", "here"
+         } ) {
+        CHECK( arcopolis::is_supported_examine_direction( dir ) );
+    }
+    // Vertical and garbage rejected; "pause" is the action id, not the protocol token.
+    CHECK_FALSE( arcopolis::is_supported_examine_direction( "move_up" ) );
+    CHECK_FALSE( arcopolis::is_supported_examine_direction( "move_down" ) );
+    CHECK_FALSE( arcopolis::is_supported_examine_direction( "pause" ) );
+    CHECK_FALSE( arcopolis::is_supported_examine_direction( "east" ) );
+    CHECK_FALSE( arcopolis::is_supported_examine_direction( "" ) );
+}
+
+TEST_CASE( "arcopolis examine_nested_answer maps every direction to its chooser action id",
+           "[arcopolis]" )
+{
+    // The chooser consumes input-context action ids (register_directions plus its own "pause"
+    // self-tile branch), not engine action_ids; the plain mapping holds headless because no iso
+    // rotation can apply (tile_iso is set only at tileset load -- docs/arcopolis/25, point 4). The
+    // diagonal pairings are verified against get_direction (src/input.cpp): screen north=-y, east=+x,
+    // so move_ne (north_east, +x,-y) -> "RIGHTUP", move_sw (south_west, -x,+y) -> "LEFTDOWN", etc.
+    CHECK( arcopolis::examine_nested_answer( "move_n" ).value_or( "" ) == "UP" );
+    CHECK( arcopolis::examine_nested_answer( "move_s" ).value_or( "" ) == "DOWN" );
+    CHECK( arcopolis::examine_nested_answer( "move_e" ).value_or( "" ) == "RIGHT" );
+    CHECK( arcopolis::examine_nested_answer( "move_w" ).value_or( "" ) == "LEFT" );
+    CHECK( arcopolis::examine_nested_answer( "move_ne" ).value_or( "" ) == "RIGHTUP" );
+    CHECK( arcopolis::examine_nested_answer( "move_nw" ).value_or( "" ) == "LEFTUP" );
+    CHECK( arcopolis::examine_nested_answer( "move_se" ).value_or( "" ) == "RIGHTDOWN" );
+    CHECK( arcopolis::examine_nested_answer( "move_sw" ).value_or( "" ) == "LEFTDOWN" );
+    CHECK( arcopolis::examine_nested_answer( "here" ).value_or( "" ) == "pause" );
+    CHECK_FALSE( arcopolis::examine_nested_answer( "move_up" ).has_value() );
+    CHECK_FALSE( arcopolis::examine_nested_answer( "" ).has_value() );
 }
