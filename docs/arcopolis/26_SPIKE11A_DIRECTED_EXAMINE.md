@@ -6,9 +6,12 @@ recommended by the decision record
 (Option A's protocol surface) delivered through a **one-slot queued direction answer** plus an
 **auto-cancel guard** at the `input_context::handle_input` choke point (the minimal Option-B
 mechanism), both gated on `backend_session_active()`. **The guard is the spike's primary
-architectural artifact** — it converts the entire raw-nested-read deadlock class into the
-already-accepted ESC class; examine is the witness that exercises all three prompt classes in one
-verb.
+architectural artifact** — it converts the raw-nested-read deadlock class that flows through
+`input_context::handle_input` into the already-accepted ESC class; examine is the witness that
+exercises all three prompt classes in one verb. (One raw-read path does **not** flow through
+`handle_input` — `input_manager::wait_for_any_key` reads `get_input_event` directly, reachable by
+examining a `CONSOLE` tile — and is bounded by a separate guard; see
+[27_BACKEND_RAW_WAIT_GUARD.md](27_BACKEND_RAW_WAIT_GUARD.md).)
 
 ## The command
 
@@ -244,9 +247,13 @@ unchanged
   computer UI, no open/close verbs yet.
 - No frontend examine UX — the protocol surface is proven backend-first; the frontend remains an
   unchanged consumer.
-- It does **not** make every iexamine actor safe — it bounds the damage of any raw nested read to
-  a logged auto-cancel. The per-target-class second-order audit rule of doc 25 still applies
-  before exposing richer interactions.
+- It does **not** make every iexamine actor safe — it bounds the damage of any raw nested read
+  **that flows through `input_context::handle_input`** to a logged auto-cancel. It does **not** bound
+  raw reads that call `input_manager::get_input_event` directly (notably
+  `input_manager::wait_for_any_key`, reachable by examining a `CONSOLE` tile →
+  `game::use_computer` → `computer_session::query_any`); that class is closed by a separate guard in
+  [27_BACKEND_RAW_WAIT_GUARD.md](27_BACKEND_RAW_WAIT_GUARD.md). The per-target-class second-order audit
+  rule of doc 25 still applies before exposing richer interactions.
 - The hard-fail path is untested at runtime by design (it `_Exit`s; all audited contexts register
   a cancel) — its decision classification is unit-tested.
 
