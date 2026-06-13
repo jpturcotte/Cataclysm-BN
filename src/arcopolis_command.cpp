@@ -29,6 +29,39 @@ auto arcopolis::is_supported_move_direction( std::string_view ident ) -> bool
     return ranges::contains( cardinals, ident );
 }
 
+auto arcopolis::is_supported_examine_direction( std::string_view ident ) -> bool
+{
+    using namespace std::string_view_literals;
+    // The cardinals plus "here": examining one's own tile is a real GUI behavior (the chooser's "pause"
+    // path, src/action.cpp choose_direction). Diagonals/vertical stay rejected like "move".
+    return is_supported_move_direction( ident ) || ident == "here"sv;
+}
+
+auto arcopolis::examine_nested_answer( std::string_view direction ) -> std::optional<std::string>
+{
+    using namespace std::string_view_literals;
+    namespace ranges = std::ranges;
+    // The engine's direction chooser consumes registered input-context ACTION IDS ("UP"/"DOWN"/... from
+    // register_directions(), src/input.cpp, plus its own "pause" self-tile branch, src/action.cpp), not
+    // engine action_ids. No iso rotation applies headless: get_direction() rotates only under
+    // iso_mode && tile_iso && use_tiles, and tile_iso is set exclusively at tileset load -- which never
+    // happens in the --arcopolis-* modes (docs/arcopolis/25, design point 4). So the mapping is plain.
+    static constexpr std::array<std::pair<std::string_view, std::string_view>, 5> answers = { {
+            { "move_n"sv, "UP"sv },
+            { "move_s"sv, "DOWN"sv },
+            { "move_e"sv, "RIGHT"sv },
+            { "move_w"sv, "LEFT"sv },
+            { "here"sv, "pause"sv },
+        }
+    };
+    const auto it = ranges::find( answers, direction,
+                                  &std::pair<std::string_view, std::string_view>::first );
+    if( it == answers.end() ) {
+        return std::nullopt;
+    }
+    return std::string( it->second );
+}
+
 auto arcopolis::parse_command( std::istream &stream ) ->
 std::expected<backend_command, command_error>
 {
@@ -66,6 +99,17 @@ std::expected<backend_command, command_error>
                 return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
                                                        .detail = "unsupported move direction '" + direction +
                                                                "' (expected move_n/move_s/move_e/move_w)" } );
+            }
+        } else if( command == "examine" ) {
+            if( !obj.has_string( "direction" ) ) {
+                return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                       .detail = "command 'examine' requires a string 'direction'" } );
+            }
+            direction = obj.get_string( "direction" );
+            if( !is_supported_examine_direction( direction ) ) {
+                return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                       .detail = "unsupported examine direction '" + direction +
+                                                               "' (expected move_n/move_s/move_e/move_w/here)" } );
             }
         }
         return backend_command{ .schema_version = version, .command = command, .direction = direction };
@@ -115,6 +159,19 @@ std::expected<action_id, command_error>
         // computes the delta via get_delta_from_movement_action and calls avatar_action::move.
         return look_up_action( cmd.direction );
     }
+    if( cmd.command == "examine" ) {
+        // Same defense in depth as "move": parsers already reject bad directions, but command_to_action
+        // is also reachable directly (and from tests).
+        if( !is_supported_examine_direction( cmd.direction ) ) {
+            return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                   .detail = "unsupported examine direction '" + cmd.direction +
+                                                           "' (expected move_n/move_s/move_e/move_w/here)" } );
+        }
+        // The 'e' key: handle_action()'s ACTION_EXAMINE case calls the engine's own prompting examine()
+        // overload. The direction is NOT part of the action_id -- it is armed as the one-shot
+        // nested-input answer, served only if the engine's chooser actually asks (Spike 11A).
+        return ACTION_EXAMINE;
+    }
     return std::unexpected( command_error{ .kind = command_error_kind::unsupported_command,
                                            .detail = "unsupported command: '" + cmd.command + "'" } );
 }
@@ -142,6 +199,8 @@ auto arcopolis::exit_code_for( command_error_kind kind ) -> int
             return 10;
         case command_error_kind::game_over:
             return 11;
+        case command_error_kind::nested_input_failed:
+            return 12;
     }
     return 1;  // unreachable; defensive default
 }

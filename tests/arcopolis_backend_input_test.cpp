@@ -1,8 +1,10 @@
 #include "catch/catch.hpp"
 
 #include <optional>
+#include <string>
+#include <vector>
 
-#include "action.h"  // ACTION_PAUSE, ACTION_MOVE_*, ACTION_NULL
+#include "action.h"  // ACTION_PAUSE, ACTION_MOVE_*, ACTION_EXAMINE, ACTION_NULL
 #include "arcopolis_backend_input.h"
 #include "arcopolis_command.h"  // command_error_kind
 #include "arcopolis_script.h"   // script_step
@@ -118,4 +120,151 @@ TEST_CASE( "arcopolis backend input session keeps moves > 0 open across commands
 
     arcopolis::end_backend_session();
     CHECK_FALSE( arcopolis::backend_session_active() );
+}
+
+TEST_CASE( "arcopolis command_to_action resolves examine for every supported direction",
+           "[arcopolis]" )
+{
+    for( const std::string &dir : { "move_n", "move_s", "move_e", "move_w", "here" } ) {
+        CHECK( arcopolis::command_to_action( { .schema_version = 1, .command = "examine", .direction = dir } )
+               .value_or( ACTION_NULL ) == ACTION_EXAMINE );
+    }
+    // Same defense-in-depth gate as "move": vertical/diagonal/garbage directions are bad_schema.
+    for( const std::string &dir : { "move_up", "move_ne", "pause", "" } ) {
+        const auto bad = arcopolis::command_to_action( { .schema_version = 1, .command = "examine", .direction = dir } );
+        REQUIRE_FALSE( bad.has_value() );
+        CHECK( bad.error().kind == arcopolis::command_error_kind::bad_schema );
+    }
+}
+
+TEST_CASE( "arcopolis decide_nested_input classifies polls, serves, cancels and hard-fails",
+           "[arcopolis]" )
+{
+    using arcopolis::decide_nested_input;
+    using outcome_t = arcopolis::nested_input_outcome;
+    using reason_t = arcopolis::nested_input_guard_reason;
+
+    // A timeout-bounded read is a poll (it returns by itself headless): untouched even with a perfect
+    // armed answer. The engine's activity-interrupt check polls DEFAULTMODE with timeout 0.
+    CHECK( decide_nested_input( { .armed = true, .timeout = 0, .category = "DEFAULTMODE",
+                                  .answer_registered = true, .quit_registered = true } ).outcome
+           == outcome_t::pass_through );
+    CHECK( decide_nested_input( { .armed = true, .timeout = 250, .category = "DEFAULTMODE",
+                                  .answer_registered = true } ).outcome == outcome_t::pass_through );
+
+    // The serve gate: armed AND the chooser category AND the action registered there.
+    const auto serve = decide_nested_input( { .armed = true, .timeout = -1,
+                                            .category = "DEFAULTMODE", .answer_registered = true } );
+    CHECK( serve.outcome == outcome_t::serve );
+    CHECK( serve.reason == reason_t::none );
+
+    // Armed but a different context is asking (e.g. the pickup menu, which registers UP/DOWN for
+    // scrolling): cancel, never serve -- the armed answer must not scroll a menu.
+    const auto wrong_ctx = decide_nested_input( { .armed = true, .timeout = -1, .category = "PICKUP",
+                           .answer_registered = true, .quit_registered = true } );
+    CHECK( wrong_ctx.outcome == outcome_t::cancel_quit );
+    CHECK( wrong_ctx.reason == reason_t::context_mismatch );
+
+    // Armed, chooser category, but the action was not registered there.
+    const auto unregistered = decide_nested_input( { .armed = true, .timeout = -1,
+                              .category = "DEFAULTMODE", .quit_registered = true } );
+    CHECK( unregistered.outcome == outcome_t::cancel_quit );
+    CHECK( unregistered.reason == reason_t::answer_not_registered );
+
+    // Nothing armed: cancel with QUIT, or TEXT.QUIT where only that exists (the text-input context),
+    // and hard-fail when neither is registered.
+    const auto esc = decide_nested_input( { .timeout = -1, .category = "PICKUP", .quit_registered = true } );
+    CHECK( esc.outcome == outcome_t::cancel_quit );
+    CHECK( esc.reason == reason_t::no_answer );
+    const auto text_esc = decide_nested_input( { .timeout = -1, .category = "STRING_INPUT",
+                          .text_quit_registered = true } );
+    CHECK( text_esc.outcome == outcome_t::cancel_text_quit );
+    CHECK( text_esc.reason == reason_t::no_answer );
+    CHECK( decide_nested_input( { .timeout = -1, .category = "NO_CANCEL" } ).outcome
+           == outcome_t::hard_fail );
+
+    // The anti-livelock fire limit converts an ignored cancel into a hard fail.
+    CHECK( decide_nested_input( { .timeout = -1, .category = "PICKUP", .quit_registered = true,
+                                  .fires = arcopolis::nested_input_guard_fire_limit - 1 } ).outcome
+           == outcome_t::cancel_quit );
+    CHECK( decide_nested_input( { .timeout = -1, .category = "PICKUP", .quit_registered = true,
+                                  .fires = arcopolis::nested_input_guard_fire_limit } ).outcome
+           == outcome_t::hard_fail );
+}
+
+TEST_CASE( "arcopolis nested-input slot is inert without a session and one-shot within one",
+           "[arcopolis]" )
+{
+    // Action sets mirroring the real contexts (the hook receives category + registered actions from
+    // input_context::handle_input -- the accessors are Android-only, so the engine passes them in).
+    const std::vector<std::string> chooser_actions = {
+        "UP", "DOWN", "LEFT", "RIGHT", "LEFTUP", "LEFTDOWN", "RIGHTUP", "RIGHTDOWN",
+        "pause", "QUIT", "HELP_KEYBINDINGS",
+    };
+    const std::vector<std::string> pickup_actions = { "UP", "DOWN", "QUIT" };
+    const std::vector<std::string> no_cancel_actions = {};
+
+    // Without a session: arming is inert and the hook never intervenes, even on a context with no
+    // cancel action -- normal play must be untouched (the same inertness bar as the do_turn gate).
+    CHECK_FALSE( arcopolis::backend_nested_input_armed() );
+    arcopolis::backend_arm_nested_input( { .action = "UP", .direction = "move_n" } );
+    CHECK_FALSE( arcopolis::backend_nested_input_armed() );
+    CHECK( arcopolis::backend_nested_input_action( "NO_CANCEL", no_cancel_actions, -1 ) == nullptr );
+
+    arcopolis::begin_backend_session( { .steps = {} } );
+
+    arcopolis::backend_arm_nested_input( { .action = "UP", .direction = "move_n", .step_index = 2 } );
+    CHECK( arcopolis::backend_nested_input_armed() );
+
+    // Poll reads pass through without consuming the answer.
+    CHECK( arcopolis::backend_nested_input_action( "DEFAULTMODE", chooser_actions, 0 ) == nullptr );
+    CHECK( arcopolis::backend_nested_input_armed() );
+
+    // The blocking chooser read is served the armed answer -- exactly once.
+    const std::string *served =
+        arcopolis::backend_nested_input_action( "DEFAULTMODE", chooser_actions, -1 );
+    REQUIRE( served != nullptr );
+    CHECK( *served == "UP" );
+    CHECK_FALSE( arcopolis::backend_nested_input_armed() );
+
+    // The next blocking read gets the guard's cancel, never a stale answer.
+    const std::string *cancelled =
+        arcopolis::backend_nested_input_action( "DEFAULTMODE", chooser_actions, -1 );
+    REQUIRE( cancelled != nullptr );
+    CHECK( *cancelled == "QUIT" );
+
+    // A pickup-shaped context (registers the direction actions for scrolling, and QUIT) with an armed
+    // answer gets the cancel too: the category gate stops the answer scrolling a menu.
+    arcopolis::backend_arm_nested_input( { .action = "UP", .direction = "move_n", .step_index = 3 } );
+    const std::string *guarded =
+        arcopolis::backend_nested_input_action( "PICKUP", pickup_actions, -1 );
+    REQUIRE( guarded != nullptr );
+    CHECK( *guarded == "QUIT" );
+    CHECK( arcopolis::backend_nested_input_armed() );  // the slot waits for the chooser or the seam clear
+
+    arcopolis::end_backend_session();
+    CHECK_FALSE( arcopolis::backend_nested_input_armed() );
+}
+
+TEST_CASE( "arcopolis provider arms examine steps and clears stale answers at the seam",
+           "[arcopolis]" )
+{
+    arcopolis::begin_backend_session( {
+        .steps = {
+            { .op = "command", .command = "examine", .direction = "move_n" },
+            { .op = "command", .command = "wait" },
+        },
+    } );
+
+    // The examine step resolves to ACTION_EXAMINE and arms the one-shot answer.
+    CHECK( arcopolis::next_backend_action() == ACTION_EXAMINE );
+    CHECK( arcopolis::backend_nested_input_armed() );
+
+    // Control returning to the seam (the next provider pull) force-clears the unconsumed answer
+    // before the next command dispatches: nothing can leak into the wait.
+    CHECK( arcopolis::next_backend_action() == ACTION_PAUSE );
+    CHECK_FALSE( arcopolis::backend_nested_input_armed() );
+
+    arcopolis::end_backend_session();
+    CHECK_FALSE( arcopolis::backend_nested_input_armed() );
 }

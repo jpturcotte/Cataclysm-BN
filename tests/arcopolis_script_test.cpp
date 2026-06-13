@@ -47,6 +47,39 @@ TEST_CASE( "arcopolis parse_script leaves an omitted export name empty", "[arcop
     CHECK( ( *result )[0].name.empty() );
 }
 
+TEST_CASE( "arcopolis parse_script accepts examine command steps", "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "examine", "direction": "move_n" },
+        { "op": "command", "command": "examine", "direction": "here" }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE( result.has_value() );
+    REQUIRE( result->size() == 2 );
+    CHECK( ( *result )[0].command == "examine" );
+    CHECK( ( *result )[0].direction == "move_n" );
+    CHECK( ( *result )[1].command == "examine" );
+    CHECK( ( *result )[1].direction == "here" );
+}
+
+TEST_CASE( "arcopolis parse_script rejects an examine step without a direction", "[arcopolis]" )
+{
+    std::istringstream is(
+        R"({ "schema_version": 1, "steps": [ { "op": "command", "command": "examine" } ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
+TEST_CASE( "arcopolis parse_script rejects unsupported examine directions", "[arcopolis]" )
+{
+    std::istringstream is(
+        R"({ "schema_version": 1, "steps": [ { "op": "command", "command": "examine", "direction": "move_up" } ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
 TEST_CASE( "arcopolis parse_script rejects an unsupported schema_version", "[arcopolis]" )
 {
     std::istringstream is( R"({ "schema_version": 2, "steps": [] })" );
