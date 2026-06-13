@@ -17,10 +17,11 @@
 // Each test that begins a session ends it, so the translation-unit-local session does not leak between
 // tests.
 
-TEST_CASE( "arcopolis command_to_action resolves wait and the four cardinals", "[arcopolis]" )
+TEST_CASE( "arcopolis command_to_action resolves wait and the eight planar moves", "[arcopolis]" )
 {
     CHECK( arcopolis::command_to_action( { .schema_version = 1, .command = "wait" } ).value_or(
                ACTION_NULL ) == ACTION_PAUSE );
+    // Cardinals.
     CHECK( arcopolis::command_to_action( { .schema_version = 1, .command = "move", .direction = "move_n" } )
            .value_or( ACTION_NULL ) == ACTION_MOVE_FORTH );
     CHECK( arcopolis::command_to_action( { .schema_version = 1, .command = "move", .direction = "move_s" } )
@@ -29,6 +30,16 @@ TEST_CASE( "arcopolis command_to_action resolves wait and the four cardinals", "
            .value_or( ACTION_NULL ) == ACTION_MOVE_RIGHT );
     CHECK( arcopolis::command_to_action( { .schema_version = 1, .command = "move", .direction = "move_w" } )
            .value_or( ACTION_NULL ) == ACTION_MOVE_LEFT );
+    // Diagonals -> the engine's diagonal move actions (look_up_action resolves them; the same
+    // avatar_action::move body dispatches them, so they are as faithful as the cardinals).
+    CHECK( arcopolis::command_to_action( { .schema_version = 1, .command = "move", .direction = "move_ne" } )
+           .value_or( ACTION_NULL ) == ACTION_MOVE_FORTH_RIGHT );
+    CHECK( arcopolis::command_to_action( { .schema_version = 1, .command = "move", .direction = "move_nw" } )
+           .value_or( ACTION_NULL ) == ACTION_MOVE_FORTH_LEFT );
+    CHECK( arcopolis::command_to_action( { .schema_version = 1, .command = "move", .direction = "move_se" } )
+           .value_or( ACTION_NULL ) == ACTION_MOVE_BACK_RIGHT );
+    CHECK( arcopolis::command_to_action( { .schema_version = 1, .command = "move", .direction = "move_sw" } )
+           .value_or( ACTION_NULL ) == ACTION_MOVE_BACK_LEFT );
 }
 
 TEST_CASE( "arcopolis command_to_action rejects unsupported commands and bad directions",
@@ -38,9 +49,9 @@ TEST_CASE( "arcopolis command_to_action rejects unsupported commands and bad dir
     REQUIRE_FALSE( unsupported.has_value() );
     CHECK( unsupported.error().kind == arcopolis::command_error_kind::unsupported_command );
 
-    // Diagonal/vertical/garbage directions resolve to an action_id via look_up_action, so the cardinal
-    // gate inside command_to_action is what rejects them as bad_schema.
-    for( const std::string &dir : { "move_ne", "move_up", "east", "" } ) {
+    // Vertical (separate vertical_move primitive) and garbage resolve via look_up_action, so the planar
+    // gate inside command_to_action is what rejects them as bad_schema. (Diagonals are now accepted.)
+    for( const std::string &dir : { "move_up", "move_down", "east", "" } ) {
         const auto bad = arcopolis::command_to_action( { .schema_version = 1, .command = "move", .direction = dir } );
         REQUIRE_FALSE( bad.has_value() );
         CHECK( bad.error().kind == arcopolis::command_error_kind::bad_schema );
