@@ -93,15 +93,52 @@ produces no guard event — by design.
 
 ### Implementation corrections to doc 25
 
-- **Design point 6's "existing public API" claim was wrong for desktop builds**:
-  `is_action_registered()` / `get_category()` (`src/input.h:469-478`) sit inside the
-  `#if defined(__ANDROID__)` block that opens at `src/input.h:429` — MSVC rejects them. The
-  shipped hook still adds **zero** engine API: the call site is a _member_ of `input_context`, so
-  it passes the private `category` and `registered_actions` to the backend directly
+- **Design point 6's "existing public API" claim was a verification-process failure, caught only
+  by the compiler — recorded as such, not as a typo.** `is_action_registered()` /
+  `get_category()` (`src/input.h:469-478`) sit inside the `#if defined(__ANDROID__)` block that
+  opens at `src/input.h:429` — MSVC rejects them on desktop. The claim had been "resolved from
+  source" by the 11A-prep citation audit, was re-quoted by two further independent reviews during
+  this spike's planning, and survived a direct read whose window showed the opening `#if` itself:
+  four line-readings, zero catches. The method lesson: an **availability** claim ("X is public
+  API here") cannot be proven by reading the cited lines, because availability depends on
+  enclosing context the lines never show (preprocessor guards, access sections, build config) —
+  and repeated line-reads of the same lines are not independent evidence; they share one blind
+  spot. Availability claims need an enclosing-context scan or a compile probe. The shipped hook
+  still adds **zero** engine API: the call site is a _member_ of `input_context`, so it passes
+  the private `category` and `registered_actions` to the backend directly
   (`arcopolis::backend_nested_input_action( category, registered_actions, timeout )`), and the
   backend stays fully decoupled from `input.h`.
 - **The `timeout >= 0` pass-through rule is new** (decision rule 1) — doc 25's analysis covered
   blocking reads only; the activity-interrupt poll made the blocking/poll split mandatory.
+
+### Re-audit of the same-class claims (post-failure)
+
+A failed audited claim obligates re-auditing the claims that share its failure mode, not just
+fixing the one. Availability errors are the _cheap_ class — the compiler backstops them at build
+time — but the guard's cancel logic rests on doc-25 citations of the form "context X registers
+cancel Y at line L", where a wrong cite does **not** fail a build; it silently ships wrong cancel
+behavior. Worst case is `TEXT.QUIT`: no regression witness ever reaches a string-input context, so
+if that registration were guarded out on desktop, string-input prompts would hard-exit (code 12)
+instead of cancelling, and nothing would have noticed. Every such citation was therefore re-checked
+with a preprocessor-nesting scan (walk the file's `#if`/`#endif` stack up to the cited line and
+report any block still open there), using the known-bad line as the positive control:
+
+| Cited line                       | Claim                    | Enclosing `#if` at that line                           |
+| -------------------------------- | ------------------------ | ------------------------------------------------------ |
+| `src/input.h:475` (control)      | the broken doc-25 claim  | correctly flagged: `#if defined(__ANDROID__)` (`:429`) |
+| `src/string_input_popup.cpp:109` | `TEXT.QUIT` cancel       | none — unconditionally compiled                        |
+| `src/action.cpp:1085`            | chooser `QUIT`           | none                                                   |
+| `src/pickup.cpp:732`             | `PICKUP` `QUIT`          | none                                                   |
+| `src/inventory_ui.cpp:1851`      | `INVENTORY` `QUIT`       | none                                                   |
+| `src/iexamine.cpp:936`           | `VENDING_MACHINE` `QUIT` | none                                                   |
+| `src/game.cpp:9957`              | `LOOK` `QUIT`            | none                                                   |
+
+The failure did not propagate: every cancel registration the shipped decision logic relies on is
+unconditional. Of the remaining doc-25 claims under shipped behavior, most are now
+runtime-witnessed by the regression (a stronger check than any reading — the served chooser
+answer, the autoselect skip + force-clear, the pickup-tail reach + cancel, the NPC-menu
+auto-cancel); the citation-only leftovers are exactly the ones already labeled unwitnessed in this
+document (`here`→`pause` end-to-end, and the actor audit the guard exists to bound).
 
 ## Transcript observability (`session.jsonl`, schema_version stays 1 — additive)
 
@@ -204,16 +241,17 @@ formatters), and the three sibling regressions unchanged
 
 ## Citation audit
 
-| Claim                                                                 | Implementing line(s)                                                                                                           |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Hook site, before any input-manager state changes                     | `src/input.cpp` `input_context::handle_input( const int timeout )` top                                                         |
-| The accessors doc 25 cited are Android-only                           | `src/input.h:429` (block start), `:469-478` (the accessors inside it)                                                          |
-| Activity-interrupt poll: DEFAULTMODE, `handle_input( 0 )`, no cancel  | `src/game.cpp:3169-3172`, `:3314-3472`                                                                                         |
-| Poll reads return by themselves headless; `inputdelay < 0` blocks     | `src/sdltiles.cpp:3976-3996`, `:3967-3975`                                                                                     |
-| Nested loops use the blocking no-arg overload (member default `-1`)   | `src/input.h:734`; `src/action.cpp:1099`, `src/pickup.cpp:1164`, `src/string_input_popup.cpp:437`, `src/inventory_ui.cpp:1887` |
-| Chooser shape: `"DEFAULTMODE"`, directions + `pause` + `QUIT`         | `src/action.cpp:1078-1119`                                                                                                     |
-| PICKUP registers UP/DOWN (the scroll-leak hazard) and QUIT            | `src/pickup.cpp:722-725, :732`                                                                                                 |
-| Arming after the command event, script + live                         | `src/arcopolis_backend_input.cpp` (steps walk), `src/arcopolis_live.cpp` (command branch)                                      |
-| Entry-clear before the live pull (event precedes the response export) | `src/arcopolis_backend_input.cpp` `next_backend_action()` top                                                                  |
-| Exit code 12 for `nested_input_failed`                                | `src/arcopolis_command.cpp` `exit_code_for`                                                                                    |
-| Recorded (never overridden) autoselect in `session_start`             | `src/arcopolis_script.cpp` / `src/arcopolis_live.cpp` `begin_session_log` call sites                                           |
+| Claim                                                                                                                                | Implementing line(s)                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| Hook site, before any input-manager state changes                                                                                    | `src/input.cpp` `input_context::handle_input( const int timeout )` top                                                         |
+| The accessors doc 25 cited are Android-only                                                                                          | `src/input.h:429` (block start), `:469-478` (the accessors inside it)                                                          |
+| Activity-interrupt poll: DEFAULTMODE, `handle_input( 0 )`, no cancel                                                                 | `src/game.cpp:3169-3172`, `:3314-3472`                                                                                         |
+| Poll reads return by themselves headless; `inputdelay < 0` blocks                                                                    | `src/sdltiles.cpp:3976-3996`, `:3967-3975`                                                                                     |
+| Nested loops use the blocking no-arg overload (member default `-1`)                                                                  | `src/input.h:734`; `src/action.cpp:1099`, `src/pickup.cpp:1164`, `src/string_input_popup.cpp:437`, `src/inventory_ui.cpp:1887` |
+| Chooser shape: `"DEFAULTMODE"`, directions + `pause` + `QUIT`                                                                        | `src/action.cpp:1078-1119`                                                                                                     |
+| PICKUP registers UP/DOWN (the scroll-leak hazard) and QUIT                                                                           | `src/pickup.cpp:722-725, :732`                                                                                                 |
+| Arming after the command event, script + live                                                                                        | `src/arcopolis_backend_input.cpp` (steps walk), `src/arcopolis_live.cpp` (command branch)                                      |
+| Entry-clear before the live pull (event precedes the response export)                                                                | `src/arcopolis_backend_input.cpp` `next_backend_action()` top                                                                  |
+| Exit code 12 for `nested_input_failed`                                                                                               | `src/arcopolis_command.cpp` `exit_code_for`                                                                                    |
+| Recorded (never overridden) autoselect in `session_start`                                                                            | `src/arcopolis_script.cpp` / `src/arcopolis_live.cpp` `begin_session_log` call sites                                           |
+| Guard cancel registrations are unconditionally compiled (preprocessor-nesting scan; positive control `src/input.h:475` under `:429`) | the six lines in the re-audit table above                                                                                      |
