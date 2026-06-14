@@ -64,10 +64,12 @@ HTTP API (one state-document shape everywhere; see docs/arcopolis/
                               references (exact-name whitelist; 404 otherwise)
   GET  /api/state             cached state document; never touches the backend
   POST /api/start             spawn backend -> ready -> initial "start" export
-  POST /api/command           {"command":"wait"} or {"command":"move",
-                              "direction":"move_n"}; shape-validated only -
-                              vocabulary is deliberately left to the backend
-                              (an unsupported direction must surface the
+  POST /api/command           {"command":"wait"}, {"command":"move",
+                              "direction":"move_n"} (any of the 8 planar
+                              directions), or {"command":"examine",
+                              "direction":"move_n"|...|"here"}; shape-validated
+                              only - vocabulary is deliberately left to the
+                              backend (an unsupported direction must surface the
                               authoritative unsupported_command rejection)
   POST /api/wait              alias for {"command":"wait"}
   POST /api/export            refresh snapshot (outcome: no_command)
@@ -120,13 +122,22 @@ BACKEND_EXIT_MEANINGS = {
     11: "game_over",
 }
 
-# Cardinal moves: direction ident -> expected (dx, dy) in pos_abs space.
-# Snapshot y grows southward, so move_n is (0, -1) and move_s is (0, 1).
+# Planar moves: direction ident -> expected (dx, dy) in pos_abs space. The eight
+# adjacent tiles a BN GUI player can step (four cardinals + four diagonals) - the
+# same planar set the backend's move verb dispatches through avatar_action::move.
+# Snapshot y grows southward, x grows eastward, so move_n is (0, -1), move_s is
+# (0, 1), and move_ne is (1, -1). Vertical (move_up/down) is a SEPARATE engine
+# primitive (game::vertical_move) and is deliberately absent here - the bridge
+# passes it through and lets the backend surface the authoritative rejection.
 DIRECTION_DELTAS = {
     "move_n": (0, -1),
-    "move_s": (0, 1),
+    "move_ne": (1, -1),
     "move_e": (1, 0),
+    "move_se": (1, 1),
+    "move_s": (0, 1),
+    "move_sw": (-1, 1),
     "move_w": (-1, 0),
+    "move_nw": (-1, -1),
 }
 
 # Static file whitelist: URL path -> (filename under static/, content type).
@@ -473,6 +484,29 @@ def classify_outcome(verb, direction, before, after, before_snap):
             out["outcome"] = "displaced"
             out["explanation"] = (f"{direction} ended with pos_abs_delta={pos_delta}, not the "
                                   f"expected {expected}")
+        return out
+
+    if verb == "examine":
+        # Examine is a prompted/nested-input interaction whose target EFFECTS
+        # (messages, menus the backend auto-cancels) live in the engine, not in
+        # the scalar deltas the bridge can see. So the bridge makes only the
+        # honest position claim: the command completed through the backend input
+        # path and (faithfully) did not move the avatar. We REPORT turn/moves
+        # deltas but do not interpret them as a target result - examine does not
+        # invent semantics here. A position change would be unexpected (examine
+        # should never move the avatar), so it is flagged as displaced.
+        if not moved:
+            out["outcome"] = "examined"
+            out["explanation"] = (
+                f"examine {direction} completed through the backend input path; "
+                "inspect the messages panel / transcript for engine effects "
+                f"(turn_delta={turn_delta}, moves_delta={out['moves_delta']})")
+        else:
+            out["outcome"] = "displaced"
+            out["explanation"] = (
+                f"examine {direction} completed but the avatar position changed "
+                f"unexpectedly (pos_abs_delta={pos_delta}); examine should not move "
+                "the avatar")
         return out
 
     out["outcome"] = "unknown"

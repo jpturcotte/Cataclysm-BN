@@ -29,7 +29,10 @@ Proves:
 2. A browser can render the radius-12 snapshot window (terrain/furniture glyph heuristics, avatar
    `@`, NPC `N`, monster `M`, ground item `i`, unseen tiles dimmed) and a tile inspector.
 3. Mouse-first input works: clicking an adjacent cardinal tile (or N/S/E/W buttons) sends a real
-   `move` through the live protocol; Wait/Export/Quit are buttons.
+   `move` through the live protocol; Wait/Export/Quit are buttons. (**Update (Spike 11B):** the click
+   map + d-pad were widened to all 8 adjacent tiles and a Move/Examine mode was added that sends
+   `examine` in the 8 planar directions + `here`; see
+   [29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md](29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md).)
 4. The UI refreshes from the post-command snapshot (the deferred-response contract) and shows a
    basic outcome explanation (`moved`, `blocked_no_op` + blocker, `waited`, `no_command`,
    `error`).

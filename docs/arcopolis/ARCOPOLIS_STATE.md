@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 11A, 2026-06-12)
+# Arcopolis backend — current state (truth as of Spike 11B, 2026-06-14)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -129,16 +129,21 @@ answer was never asked for and was force-cleared at the seam return). New fatal 
 
 ### Commands
 
-`wait` → `ACTION_PAUSE` (`do_pause`); `move` + cardinal `direction` (`move_n`/`move_s`/`move_e`/`move_w`)
-→ `ACTION_MOVE_*`; **`examine` + `direction` → `ACTION_EXAMINE` (Spike 11A)**, where `direction` is
-any of the **eight planar directions** (`move_n`/`move_s`/`move_e`/`move_w` + the diagonals
-`move_ne`/`move_nw`/`move_se`/`move_sw`) or `here` (the avatar's own tile) — the complete planar
-target set the GUI examine chooser offers (vertical excluded: `game::examine` passes
-`allow_vertical=false`). The direction is the answer to the engine's "Examine where?" prompt IF it
-asks (a keystroke mirror, served through the nested-input seam), never a commanded target tile; with
-the engine's autoselect option on, the engine may pick the target itself and the unconsumed answer is
-force-cleared + logged. For `move`, diagonals/vertical stay rejected (a separate verb's cardinals-only
-limitation); for examine, only vertical and garbage are rejected, with a typed error.
+`wait` → `ACTION_PAUSE` (`do_pause`); `move` + any of the **eight planar directions**
+(`move_n`/`move_s`/`move_e`/`move_w` + the diagonals `move_ne`/`move_nw`/`move_se`/`move_sw`)
+→ `ACTION_MOVE_*` (eight-way since #34; `look_up_action` + `handle_action` route every one through the
+**same** `avatar_action::move` body, so diagonals are as faithful as cardinals); **`examine` +
+`direction` → `ACTION_EXAMINE` (Spike 11A)**, where `direction` is any of the **eight planar
+directions** (`move_n`/`move_s`/`move_e`/`move_w` + the diagonals `move_ne`/`move_nw`/`move_se`/`move_sw`)
+or `here` (the avatar's own tile) — the complete planar target set the GUI examine chooser offers
+(vertical excluded: `game::examine` passes `allow_vertical=false`). The examine direction is the answer
+to the engine's "Examine where?" prompt IF it asks (a keystroke mirror, served through the nested-input
+seam), never a commanded target tile; with the engine's autoselect option on, the engine may pick the
+target itself and the unconsumed answer is force-cleared + logged. For `move`, only **vertical**
+(`move_up`/`move_down`) stays rejected — the separate `game::vertical_move` primitive (stairs/ropes/climb),
+not a planar step; for examine, only vertical and garbage are rejected, with a typed error. The **browser
+prototype** drives this whole planar surface 8-way (Spike 11B): click-to-move and the 3×3 d-pad reach all
+eight neighbors, and a Move/Examine mode selector sends `examine` in any of the eight directions plus `here`.
 
 **Movement into an occupied/obstructed tile is a faithful no-op.** A `move` whose destination holds a
 creature, or a closed-but-not-bump-openable obstacle, runs the engine's real `avatar_action::move` leaf
@@ -154,27 +159,28 @@ in the snapshot itself — the `before` snapshot carries a neutral NPC at the mo
 
 ## Capabilities by spike
 
-| Spike | What                                                                                                                    | State                                   |
-| ----- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| 0     | headless load + one-shot snapshot                                                                                       | ✅                                      |
-| 1     | `wait` command (bootstrap turn)                                                                                         | ✅                                      |
-| 2     | persistent `--arcopolis-run-script` + `--arcopolis-export-dir` (T→T→T+1)                                                | ✅                                      |
-| 3     | movement via `command → do_turn`                                                                                        | ❌ failed (turn inversion) — superseded |
-| 3.1A  | input-seam architecture (the fix)                                                                                       | ✅                                      |
-| 3.1B  | clean-park hardening + final-on-exit snapshot                                                                           | ✅                                      |
-| 3.1C  | `session.jsonl` transcript                                                                                              | ✅                                      |
-| 4     | offline viewer / contract consumer (Python → HTML)                                                                      | ✅                                      |
-| 5     | `is_avatar` marker + `seed` in `session_start`                                                                          | ✅                                      |
-| 6A    | nearby monster export (`entities.monsters[]`)                                                                           | ✅                                      |
-| 6B    | monster witness fixture (`ArcopolisNearMonsterTest`) + monster regression                                               | ✅ validated (vs 6A build)              |
-| 7A    | nearby NPC export (`entities.npcs[]`) + NPC blocker regression                                                          | ✅                                      |
-| 8A    | nearby ground-item export (`entities.items[]`) + item regression                                                        | ✅                                      |
-| 9A    | external player-loop harness (cell bundles, HTML view/inspect, outcome explain, one-shot run; `tools/arcopolis_client`) | ✅                                      |
-| 9B    | minimal persistent live protocol over stdin/stdout JSONL (`--arcopolis-live`, one request at a time, same seam)         | ✅                                      |
-| 10A   | browser frontend prototype: stdlib HTTP bridge + plain HTML/JS driving `--arcopolis-live` (`tools/arcopolis_frontend/`) | ✅                                      |
-| 10B   | frontend-side snapshot diff: changed-tile highlights, before→after inspector, change summary, open/closed door glyphs   | ✅                                      |
-| 10C   | optional frontend tileset rendering: bridge re-serves `gfx/UltimateCataclysm`, browser paints sprites, glyph fallback   | ✅                                      |
-| 11A   | directed `examine` via a one-shot nested-input answer + auto-cancel guard at `input_context::handle_input`              | ✅                                      |
+| Spike | What                                                                                                                                  | State                                   |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| 0     | headless load + one-shot snapshot                                                                                                     | ✅                                      |
+| 1     | `wait` command (bootstrap turn)                                                                                                       | ✅                                      |
+| 2     | persistent `--arcopolis-run-script` + `--arcopolis-export-dir` (T→T→T+1)                                                              | ✅                                      |
+| 3     | movement via `command → do_turn`                                                                                                      | ❌ failed (turn inversion) — superseded |
+| 3.1A  | input-seam architecture (the fix)                                                                                                     | ✅                                      |
+| 3.1B  | clean-park hardening + final-on-exit snapshot                                                                                         | ✅                                      |
+| 3.1C  | `session.jsonl` transcript                                                                                                            | ✅                                      |
+| 4     | offline viewer / contract consumer (Python → HTML)                                                                                    | ✅                                      |
+| 5     | `is_avatar` marker + `seed` in `session_start`                                                                                        | ✅                                      |
+| 6A    | nearby monster export (`entities.monsters[]`)                                                                                         | ✅                                      |
+| 6B    | monster witness fixture (`ArcopolisNearMonsterTest`) + monster regression                                                             | ✅ validated (vs 6A build)              |
+| 7A    | nearby NPC export (`entities.npcs[]`) + NPC blocker regression                                                                        | ✅                                      |
+| 8A    | nearby ground-item export (`entities.items[]`) + item regression                                                                      | ✅                                      |
+| 9A    | external player-loop harness (cell bundles, HTML view/inspect, outcome explain, one-shot run; `tools/arcopolis_client`)               | ✅                                      |
+| 9B    | minimal persistent live protocol over stdin/stdout JSONL (`--arcopolis-live`, one request at a time, same seam)                       | ✅                                      |
+| 10A   | browser frontend prototype: stdlib HTTP bridge + plain HTML/JS driving `--arcopolis-live` (`tools/arcopolis_frontend/`)               | ✅                                      |
+| 10B   | frontend-side snapshot diff: changed-tile highlights, before→after inspector, change summary, open/closed door glyphs                 | ✅                                      |
+| 10C   | optional frontend tileset rendering: bridge re-serves `gfx/UltimateCataclysm`, browser paints sprites, glyph fallback                 | ✅                                      |
+| 11A   | directed `examine` via a one-shot nested-input answer + auto-cancel guard at `input_context::handle_input`                            | ✅                                      |
+| 11B   | 8-way planar move + 8-way-plus-`here` examine in the **browser frontend + bridge** (backend was already 8-way: #34 move, #31 examine) | ✅                                      |
 
 ## Source & tests
 
@@ -214,7 +220,11 @@ indices over concatenated sheets, engine-cited) and paints cells as sprite layer
 [Glyph]/[Tileset] toggle, with the glyph renderer as the **safe visual fallback** per cell and
 wholesale — NOT a faithful BN renderer (no multitile/rotation/variation-weights/animation/
 looks_like/overhang); see
-[24_SPIKE10C_FRONTEND_TILESET_RENDERING.md](24_SPIKE10C_FRONTEND_TILESET_RENDERING.md)).
+[24_SPIKE10C_FRONTEND_TILESET_RENDERING.md](24_SPIKE10C_FRONTEND_TILESET_RENDERING.md); Spike 11B
+makes the static UI's planar surface GUI-equivalent — a 3×3 d-pad + click-to-move reaching all eight
+neighbors and a Move/Examine mode selector that sends `examine` in any of the eight planar directions
+plus `here`, with the bridge classifying diagonal moves and a non-misleading `examined` outcome; see
+[29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md](29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md)).
 Fixture-driven
 regressions (need a loaded world, so not in CI):
 [`docs/arcopolis/movement_regression.ps1`](movement_regression.ps1) gates movement/NPC on **`ArcopolisTest`**,
@@ -261,15 +271,20 @@ engine auto-select skip + the `nested_input_unconsumed` force-clear); see
 [`docs/arcopolis/frontend_prototype_regression.ps1`](frontend_prototype_regression.ps1) gates the
 **Spike 10A browser-frontend bridge** on **`ArcopolisTest`**: it starts
 `tools/arcopolis_frontend/prototype_server.py`, drives the whole HTTP API (start → move_n → move_s
-→ wait → export → a `move_up` recoverability probe → quit → restart → shutdown; **17 gates** incl.
+→ wait → export → a `move_up` recoverability probe → quit → restart → shutdown; **18 gates** incl.
 the Spike 10B diff-UI static-hook gate 2b, the Spike 10C tileset gate 2c — `/tileset/info` +
-config + config-derived sheet PNGs + whitelist/traversal 404s + served UI hooks — and the Spike
+config + config-derived sheet PNGs + whitelist/traversal 404s + served UI hooks — the Spike 11B
+gate 2d (the 8 direction buttons + `here` + Move/Examine controls + 8 delta mappings + examine
+dispatch served, the hint no longer "N/S/E/W"), the Spike 11B gate 13 (a fresh restartable
+session_002 that examines move_n/here → `examined`, recoverably rejects examine move_up, and steps
+the **diagonal** move_se → `moved` `[1,1,0]` as a HARD fixture assertion), and the Spike
 10C gate 15, a second `--disable-tileset` server proving the glyph-only fail-safe) and
 asserts the bridge re-derives the SAME `blocked_no_op,moved,waited,no_command` sequence through the
 live protocol, that the backend exits 0 with a final snapshot + transcript, and that the server
 stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROTOTYPE.md),
-[23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md](23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md) and
-[24_SPIKE10C_FRONTEND_TILESET_RENDERING.md](24_SPIKE10C_FRONTEND_TILESET_RENDERING.md).
+[23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md](23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md),
+[24_SPIKE10C_FRONTEND_TILESET_RENDERING.md](24_SPIKE10C_FRONTEND_TILESET_RENDERING.md) and
+[29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md](29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md).
 
 ## Deferred backlog
 
@@ -305,8 +320,11 @@ stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROT
   interaction (talk/attack/swap/push — needed to act on a creature-occupied destination, the
   move-into-NPC no-op in
   [15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md](15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md))**, inventory, targeting,
-  diagonals, vertical, and a prompt-aware protocol (doc 25's Option C — the guard's transcript
-  events are its survey data).
+  **vertical** movement (`move_up`/`move_down` → the separate `game::vertical_move` primitive, NOT a
+  planar step), and a prompt-aware protocol (doc 25's Option C — the guard's transcript events are its
+  survey data). **Planar diagonals are no longer deferred:** `move` is 8-way (#34) and `examine` is
+  8-way-plus-`here` (#31), and the browser prototype now exposes both 8-way (Spike 11B,
+  [29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md](29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md)).
 
 ## Build (Windows)
 

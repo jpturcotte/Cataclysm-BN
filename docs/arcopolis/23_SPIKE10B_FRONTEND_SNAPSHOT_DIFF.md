@@ -77,8 +77,9 @@ order decides): entities > terrain > furniture > seen. Changed unseen cells dim 
 
 1. Copy the fixture and start the bridge (see doc 22), open the page, press **Start**.
 2. Closed doors render `+`, open/broken ones `'`; hover any cell for its exact `ter`/`furn` ids.
-3. Walk next to a closed door and **click the door tile** (an adjacent cardinal click is a real
-   `move` into it). The engine spends the turn opening it: outcome `acted_in_place`.
+3. Walk next to a closed door and **click the door tile** (an adjacent click is a real `move` into
+   it — any of the 8 neighbors since Spike 11B; bump-open works diagonally too). The engine spends
+   the turn opening it: outcome `acted_in_place`.
 4. Read the result without opening any JSON: the Changes panel reports `1 tile changed — terrain
    1`, the door cell flips `+` → `'` inside a terrain ring, its tooltip ends `changed: ter
    t_door_c → t_door_o`, and Shift-clicking it shows `terrain: t_door_c → t_door_o` with `no
