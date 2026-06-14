@@ -4,6 +4,9 @@
 #include <iosfwd>
 #include <optional>
 #include <string>
+#include <vector>
+
+#include "arcopolis_backend_input.h"  // pickup_prompt_choice (the Spike 12A prompt event's choice list)
 
 namespace arcopolis
 {
@@ -92,6 +95,56 @@ struct live_error_response {
     std::string message;
 };
 auto write_error_response_line( std::ostream &out, const live_error_response &ev ) -> void;
+
+// --- Spike 12A pickup prompt/menu transaction wire format. A command that reaches a real in-action menu
+// emits a `prompt` event (its terminal response is deferred until the prompt is answered), the client
+// replies with a `prompt_answer`/`prompt_cancel`, and only then does the engine resume and the command's
+// success response follow at the next input-rest. ---
+
+/// `prompt`: a real in-action engine menu was reached during a command and is exposed to the client. `id`
+/// echoes the in-flight command's id; `prompt_id` correlates the answer; `choices` are the engine's REAL
+/// live menu entries (not snapshot-derived).
+struct live_prompt_event {
+    std::optional<int> id;
+    int prompt_id = 0;
+    std::string kind;   ///< prompt class (v0: "menu")
+    std::string title;
+    std::vector<pickup_prompt_choice> choices;
+    bool cancelable = true;
+};
+auto write_prompt_line( std::ostream &out, const live_prompt_event &ev ) -> void;
+
+/// Ack for a prompt answer. On a valid selection: ok:true with the accepted `choices`. On an explicit
+/// cancel: ok:true with `choices` nullopt (cancelled:true on the wire). Invalid answers instead reuse
+/// write_error_response_line and the prompt stays OPEN for a retry.
+struct live_prompt_ack {
+    std::optional<int> id;
+    int prompt_id = 0;
+    std::optional<std::vector<int>> choices;  ///< the accepted index/indices; nullopt => cancelled
+};
+auto write_prompt_ack_line( std::ostream &out, const live_prompt_ack &ev ) -> void;
+
+/// One decoded prompt answer (Spike 12A): the chosen menu index/indices, or an explicit cancel. A single
+/// `"choice": K` decodes to `choices == {K}`; a `"choices": [...]` array decodes to the listed indices
+/// (multi-select).
+struct live_prompt_answer {
+    enum class action { choose, cancel };
+    action act = action::cancel;
+    std::optional<int> id;     ///< the answer request's id (echoed in the ack)
+    int prompt_id =
+        0;         ///< the prompt this answers; the caller rejects a mismatch with the active id
+    std::vector<int>
+    choices;  ///< the chosen menu indices, sorted + duplicate-free; valid when act == choose
+};
+
+/// Parses + validates one prompt-answer line against the menu size. `op` must be "prompt_answer" (carrying
+/// either an int "choice" or a non-empty int-array "choices", each in [0, num_choices), with NO duplicates)
+/// or "prompt_cancel"; both ops REQUIRE an integer "prompt_id" (the caller checks it against the active
+/// prompt). The accepted `choices` are returned sorted + duplicate-free. A missing prompt_id, a
+/// missing/out-of-range/empty/duplicate selection, or any other op is a RECOVERABLE bad_request (the caller
+/// rejects it, logs prompt_failed, and keeps the prompt open). Exposed for unit tests (pure; no engine state).
+auto parse_prompt_answer( const std::string &line, int num_choices )
+-> std::expected<live_prompt_answer, live_error>;
 
 /// Inputs for a persistent live session: load `world` EXACTLY ONCE, then serve the stdin/stdout JSON
 /// Lines protocol until quit/EOF, writing snapshots + session.jsonl into `export_dir`.

@@ -23,6 +23,25 @@ namespace arcopolis
 /// signal end-of-session via backend_mark_input_done() before returning ACTION_NULL.
 using backend_action_source = std::function < auto() -> action_id >;
 
+/// One pickup-menu choice exposed to the external client, built from the engine's REAL live menu entries
+/// (src/pickup.cpp stacked_here) -- never from a snapshot. `index` is the entry's position in the menu's
+/// display order, which equals the DOWN-navigation distance from the chooser's start at entry 0 (Spike 12A).
+struct pickup_prompt_choice {
+    int index = 0;
+    std::string text;     ///< the entry's engine display name (e.g. "2 rags")
+    bool enabled =
+        true;  ///< reserved (all exposed entries are selectable; the engine drives parent/child
+    ///< marking faithfully) -- a future prompt class may use it to gray out an entry
+};
+
+/// The live pickup menu-answer channel (Spike 12A): given the engine's real choices, returns the chosen
+/// menu index/indices (one or several -- multi-select), or nullopt for an explicit client cancel / EOF
+/// (== the GUI player pressing ESC). Set only in live mode (arcopolis_live); null in script/one-shot
+/// modes, where a pickup menu has no answer channel and auto-cancels via the existing nested-input guard.
+using backend_prompt_source =
+    std::function < auto( const std::vector<pickup_prompt_choice> & ) -> std::optional<std::vector<int>>
+    >;
+
 /// Inputs for an input-seam backend session (mechanism M1): the ordered steps to drive the engine with,
 /// and the directory inline `export` steps write their snapshots into.
 struct backend_session_options {
@@ -30,6 +49,8 @@ struct backend_session_options {
     std::string export_dir;          ///< directory inline `export` steps write NNN_<name>.json into
     backend_action_source
     live_source;  ///< Spike 9B live mode: when set, replaces the steps walk entirely
+    backend_prompt_source
+    prompt_source;  ///< Spike 12A live mode: the pickup menu-answer channel (null elsewhere)
 };
 
 /// Begins a backend input session: while it is active, game::handle_action() takes its action from
@@ -138,6 +159,36 @@ auto decide_nested_input( const nested_input_observation &obs ) -> nested_input_
 auto backend_nested_input_action( const std::string &category,
                                   const std::vector<std::string> &registered_actions,
                                   int timeout ) -> const std::string *; // *NOPAD*
+
+// --- Spike 12A: pickup prompt/menu transaction (live mode only). The old "PICKUP" item-selection menu
+// (src/pickup.cpp pick_up_from_items) is a real input_context loop; the backend drives its selection at
+// LEVEL 4 -- the SAME registered actions a player presses (DOWN/RIGHT/CONFIRM), in order, consumed by
+// that same UNMODIFIED loop -- never by mutating its getitem state. The external client sees a structured
+// prompt and answers with a choice index; the backend translates the index into the registered-action
+// queue served below. This is a DISTINCT mechanism from the one-shot nested slot (whose serve gate is
+// hard-coded to the "DEFAULTMODE" direction chooser): it serves only while the asking context is the
+// engine's "PICKUP" menu. ---
+
+/// True while a TOP-LEVEL pickup command's prompt transaction is armed -- the gate src/pickup.cpp's
+/// pre-loop block checks before exposing its menu. Armed ONLY for the live `pickup` command (never merely
+/// because pick_up_from_items is running), so examine's auto-pickup tail finds it false and keeps
+/// auto-cancelling (preserving examine_regression). Inert (false) outside a session.
+auto backend_pickup_transaction_active() -> bool;
+
+/// Arms the pickup transaction for the live command about to be dispatched (sets the flag + records its
+/// step index for transcript correlation; clears any prior queue). Inert outside a session. The flag and
+/// queue are force-cleared at the next top-level seam return (alongside the one-shot slot).
+auto backend_arm_pickup_transaction( const std::optional<int> &step_index ) -> void;
+
+/// Called by src/pickup.cpp's gated pre-loop block when the pickup menu opens during an armed transaction.
+/// Logs `prompt_opened` with the real `choices`, asks the live client via the session's prompt_source, and
+/// ARMS the registered-action queue the UNMODIFIED "PICKUP" loop then consumes: [DOWN x choice, "RIGHT",
+/// "CONFIRM"] for a valid choice (logs `prompt_answered` with the exact sequence), or ["QUIT"] for a
+/// cancel / EOF / absent channel (logs `prompt_cancelled`). The queue's terminal element is always the
+/// loop-exit action ("CONFIRM"/"QUIT"), so the loop never exits with actions unserved. This NEVER touches
+/// the menu's selection state -- the engine loop does, by reacting to the served actions. Inert unless a
+/// pickup transaction is active.
+auto backend_resolve_pickup_choice( const std::vector<pickup_prompt_choice> &choices ) -> void;
 
 /// What backend_write_step_snapshot() wrote, for a live-protocol response: the snapshot's relative
 /// filename plus the scalars the response echoes (turn read at the same instant as the snapshot).
