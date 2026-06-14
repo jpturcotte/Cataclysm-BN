@@ -20,6 +20,13 @@
              (loadTileset / setRenderMode / renderSpriteCell / mode-tileset / tileset-status /
              tileset-mode). Server/static/API-level only - sprite RENDERING is browser-side JS
              covered by the manual smoke (doc 24), never asserted here.
+    Gate 2d: Spike 11B 8-way move + examine UI hooks are present in the SERVED assets: index.html
+             exposes all 8 direction buttons (data-direction move_ne/nw/se/sw, not just N/S/E/W)
+             plus the data-direction="here" center and the Move/Examine mode controls; app.js carries
+             all 8 delta tokens + the "here" examine dispatch + setActionMode; the map hint no longer
+             says "N/S/E/W"; style.css styles .o-examined. Static-content asserts only; the click/
+             examine BEHAVIOR is browser-side JS, exercised through the HTTP bridge by gate 13 and by
+             the manual smoke (doc 29).
     Gate  3: POST /api/start -> phase "ready", session_001, a NNN_start.json snapshot on disk,
              avatar present, 625 tiles (FIXTURE-SPECIFIC: ArcopolisTest's avatar sits
              mid-bubble so its radius-12 window is the full 25x25; the general contract is
@@ -38,14 +45,21 @@
              GET /api/command -> 405.
     Gate 12: POST /api/quit -> phase "ended", backend exit_code 0, a NNN_final.json snapshot
              on disk, session.jsonl present.
-    Gate 13: restartability: a second session starts as session_002 and quits cleanly.
+    Gate 13: 8-way move + examine through the bridge, on a fresh restartable session (session_002
+             from spawn): examine move_n (toward the NPC) and examine here both -> HTTP 200 +
+             outcome "examined" with NO hang; an invalid examine (move_up) -> HTTP 200 + outcome
+             "error" (unsupported_command) and the session stays ready; the diagonal move_se ->
+             outcome "moved", pos_abs_delta 1,1,0, turn_delta >= 1 (a HARD fixture assertion - no
+             silent fallback to another diagonal); then a clean quit (exit 0 + NNN_final.json). This
+             both proves restartability and witnesses the GUI-equivalent planar move/examine surface.
     Gate 14: POST /api/shutdown -> HTTP 200, the server process exits, the port is released.
     Gate 15: tileset fail-safe: a SECOND short-lived server started with --disable-tileset still
              serves the UI, /tileset/info answers enabled:false, /tileset/tile_config.json 404s,
              and the server shuts down cleanly (glyph mode never needs the tileset).
 
   Together gates 3..12 reproduce the fixture-proven live sequence
-  (blocked_no_op, moved, waited, no_command) through the HTTP bridge.
+  (blocked_no_op, moved, waited, no_command) through the HTTP bridge, and gate 13 adds the Spike 11B
+  GUI-equivalent planar surface: a diagonal move and directed/self examine through the same bridge.
 
   A deliberate omission: there is no "busy 409" race gate. Commands complete in milliseconds
   and the prototype has no test hook to wedge one, so a parallel-request race would be flaky;
@@ -297,6 +311,29 @@ try {
             "served page carries the render-mode UI"
         Assert-True ($css.Raw.Content -like "*tileset-mode*") "served style.css styles tileset-mode"
 
+        # --- Gate 2d: Spike 11B 8-way move + examine UI hooks (static asserts only; the click/ ---
+        # --- examine BEHAVIOR is exercised through the HTTP bridge by gate 13). ---------------
+        Write-Host "Gate 2d: 8-way move + examine UI hooks served" -ForegroundColor Cyan
+        foreach( $dir in @("move_ne", "move_nw", "move_se", "move_sw") ) {
+            Assert-True ($page.Raw.Content -like "*data-direction=`"$dir`"*") `
+                "served page exposes the $dir direction button"
+        }
+        Assert-True ($page.Raw.Content -like "*data-direction=`"here`"*") `
+            "served page exposes the data-direction=here center button"
+        Assert-True ($page.Raw.Content -like "*id=`"mode-move`"*" -and $page.Raw.Content -like "*id=`"mode-examine`"*") `
+            "served page carries the Move/Examine mode controls"
+        Assert-True (-not ($page.Raw.Content -like "*N/S/E/W*")) `
+            "served map hint no longer says N/S/E/W only"
+        foreach( $tok in @("move_ne", "move_nw", "move_se", "move_sw") ) {
+            Assert-True ($js.Raw.Content -like "*$tok*") "served app.js carries the $tok delta mapping"
+        }
+        Assert-True ($js.Raw.Content -like "*setActionMode*") "served app.js carries setActionMode"
+        Assert-True ($js.Raw.Content -like '*command: "examine"*') `
+            "served app.js dispatches the examine command"
+        Assert-True ($js.Raw.Content -like '*direction: "here"*') `
+            "served app.js dispatches examine here (the self tile)"
+        Assert-True ($css.Raw.Content -like "*.o-examined*") "served style.css styles .o-examined"
+
         # --- Gate 3: start -> ready + initial snapshot. --------------------------------------
         Write-Host "Gate 3: POST /api/start" -ForegroundColor Cyan
         $start = Invoke-Api POST "/api/start" "{}"
@@ -402,16 +439,57 @@ try {
         Assert-True (Test-Path (Join-Path $session1 $quit.Json.session.final_snapshot)) "final snapshot file exists"
         Assert-True (Test-Path (Join-Path $session1 "session.jsonl")) "session.jsonl transcript exists"
 
-        # --- Gate 13: restartability (numbered session dirs). ---------------------------------
-        Write-Host "Gate 13: second session" -ForegroundColor Cyan
+        # --- Gate 13: 8-way move + examine through the bridge, on a fresh restartable session. -
+        # --- Runs from spawn (avatar 85,85; Edwardo at 85,84 = north). The examines below cost -
+        # --- 0 moves and DO NOT tick, so the avatar is still at spawn when move_se runs, where  -
+        # --- the SE tile + both orthogonals are open t_floor (proven by movement_regression.ps1). -
+        Write-Host "Gate 13: fresh session_002 -- examine (8-way + here) + diagonal move + restart" -ForegroundColor Cyan
         $start2 = Invoke-Api POST "/api/start" "{}"
         Assert-True ($start2.Status -eq 200 -and $start2.Json.session.index -eq 2 -and $start2.Json.session.dir_name -eq "session_002") `
             "second start is session_002" "(status $($start2.Status), session $($start2.Json.session.dir_name))"
         Assert-True (Test-Path (Join-Path (Join-Path $sessionsRoot "session_002") $start2.Json.backend.snapshot)) `
             "session_002 has its own start snapshot"
+
+        # examine move_n toward the shelter NPC: completes through the backend input path, the engine
+        # answers the chooser, the NPC menu auto-cancels (no move, no tick) -> outcome "examined",
+        # NO hang. (The bridge's per-response timeout would turn any hang into a loud FAIL, never a
+        # stuck script.)
+        $exN = Invoke-Api POST "/api/command" '{"command":"examine","direction":"move_n"}'
+        $o = $exN.Json.last_result.outcome
+        Assert-True ($exN.Status -eq 200 -and $exN.Json.last_result.response.ok -eq $true -and $o.outcome -eq "examined") `
+            "examine move_n -> 200 + ok:true + outcome examined (no hang)" "(status $($exN.Status), outcome $($o.outcome))"
+        Assert-True ((@($o.pos_abs_delta) -join ",") -eq "0,0,0") "examine move_n did not move the avatar" "(got $(@($o.pos_abs_delta) -join ','))"
+
+        # examine here (the avatar's own tile): position-independent self examine -> outcome examined.
+        $exH = Invoke-Api POST "/api/command" '{"command":"examine","direction":"here"}'
+        $o = $exH.Json.last_result.outcome
+        Assert-True ($exH.Status -eq 200 -and $exH.Json.last_result.response.ok -eq $true -and $o.outcome -eq "examined") `
+            "examine here -> 200 + ok:true + outcome examined (no hang)" "(status $($exH.Status), outcome $($o.outcome))"
+
+        # invalid examine direction (move_up, vertical): the backend recoverably rejects it and the
+        # session stays usable -- HTTP 200 + outcome error (unsupported_command), phase still ready.
+        $exBad = Invoke-Api POST "/api/command" '{"command":"examine","direction":"move_up"}'
+        $o = $exBad.Json.last_result.outcome
+        Assert-True ($exBad.Status -eq 200 -and $o.outcome -eq "error" -and $o.error.code -eq "unsupported_command") `
+            "examine move_up -> 200 + outcome error (unsupported_command)" "(status $($exBad.Status), outcome $($o.outcome), code $($o.error.code))"
+        $alive2 = Invoke-Api GET "/api/state"
+        Assert-True ($alive2.Json.phase -eq "ready") "session still ready after the invalid examine" "(phase $($alive2.Json.phase))"
+
+        # The diagonal move witness -- a HARD fixture assertion (NO silent fallback to another
+        # diagonal). move_se from spawn must advance pos_abs by exactly (+1,+1) and tick the world.
+        # If this fails the fixture/backend changed: FAIL LOUDLY rather than hide the gap.
+        $mse = Invoke-Api POST "/api/command" '{"command":"move","direction":"move_se"}'
+        $o = $mse.Json.last_result.outcome
+        Assert-True ($mse.Status -eq 200 -and $o.outcome -eq "moved") `
+            "move_se -> outcome moved (diagonal step; HARD assertion, no fallback)" "(status $($mse.Status), outcome $($o.outcome))"
+        Assert-True ((@($o.pos_abs_delta) -join ",") -eq "1,1,0") "move_se pos_abs_delta is 1,1,0" "(got $(@($o.pos_abs_delta) -join ','))"
+        Assert-True ($o.turn_delta -ge 1) "move_se turn_delta >= 1" "(got $($o.turn_delta))"
+
         $quit2 = Invoke-Api POST "/api/quit" "{}"
         Assert-True ($quit2.Status -eq 200 -and $quit2.Json.session.exit_code -eq 0) `
             "second session quits cleanly" "(status $($quit2.Status), exit $($quit2.Json.session.exit_code))"
+        Assert-True ($quit2.Json.session.final_snapshot -match '^\d+_final\.json$') `
+            "second session final snapshot recorded" "(got $($quit2.Json.session.final_snapshot))"
 
         # --- Gate 14: clean server shutdown. ----------------------------------------------------
         Write-Host "Gate 14: POST /api/shutdown" -ForegroundColor Cyan
@@ -481,5 +559,5 @@ if( $script:fail -gt 0 ) {
     Write-Host "FRONTEND PROTOTYPE REGRESSION: $script:fail hard assertion(s) failed." -ForegroundColor Red
     exit 1
 }
-Write-Host "FRONTEND PROTOTYPE REGRESSION: all 17 gates passed." -ForegroundColor Green
+Write-Host "FRONTEND PROTOTYPE REGRESSION: all 18 gates passed." -ForegroundColor Green
 exit 0
