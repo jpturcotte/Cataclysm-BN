@@ -77,6 +77,55 @@ reproduce EXACTLY what the engine does for the same action.
   state the answer; do not spin up little experiments to defer the question. (Litigating this the slow way
   cost a full session once — don't repeat it.)
 
+### Arcopolis backend input equivalence (NON-NEGOTIABLE)
+
+**For a supported interactive player action, "GUI behavior" means backend INPUT behavior — not
+merely the same final state or the same finalization path.** Drive the SAME registered backend input
+actions, in the SAME order, through the SAME active engine input loop/mechanism a player would use —
+not a shortcut alongside it. For BN's `input_context`-based prompts/menus that mechanism is
+`input_context::handle_input()` on the real active loop; other UI systems (`uilist::query`, a
+direct `get_input_event` reader, or a future input loop) have their own active mechanism, and the
+rule binds to whichever one the engine itself uses.
+
+- **A different external frontend/client UX is fine; different backend input semantics are not.**
+  Emitting a JSON prompt instead of the curses/tiles UI is allowed; what reaches the engine through
+  it must still be the player's registered actions.
+- **Same final state is not enough, and the same high-level engine action path is not enough.**
+  Landing on identical world state, or calling the same `do_turn`/finalization helper by another
+  route, does not make a path equivalent if the registered inputs and the active loop differ.
+- **Direct mutation is not equivalence.** Editing intermediate UI/menu state directly is not
+  equivalence; mutating world state, inventory, item stacks, activity state, or menu-selection
+  structures is FORBIDDEN — UNLESS that mutation is performed by EXISTING engine code reached
+  through the REAL input path (the registered input consumed by the engine's own active input
+  loop/mechanism).
+- **Menu and prompt flows answer through the real loop.** An external structured prompt MAY be
+  shown, but the client's answer MUST be translated into registered engine actions consumed by the
+  engine's real active input loop/mechanism (e.g. `input_context::handle_input()`) — UNLESS the
+  spike explicitly declares itself observation-only and makes no equivalence claim.
+- **If the same registered-input path cannot be proven, fail cleanly — do not ship an
+  approximation.**
+- **Do not launder a weaker claim through softer words.** "Equivalent enough", "mostly faithful",
+  "same result", and "same finalization path" are not substitutes for backend input equivalence.
+
+Every Arcopolis plan MUST state the equivalence level it proves:
+
+1. Observation only.
+2. Same final state.
+3. Same engine action / finalization path.
+4. Same registered backend inputs consumed by the same active engine input loop/mechanism a player
+   would use (e.g. `input_context::handle_input()`).
+
+For player-action implementation spikes, the **default required level is 4**, unless explicitly
+approved otherwise.
+
+Future Arcopolis plan reviews MUST reject designs that:
+
+- expose real menu data but directly edit local menu-selection structures.
+- bypass the engine's active input loop/mechanism (e.g. `input_context::handle_input()`) for a
+  supported interactive menu path.
+- silently auto-cancel unsupported prompts while claiming success.
+- hide unsupported GUI behavior behind vague wording.
+
 ### Backend documentation
 
 **Read first (current truth):** `docs/arcopolis/ARCOPOLIS_STATE.md` — a single-page checkpoint of the backend's current architecture (the input-seam design), the snapshot/transcript contract, capabilities by spike, and the deferred backlog. The numbered `NN_SPIKE*.md` files are the chronological record (including the failed Spike 3); list the live set with `Get-ChildItem docs/arcopolis`.
