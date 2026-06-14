@@ -25,8 +25,9 @@
 <main>
     <section id="map-pane">
         <div id="grid" class="grid"><span class="placeholder">No snapshot yet — press Start.</span></div>
-        <p id="map-hint">Click an adjacent N/S/E/W tile to move. Click any other tile
-        (or Shift-click anywhere) to inspect it.</p>
+        <p id="map-hint">Move mode: click any adjacent tile to move (8-way). Examine mode:
+        click any adjacent tile, or the avatar tile for here. Shift-click inspects
+        without acting.</p>
     </section>
     <aside id="side-pane">
         <section class="panel" id="avatar-panel">
@@ -59,12 +60,24 @@
 
 <footer id="controls">
     <button id="btn-start" type="button">Start</button>
+    <span id="action-mode-cluster">
+        <button id="mode-move" type="button" class="mode-active">Move</button>
+        <button id="mode-examine" type="button">Examine</button>
+    </span>
+    <!-- True 3x3 planar control: NW N NE / W · E / SW S SE. Each button's
+         data-direction is the backend command token; the center "here" is the
+         avatar's own tile (examine only). The verb sent (move vs examine)
+         follows the action-mode selector above. -->
     <span class="dpad">
-        <span></span><button class="btn-move" data-direction="move_n" type="button">N</button><span></span>
-        <button class="btn-move" data-direction="move_w" type="button">W</button>
-        <span class="dpad-center">·</span>
-        <button class="btn-move" data-direction="move_e" type="button">E</button>
-        <span></span><button class="btn-move" data-direction="move_s" type="button">S</button><span></span>
+        <button class="btn-dir" data-direction="move_nw" type="button" title="northwest">NW</button>
+        <button class="btn-dir" data-direction="move_n" type="button" title="north">N</button>
+        <button class="btn-dir" data-direction="move_ne" type="button" title="northeast">NE</button>
+        <button class="btn-dir" data-direction="move_w" type="button" title="west">W</button>
+        <button class="btn-dir" id="btn-here" data-direction="here" type="button" title="here (examine self)">·</button>
+        <button class="btn-dir" data-direction="move_e" type="button" title="east">E</button>
+        <button class="btn-dir" data-direction="move_sw" type="button" title="southwest">SW</button>
+        <button class="btn-dir" data-direction="move_s" type="button" title="south">S</button>
+        <button class="btn-dir" data-direction="move_se" type="button" title="southeast">SE</button>
     </span>
     <button id="btn-wait" type="button">Wait</button>
     <button id="btn-export" type="button">Export / Refresh</button>

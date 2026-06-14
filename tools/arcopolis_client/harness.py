@@ -27,9 +27,12 @@ Subcommands::
              commanded destination tile in the BEFORE snapshot, and classify
              every command outcome (moved / blocked_no_op / acted_in_place /
              waited / ...). ``--json`` emits a machine-readable document.
-    run      compose a script from a command list (wait / move_n / move_s /
-             move_e / move_w ONLY - the backend's current vocabulary), invoke
-             the backend exe once, then explain the produced session. The
+    run      compose a script from a command list (wait plus the eight planar
+             move tokens move_n/move_s/move_e/move_w + move_ne/move_nw/move_se/
+             move_sw - this harness's movement-oriented vocabulary, NOT the
+             backend's complete one: examine is a prompted interaction covered
+             by docs/arcopolis/examine_regression.ps1 / examine_live_driver.py),
+             invoke the backend exe once, then explain the produced session. The
              backend never saves the world after --arcopolis-run-script, so one
              scripted run per session IS the faithful player loop today;
              interactive continuation across runs is impossible by design.

@@ -168,6 +168,7 @@ main {
 .o-moved { background: #2e7d32; }
 .o-blocked_no_op { background: #ef6c00; }
 .o-waited { background: #1565c0; }
+.o-examined { background: #00838f; }
 .o-no_command { background: #546e7a; }
 .o-error { background: #c62828; }
 .o-acted_in_place, .o-displaced, .o-unknown, .o-unverifiable { background: #6a1b9a; }
@@ -240,18 +241,24 @@ button {
 button:hover:not(:disabled) { background: #3a404c; }
 button:disabled { opacity: 0.4; cursor: default; }
 
+/* True 3x3 planar control (Spike 11B): 8 direction buttons + a center "here". */
 .dpad {
     display: grid;
     grid-template-columns: repeat(3, 2.2em);
     grid-auto-rows: 1.9em;
     gap: 2px;
 }
-.dpad button { padding: 0; }
-.dpad-center {
-    display: flex;
+.dpad button { padding: 0; font-size: 0.85em; }
+/* The center "here" button: muted and visually distinct from the 8 directions
+ * (it never moves; it is the examine-self target). */
+#btn-here { color: var(--muted); }
+
+/* Move/Examine action-mode selector: same chip style as the render-mode
+ * cluster, but anchored next to the d-pad (no margin-left:auto). */
+#action-mode-cluster {
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    color: var(--muted);
+    gap: 0.4em;
 }
 
 /* --- tileset rendering mode (Spike 10C) ----------------------------------- */
