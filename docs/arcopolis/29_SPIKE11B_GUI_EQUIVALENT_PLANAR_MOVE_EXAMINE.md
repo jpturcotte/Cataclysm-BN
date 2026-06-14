@@ -141,11 +141,10 @@ Run from the worktree root with `-Exe` pointing at the built game binary.
 - **`live_protocol_regression.ps1` — ok, exit 0.**
 - **`client_harness_regression.ps1` — ok, exit 0** (incl. the run-mode diagonal `move_se` classified
   `moved (1,1,0)`).
-- **`[arcopolis]` C++ unit suite — NOT executed in this environment.** The
-  `cata_test-tiles.exe` build aborts at **SDL_GPU device creation** on startup (uncompiled compute
-  shaders + no hardware/software Vulkan driver available here) before any test runs. This spike makes
-  **zero C++ changes**, so the suite is unaffected; the game binary itself runs headless fine (all
-  five regressions above drove it). This is reported as not-run, not as a pass.
+- **`[arcopolis]` C++ unit suite — all passed (73 test cases / 501 assertions, exit 0).** Collateral
+  confirmation only; this spike changes **zero C++**. (Must be run with the **built checkout root** as
+  the working directory so SDL_GPU finds the compiled `data/shaders/` blobs; a worktree cwd without
+  compiled shaders aborts at SDL_GPU device creation before any test runs.)
 - **Manual browser smoke** (Claude Preview MCP driving the real DOM at `http://localhost:8771/`
   against a live `ArcopolisTest` backend; nothing committed) — **all checks passed, zero console
   errors/logs**:
