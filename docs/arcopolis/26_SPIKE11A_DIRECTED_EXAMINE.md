@@ -287,11 +287,13 @@ unchanged
 
 - **`open` / `close`** are the near-free follow-ups: the same `choose_adjacent_highlight` shape,
   prompt-free bodies, plus the clean `moves -= 100` turn-economy witness examine cannot provide.
-- **`move` has the same diagonal gap examine just closed** (`is_supported_move_direction` is
-  cardinals-only, `src/arcopolis_command.cpp`), so the `move` verb cannot express the four diagonal
-  steps a GUI player makes. It is a separate verb and a pre-existing Spike-3 deferral — not folded
-  into this examine fix — but it is now the most visible remaining cardinal-only subset and a natural
-  next correction.
+- **`move` had the same diagonal gap examine closed here — since closed too.** When this spike
+  shipped, `is_supported_move_direction` was cardinals-only (`src/arcopolis_command.cpp`), so the
+  `move` verb could not express the four diagonal steps a GUI player makes; it was a separate verb
+  and a pre-existing Spike-3 deferral, the most visible remaining cardinal-only subset. **Update:**
+  the backend `move` verb is now 8-way (#34), and the browser frontend + bridge were widened to
+  8-way planar move + 8-way-plus-`here` examine in Spike 11B
+  ([29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md](29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md)).
 - NPC interaction (the move-into-NPC no-op's missing half) and a prompt-aware protocol remain
   deferred per doc 25; the guard's transcript events are the survey data for designing the latter.
 
