@@ -7,8 +7,7 @@ drives the **complete planar move/examine surface** the backend and the BN GUI a
 click-to-move and a 3×3 d-pad reach all **eight** adjacent tiles, and a Move/Examine mode selector
 sends the backend `examine` verb in any of the **eight planar directions plus `here`** (the avatar's
 own tile). The bridge classifies diagonal moves and reports a non-misleading `examined` outcome.
-Frontend + Python bridge only — **zero engine/C++ changes**, zero snapshot/protocol/state-document
-changes.
+Frontend + Python bridge only — **zero engine/C++ changes**, zero snapshot/protocol/schema changes.
 
 **The "GUI-equivalent" claim is bounded to the planar move + examine-targeting surfaces only.** It is
 **NOT** a claim about vertical movement, prompt/menu protocols, pickup/talk/computer interaction, or a
@@ -21,8 +20,8 @@ reaches the real `game::handle_action()` seam unchanged.
 
 `GUI behavior == engine behavior == the behavior` (AGENTS.md). The backend reached that bar for the
 planar surface in two earlier PRs — `move` became 8-way in
-[#34](https://github.com/cataclysmbn/Cataclysm-BN/pull/34) and directed `examine` became 8-way + `here`
-in [#31](https://github.com/cataclysmbn/Cataclysm-BN/pull/31) (Spike 11A,
+[#34](https://github.com/jpturcotte/Cataclysm-BN/pull/34) and directed `examine` became 8-way + `here`
+in [#31](https://github.com/jpturcotte/Cataclysm-BN/pull/31) (Spike 11A,
 [26_SPIKE11A_DIRECTED_EXAMINE.md](26_SPIKE11A_DIRECTED_EXAMINE.md)). The browser frontend and the HTTP
 bridge did **not** follow: they exposed only N/S/E/W click + N/S/E/W buttons and had no examine UI at
 all, and the bridge's outcome classifier knew only four cardinal move deltas. The GUI-equivalence
