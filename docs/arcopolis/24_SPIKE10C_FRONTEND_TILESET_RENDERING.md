@@ -50,7 +50,10 @@ Proves:
 4. Every 10A/10B affordance survives the new skin: adjacent-click movement, Shift-click
    inspection, d-pad, Wait/Export/Quit, tooltips, the tile inspector, changed-cell highlights and
    the before→after diff panel all work identically in both modes, and toggling modes cannot
-   move the 10B diff baseline (the toggle re-renders pure consumers only).
+   move the 10B diff baseline (the toggle re-renders pure consumers only). (**Update (Spike 11B):**
+   adjacent-click movement + the d-pad are now 8-way, and a Move/Examine mode adds examine targeting;
+   the tileset skin is unaffected — same pure-consumer re-render. See
+   [29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md](29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md).)
 5. Per-cell fallback works: an id with no usable sprite renders as its existing glyph **on top
    of** whatever sprites did resolve (`evac_pamphlet` — absent from UltimateCataclysm — is the
    fixture's natural witness).

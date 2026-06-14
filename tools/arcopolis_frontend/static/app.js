@@ -22,6 +22,14 @@
  * the glyph renderer remains the SAFE VISUAL FALLBACK (glyphs are a frontend
  * interpretation too), used per-cell whenever an id has no usable sprite and
  * wholesale whenever the tileset is absent or fails to load.
+ *
+ * Spike 11B makes the planar move/examine surface GUI-equivalent: the click
+ * map and d-pad cover all EIGHT adjacent tiles (the four cardinals plus the
+ * four diagonals), and a Move/Examine mode selector lets the user send the
+ * backend's `examine` verb in any of those 8 directions plus `here` (the
+ * avatar's own tile). The direction sent is always the backend command token
+ * (move_n .. move_sw / here), never a frontend-computed target mutation; the
+ * backend remains the only authority over what the command does.
  */
 "use strict";
 
@@ -33,13 +41,23 @@ let lastCells = null;      // cell bundles of the CURRENT snapshot (updateDiff o
 let diffState = emptyDiffState(); // diff of the current snapshot vs the previous one
 let renderMode = "glyph";  // "glyph" | "tileset" - glyph is the safe default
 let tileset = emptyTilesetState(); // optional sprite-skin state (Spike 10C)
+let actionMode = "move";   // "move" | "examine" - what a direction/click sends (Spike 11B)
 
 const MAX_MAP_SPAN = 64;   // defensive render cap (the window is 25x25 today)
+// The EIGHT planar adjacency deltas -> the backend command direction token (the
+// four cardinals plus the four diagonals; same set the engine's planar move and
+// examine choosers offer). Screen convention: y grows SOUTH, x grows EAST, so
+// move_n is (0,-1) and move_ne is (+1,-1). Used for both click-to-move and
+// click-to-examine; the avatar's own tile (delta 0,0) is "here" (examine only).
 const DIRECTION_FOR_DELTA = {
     "0,-1": "move_n",
-    "0,1": "move_s",
+    "1,-1": "move_ne",
     "1,0": "move_e",
+    "1,1": "move_se",
+    "0,1": "move_s",
+    "-1,1": "move_sw",
     "-1,0": "move_w",
+    "-1,-1": "move_nw",
 };
 
 const $ = (id) => document.getElementById(id);
@@ -236,12 +254,21 @@ function computeSnapshotDiff(prevCells, curCells, originDelta) {
     return { changes, counts };
 }
 
-/* "move_s → moved" from the state doc's last_result (null when absent). */
+/* "move_s → moved" / "examine here → examined" from the state doc's
+ * last_result (null when absent). */
 function describeProducer(lastResult) {
     if (!lastResult) return null;
     const request = lastResult.request || {};
     let what = lastResult.op;
-    if (lastResult.op === "command") what = request.direction || request.command || what;
+    if (lastResult.op === "command") {
+        // examine carries a direction too, but reads clearest with the verb
+        // ("examine move_n"); a bare move keeps its direction token alone.
+        if (request.command === "examine") {
+            what = `examine ${request.direction || "?"}`;
+        } else {
+            what = request.direction || request.command || what;
+        }
+    }
     const outcome = lastResult.outcome ? lastResult.outcome.outcome : null;
     return outcome ? `${what} → ${outcome}` : String(what);
 }
@@ -850,12 +877,17 @@ function renderInspector() {
     ];
     if (cell.isAvatar) {
         rows.push(["avatar", "here"]);
+        // The avatar's own tile is examinable via the "here" token (the engine
+        // chooser's self/pause path); it is never a move target.
+        rows.push(["examine via", "here"]);
     } else if (av) {
         const dx = x - av[0];
         const dy = y - av[1];
         rows.push(["distance", String(Math.max(Math.abs(dx), Math.abs(dy)))]);
+        // Any of the 8 adjacent tiles is reachable by both verbs through the
+        // same direction token (cardinals and diagonals alike).
         const direction = DIRECTION_FOR_DELTA[`${dx},${dy}`];
-        if (direction) rows.push(["reachable via", direction]);
+        if (direction) rows.push(["move/examine via", direction]);
     }
     // Spike 10C debug affordance: how each aspect resolves against the
     // loaded tileset (reported in glyph mode too - resolution is a property
@@ -943,11 +975,58 @@ function renderMessages() {
     if (!messages.length) list.appendChild(placeholder("no messages", "li"));
 }
 
+/* ----------------------------------------------- action mode (Spike 11B) -- */
+/* "move" vs "examine": which verb a direction button or an adjacent-tile click
+ * sends. A pure UI selector - it changes nothing about the backend contract,
+ * only which command token the same gesture produces. Default is move. */
+
+const MAP_HINTS = {
+    move: "Move mode: click any adjacent tile to move (8-way). Examine mode: "
+        + "click any adjacent tile, or the avatar tile for here. Shift-click "
+        + "inspects without acting.",
+    examine: "Examine mode: click any adjacent tile to examine it, or the "
+        + "avatar tile for here. Switch to Move mode to step. Shift-click "
+        + "inspects without acting.",
+};
+
+function setActionMode(mode) {
+    if (mode !== "move" && mode !== "examine") return;
+    actionMode = mode;
+    renderActionMode();
+    renderButtons(); // the "here" center button is only active in examine mode
+}
+
+/* The mode buttons' active state + the map hint. Always safe to call (a view
+ * selector, never gated on canAct). */
+function renderActionMode() {
+    $("mode-move").classList.toggle("mode-active", actionMode === "move");
+    $("mode-examine").classList.toggle("mode-active", actionMode === "examine");
+    $("map-hint").textContent = MAP_HINTS[actionMode] || MAP_HINTS.move;
+}
+
+/* Send the current action verb for one direction token (a d-pad button or an
+ * adjacent-tile click). "here" is examine-only (the avatar's own tile). */
+function sendDirection(direction) {
+    if (!direction || !canAct()) return;
+    if (actionMode === "examine") {
+        post("/api/command", { command: "examine", direction });
+    } else if (direction !== "here") {
+        post("/api/command", { command: "move", direction });
+    }
+    // move + "here" is intentionally a no-op (the center button is disabled in
+    // move mode); Wait stays the separate explicit control.
+}
+
 function renderButtons() {
     const phase = doc ? doc.phase : "idle";
     $("btn-start").disabled = inFlight || !["idle", "ended", "dead"].includes(phase);
     const actable = canAct();
-    for (const button of document.querySelectorAll(".btn-move")) button.disabled = !actable;
+    for (const button of document.querySelectorAll(".btn-dir")) {
+        // In move mode the center "here" button does nothing (Wait is separate);
+        // in examine mode every direction incl. "here" is active.
+        const hereOnly = button.dataset.direction === "here";
+        button.disabled = !actable || (hereOnly && actionMode === "move");
+    }
     $("btn-wait").disabled = !actable;
     $("btn-export").disabled = !actable;
     $("btn-quit").disabled = !actable;
@@ -982,16 +1061,21 @@ function init() {
     $("btn-wait").addEventListener("click", () => post("/api/wait"));
     $("btn-export").addEventListener("click", () => post("/api/export"));
     $("btn-quit").addEventListener("click", () => post("/api/quit"));
-    for (const button of document.querySelectorAll(".btn-move")) {
-        button.addEventListener("click", () =>
-            post("/api/command", { command: "move", direction: button.dataset.direction }));
+    // The 3x3 d-pad: every direction button sends the CURRENT action verb
+    // (move or examine) for its data-direction token; "here" is the center.
+    for (const button of document.querySelectorAll(".btn-dir")) {
+        button.addEventListener("click", () => sendDirection(button.dataset.direction));
     }
     $("error-dismiss").addEventListener("click", clearError);
     $("mode-glyph").addEventListener("click", () => setRenderMode("glyph"));
     $("mode-tileset").addEventListener("click", () => setRenderMode("tileset"));
+    $("mode-move").addEventListener("click", () => setActionMode("move"));
+    $("mode-examine").addEventListener("click", () => setActionMode("examine"));
 
-    // Click an adjacent cardinal tile to move; click anything else (or
-    // Shift-click anywhere, so adjacent tiles stay inspectable) to inspect.
+    // Click an adjacent tile to act on it with the current mode's verb (move:
+    // step onto any of the 8 neighbors; examine: examine any neighbor, or the
+    // avatar tile for here). Click anything non-adjacent - or Shift-click
+    // anywhere, so adjacent tiles stay inspectable - to inspect read-only.
     $("grid").addEventListener("click", (event) => {
         const target = event.target.closest(".cell");
         if (!target || !doc) return;
@@ -999,11 +1083,22 @@ function init() {
         const y = Number(target.dataset.y);
         const avatar = doc.avatar;
         if (avatar && Array.isArray(avatar.pos_local) && !event.shiftKey && canAct()) {
-            const delta = `${x - avatar.pos_local[0]},${y - avatar.pos_local[1]}`;
-            const direction = DIRECTION_FOR_DELTA[delta];
-            if (direction) {
-                post("/api/command", { command: "move", direction });
-                return;
+            const dx = x - avatar.pos_local[0];
+            const dy = y - avatar.pos_local[1];
+            if (dx === 0 && dy === 0) {
+                // The avatar's own tile: examine here (examine mode only); in
+                // move mode it is never a move target, so it falls through to
+                // inspect below.
+                if (actionMode === "examine") {
+                    post("/api/command", { command: "examine", direction: "here" });
+                    return;
+                }
+            } else {
+                const direction = DIRECTION_FOR_DELTA[`${dx},${dy}`];
+                if (direction) {
+                    sendDirection(direction);
+                    return;
+                }
             }
         }
         inspectKey = `${x},${y}`;
@@ -1011,6 +1106,7 @@ function init() {
         renderInspector();
     });
 
+    renderActionMode(); // set the initial hint + active mode button
     loadTileset(); // async; the UI stays glyph-only until (and unless) it succeeds
     refresh();
     setInterval(refresh, 1000); // freshness fallback; POSTs render immediately
