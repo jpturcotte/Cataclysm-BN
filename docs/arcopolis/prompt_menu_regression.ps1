@@ -7,10 +7,12 @@
 # faked menu, no direct mutation, and no hidden auto-cancel-as-success.
 #
 # Witness: ArcopolisTest's deterministic ground-item pile one tile south of the avatar AFTER one move_s
-# (the same pile examine_regression.ps1's gate 7 uses). `pickup direction=move_s` targets it. Gates A-E run
-# on the default ArcopolisTest avatar (basic clothes, room for ~one small item); gate F runs on
-# ArcopolisBackpackTest -- a copy of that world whose avatar additionally wears a backpack, giving real
-# carrying capacity (see the fixtures README).
+# (the same pile examine_regression.ps1's gate 7 uses). `pickup direction=move_s` targets it. Gates A-E + G
+# run on the default ArcopolisTest avatar (basic clothes, room for ~one small item); gate F runs on
+# ArcopolisBackpackTest (a copy whose avatar wears a backpack, real carrying capacity); gate H runs on
+# ArcopolisVehicleCargoTest (a copy with a folding_wagon injected ONTO that pile, so the tile has both
+# vehicle cargo and ground items; built by docs/arcopolis/make_vehicle_fixture.py); gate I drives the
+# binary directly in non-live modes (no live driver). See the fixtures README.
 #
 # Gates:
 #   A (probe, NEW_PICKUP_MENU=false / AUTOSELECT=false): pickup opens a `prompt` with >=1 REAL choice
@@ -27,11 +29,23 @@
 #     prompt (no silent route to the unsupported inventory_selector); a later wait still works.
 #   E (rejected items): a multi-select [0,6] where the bulky entry is over-capacity -> the engine carries
 #     only what fits (the shard), LEAVES the rejected blanket on the ground, and never logs it as picked up.
-#     Driving the in-activity capacity prompt is NOT implemented (tracked defect); the guard force-cancels it.
+#     Driving the in-activity capacity prompt is NOT implemented (tracked defect). Spike 12A follow-up:
+#     the command response is MARKED { forced_cancel, partial, unsupported_prompt:"secondary_capacity" } and
+#     the transcript records prompt_force_cancelled -- NOT full success, a partial result with the secondary
+#     prompt force-cancelled and explicitly marked.
 #   F (multi-select carry-both, ArcopolisBackpackTest): a multi-select [5,6] on the backpack avatar drives
 #     TWO RIGHT marks ([DOWN x5, RIGHT, DOWN, RIGHT, CONFIRM]) through the engine's own loop; BOTH chosen
 #     entries leave the ground (7 -> 5) and the others remain -- discrimination proven at the state level.
-#   No backend hangs (strict per-response timeout kills + FAILS); every session quits with exit 0.
+#   G (no phantom prompt_completed): `pickup here` on the empty self-tile opens no menu; the transcript has
+#     neither prompt_opened nor prompt_completed.
+#   H (vehicle submenu fail-loud, Spike 12A follow-up, ArcopolisVehicleCargoTest): a live pickup onto a tile
+#     with BOTH vehicle cargo AND ground items emits NO prompt and answers ok:false/unsupported_command
+#     (transcript prompt_force_cancelled kind=vehicle_submenu); the session stays usable. No silent
+#     ground-only pickup.
+#   I (non-live fail-loud, Spike 12A follow-up): `pickup` in --arcopolis-run-script and one-shot
+#     --arcopolis-command is rejected with exit 6 (unsupported_command) BEFORE the world load (no snapshot),
+#     because the item menu needs a live answer channel non-live modes lack -- fail loud, not a silent no-op.
+#   No backend hangs (strict per-response timeout kills + FAILS); every live session quits with exit 0.
 #
 # NEW_PICKUP_MENU, AUTOSELECT_SINGLE_VALID_TARGET, and AUTO_PICKUP are PINNED in the sandbox options.json
 # (deployment config, never overridden in memory -- docs/arcopolis/25 design point 2, docs/arcopolis/30).
@@ -47,6 +61,7 @@ param(
     [string]$UserDir    = ".\arcopolis_user",
     [string]$World      = "ArcopolisTest",
     [string]$BackpackWorld = "ArcopolisBackpackTest",
+    [string]$VehicleWorld = "ArcopolisVehicleCargoTest",
     [string]$OutRoot    = ".\out\arco_pickup_regress",
     [string]$Driver     = "docs\arcopolis\prompt_menu_live_driver.py",
     [string]$HarnessDir = "tools\arcopolis_client",
@@ -73,6 +88,10 @@ if( -not (Test-Path $fixtureWorld) ) {
 $fixtureBackpackWorld = Join-Path $FixtureSrc (Join-Path "save" $BackpackWorld)
 if( -not (Test-Path $fixtureBackpackWorld) ) {
     Stop-WithCode "Fixture world '$BackpackWorld' not found at $fixtureBackpackWorld -- the carry-both multi-select witness needs the backpack-avatar fixture (a copy of $World with a backpack added to worn; see the fixtures README)." 5
+}
+$fixtureVehicleWorld = Join-Path $FixtureSrc (Join-Path "save" $VehicleWorld)
+if( -not (Test-Path $fixtureVehicleWorld) ) {
+    Stop-WithCode "Fixture world '$VehicleWorld' not found at $fixtureVehicleWorld -- the vehicle-submenu fail-loud witness needs the cargo-vehicle fixture (a copy of $World with a folding_wagon injected onto the ground-item pile; build it with docs/arcopolis/make_vehicle_fixture.py)." 5
 }
 if( -not (Get-Command python -ErrorAction SilentlyContinue) ) {
     Stop-WithCode "python not found on PATH (needed to run the live driver). See 00_WINDOWS_LOCAL_ENVIRONMENT.md." 6
@@ -386,15 +405,17 @@ if( $g9 ) {
 Set-SandboxOption -Name "NEW_PICKUP_MENU" -Value $false
 
 # =============================================================================
-# Scenario E (rejected items -- honest partial pickup): on the DEFAULT no-backpack avatar, the client
-# selects TWO entries, one of which the avatar cannot carry (the bulky [0] "folded emergency blanket",
-# 500 ml -- the evac-shelter avatar has room for only one small item). The engine carries the one that fits
-# (the glass shard) and leaves the over-capacity blanket on the ground. Driving the in-activity capacity
-# uilist (handle_problematic_pickup) is NOT IMPLEMENTED -- a tracked defect -- so the Spike 11A guard
-# force-cancels it (no answer channel armed for it) and the activity halts on that item
-# (src/pickup.cpp:440,459). The point is the transaction does NOT fake the part it cannot do: the rejected
-# item stays and is NEVER logged as picked up, while the transcript still shows the client's full 2-entry
-# intent (two RIGHT marks).
+# Scenario E (rejected items -- honest partial pickup, MARKED not-full-success): on the DEFAULT no-backpack
+# avatar, the client selects TWO entries, one of which the avatar cannot carry (the bulky [0] "folded
+# emergency blanket", 500 ml -- the evac-shelter avatar has room for only one small item). The engine
+# carries the one that fits (the glass shard) and leaves the over-capacity blanket on the ground. Driving
+# the in-activity capacity uilist (handle_problematic_pickup) is NOT IMPLEMENTED -- a tracked defect. The
+# Spike 12A follow-up makes that NON-SILENT: src/pickup.cpp reports it (backend_report_pickup_secondary_
+# forced_cancel) so this command response carries the explicit marker set { forced_cancel, partial,
+# unsupported_prompt:"secondary_capacity" } and the transcript a prompt_force_cancelled event. This is NOT
+# full success -- it is a partial engine result with an unsupported secondary prompt force-cancelled and
+# explicitly MARKED. The transaction does NOT fake the part it cannot do: the rejected item stays and is
+# NEVER logged as picked up, while the transcript still shows the client's full 2-entry intent (two RIGHT marks).
 # =============================================================================
 $reqR = @(
     '{"id":1,"op":"export","name":"start"}',
@@ -424,14 +445,20 @@ $blanketStaysR = @($afterNamesR | Where-Object { $_ -like '*folded emergency bla
 $shardGoneR = @($afterNamesR | Where-Object { $_ -like '*glass shard*' } ).Count -eq 0
 $pickupMsgsR = @((Get-MessageTexts $snapAfterR) | Where-Object { $_ -like '*You pick up*' })
 $blanketPickedMsgR = @($pickupMsgsR | Where-Object { $_ -like '*blanket*' } ).Count
+# Spike 12A follow-up: the secondary capacity prompt is force-cancelled, so the command response is MARKED
+# not-full-success (ok stays true -- a real partial pickup happened) and the transcript records it.
+$markedR = ($respR[4].forced_cancel -eq $true) -and ($respR[4].partial -eq $true) -and
+           ($respR[4].unsupported_prompt -eq 'secondary_capacity')
+$forceCancelEvR = @($evR | Where-Object { $_.event -eq 'prompt_force_cancelled' -and $_.kind -eq 'secondary_capacity' })
 $gRej = ($R.ExitCode -eq 0) -and $R.Result.ok -and ($respR[4].ok -eq $true) -and
         (($answeredChoicesR -join ',') -eq '0,6') -and (($actionsR -join ',') -eq ($expectedR -join ',')) -and
         ($afterR.Count -eq ($beforeR.Count - 1)) -and $blanketStaysR -and $shardGoneR -and
-        ($pickupMsgsR.Count -eq 1) -and ($blanketPickedMsgR -eq 0)
+        ($pickupMsgsR.Count -eq 1) -and ($blanketPickedMsgR -eq 0) -and
+        $markedR -and ($forceCancelEvR.Count -ge 1)
 if( $gRej ) {
-    Write-Host "  PASS: rejected items (no-backpack avatar) -- chose [0,6] (over-capacity blanket + shard); engine carried only the shard ($($beforeR.Count) -> $($afterR.Count)), the rejected blanket stays on the ground and is NEVER logged as picked up (honest partial pickup; driving the capacity prompt is a tracked defect, the guard force-cancels it)." -ForegroundColor Green
+    Write-Host "  PASS: rejected items (no-backpack avatar) -- chose [0,6] (over-capacity blanket + shard); engine carried only the shard ($($beforeR.Count) -> $($afterR.Count)), the rejected blanket stays on the ground and is NEVER logged as picked up. NOT full success: response MARKED forced_cancel/partial/unsupported_prompt=secondary_capacity + transcript prompt_force_cancelled (an honest partial pickup, the secondary prompt is force-cancelled and marked, not driven)." -ForegroundColor Green
 } else {
-    Write-Host "  FAIL: rejected items -- exit=$($R.ExitCode) pickup=$($respR[4].ok) choices=[$($answeredChoicesR -join ', ')] actions=[$($actionsR -join ', ')] before=$($beforeR.Count) after=$($afterR.Count) blanketStays=$blanketStaysR shardGone=$shardGoneR msgs=$($pickupMsgsR.Count) blanketPicked=$blanketPickedMsgR" -ForegroundColor Red
+    Write-Host "  FAIL: rejected items -- exit=$($R.ExitCode) pickup=$($respR[4].ok) marked=$markedR forceCancelEv=$($forceCancelEvR.Count) choices=[$($answeredChoicesR -join ', ')] actions=[$($actionsR -join ', ')] before=$($beforeR.Count) after=$($afterR.Count) blanketStays=$blanketStaysR shardGone=$shardGoneR msgs=$($pickupMsgsR.Count) blanketPicked=$blanketPickedMsgR" -ForegroundColor Red
     $fail++
 }
 
@@ -514,6 +541,74 @@ if( $gPhantom ) {
     Write-Host "  PASS: no phantom prompt_completed -- 'pickup here' on the empty self-tile opened no menu (0 prompts), and the transcript has neither prompt_opened nor prompt_completed." -ForegroundColor Green
 } else {
     Write-Host "  FAIL: no phantom prompt_completed -- exit=$($G.ExitCode) ok=$($G.Result.ok) pickup=$($respG[2].ok) prompts=$($promptsG.Count) opened=$($openedG.Count) completed=$($completedG.Count)" -ForegroundColor Red
+    $fail++
+}
+
+# =============================================================================
+# Scenario H (vehicle submenu FAIL-LOUD, Spike 12A follow-up): on ArcopolisVehicleCargoTest -- a copy of
+# ArcopolisTest with a folding_wagon (1 CARGO item) injected ONTO the south ground-item pile -- a live
+# `pickup direction=move_s` targets a tile with BOTH vehicle cargo AND ground items. game::pickup opens the
+# "Get items from where?" uilist (src/pickup.cpp:1268), which the prompt transaction does NOT drive. The
+# follow-up FAILS LOUD: NO prompt is emitted, the command answers ok:false/unsupported_command, the
+# transcript records prompt_force_cancelled kind=vehicle_submenu, and the session stays usable (a later wait
+# succeeds). This is the honest alternative to silently picking only the ground items.
+# =============================================================================
+$reqH = @(
+    '{"id":1,"op":"command","command":"move","direction":"move_s","name":"approach"}',
+    '{"id":2,"op":"command","command":"pickup","direction":"move_s","name":"pickup_vehicle_tile"}',
+    '{"id":3,"op":"command","command":"wait","name":"still_usable"}',
+    '{"id":4,"op":"quit"}'
+)
+$H = Invoke-LiveScenario -Name "vehicle_submenu_failloud" -RequestLines $reqH -ScenarioWorld $VehicleWorld
+$evH = Read-Transcript -Dir $H.Dir
+$respH = Index-ById $H.Result.responses
+$promptH = @($H.Result.responses | Where-Object { $_.type -eq 'prompt' })
+$forceCancelH = @($evH | Where-Object { $_.event -eq 'prompt_force_cancelled' -and $_.kind -eq 'vehicle_submenu' })
+$gVeh = ($H.ExitCode -eq 0) -and $H.Result.ok -and ($promptH.Count -eq 0) -and
+        ($respH[2].ok -eq $false) -and ($respH[2].error.code -eq 'unsupported_command') -and
+        ($forceCancelH.Count -ge 1) -and ($respH[3].ok -eq $true)
+if( $gVeh ) {
+    Write-Host "  PASS: vehicle submenu fail-loud -- a live pickup onto the vehicle-cargo + ground-items tile emitted NO prompt, answered ok:false/unsupported_command (transcript prompt_force_cancelled kind=vehicle_submenu), and the session still served a later wait. No silent ground-only pickup." -ForegroundColor Green
+} else {
+    Write-Host "  FAIL: vehicle submenu fail-loud -- exit=$($H.ExitCode) ok=$($H.Result.ok) prompts=$($promptH.Count) pickup=$($respH[2] | ConvertTo-Json -Compress) forceCancel=$($forceCancelH.Count) wait=$($respH[3].ok)" -ForegroundColor Red
+    $fail++
+}
+
+# =============================================================================
+# Scenario I (non-live FAIL-LOUD, Spike 12A follow-up): `pickup` is a live-only command (its item menu needs
+# a prompt answer channel the script/one-shot providers do not have). Rather than silently auto-cancelling
+# and reporting success, the non-live pre-flight REJECTS it with unsupported_command (exit 6) BEFORE the
+# world load, in BOTH --arcopolis-run-script and one-shot --arcopolis-command. Proves the "non-live fails
+# loud for promptful commands" rule directly against the binary (no live driver).
+# =============================================================================
+$nonLiveDir = Join-Path $OutRoot "non_live_failloud"
+New-Item -ItemType Directory -Force $nonLiveDir | Out-Null
+# unsupported_command -> exit_code_for() == 6 (src/arcopolis_command.cpp).
+$expectedNonLiveExit = 6
+# (a) script mode
+$scriptPath = Join-Path $nonLiveDir "pickup_script.json"
+Set-Content -Path $scriptPath -Value '{"schema_version":1,"steps":[{"op":"command","command":"pickup","direction":"move_s"}]}' -Encoding ascii
+$scriptErr = Join-Path $nonLiveDir "script_err.txt"
+$ps = Start-Process -FilePath $Exe -ArgumentList @('--world', $World, '--arcopolis-run-script', $scriptPath,
+    '--arcopolis-export-dir', (Join-Path $nonLiveDir "script_out"), '--userdir', $UserDir) -NoNewWindow -Wait -PassThru `
+    -RedirectStandardError $scriptErr -RedirectStandardOutput (Join-Path $nonLiveDir "script_out.txt")
+$scriptErrText = (Get-Content $scriptErr -Raw -ErrorAction SilentlyContinue)
+# (b) one-shot mode
+$cmdPath = Join-Path $nonLiveDir "pickup_cmd.json"
+Set-Content -Path $cmdPath -Value '{"schema_version":1,"command":"pickup","direction":"move_s"}' -Encoding ascii
+$oneshotSnap = Join-Path $nonLiveDir "oneshot.json"
+$oneshotErr = Join-Path $nonLiveDir "oneshot_err.txt"
+$po = Start-Process -FilePath $Exe -ArgumentList @('--world', $World, '--arcopolis-export-current-view', $oneshotSnap,
+    '--arcopolis-command', $cmdPath, '--userdir', $UserDir) -NoNewWindow -Wait -PassThru `
+    -RedirectStandardError $oneshotErr -RedirectStandardOutput (Join-Path $nonLiveDir "oneshot_out.txt")
+$oneshotErrText = (Get-Content $oneshotErr -Raw -ErrorAction SilentlyContinue)
+$gNonLive = ($ps.ExitCode -eq $expectedNonLiveExit) -and ($po.ExitCode -eq $expectedNonLiveExit) -and
+            ($scriptErrText -like '*requires --arcopolis-live*') -and ($oneshotErrText -like '*requires --arcopolis-live*') -and
+            (-not (Test-Path $oneshotSnap))
+if( $gNonLive ) {
+    Write-Host "  PASS: non-live fail-loud -- both --arcopolis-run-script and one-shot --arcopolis-command rejected pickup with exit $expectedNonLiveExit (unsupported_command) BEFORE the world load; no snapshot written, clear 'requires --arcopolis-live' message. Non-live fails loud for promptful commands instead of a silent no-op." -ForegroundColor Green
+} else {
+    Write-Host "  FAIL: non-live fail-loud -- scriptExit=$($ps.ExitCode) oneshotExit=$($po.ExitCode) (expected $expectedNonLiveExit) snapshotWritten=$(Test-Path $oneshotSnap) scriptErr='$scriptErrText' oneshotErr='$oneshotErrText'" -ForegroundColor Red
     $fail++
 }
 
