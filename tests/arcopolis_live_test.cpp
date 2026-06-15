@@ -261,3 +261,106 @@ TEST_CASE( "arcopolis live error codes have stable wire names", "[arcopolis]" )
     CHECK( arcopolis::live_error_code_name( code_t::game_over ) == "game_over" );
     CHECK( arcopolis::live_error_code_name( code_t::backend_stalled ) == "backend_stalled" );
 }
+
+TEST_CASE( "arcopolis parse_prompt_answer accepts a valid choice and an explicit cancel",
+           "[arcopolis]" )
+{
+    const auto chosen = arcopolis::parse_prompt_answer(
+                            R"({ "op": "prompt_answer", "id": 5, "prompt_id": 1, "choice": 1 })", 3 );
+    REQUIRE( chosen.has_value() );
+    CHECK( chosen->act == arcopolis::live_prompt_answer::action::choose );
+    CHECK( chosen->choices == std::vector<int> { 1 } );
+    CHECK( chosen->id.value_or( -1 ) == 5 );
+    CHECK( chosen->prompt_id == 1 );
+
+    // A `choices` array is multi-select, returned canonical: sorted + duplicate-free ([2, 0] -> [0, 2]).
+    const auto multi = arcopolis::parse_prompt_answer(
+                           R"({ "op": "prompt_answer", "id": 7, "prompt_id": 2, "choices": [2, 0] })", 3 );
+    REQUIRE( multi.has_value() );
+    CHECK( multi->act == arcopolis::live_prompt_answer::action::choose );
+    CHECK( multi->choices == std::vector<int> { 0, 2 } );
+    CHECK( multi->prompt_id == 2 );
+
+    const auto cancel = arcopolis::parse_prompt_answer(
+                            R"({ "op": "prompt_cancel", "id": 6, "prompt_id": 1 })", 3 );
+    REQUIRE( cancel.has_value() );
+    CHECK( cancel->act == arcopolis::live_prompt_answer::action::cancel );
+    CHECK( cancel->id.value_or( -1 ) == 6 );
+    CHECK( cancel->prompt_id == 1 );
+}
+
+TEST_CASE( "arcopolis parse_prompt_answer rejects bad/missing prompt_id, out-of-range, duplicate, wrong-op and malformed",
+           "[arcopolis]" )
+{
+    // Each is a RECOVERABLE bad_request (the caller rejects it, logs prompt_failed, keeps the prompt OPEN).
+    for( const std::string &line : {
+             R"({ "op": "prompt_answer", "choice": 0 })",                       // missing prompt_id
+             R"({ "op": "prompt_cancel" })",                                    // cancel also requires prompt_id
+             R"({ "op": "prompt_answer", "prompt_id": 1, "choice": 3 })",       // out of range (high)
+             R"({ "op": "prompt_answer", "prompt_id": 1, "choice": -1 })",      // out of range (low)
+             R"({ "op": "prompt_answer", "prompt_id": 1, "choices": [5] })",    // out of range
+             R"({ "op": "prompt_answer", "prompt_id": 1, "choices": [] })",     // empty
+             R"({ "op": "prompt_answer", "prompt_id": 1, "choices": [0, 0] })", // duplicate
+             R"({ "op": "prompt_answer", "prompt_id": 1, "choices": [1, 2, 1] })", // duplicate (non-adjacent in input)
+             R"({ "op": "prompt_answer", "prompt_id": 1 })"                     // no choice/choices
+         } ) {
+        const auto bad = arcopolis::parse_prompt_answer( line, 3 );
+        REQUIRE_FALSE( bad.has_value() );
+        CHECK( bad.error().code == arcopolis::live_error_code::bad_request );
+    }
+    const auto wrong_op = arcopolis::parse_prompt_answer( R"({ "op": "wait", "prompt_id": 1 })", 3 );
+    REQUIRE_FALSE( wrong_op.has_value() );
+    CHECK( wrong_op.error().code == arcopolis::live_error_code::bad_request );
+
+    const auto malformed = arcopolis::parse_prompt_answer( "{ not json", 3 );
+    REQUIRE_FALSE( malformed.has_value() );
+    CHECK( malformed.error().code == arcopolis::live_error_code::malformed_json );
+}
+
+TEST_CASE( "arcopolis live prompt event carries the real choices", "[arcopolis]" )
+{
+    std::ostringstream out;
+    arcopolis::write_prompt_line( out, { .id = std::optional<int>( 9 ),
+                                         .prompt_id = 1,
+                                         .kind = "menu",
+                                         .title = "Pick up which items?",
+    .choices = { { .index = 0, .text = "a rock", .enabled = true },
+        { .index = 1, .text = "a rag", .enabled = false }
+    },
+    .cancelable = true
+                                       } );
+    CHECK( is_one_line( out.str() ) );
+    with_protocol_line( out.str(), []( const auto & obj ) {
+        obj.allow_omitted_members();
+        CHECK( obj.get_string( "type" ) == "prompt" );
+        CHECK( obj.get_int( "id" ) == 9 );
+        CHECK( obj.get_int( "prompt_id" ) == 1 );
+        CHECK( obj.get_string( "kind" ) == "menu" );
+        CHECK( obj.get_bool( "cancelable" ) );
+        CHECK( obj.has_member( "choices" ) );
+    } );
+}
+
+TEST_CASE( "arcopolis live prompt ack reports the chosen index/indices or a cancel", "[arcopolis]" )
+{
+    std::ostringstream chose;
+    arcopolis::write_prompt_ack_line( chose, { .id = std::optional<int>( 2 ), .prompt_id = 1,
+                                      .choices = std::vector<int> { 1 }
+                                             } );
+    with_protocol_line( chose.str(), []( const auto & obj ) {
+        obj.allow_omitted_members();
+        CHECK( obj.get_bool( "ok" ) );
+        CHECK( obj.get_string( "op" ) == "prompt_answer" );
+        CHECK( obj.get_int_array( "choices" ) == std::vector<int> { 1 } );
+    } );
+
+    std::ostringstream cancelled;
+    arcopolis::write_prompt_ack_line( cancelled, { .id = std::optional<int>( 3 ), .prompt_id = 1,
+                                      .choices = std::nullopt
+                                                 } );
+    with_protocol_line( cancelled.str(), []( const auto & obj ) {
+        obj.allow_omitted_members();
+        CHECK( obj.get_bool( "ok" ) );
+        CHECK( obj.get_bool( "cancelled" ) );
+    } );
+}

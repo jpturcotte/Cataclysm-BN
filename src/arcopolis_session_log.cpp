@@ -192,6 +192,91 @@ auto arcopolis::write_nested_input_unconsumed_line( std::ostream &out,
     out << '\n';
 }
 
+auto arcopolis::write_prompt_opened_line( std::ostream &out, const prompt_opened_event &ev ) -> void
+{
+    JsonOut json( out, /*pretty_print=*/false );
+    begin_record( json, "prompt_opened" );
+    if( ev.step_index ) {
+        json.member( "step_index", *ev.step_index );
+    }
+    json.member( "kind", ev.kind );
+    json.member( "choices" );
+    json.start_array();
+    for( const prompt_choice_log &c : ev.choices ) {
+        json.start_object();
+        json.member( "index", c.index );
+        json.member( "text", c.text );
+        json.member( "enabled", c.enabled );
+        json.end_object();
+    }
+    json.end_array();
+    json.end_object();
+    out << '\n';
+}
+
+auto arcopolis::write_prompt_answered_line( std::ostream &out,
+        const prompt_answered_event &ev ) -> void
+{
+    JsonOut json( out, /*pretty_print=*/false );
+    begin_record( json, "prompt_answered" );
+    if( ev.step_index ) {
+        json.member( "step_index", *ev.step_index );
+    }
+    json.member( "choices" );
+    json.start_array();
+    for( const int c : ev.choices ) {
+        json.write( c );
+    }
+    json.end_array();
+    json.member( "actions" );
+    json.start_array();
+    for( const std::string &a : ev.actions ) {
+        json.write( a );
+    }
+    json.end_array();
+    json.end_object();
+    out << '\n';
+}
+
+auto arcopolis::write_prompt_cancelled_line( std::ostream &out,
+        const prompt_cancelled_event &ev ) -> void
+{
+    JsonOut json( out, /*pretty_print=*/false );
+    begin_record( json, "prompt_cancelled" );
+    if( ev.step_index ) {
+        json.member( "step_index", *ev.step_index );
+    }
+    json.member( "reason", ev.reason );
+    json.end_object();
+    out << '\n';
+}
+
+auto arcopolis::write_prompt_failed_line( std::ostream &out, const prompt_failed_event &ev ) -> void
+{
+    JsonOut json( out, /*pretty_print=*/false );
+    begin_record( json, "prompt_failed" );
+    if( ev.step_index ) {
+        json.member( "step_index", *ev.step_index );
+    }
+    json.member( "reason", ev.reason );
+    json.member( "detail", ev.detail );
+    json.end_object();
+    out << '\n';
+}
+
+auto arcopolis::write_prompt_completed_line( std::ostream &out,
+        const prompt_completed_event &ev ) -> void
+{
+    JsonOut json( out, /*pretty_print=*/false );
+    begin_record( json, "prompt_completed" );
+    if( ev.step_index ) {
+        json.member( "step_index", *ev.step_index );
+    }
+    json.member( "actions_served", ev.actions_served );
+    json.end_object();
+    out << '\n';
+}
+
 auto arcopolis::write_session_end_line( std::ostream &out, const session_end_event &ev ) -> void
 {
     JsonOut json( out, /*pretty_print=*/false );
@@ -283,6 +368,51 @@ void
         return;
     }
     write_nested_input_unconsumed_line( *s_log.stream, ev );
+    s_log.stream.flush();
+}
+
+auto arcopolis::session_log_prompt_opened( const prompt_opened_event &ev ) -> void
+{
+    if( !s_log.active ) {
+        return;
+    }
+    write_prompt_opened_line( *s_log.stream, ev );
+    s_log.stream.flush();
+}
+
+auto arcopolis::session_log_prompt_answered( const prompt_answered_event &ev ) -> void
+{
+    if( !s_log.active ) {
+        return;
+    }
+    write_prompt_answered_line( *s_log.stream, ev );
+    s_log.stream.flush();
+}
+
+auto arcopolis::session_log_prompt_cancelled( const prompt_cancelled_event &ev ) -> void
+{
+    if( !s_log.active ) {
+        return;
+    }
+    write_prompt_cancelled_line( *s_log.stream, ev );
+    s_log.stream.flush();
+}
+
+auto arcopolis::session_log_prompt_failed( const prompt_failed_event &ev ) -> void
+{
+    if( !s_log.active ) {
+        return;
+    }
+    write_prompt_failed_line( *s_log.stream, ev );
+    s_log.stream.flush();
+}
+
+auto arcopolis::session_log_prompt_completed( const prompt_completed_event &ev ) -> void
+{
+    if( !s_log.active ) {
+        return;
+    }
+    write_prompt_completed_line( *s_log.stream, ev );
     s_log.stream.flush();
 }
 

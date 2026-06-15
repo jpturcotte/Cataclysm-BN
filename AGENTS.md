@@ -183,6 +183,15 @@ see `docs/arcopolis/19_SPIKE8A_ITEM_EXPORT.md`), and the **live-protocol fixture
 monster witness with `docs/arcopolis/make_monster_fixture.py` (save-edit, no GUI/build) and gate it with
 `docs/arcopolis/monster_export_regression.ps1`; see `docs/arcopolis/16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md`.
 
+A third world, `ArcopolisBackpackTest`, lives in the same userdir as the **multi-item-pickup carry-both
+witness** (Spike 12A): a clone of `ArcopolisTest` whose avatar additionally wears a `backpack`, giving real
+carrying capacity. The default `ArcopolisTest` avatar has room for ~one small item, so it witnesses
+**rejected-items** pickup (an over-capacity selected item is left on the ground, never logged as picked up;
+driving the in-activity capacity prompt is a tracked defect, so the guard force-cancels it);
+`ArcopolisBackpackTest` lets a multi-select deposit two items, witnessing carry-both at the state level. Both are gated by `docs/arcopolis/prompt_menu_regression.ps1`; `ArcopolisTest`'s state is
+unchanged (its `.sav` is content-identical to the pre-spike save). See
+`docs/arcopolis/30_SPIKE12A_PROMPT_MENU_TRANSACTION.md`.
+
 ## HARD CONSTRAINTS (NEVER VIOLATE)
 
 Before writing **ANY** code, verify:

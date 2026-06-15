@@ -165,24 +165,24 @@ TEST_CASE( "arcopolis parse_command rejects unsupported examine directions", "[a
     }
 }
 
-TEST_CASE( "arcopolis is_supported_examine_direction accepts all 8 planar dirs plus here",
+TEST_CASE( "arcopolis is_supported_target_direction accepts all 8 planar dirs plus here",
            "[arcopolis]" )
 {
     for( const std::string &dir : {
              "move_n", "move_s", "move_e", "move_w",
              "move_ne", "move_nw", "move_se", "move_sw", "here"
          } ) {
-        CHECK( arcopolis::is_supported_examine_direction( dir ) );
+        CHECK( arcopolis::is_supported_target_direction( dir ) );
     }
     // Vertical and garbage rejected; "pause" is the action id, not the protocol token.
-    CHECK_FALSE( arcopolis::is_supported_examine_direction( "move_up" ) );
-    CHECK_FALSE( arcopolis::is_supported_examine_direction( "move_down" ) );
-    CHECK_FALSE( arcopolis::is_supported_examine_direction( "pause" ) );
-    CHECK_FALSE( arcopolis::is_supported_examine_direction( "east" ) );
-    CHECK_FALSE( arcopolis::is_supported_examine_direction( "" ) );
+    CHECK_FALSE( arcopolis::is_supported_target_direction( "move_up" ) );
+    CHECK_FALSE( arcopolis::is_supported_target_direction( "move_down" ) );
+    CHECK_FALSE( arcopolis::is_supported_target_direction( "pause" ) );
+    CHECK_FALSE( arcopolis::is_supported_target_direction( "east" ) );
+    CHECK_FALSE( arcopolis::is_supported_target_direction( "" ) );
 }
 
-TEST_CASE( "arcopolis examine_nested_answer maps every direction to its chooser action id",
+TEST_CASE( "arcopolis target_direction_nested_answer maps every direction to its chooser action id",
            "[arcopolis]" )
 {
     // The chooser consumes input-context action ids (register_directions plus its own "pause"
@@ -190,15 +190,41 @@ TEST_CASE( "arcopolis examine_nested_answer maps every direction to its chooser 
     // rotation can apply (tile_iso is set only at tileset load -- docs/arcopolis/25, point 4). The
     // diagonal pairings are verified against get_direction (src/input.cpp): screen north=-y, east=+x,
     // so move_ne (north_east, +x,-y) -> "RIGHTUP", move_sw (south_west, -x,+y) -> "LEFTDOWN", etc.
-    CHECK( arcopolis::examine_nested_answer( "move_n" ).value_or( "" ) == "UP" );
-    CHECK( arcopolis::examine_nested_answer( "move_s" ).value_or( "" ) == "DOWN" );
-    CHECK( arcopolis::examine_nested_answer( "move_e" ).value_or( "" ) == "RIGHT" );
-    CHECK( arcopolis::examine_nested_answer( "move_w" ).value_or( "" ) == "LEFT" );
-    CHECK( arcopolis::examine_nested_answer( "move_ne" ).value_or( "" ) == "RIGHTUP" );
-    CHECK( arcopolis::examine_nested_answer( "move_nw" ).value_or( "" ) == "LEFTUP" );
-    CHECK( arcopolis::examine_nested_answer( "move_se" ).value_or( "" ) == "RIGHTDOWN" );
-    CHECK( arcopolis::examine_nested_answer( "move_sw" ).value_or( "" ) == "LEFTDOWN" );
-    CHECK( arcopolis::examine_nested_answer( "here" ).value_or( "" ) == "pause" );
-    CHECK_FALSE( arcopolis::examine_nested_answer( "move_up" ).has_value() );
-    CHECK_FALSE( arcopolis::examine_nested_answer( "" ).has_value() );
+    CHECK( arcopolis::target_direction_nested_answer( "move_n" ).value_or( "" ) == "UP" );
+    CHECK( arcopolis::target_direction_nested_answer( "move_s" ).value_or( "" ) == "DOWN" );
+    CHECK( arcopolis::target_direction_nested_answer( "move_e" ).value_or( "" ) == "RIGHT" );
+    CHECK( arcopolis::target_direction_nested_answer( "move_w" ).value_or( "" ) == "LEFT" );
+    CHECK( arcopolis::target_direction_nested_answer( "move_ne" ).value_or( "" ) == "RIGHTUP" );
+    CHECK( arcopolis::target_direction_nested_answer( "move_nw" ).value_or( "" ) == "LEFTUP" );
+    CHECK( arcopolis::target_direction_nested_answer( "move_se" ).value_or( "" ) == "RIGHTDOWN" );
+    CHECK( arcopolis::target_direction_nested_answer( "move_sw" ).value_or( "" ) == "LEFTDOWN" );
+    CHECK( arcopolis::target_direction_nested_answer( "here" ).value_or( "" ) == "pause" );
+    CHECK_FALSE( arcopolis::target_direction_nested_answer( "move_up" ).has_value() );
+    CHECK_FALSE( arcopolis::target_direction_nested_answer( "" ).has_value() );
+}
+
+TEST_CASE( "arcopolis parse_command accepts a valid pickup command", "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "command": "pickup", "direction": "move_s" })" );
+    const auto result = arcopolis::parse_command( is );
+    REQUIRE( result.has_value() );
+    CHECK( result->command == "pickup" );
+    CHECK( result->direction == "move_s" );
+}
+
+TEST_CASE( "arcopolis parse_command rejects pickup without a direction", "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "command": "pickup" })" );
+    const auto result = arcopolis::parse_command( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
+TEST_CASE( "arcopolis parse_command rejects an unsupported pickup direction", "[arcopolis]" )
+{
+    // pickup shares the examine target chooser (allow_vertical=false), so vertical is rejected.
+    std::istringstream is( R"({ "schema_version": 1, "command": "pickup", "direction": "move_up" })" );
+    const auto result = arcopolis::parse_command( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
 }

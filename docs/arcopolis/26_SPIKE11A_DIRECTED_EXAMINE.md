@@ -54,8 +54,9 @@ written (arming itself emits nothing, so each dispatch's events always order
 - live: the `op:"command"` branch of `live_next_action()` (`src/arcopolis_live.cpp`).
 
 The slot stores the chooser action id from the single source-of-truth table in
-`src/arcopolis_command.cpp` (`examine_direction_answers`, which both `is_supported_examine_direction`
-and `examine_nested_answer` derive from, so they cannot drift): `move_n→"UP"`, `move_s→"DOWN"`,
+`src/arcopolis_command.cpp` (`examine_direction_answers` — renamed `target_direction_answers` in Spike
+12A when `pickup` began sharing it; both `is_supported_examine_direction`/`target_direction_nested_answer`
+derive from it, so they cannot drift): `move_n→"UP"`, `move_s→"DOWN"`,
 `move_e→"RIGHT"`, `move_w→"LEFT"`, `move_ne→"RIGHTUP"`, `move_nw→"LEFTUP"`, `move_se→"RIGHTDOWN"`,
 `move_sw→"LEFTDOWN"`, `here→"pause"` — the `register_directions()` action ids
 (`src/input.cpp:1010-1017`), the diagonal compass→string pairings verified against `get_direction`

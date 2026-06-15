@@ -58,6 +58,7 @@ struct live_pump {
     int accepted_requests = 0;
     bool eof = false;
     bool quit = false;
+    int prompt_seq = 0;  ///< Spike 12A: increments per emitted `prompt`, correlates the answer
 };
 
 live_pump pump;
@@ -180,6 +181,17 @@ auto live_next_action() -> action_id
                               .message = resolved.error().detail } );
                 continue;
             }
+            // Spike 12A: the pickup prompt transaction drives only the OLD "PICKUP" menu. Under
+            // NEW_PICKUP_MENU=true, game::pickup routes to the inventory_selector (a different, unsupported
+            // menu mechanism), so FAIL LOUD before dispatching rather than silently auto-cancelling there --
+            // recording the loaded value is not enough (docs/arcopolis/30).
+            if( req->command == "pickup" && get_option<bool>( "NEW_PICKUP_MENU" ) ) {
+                send_error( { .id = req->id, .op = "command",
+                              .code = arcopolis::live_error_code::unsupported_command,
+                              .message = "pickup prompt transaction requires NEW_PICKUP_MENU=false "
+                                         "(the new inventory_selector menu is not supported)" } );
+                continue;
+            }
             const auto step_index = pump.accepted_requests++;
             // Record what was queued (status "queued"), exactly like the script provider: the
             // observable RESULT is the FOLLOWING export -- the pending snapshot taken at (a).
@@ -187,14 +199,20 @@ auto live_next_action() -> action_id
                                               .command = req->command,
                                               .direction = req->direction,
                                               .action_id = std::optional<std::string>( action_ident( *resolved ) ) } );
-            // Spike 11A: arm the one-shot direction answer AFTER the command event (arming emits
-            // nothing, so this dispatch's nested_input_* events all order after its command event).
-            if( req->command == "examine" ) {
-                if( const auto answer = arcopolis::examine_nested_answer( req->direction ) ) {
+            // Spike 11A/12A: arm the one-shot direction answer for the "Examine where?" / "Pickup where?"
+            // chooser AFTER the command event (arming emits nothing, so this dispatch's nested_input_* /
+            // prompt_* events all order after its command event).
+            if( req->command == "examine" || req->command == "pickup" ) {
+                if( const auto answer = arcopolis::target_direction_nested_answer( req->direction ) ) {
                     arcopolis::backend_arm_nested_input( { .action = *answer,
                                                            .direction = req->direction,
                                                            .step_index = step_index } );
                 }
+            }
+            // Spike 12A: arm the pickup MENU transaction (the gate src/pickup.cpp's pre-loop block checks).
+            // ONLY `pickup` arms it, so examine's auto-pickup tail finds it false and keeps auto-cancelling.
+            if( req->command == "pickup" ) {
+                arcopolis::backend_arm_pickup_transaction( step_index );
             }
             pump.pending = live_pending{ .id = req->id, .name = req->name, .step_index = step_index };
             return *resolved;
@@ -206,6 +224,77 @@ auto live_next_action() -> action_id
         pump.quit = true;
         arcopolis::backend_mark_input_done();
         return ACTION_NULL;
+    }
+}
+
+/// The live pickup menu-answer channel (registered as the backend session's prompt_source, Spike 12A).
+/// Called from INSIDE pick_up_from_items (mid-do_turn) when the old "PICKUP" menu opens during an armed
+/// transaction: emits the `prompt` event with the engine's REAL choices, then blocks reading prompt
+/// answers. A valid choice is acked and returned (the backend then translates it into the registered
+/// PICKUP actions the engine's own menu loop consumes); an explicit cancel returns nullopt; an invalid
+/// answer is rejected with ok:false and the prompt stays OPEN (mirrors the GUI menu ignoring an unbound
+/// key); EOF returns nullopt (cancel). live_next_action has already RETURNED the action, so this is the
+/// sole std::cin reader -- no re-entrancy -- and the stall backstop cannot fire mid-do_turn.
+auto live_pickup_prompt( const std::vector<arcopolis::pickup_prompt_choice> &choices ) ->
+std::optional<std::vector<int>>
+{
+    const auto command_id = pump.pending ? pump.pending->id : std::optional<int> {};
+    const auto step_index = pump.pending ? std::optional<int>( pump.pending->step_index )
+                            : std::optional<int> {};
+    const auto prompt_id = ++pump.prompt_seq;
+    arcopolis::write_prompt_line( std::cout, { .id = command_id,
+                                  .prompt_id = prompt_id,
+                                  .kind = "menu",
+                                  .title = "Pick up which items?",
+                                  .choices = choices,
+                                  .cancelable = true
+                                             } );
+    std::cout.flush();
+    for( ;; ) {
+        std::string line;
+        if( !std::getline( std::cin, line ) ) {
+            return std::nullopt;  // EOF mid-prompt: cancel; the outer loop then ends the session cleanly.
+        }
+        if( !line.empty() && line.back() == '\r' ) {
+            line.pop_back();
+        }
+        if( line.empty() ) {
+            continue;
+        }
+        const auto answer = arcopolis::parse_prompt_answer( line, static_cast<int>( choices.size() ) );
+        if( !answer ) {
+            // Recoverable: the prompt stays OPEN. Record the rejected attempt; no engine state was touched.
+            arcopolis::session_log_prompt_failed( { .step_index = step_index,
+                                                    .reason = "invalid_answer",
+                                                    .detail = answer.error().message } );
+            send_error( { .id = answer.error().id, .op = "prompt_answer",
+                          .code = answer.error().code, .message = answer.error().message } );
+            continue;
+        }
+        if( answer->prompt_id != prompt_id ) {
+            // Correlate the answer to THIS prompt: a stale/wrong prompt_id is a recoverable bad_request, the
+            // prompt stays OPEN, and no engine state is touched. (Parse already rejected a missing one.)
+            const auto detail = "prompt_id " + std::to_string( answer->prompt_id ) +
+                                " does not match the active prompt " + std::to_string( prompt_id );
+            arcopolis::session_log_prompt_failed( { .step_index = step_index,
+                                                    .reason = "prompt_id_mismatch",
+                                                    .detail = detail } );
+            send_error( { .id = answer->id, .op = "prompt_answer",
+                          .code = arcopolis::live_error_code::bad_request, .message = detail } );
+            continue;
+        }
+        if( answer->act == arcopolis::live_prompt_answer::action::cancel ) {
+            arcopolis::write_prompt_ack_line( std::cout, { .id = answer->id, .prompt_id = prompt_id,
+                                              .choices = std::nullopt
+                                                         } );
+            std::cout.flush();
+            return std::nullopt;
+        }
+        arcopolis::write_prompt_ack_line( std::cout, { .id = answer->id, .prompt_id = prompt_id,
+                                          .choices = answer->choices
+                                                     } );
+        std::cout.flush();
+        return answer->choices;
     }
 }
 
@@ -302,6 +391,78 @@ std::expected<live_request, live_error>
     }
 }
 
+auto arcopolis::parse_prompt_answer( const std::string &line, int num_choices ) ->
+std::expected<live_prompt_answer, live_error>
+{
+    std::optional<int> id;
+    try {
+        std::istringstream stream( line );
+        JsonIn json( stream );
+        auto obj = json.get_object();
+        obj.allow_omitted_members();
+        if( obj.has_int( "id" ) ) {
+            id = obj.get_int( "id" );
+        }
+        if( !obj.has_string( "op" ) ) {
+            return std::unexpected( live_error{ .code = live_error_code::bad_request,
+                                                .message = "missing or non-string 'op'", .id = id } );
+        }
+        const auto op = obj.get_string( "op" );
+        // Both ops reference the active prompt, so require an integer `prompt_id`: a missing one is rejected
+        // here, and the caller (live_pickup_prompt) rejects one that does not match the active prompt. This
+        // makes a stale or wrong answer a clean bad_request instead of being silently accepted.
+        if( !obj.has_int( "prompt_id" ) ) {
+            return std::unexpected( live_error{ .code = live_error_code::bad_request,
+                                                .message = "prompt answer requires an integer 'prompt_id'", .id = id } );
+        }
+        const int prompt_id = obj.get_int( "prompt_id" );
+        if( op == "prompt_cancel" ) {
+            return live_prompt_answer{ .act = live_prompt_answer::action::cancel, .id = id, .prompt_id = prompt_id };
+        }
+        if( op != "prompt_answer" ) {
+            return std::unexpected( live_error{ .code = live_error_code::bad_request,
+                                                .message = "expected op 'prompt_answer' or 'prompt_cancel', got '" + op + "'",
+                                                .id = id } );
+        }
+        // Accept a single `choice` int or a non-empty `choices` int array (multi-select).
+        std::vector<int> picks;
+        if( obj.has_array( "choices" ) ) {
+            picks = obj.get_int_array( "choices" );
+        } else if( obj.has_int( "choice" ) ) {
+            picks.push_back( obj.get_int( "choice" ) );
+        } else {
+            return std::unexpected( live_error{ .code = live_error_code::bad_request,
+                                                .message = "prompt_answer requires an integer 'choice' or a 'choices' int array",
+                                                .id = id } );
+        }
+        if( picks.empty() ) {
+            return std::unexpected( live_error{ .code = live_error_code::bad_request,
+                                                .message = "prompt_answer 'choices' must be non-empty", .id = id } );
+        }
+        for( const int c : picks ) {
+            if( c < 0 || c >= num_choices ) {
+                return std::unexpected( live_error{ .code = live_error_code::bad_request,
+                                                    .message = "choice " + std::to_string( c ) + " out of range [0, " +
+                                                            std::to_string( num_choices ) + ")", .id = id } );
+            }
+        }
+        // Canonicalize: sort, then reject duplicates. A repeated index would ack as N picks but drive only
+        // one RIGHT mark, and sorting keeps the ack, the prompt_answered transcript, and the served-action
+        // order in agreement (the backend's arm also walks the indices ascending).
+        std::ranges::sort( picks );
+        if( std::ranges::adjacent_find( picks ) != picks.end() ) {
+            return std::unexpected( live_error{ .code = live_error_code::bad_request,
+                                                .message = "prompt_answer 'choices' must not contain duplicates", .id = id } );
+        }
+        return live_prompt_answer{ .act = live_prompt_answer::action::choose, .id = id,
+                                   .prompt_id = prompt_id, .choices = picks };
+    } catch( const JsonError &err ) {
+        return std::unexpected( live_error{ .code = live_error_code::malformed_json,
+                                            .message = std::string( "malformed JSON: " ) + err.what(),
+                                            .id = id } );
+    }
+}
+
 namespace
 {
 
@@ -380,6 +541,53 @@ auto arcopolis::write_error_response_line( std::ostream &out,
     out << '\n';
 }
 
+auto arcopolis::write_prompt_line( std::ostream &out, const live_prompt_event &ev ) -> void
+{
+    JsonOut json( out, /*pretty_print=*/false );
+    json.start_object();
+    json.member( "type", std::string( "prompt" ) );
+    write_id_member( json, ev.id );
+    json.member( "prompt_id", ev.prompt_id );
+    json.member( "kind", ev.kind );
+    json.member( "title", ev.title );
+    json.member( "cancelable", ev.cancelable );
+    json.member( "choices" );
+    json.start_array();
+    for( const pickup_prompt_choice &c : ev.choices ) {
+        json.start_object();
+        json.member( "index", c.index );
+        json.member( "text", c.text );
+        json.member( "enabled", c.enabled );
+        json.end_object();
+    }
+    json.end_array();
+    json.end_object();
+    out << '\n';
+}
+
+auto arcopolis::write_prompt_ack_line( std::ostream &out, const live_prompt_ack &ev ) -> void
+{
+    JsonOut json( out, /*pretty_print=*/false );
+    json.start_object();
+    json.member( "type", std::string( "response" ) );
+    write_id_member( json, ev.id );
+    json.member( "ok", true );
+    json.member( "op", std::string( "prompt_answer" ) );
+    json.member( "prompt_id", ev.prompt_id );
+    if( ev.choices ) {
+        json.member( "choices" );
+        json.start_array();
+        for( const int c : *ev.choices ) {
+            json.write( c );
+        }
+        json.end_array();
+    } else {
+        json.member( "cancelled", true );
+    }
+    json.end_object();
+    out << '\n';
+}
+
 auto arcopolis::run_live( const live_options &opts ) -> int
 {
     if( opts.world.empty() ) {
@@ -426,8 +634,10 @@ auto arcopolis::run_live( const live_options &opts ) -> int
 
     pump = live_pump{};  // reset the TU-local pump (one live session per process)
 
-    // The pump replaces the steps walk entirely: it is consulted at the same handle_action() seam.
-    begin_backend_session( { .steps = {}, .export_dir = opts.export_dir, .live_source = live_next_action } );
+    // The pump replaces the steps walk entirely: it is consulted at the same handle_action() seam. The
+    // prompt_source serves the Spike 12A pickup menu transaction (live mode only).
+    begin_backend_session( { .steps = {}, .export_dir = opts.export_dir,
+                             .live_source = live_next_action, .prompt_source = live_pickup_prompt } );
 
     // The transcript is a default deliverable; failure to OPEN it is surfaced before driving the
     // engine, exactly like run_script (no backend result exists yet to be masked).

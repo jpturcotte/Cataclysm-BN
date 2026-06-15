@@ -19,20 +19,21 @@ using namespace std::string_view_literals;
 /// The only command schema this spike understands.
 constexpr auto arcopolis_command_schema_version = 1;
 
-/// The `examine` verb's planar direction vocabulary: each protocol token -> the input-context ACTION ID
-/// the engine's direction chooser (`choose_direction`, src/action.cpp) consumes. These are exactly the
-/// EIGHT planar directions `register_directions()` registers (src/input.cpp:1010-1017:
+/// The `examine`/`pickup` verbs' planar direction vocabulary: each protocol token -> the input-context
+/// ACTION ID the engine's direction chooser (`choose_direction`, src/action.cpp) consumes. These are
+/// exactly the EIGHT planar directions `register_directions()` registers (src/input.cpp:1010-1017:
 /// UP/DOWN/LEFT/RIGHT + LEFTUP/LEFTDOWN/RIGHTUP/RIGHTDOWN) plus "pause" for the self/current tile --
-/// the complete set of TARGETS a GUI player can pick at "Examine where?" with `allow_vertical=false`
-/// (game::examine passes false, src/game.cpp:8532-8534, so vertical LEVEL_UP/LEVEL_DOWN are excluded).
-/// The diagonal compass->action pairings are verified against `get_direction` (src/input.cpp:1077-1084,
-/// screen convention north=-y/east=+x): move_ne->"RIGHTUP" (north_east), move_nw->"LEFTUP" (north_west),
-/// move_se->"RIGHTDOWN" (south_east), move_sw->"LEFTDOWN" (south_west). No iso rotation applies headless
-/// (get_direction rotates only under iso_mode && tile_iso && use_tiles, and tile_iso is set exclusively
-/// at tileset load, which never runs in the --arcopolis-* modes; docs/arcopolis/25 design point 4), so
-/// the mapping is plain. Single source of truth: is_supported_examine_direction() and
-/// examine_nested_answer() both derive from this table, so they can never disagree.
-constexpr std::array<std::pair<std::string_view, std::string_view>, 9> examine_direction_answers
+/// the complete set of TARGETS a GUI player can pick at "Examine where?" / "Pickup where?" with
+/// `allow_vertical=false` (game::examine and game::pickup both pass false, src/game.cpp:8532-8534,
+/// :8763-8765, so vertical LEVEL_UP/LEVEL_DOWN are excluded). The diagonal compass->action pairings are
+/// verified against `get_direction` (src/input.cpp:1077-1084, screen convention north=-y/east=+x):
+/// move_ne->"RIGHTUP" (north_east), move_nw->"LEFTUP" (north_west), move_se->"RIGHTDOWN" (south_east),
+/// move_sw->"LEFTDOWN" (south_west). No iso rotation applies headless (get_direction rotates only under
+/// iso_mode && tile_iso && use_tiles, and tile_iso is set exclusively at tileset load, which never runs
+/// in the --arcopolis-* modes; docs/arcopolis/25 design point 4), so the mapping is plain. Single source
+/// of truth: is_supported_target_direction() and target_direction_nested_answer() both derive from this
+/// table, so they can never disagree. Shared by `examine` (Spike 11A) and `pickup` (Spike 12A).
+constexpr std::array<std::pair<std::string_view, std::string_view>, 9> target_direction_answers
 = { {
         { "move_n"sv, "UP"sv },
         { "move_s"sv, "DOWN"sv },
@@ -67,24 +68,25 @@ auto arcopolis::is_supported_move_direction( std::string_view ident ) -> bool
     return ranges::contains( planar, ident );
 }
 
-auto arcopolis::is_supported_examine_direction( std::string_view ident ) -> bool
+auto arcopolis::is_supported_target_direction( std::string_view ident ) -> bool
 {
     namespace ranges = std::ranges;
-    // The eight planar directions the GUI examine chooser registers, plus "here" (the self tile). A
-    // direction is supported iff it maps to a chooser action -- so this and examine_nested_answer() share
-    // the one table and cannot drift apart. Vertical (move_up/move_down) is excluded because
-    // game::examine passes allow_vertical=false; movement diagonals being rejected by `move` is a
-    // SEPARATE verb's limitation (is_supported_move_direction), not examine's.
-    return ranges::contains( examine_direction_answers, ident,
+    // The eight planar directions the GUI adjacent chooser registers, plus "here" (the self tile). A
+    // direction is supported iff it maps to a chooser action -- so this and target_direction_nested_answer()
+    // share the one table and cannot drift apart. Vertical (move_up/move_down) is excluded because
+    // game::examine / game::pickup pass allow_vertical=false; movement diagonals being rejected by `move`
+    // is a SEPARATE verb's limitation (is_supported_move_direction), not the target chooser's.
+    return ranges::contains( target_direction_answers, ident,
                              &std::pair<std::string_view, std::string_view>::first );
 }
 
-auto arcopolis::examine_nested_answer( std::string_view direction ) -> std::optional<std::string>
+auto arcopolis::target_direction_nested_answer( std::string_view direction ) ->
+std::optional<std::string>
 {
     namespace ranges = std::ranges;
-    const auto it = ranges::find( examine_direction_answers, direction,
+    const auto it = ranges::find( target_direction_answers, direction,
                                   &std::pair<std::string_view, std::string_view>::first );
-    if( it == examine_direction_answers.end() ) {
+    if( it == target_direction_answers.end() ) {
         return std::nullopt;
     }
     return std::string( it->second );
@@ -134,10 +136,21 @@ std::expected<backend_command, command_error>
                                                        .detail = "command 'examine' requires a string 'direction'" } );
             }
             direction = obj.get_string( "direction" );
-            if( !is_supported_examine_direction( direction ) ) {
+            if( !is_supported_target_direction( direction ) ) {
                 return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
                                                        .detail = "unsupported examine direction '" + direction +
-                                                               "' (expected " + expected_examine_directions + ")" } );
+                                                               "' (expected " + expected_target_directions + ")" } );
+            }
+        } else if( command == "pickup" ) {
+            if( !obj.has_string( "direction" ) ) {
+                return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                       .detail = "command 'pickup' requires a string 'direction'" } );
+            }
+            direction = obj.get_string( "direction" );
+            if( !is_supported_target_direction( direction ) ) {
+                return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                       .detail = "unsupported pickup direction '" + direction +
+                                                               "' (expected " + expected_target_directions + ")" } );
             }
         }
         return backend_command{ .schema_version = version, .command = command, .direction = direction };
@@ -191,15 +204,30 @@ std::expected<action_id, command_error>
     if( cmd.command == "examine" ) {
         // Same defense in depth as "move": parsers already reject bad directions, but command_to_action
         // is also reachable directly (and from tests).
-        if( !is_supported_examine_direction( cmd.direction ) ) {
+        if( !is_supported_target_direction( cmd.direction ) ) {
             return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
                                                    .detail = "unsupported examine direction '" + cmd.direction +
-                                                           "' (expected " + expected_examine_directions + ")" } );
+                                                           "' (expected " + expected_target_directions + ")" } );
         }
         // The 'e' key: handle_action()'s ACTION_EXAMINE case calls the engine's own prompting examine()
         // overload. The direction is NOT part of the action_id -- it is armed as the one-shot
         // nested-input answer, served only if the engine's chooser actually asks (Spike 11A).
         return ACTION_EXAMINE;
+    }
+    if( cmd.command == "pickup" ) {
+        // Same defense in depth: validate the "Pickup where?" direction (the same allow_vertical=false
+        // choose_adjacent_highlight chooser examine uses, src/game.cpp:8761-8765). The direction is the
+        // one-shot nested-input answer for THAT chooser; the item-selection MENU that follows is driven --
+        // in LIVE mode only -- by the Spike 12A pickup-prompt transaction (registered PICKUP actions fed
+        // through the real input_context("PICKUP") loop). Script/one-shot modes resolve the verb but arm
+        // no transaction, so the menu auto-cancels via the existing nested-input guard (no answer channel).
+        if( !is_supported_target_direction( cmd.direction ) ) {
+            return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                   .detail = "unsupported pickup direction '" + cmd.direction +
+                                                           "' (expected " + expected_target_directions + ")" } );
+        }
+        // The 'g' key: handle_action()'s ACTION_PICKUP case calls game::pickup() (the chooser overload).
+        return ACTION_PICKUP;
     }
     return std::unexpected( command_error{ .kind = command_error_kind::unsupported_command,
                                            .detail = "unsupported command: '" + cmd.command + "'" } );

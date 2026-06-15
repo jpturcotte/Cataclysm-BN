@@ -365,6 +365,97 @@ TEST_CASE( "arcopolis nested_input_unconsumed record explains the force-clear", 
     } );
 }
 
+TEST_CASE( "arcopolis prompt_opened record carries the kind and the engine's real menu choices",
+           "[arcopolis]" )
+{
+    std::ostringstream out;
+    arcopolis::write_prompt_opened_line( out, { .step_index = std::optional<int>( 3 ),
+                                         .kind = "menu",
+    .choices = {
+        { .index = 0, .text = "folded emergency blanket", .enabled = true },
+        { .index = 1, .text = "glass shard (1)", .enabled = true },
+    }
+                                              } );
+    with_record( out.str(), []( const auto & obj ) {
+        CHECK( obj.get_string( "event" ) == "prompt_opened" );
+        CHECK( obj.get_int( "step_index" ) == 3 );
+        CHECK( obj.get_string( "kind" ) == "menu" );
+        JsonArray choices = obj.get_array( "choices" );
+        REQUIRE( choices.size() == 2 );
+        JsonObject c0 = choices.get_object( 0 );
+        c0.allow_omitted_members();
+        CHECK( c0.get_int( "index" ) == 0 );
+        CHECK( c0.get_string( "text" ) == "folded emergency blanket" );
+        CHECK( c0.get_bool( "enabled" ) );
+        JsonObject c1 = choices.get_object( 1 );
+        c1.allow_omitted_members();
+        CHECK( c1.get_int( "index" ) == 1 );
+        CHECK( c1.get_string( "text" ) == "glass shard (1)" );
+        CHECK( c1.get_bool( "enabled" ) );
+    } );
+}
+
+TEST_CASE( "arcopolis prompt_answered record carries the multi-select choices and the served actions",
+           "[arcopolis]" )
+{
+    // The level-4 artifact: a multi-select answer ([0,2]) becomes the exact registered-action sequence the
+    // engine's own loop consumes -- one RIGHT mark per chosen entry, navigated forward by DOWN, finalized
+    // by CONFIRM. Both arrays must round-trip in order.
+    std::ostringstream out;
+    arcopolis::write_prompt_answered_line( out, { .step_index = std::optional<int>( 3 ),
+                                           .choices = std::vector<int> { 0, 2 },
+                                           .actions = std::vector<std::string> { "RIGHT", "DOWN", "DOWN", "RIGHT", "CONFIRM" }
+                                                } );
+    with_record( out.str(), []( const auto & obj ) {
+        CHECK( obj.get_string( "event" ) == "prompt_answered" );
+        CHECK( obj.get_int( "step_index" ) == 3 );
+        CHECK( obj.get_int_array( "choices" ) == std::vector<int> { 0, 2 } );
+        CHECK( obj.get_string_array( "actions" ) ==
+               std::vector<std::string> { "RIGHT", "DOWN", "DOWN", "RIGHT", "CONFIRM" } );
+    } );
+}
+
+TEST_CASE( "arcopolis prompt_cancelled record carries the reason and omits an unknown step_index",
+           "[arcopolis]" )
+{
+    std::ostringstream out;
+    arcopolis::write_prompt_cancelled_line( out, { .step_index = std::nullopt, .reason = "no_channel" } );
+    with_record( out.str(), []( const auto & obj ) {
+        CHECK( obj.get_string( "event" ) == "prompt_cancelled" );
+        CHECK_FALSE( obj.has_member( "step_index" ) );
+        CHECK( obj.get_string( "reason" ) == "no_channel" );
+    } );
+}
+
+TEST_CASE( "arcopolis prompt_failed record carries reason and detail (prompt stays open)",
+           "[arcopolis]" )
+{
+    std::ostringstream out;
+    arcopolis::write_prompt_failed_line( out, { .step_index = std::optional<int>( 5 ),
+                                         .reason = "bad_request",
+                                         .detail = "choice 12 out of range"
+                                              } );
+    with_record( out.str(), []( const auto & obj ) {
+        CHECK( obj.get_string( "event" ) == "prompt_failed" );
+        CHECK( obj.get_int( "step_index" ) == 5 );
+        CHECK( obj.get_string( "reason" ) == "bad_request" );
+        CHECK( obj.get_string( "detail" ) == "choice 12 out of range" );
+    } );
+}
+
+TEST_CASE( "arcopolis prompt_completed record carries the served-action count", "[arcopolis]" )
+{
+    std::ostringstream out;
+    arcopolis::write_prompt_completed_line( out, { .step_index = std::optional<int>( 3 ),
+                                            .actions_served = 5
+                                                 } );
+    with_record( out.str(), []( const auto & obj ) {
+        CHECK( obj.get_string( "event" ) == "prompt_completed" );
+        CHECK( obj.get_int( "step_index" ) == 3 );
+        CHECK( obj.get_int( "actions_served" ) == 5 );
+    } );
+}
+
 TEST_CASE( "arcopolis error record names nested_input_failed with exit code 12", "[arcopolis]" )
 {
     std::ostringstream out;

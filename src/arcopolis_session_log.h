@@ -3,6 +3,7 @@
 #include <iosfwd>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "arcopolis_command.h"  // command_error_kind (error_event field; mapped to exit_code in the .cpp)
 
@@ -122,6 +123,60 @@ struct nested_input_unconsumed_event {
     std::string reason;             ///< "command_completed"
 };
 
+// --- Spike 12A pickup prompt/menu transaction observability: the in-menu prompt exchange is recorded as a
+// sequence of events so a reader can reconstruct which command opened the menu, the REAL choices shown, the
+// answer, the registered actions it translated into, whether the engine accepted it, and that the engine's
+// own menu loop consumed those actions to completion (the resulting state change is the command's following
+// `export` record). ---
+
+/// One menu choice as recorded in a `prompt_opened` event: index/text mirror the engine's live menu entry
+/// (e.g. pickup's stacked_here display name), NOT snapshot-derived data.
+struct prompt_choice_log {
+    int index = 0;
+    std::string text;
+    bool enabled = true;
+};
+
+/// `prompt_opened`: a real engine prompt/menu was reached during a command and exposed to the client.
+/// `kind` is the prompt class (v0: "menu"); `choices` are the engine's real entries.
+struct prompt_opened_event {
+    std::optional<int> step_index;
+    std::string kind;
+    std::vector<prompt_choice_log> choices;
+};
+
+/// `prompt_answered`: the client chose one or more listed options; the backend translated `choices` into
+/// the registered input `actions` (e.g. ["RIGHT","DOWN","DOWN","RIGHT","CONFIRM"]) the engine's OWN menu
+/// loop then consumes (one `RIGHT` mark per chosen entry, navigated by `DOWN`, finalized by `CONFIRM`).
+struct prompt_answered_event {
+    std::optional<int> step_index;
+    std::vector<int> choices;
+    std::vector<std::string> actions;
+};
+
+/// `prompt_cancelled`: the client cancelled (or disconnected); the backend armed the menu's cancel action
+/// (== the GUI player pressing ESC). `reason` is "client_cancel" (live cancel or EOF mid-prompt) or
+/// "no_channel" (script/one-shot mode, where there is no answer channel to ask on).
+struct prompt_cancelled_event {
+    std::optional<int> step_index;
+    std::string reason;
+};
+
+/// `prompt_failed`: an invalid/malformed prompt answer was rejected; the prompt stays open for a retry and
+/// NO engine state was touched. `detail` is human-readable.
+struct prompt_failed_event {
+    std::optional<int> step_index;
+    std::string reason;
+    std::string detail;
+};
+
+/// `prompt_completed`: control returned to the top-level seam after the transaction -- the engine's menu
+/// loop consumed `actions_served` registered actions to completion (or cancel).
+struct prompt_completed_event {
+    std::optional<int> step_index;
+    int actions_served = 0;
+};
+
 // --- Pure formatters: each writes exactly one JSON Lines record (a compact object + trailing '\n') to
 // `out`. Exposed so the transcript format can be unit-tested without a file or a loaded world. ---
 
@@ -135,6 +190,11 @@ auto write_nested_input_answer_line( std::ostream &out,
 auto write_nested_input_guard_line( std::ostream &out, const nested_input_guard_event &ev ) -> void;
 auto write_nested_input_unconsumed_line( std::ostream &out,
         const nested_input_unconsumed_event &ev ) -> void;
+auto write_prompt_opened_line( std::ostream &out, const prompt_opened_event &ev ) -> void;
+auto write_prompt_answered_line( std::ostream &out, const prompt_answered_event &ev ) -> void;
+auto write_prompt_cancelled_line( std::ostream &out, const prompt_cancelled_event &ev ) -> void;
+auto write_prompt_failed_line( std::ostream &out, const prompt_failed_event &ev ) -> void;
+auto write_prompt_completed_line( std::ostream &out, const prompt_completed_event &ev ) -> void;
 
 // --- Stateful session transcript (one file-scoped session at a time). All of these are no-ops while no
 // log is open, so they stay inert during normal play and in unit tests that drive the input provider
@@ -163,6 +223,13 @@ auto session_log_nested_input_guard( const nested_input_guard_event &ev ) -> voi
 
 /// Writes a `nested_input_unconsumed` record. No-op if no log is open. (Spike 11A)
 auto session_log_nested_input_unconsumed( const nested_input_unconsumed_event &ev ) -> void;
+
+/// Writes the Spike 12A pickup prompt/menu transaction records. Each is a no-op if no log is open.
+auto session_log_prompt_opened( const prompt_opened_event &ev ) -> void;
+auto session_log_prompt_answered( const prompt_answered_event &ev ) -> void;
+auto session_log_prompt_cancelled( const prompt_cancelled_event &ev ) -> void;
+auto session_log_prompt_failed( const prompt_failed_event &ev ) -> void;
+auto session_log_prompt_completed( const prompt_completed_event &ev ) -> void;
 
 /// Writes the final `session_end` record (filling snapshots/commands from the counters), flushes, closes
 /// the file, and clears the session. No-op if no log is open.
