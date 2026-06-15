@@ -105,10 +105,10 @@ std::expected<std::vector<script_step>, command_error>
                                                                .detail = at + "command 'examine' requires a string 'direction'" } );
                     }
                     direction = e.get_string( "direction" );
-                    if( !is_supported_examine_direction( direction ) ) {
+                    if( !is_supported_target_direction( direction ) ) {
                         return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
                                                                .detail = at + "unsupported examine direction '" + direction +
-                                                                       "' (expected " + expected_examine_directions + ")" } );
+                                                                       "' (expected " + expected_target_directions + ")" } );
                     }
                 }
                 steps.push_back( script_step{ .op = op, .command = command, .direction = direction } );
