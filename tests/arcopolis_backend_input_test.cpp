@@ -314,6 +314,94 @@ TEST_CASE( "arcopolis provider arms a DIAGONAL examine and serves its action str
     CHECK_FALSE( arcopolis::backend_nested_input_armed() );
 }
 
+TEST_CASE( "arcopolis command_to_action resolves pickup for every supported direction",
+           "[arcopolis]" )
+{
+    // pickup shares examine's planar target chooser (the "Pickup where?" choose_adjacent_highlight, also
+    // allow_vertical=false), so the same eight planar directions + "here" resolve to ACTION_PICKUP.
+    for( const std::string &dir : {
+             "move_n", "move_s", "move_e", "move_w",
+             "move_ne", "move_nw", "move_se", "move_sw", "here"
+         } ) {
+        CHECK( arcopolis::command_to_action( { .schema_version = 1, .command = "pickup", .direction = dir } )
+               .value_or( ACTION_NULL ) == ACTION_PICKUP );
+    }
+    for( const std::string &dir : { "move_up", "move_down", "pause", "" } ) {
+        const auto bad = arcopolis::command_to_action( { .schema_version = 1, .command = "pickup", .direction = dir } );
+        REQUIRE_FALSE( bad.has_value() );
+        CHECK( bad.error().kind == arcopolis::command_error_kind::bad_schema );
+    }
+}
+
+TEST_CASE( "arcopolis pickup transaction translates a multi-select into registered PICKUP actions",
+           "[arcopolis]" )
+{
+    // The level-4 proof at unit level: a client selection (here TWO entries) becomes the SAME registered
+    // keystrokes a GUI player would press -- DOWN to walk to each chosen entry, RIGHT to mark it, CONFIRM to
+    // finalize -- served one per blocking handle_input read to the engine's own "PICKUP" loop. The backend
+    // never mutates getitem.
+    const std::vector<std::string> pickup_actions = {
+        "UP", "DOWN", "LEFT", "RIGHT", "CONFIRM", "SELECT_ALL", "QUIT",
+    };
+
+    // A stub live client standing in for arcopolis_live's prompt_source: it picks entries 0 and 2.
+    arcopolis::begin_backend_session( {
+        .steps = {},
+        .prompt_source = []( const std::vector<arcopolis::pickup_prompt_choice> & ) -> std::optional<std::vector<int>> {
+            return std::vector<int> { 0, 2 };
+        },
+    } );
+
+    // Isolation: a fresh session has no transaction, and arming the examine one-shot slot does NOT arm the
+    // pickup transaction (so examine's auto-pickup tail keeps auto-cancelling).
+    CHECK_FALSE( arcopolis::backend_pickup_transaction_active() );
+    arcopolis::backend_arm_nested_input( { .action = "UP", .direction = "move_n" } );
+    CHECK_FALSE( arcopolis::backend_pickup_transaction_active() );
+
+    arcopolis::backend_arm_pickup_transaction( 7 );
+    CHECK( arcopolis::backend_pickup_transaction_active() );
+
+    const std::vector<arcopolis::pickup_prompt_choice> choices = {
+        { .index = 0, .text = "a rock", .enabled = true },
+        { .index = 1, .text = "a rag", .enabled = true },
+        { .index = 2, .text = "a string", .enabled = true },
+    };
+    arcopolis::backend_resolve_pickup_choice( choices );
+
+    // The unmodified loop consumes the queue one action per blocking read, IN ORDER: RIGHT (mark entry 0),
+    // DOWN DOWN (walk to entry 2), RIGHT (mark it), CONFIRM (finalize / loop-exit).
+    for( const std::string &expected : { "RIGHT", "DOWN", "DOWN", "RIGHT", "CONFIRM" } ) {
+        const std::string *served = arcopolis::backend_nested_input_action( "PICKUP", pickup_actions, -1 );
+        REQUIRE( served != nullptr );
+        CHECK( *served == expected );
+    }
+    // A timeout-bounded poll on the menu context always passes through (mirrors the one-shot path).
+    CHECK( arcopolis::backend_nested_input_action( "PICKUP", pickup_actions, 0 ) == nullptr );
+
+    arcopolis::end_backend_session();
+    CHECK_FALSE( arcopolis::backend_pickup_transaction_active() );
+}
+
+TEST_CASE( "arcopolis pickup transaction with no answer channel cancels via QUIT", "[arcopolis]" )
+{
+    // Script/one-shot modes register no prompt_source, so backend_resolve_pickup_choice arms the cancel
+    // queue ["QUIT"] -- the engine loop QUIT-exits ("Never mind."), the GUI ESC equivalent.
+    const std::vector<std::string> pickup_actions = { "UP", "DOWN", "RIGHT", "CONFIRM", "QUIT" };
+    arcopolis::begin_backend_session( { .steps = {} } );
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    const std::vector<arcopolis::pickup_prompt_choice> choices = {
+        { .index = 0, .text = "a rock", .enabled = true },
+    };
+    arcopolis::backend_resolve_pickup_choice( choices );
+
+    const std::string *served = arcopolis::backend_nested_input_action( "PICKUP", pickup_actions, -1 );
+    REQUIRE( served != nullptr );
+    CHECK( *served == "QUIT" );
+
+    arcopolis::end_backend_session();
+    CHECK_FALSE( arcopolis::backend_pickup_transaction_active() );
+}
+
 TEST_CASE( "arcopolis wait_for_any_key does not block during a backend session", "[arcopolis]" )
 {
     // The raw "press any key" prompt (input_manager::wait_for_any_key, reached e.g. by examining a

@@ -43,6 +43,15 @@ struct backend_session {
     arcopolis::backend_action_source live_source;  ///< Spike 9B: replaces the steps walk when set
     std::optional<nested_input_slot> nested;       ///< Spike 11A: the one-shot nested-input answer
     int nested_guard_fires = 0;                    ///< Spike 11A: guard fires for the current command
+    arcopolis::backend_prompt_source prompt_source;  ///< Spike 12A: live pickup menu-answer channel
+    bool pickup_transaction = false;                 ///< Spike 12A: a top-level pickup command armed it
+    bool prompt_opened =
+        false;                      ///< Spike 12A: a real menu prompt was actually exposed
+    std::optional<int> pickup_step_index;            ///< the arming pickup command's step index
+    std::vector<std::string> pickup_queue;           ///< Spike 12A: registered PICKUP actions, in order
+    std::size_t pickup_cursor = 0;                   ///< next pickup_queue index to serve
+    int pickup_served =
+        0;                           ///< pickup actions served (the prompt_completed count)
 };
 
 backend_session session;
@@ -58,6 +67,13 @@ const std::string nested_cancel_text_quit = "TEXT.QUIT";
 /// Stable storage for a served answer: input_context::handle_input returns a const reference, so the
 /// returned string must outlive the call (same pattern as input.cpp's own CATA_ERROR/TIMEOUT statics).
 std::string nested_served_action;
+
+/// The category of the engine's old pickup menu (src/pickup.cpp:721 `input_context( "PICKUP" )`) -- the
+/// only context the Spike 12A registered-action queue is served to. Distinct from nested_chooser_category:
+/// the queue feeds a different loop than the one-shot direction answer.
+const std::string pickup_menu_category = "PICKUP";
+/// Stable storage for a served pickup-queue action (handle_input returns a const reference).
+std::string pickup_served_action;
 
 /// Force-clears the nested slot at a return to the top-level seam. An armed-but-unconsumed answer is
 /// recorded as a `nested_input_unconsumed` transcript event BEFORE any pending live response is written
@@ -75,6 +91,24 @@ auto clear_stale_nested_input() -> void
     }
     session.nested.reset();
     session.nested_guard_fires = 0;
+    // Spike 12A: close out a pickup transaction at the seam return -- the "PICKUP" menu loop has run to
+    // completion (or cancel), so record the bookend (how many registered actions the loop consumed) and
+    // clear the queue so nothing leaks into a later command. Only emit prompt_completed if a prompt was
+    // actually OPENED: a pickup that armed the transaction but never reached the menu (empty target / no
+    // items / cancelled "Pickup where?") opened nothing, and a phantom prompt_completed (actions_served:0)
+    // with no matching prompt_opened would be a transcript lie.
+    if( session.pickup_transaction && session.prompt_opened ) {
+        arcopolis::session_log_prompt_completed( {
+            .step_index = session.pickup_step_index,
+            .actions_served = session.pickup_served,
+        } );
+    }
+    session.pickup_transaction = false;
+    session.prompt_opened = false;
+    session.pickup_step_index.reset();
+    session.pickup_queue.clear();
+    session.pickup_cursor = 0;
+    session.pickup_served = 0;
 }
 
 /// The machine-readable name a `nested_input_guard` event records for its reason.
@@ -185,6 +219,7 @@ auto arcopolis::begin_backend_session( const backend_session_options &opts ) -> 
         .done = false,
         .failure = std::nullopt,
         .live_source = opts.live_source,
+        .prompt_source = opts.prompt_source,
     };
 }
 
@@ -257,7 +292,7 @@ auto arcopolis::next_backend_action() -> action_id
         // Spike 11A: arm the one-shot direction answer AFTER the command event (arming emits nothing,
         // so every nested_input_* event of this dispatch orders after its command event).
         if( step.command == "examine" && resolved ) {
-            if( const auto answer = examine_nested_answer( step.direction ) ) {
+            if( const auto answer = target_direction_nested_answer( step.direction ) ) {
                 backend_arm_nested_input( { .action = *answer,
                                             .direction = step.direction,
                                             .step_index = step_index } );
@@ -299,6 +334,81 @@ auto arcopolis::backend_nested_input_armed() -> bool
     return session.nested.has_value() && !session.nested->consumed;
 }
 
+auto arcopolis::backend_pickup_transaction_active() -> bool
+{
+    return session.active && session.pickup_transaction;
+}
+
+auto arcopolis::backend_arm_pickup_transaction( const std::optional<int> &step_index ) -> void
+{
+    // Inert outside a session, like every other public mutator.
+    if( !session.active ) {
+        return;
+    }
+    session.pickup_transaction = true;
+    session.prompt_opened =
+        false;  // set true only once a real menu is exposed (backend_resolve_pickup_choice)
+    session.pickup_step_index = step_index;
+    session.pickup_queue.clear();
+    session.pickup_cursor = 0;
+    session.pickup_served = 0;
+}
+
+auto arcopolis::backend_resolve_pickup_choice( const std::vector<pickup_prompt_choice> &choices ) ->
+void
+{
+    // Inert unless a pickup transaction is armed (defense in depth: the engine call site already gates on
+    // backend_pickup_transaction_active()).
+    if( !session.active || !session.pickup_transaction ) {
+        return;
+    }
+    namespace ranges = std::ranges;
+    // Record the opened prompt with the engine's REAL choices (the transcript's survey data).
+    auto opened = arcopolis::prompt_opened_event{ .step_index = session.pickup_step_index, .kind = "menu" };
+    for( const pickup_prompt_choice &c : choices ) {
+        opened.choices.push_back( { .index = c.index, .text = c.text, .enabled = c.enabled } );
+    }
+    arcopolis::session_log_prompt_opened( opened );
+    session.prompt_opened =
+        true;  // a real menu was exposed; clear_stale may now bookend it with prompt_completed
+    // Ask the live client. A null channel (script/one-shot) yields cancel, so the menu auto-cancels there.
+    const auto answer = session.prompt_source
+                        ? session.prompt_source( choices )
+                        : std::optional<std::vector<int>> {};
+    session.pickup_cursor = 0;
+    auto picks = answer.value_or( std::vector<int> {} );
+    ranges::sort( picks );
+    const auto stale = ranges::unique( picks );
+    picks.erase( stale.begin(), stale.end() );
+    const auto in_range = ranges::all_of( picks, [&]( const int i ) {
+        return i >= 0 && i < static_cast<int>( choices.size() );
+    } );
+    if( answer && !picks.empty() && in_range ) {
+        // Translate the chosen index/indices into the registered keystrokes a GUI player would press: walk
+        // DOWN (ascending) from the chooser's current entry to each chosen entry and RIGHT to mark it, then
+        // CONFIRM to finalize. Forward DOWN only -- UP/PREV_TAB divide by the headless maxitems==0
+        // (src/pickup.cpp:972 and :956). The engine's own loop performs every getitem mutation, including a
+        // parent entry auto-marking its children (src/pickup.cpp:1107-1123).
+        session.pickup_queue.clear();
+        int cursor = 0;
+        for( const int idx : picks ) {
+            session.pickup_queue.insert( session.pickup_queue.end(),
+                                         static_cast<std::size_t>( idx - cursor ), "DOWN" );
+            session.pickup_queue.emplace_back( "RIGHT" );
+            cursor = idx;
+        }
+        session.pickup_queue.emplace_back( "CONFIRM" );
+        arcopolis::session_log_prompt_answered( { .step_index = session.pickup_step_index,
+                                                .choices = picks,
+                                                .actions = session.pickup_queue } );
+    } else {
+        // Cancel / EOF / absent channel: ESC-equivalent. QUIT is the loop-exit action.
+        session.pickup_queue = { nested_cancel_quit };
+        arcopolis::session_log_prompt_cancelled( { .step_index = session.pickup_step_index,
+                .reason = session.prompt_source ? "client_cancel" : "no_channel" } );
+    }
+}
+
 auto arcopolis::decide_nested_input( const nested_input_observation &obs ) -> nested_input_decision
 {
     // A timeout >= 0 read is a poll (e.g. the activity-interrupt check, game.cpp
@@ -336,6 +446,22 @@ auto arcopolis::backend_nested_input_action( const std::string &category,
     // Defense in depth: the engine call site is already gated on backend_session_active().
     if( !session.active ) {
         return nullptr;
+    }
+    // Spike 12A: serve the next queued registered PICKUP action to the engine's pickup menu loop. This is a
+    // DISTINCT mechanism from the one-shot slot below (whose serve gate is hard-coded to DEFAULTMODE): the
+    // queue feeds the SAME unmodified input_context("PICKUP") loop the keystrokes a player would press, in
+    // order. Like the one-shot path, only a BLOCKING read (timeout < 0) is served; a timeout >= 0 poll
+    // passes through. DOWN/RIGHT/CONFIRM/QUIT are all registered in "PICKUP" (src/pickup.cpp:722-735); if a
+    // queued action somehow is not, fall through to the guard (defensive).
+    if( timeout < 0 && category == pickup_menu_category
+        && session.pickup_cursor < session.pickup_queue.size() ) {
+        const auto &front = session.pickup_queue[session.pickup_cursor];
+        if( ranges::contains( registered_actions, front ) ) {
+            pickup_served_action = front;
+            ++session.pickup_cursor;
+            ++session.pickup_served;
+            return &pickup_served_action;
+        }
     }
     const auto armed = backend_nested_input_armed();
     const auto decision = decide_nested_input( {
