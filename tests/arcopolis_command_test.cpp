@@ -228,3 +228,15 @@ TEST_CASE( "arcopolis parse_command rejects an unsupported pickup direction", "[
     REQUIRE_FALSE( result.has_value() );
     CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
 }
+
+TEST_CASE( "arcopolis is_live_only_command flags only pickup", "[arcopolis]" )
+{
+    // pickup's core action needs the live prompt answer channel, so non-live modes FAIL LOUD for it; every
+    // other verb completes in non-live mode and must NOT be rejected (examine still examines; its tail
+    // auto-cancel is the engine's own "Never mind.").
+    CHECK( arcopolis::is_live_only_command( "pickup" ) );
+    CHECK_FALSE( arcopolis::is_live_only_command( "wait" ) );
+    CHECK_FALSE( arcopolis::is_live_only_command( "move" ) );
+    CHECK_FALSE( arcopolis::is_live_only_command( "examine" ) );
+    CHECK_FALSE( arcopolis::is_live_only_command( "" ) );
+}

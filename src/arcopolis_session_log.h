@@ -177,6 +177,19 @@ struct prompt_completed_event {
     int actions_served = 0;
 };
 
+/// `prompt_force_cancelled`: an UNSUPPORTED prompt the backend cannot drive was force-cancelled during a
+/// pickup transaction (Spike 12A follow-up). `kind` is "vehicle_submenu" (the pre-menu "Get items from
+/// where?" uilist -- the command then FAILS LOUD with unsupported_command) or "secondary_capacity" (the
+/// in-activity capacity/wield/spill uilist -- the pickup stays a TRUTHFUL partial: what fits is carried,
+/// the rejected item stays on the ground and is never logged; the command response is explicitly marked
+/// partial, NOT full success). `reason` is human-readable. This event exists so a force-cancel can never
+/// be silent: a reader sees exactly which unsupported prompt the backend declined and why.
+struct prompt_force_cancelled_event {
+    std::optional<int> step_index;
+    std::string kind;
+    std::string reason;
+};
+
 // --- Pure formatters: each writes exactly one JSON Lines record (a compact object + trailing '\n') to
 // `out`. Exposed so the transcript format can be unit-tested without a file or a loaded world. ---
 
@@ -195,6 +208,8 @@ auto write_prompt_answered_line( std::ostream &out, const prompt_answered_event 
 auto write_prompt_cancelled_line( std::ostream &out, const prompt_cancelled_event &ev ) -> void;
 auto write_prompt_failed_line( std::ostream &out, const prompt_failed_event &ev ) -> void;
 auto write_prompt_completed_line( std::ostream &out, const prompt_completed_event &ev ) -> void;
+auto write_prompt_force_cancelled_line( std::ostream &out,
+                                        const prompt_force_cancelled_event &ev ) -> void;
 
 // --- Stateful session transcript (one file-scoped session at a time). All of these are no-ops while no
 // log is open, so they stay inert during normal play and in unit tests that drive the input provider
@@ -230,6 +245,9 @@ auto session_log_prompt_answered( const prompt_answered_event &ev ) -> void;
 auto session_log_prompt_cancelled( const prompt_cancelled_event &ev ) -> void;
 auto session_log_prompt_failed( const prompt_failed_event &ev ) -> void;
 auto session_log_prompt_completed( const prompt_completed_event &ev ) -> void;
+
+/// Writes a `prompt_force_cancelled` record (Spike 12A follow-up). No-op if no log is open.
+auto session_log_prompt_force_cancelled( const prompt_force_cancelled_event &ev ) -> void;
 
 /// Writes the final `session_end` record (filling snapshots/commands from the counters), flushes, closes
 /// the file, and clears the session. No-op if no log is open.

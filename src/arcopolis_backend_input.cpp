@@ -52,6 +52,9 @@ struct backend_session {
     std::size_t pickup_cursor = 0;                   ///< next pickup_queue index to serve
     int pickup_served =
         0;                           ///< pickup actions served (the prompt_completed count)
+    arcopolis::pickup_command_outcome pickup_outcome =
+        arcopolis::pickup_command_outcome::ok;       ///< Spike 12A follow-up: unsupported sub-prompt outcome;
+    ///< survives clear_stale, consumed by the live response writer
 };
 
 backend_session session;
@@ -352,6 +355,45 @@ auto arcopolis::backend_arm_pickup_transaction( const std::optional<int> &step_i
     session.pickup_queue.clear();
     session.pickup_cursor = 0;
     session.pickup_served = 0;
+    session.pickup_outcome = pickup_command_outcome::ok;  // fresh per pickup command
+}
+
+auto arcopolis::backend_report_pickup_unsupported_submenu() -> void
+{
+    // Inert unless a pickup transaction is armed (defense in depth: the engine call site already gates on
+    // backend_pickup_transaction_active()). The vehicle submenu fires BEFORE the menu opens, so no
+    // prompt_completed will bookend this command -- the force-cancel event is the whole record.
+    if( !session.active || !session.pickup_transaction ) {
+        return;
+    }
+    session.pickup_outcome = pickup_command_outcome::unsupported_submenu;
+    session_log_prompt_force_cancelled( {
+        .step_index = session.pickup_step_index,
+        .kind = "vehicle_submenu",
+        .reason = "the 'Get items from where?' vehicle-cargo submenu is not driven by the pickup "
+        "transaction; failed loud (no items taken)",
+    } );
+}
+
+auto arcopolis::backend_report_pickup_secondary_forced_cancel() -> void
+{
+    if( !session.active || !session.pickup_transaction ) {
+        return;
+    }
+    session.pickup_outcome = pickup_command_outcome::secondary_forced_cancel;
+    session_log_prompt_force_cancelled( {
+        .step_index = session.pickup_step_index,
+        .kind = "secondary_capacity",
+        .reason = "a secondary capacity/wield/spill prompt is not driven by the pickup transaction; "
+        "the item that does not fit is left behind (truthful partial pickup)",
+    } );
+}
+
+auto arcopolis::backend_take_pickup_outcome() -> pickup_command_outcome
+{
+    const auto outcome = session.pickup_outcome;
+    session.pickup_outcome = pickup_command_outcome::ok;
+    return outcome;
 }
 
 auto arcopolis::backend_resolve_pickup_choice( const std::vector<pickup_prompt_choice> &choices ) ->

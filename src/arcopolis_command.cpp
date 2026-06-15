@@ -92,6 +92,14 @@ std::optional<std::string>
     return std::string( it->second );
 }
 
+auto arcopolis::is_live_only_command( std::string_view command ) -> bool
+{
+    // Only `pickup` needs the live prompt_source to complete its core action (the item-selection menu).
+    // Keep this an explicit list, not a default-true, so a new verb is non-live by default and is added
+    // here deliberately when (and only when) it requires a live answer channel.
+    return command == "pickup";
+}
+
 auto arcopolis::parse_command( std::istream &stream ) ->
 std::expected<backend_command, command_error>
 {

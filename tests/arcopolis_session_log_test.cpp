@@ -456,6 +456,34 @@ TEST_CASE( "arcopolis prompt_completed record carries the served-action count", 
     } );
 }
 
+TEST_CASE( "arcopolis prompt_force_cancelled record names the kind and reason", "[arcopolis]" )
+{
+    // The vehicle pre-menu submenu (fail loud) and the in-activity secondary prompt (partial) are each
+    // recorded so a force-cancel is never silent.
+    std::ostringstream vehicle;
+    arcopolis::write_prompt_force_cancelled_line( vehicle, { .step_index = std::optional<int>( 4 ),
+            .kind = "vehicle_submenu",
+            .reason = "unsupported pre-menu prompt force-cancelled"
+                                                           } );
+    with_record( vehicle.str(), []( const auto & obj ) {
+        CHECK( obj.get_string( "event" ) == "prompt_force_cancelled" );
+        CHECK( obj.get_int( "step_index" ) == 4 );
+        CHECK( obj.get_string( "kind" ) == "vehicle_submenu" );
+        CHECK( obj.get_string( "reason" ) == "unsupported pre-menu prompt force-cancelled" );
+    } );
+
+    std::ostringstream secondary;
+    arcopolis::write_prompt_force_cancelled_line( secondary, { .step_index = std::nullopt,
+            .kind = "secondary_capacity",
+            .reason = "partial pickup"
+                                                             } );
+    with_record( secondary.str(), []( const auto & obj ) {
+        CHECK( obj.get_string( "event" ) == "prompt_force_cancelled" );
+        CHECK_FALSE( obj.has_member( "step_index" ) );
+        CHECK( obj.get_string( "kind" ) == "secondary_capacity" );
+    } );
+}
+
 TEST_CASE( "arcopolis error record names nested_input_failed with exit code 12", "[arcopolis]" )
 {
     std::ostringstream out;

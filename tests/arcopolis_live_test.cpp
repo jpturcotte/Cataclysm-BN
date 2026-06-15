@@ -198,6 +198,48 @@ TEST_CASE( "arcopolis live success response carries the snapshot scalars", "[arc
     } );
 }
 
+TEST_CASE( "arcopolis live success response omits the partial markers by default", "[arcopolis]" )
+{
+    // A clean pickup / any non-pickup command emits no forced_cancel/partial/unsupported_prompt members,
+    // so existing wire output is byte-unchanged (the follow-up markers are strictly additive).
+    std::ostringstream out;
+    arcopolis::write_success_response_line( out, { .id = std::optional<int>( 2 ),
+                                            .op = "command",
+                                            .snapshot = "001_after_pickup.json",
+                                            .export_index = 1,
+                                            .turn = 1324802
+                                                 } );
+    with_protocol_line( out.str(), []( const auto & obj ) {
+        CHECK( obj.get_bool( "ok" ) );
+        CHECK_FALSE( obj.has_member( "forced_cancel" ) );
+        CHECK_FALSE( obj.has_member( "partial" ) );
+        CHECK_FALSE( obj.has_member( "unsupported_prompt" ) );
+    } );
+}
+
+TEST_CASE( "arcopolis live success response marks a force-cancelled secondary prompt as partial",
+           "[arcopolis]" )
+{
+    // ok stays true (a real partial pickup happened), but the explicit marker set makes the partiality
+    // unmistakable so the result is never read as full success (docs/arcopolis/31).
+    std::ostringstream out;
+    arcopolis::write_success_response_line( out, { .id = std::optional<int>( 5 ),
+                                            .op = "command",
+                                            .snapshot = "002_after_pickup.json",
+                                            .export_index = 2,
+                                            .turn = 1324803,
+                                            .forced_cancel = true,
+                                            .partial = true,
+                                            .unsupported_prompt = "secondary_capacity"
+                                                 } );
+    with_protocol_line( out.str(), []( const auto & obj ) {
+        CHECK( obj.get_bool( "ok" ) );
+        CHECK( obj.get_bool( "forced_cancel" ) );
+        CHECK( obj.get_bool( "partial" ) );
+        CHECK( obj.get_string( "unsupported_prompt" ) == "secondary_capacity" );
+    } );
+}
+
 TEST_CASE( "arcopolis live quit response reports session_end", "[arcopolis]" )
 {
     std::ostringstream out;

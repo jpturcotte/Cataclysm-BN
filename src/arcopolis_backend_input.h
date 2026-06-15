@@ -190,6 +190,39 @@ auto backend_arm_pickup_transaction( const std::optional<int> &step_index ) -> v
 /// pickup transaction is active.
 auto backend_resolve_pickup_choice( const std::vector<pickup_prompt_choice> &choices ) -> void;
 
+/// The outcome of a pickup command with respect to UNSUPPORTED in-action sub-prompts (Spike 12A follow-up).
+/// A live `pickup` may meet a real engine `uilist` the transaction does not drive. In the backend
+/// (test_mode=true) a `uilist` NEVER reaches input_context::handle_input -- it short-circuits to
+/// UILIST_ERROR at the top of uilist::query (src/ui.cpp:918) -- so the nested-input guard cannot see it.
+/// The engine call site therefore reports the outcome directly (gated on backend_pickup_transaction_active),
+/// and the live response writer reads it to fail loud / mark partial. The value outlives
+/// clear_stale_nested_input() (it is the command's result, consumed by the response writer at the next seam
+/// entry), is reset by backend_arm_pickup_transaction(), and is read-and-reset by backend_take_pickup_outcome().
+enum class pickup_command_outcome {
+    ok,                  ///< no unsupported sub-prompt was encountered (clean pickup / cancel)
+    unsupported_submenu, ///< the pre-menu vehicle "Get items from where?" uilist -> FAIL LOUD (no pickup)
+    secondary_forced_cancel,  ///< an in-activity capacity/wield/spill uilist -> TRUTHFUL PARTIAL pickup,
+    ///< marked not-full-success on the wire (what fit was carried; the rest stays)
+};
+
+/// Called by src/pickup.cpp when a live pickup transaction meets the vehicle "Get items from where?"
+/// submenu (both vehicle cargo and ground items on the target tile). This is a real GUI prompt the
+/// transaction cannot drive, so the command FAILS LOUD: records `unsupported_submenu` (the live writer
+/// then answers unsupported_command, no pickup) and logs a `prompt_force_cancelled` event so the decline
+/// is never silent. Inert unless a pickup transaction is active.
+auto backend_report_pickup_unsupported_submenu() -> void;
+
+/// Called by src/pickup.cpp when a live pickup activity meets a secondary capacity/wield/spill prompt
+/// (handle_problematic_pickup) for an item that does not fit. The backend cannot drive it, so the item is
+/// left behind (the engine's own behaviour) -- a TRUTHFUL PARTIAL pickup. Records `secondary_forced_cancel`
+/// (the live writer marks the response partial, NOT full success) and logs a `prompt_force_cancelled`
+/// event. Inert unless a pickup transaction is active.
+auto backend_report_pickup_secondary_forced_cancel() -> void;
+
+/// Reads and resets the current pickup command's unsupported-sub-prompt outcome (defaults to `ok`).
+/// Called once by the live response writer when the owed pickup response is emitted. Reset to `ok`.
+auto backend_take_pickup_outcome() -> pickup_command_outcome;
+
 /// What backend_write_step_snapshot() wrote, for a live-protocol response: the snapshot's relative
 /// filename plus the scalars the response echoes (turn read at the same instant as the snapshot).
 struct backend_step_snapshot {

@@ -402,6 +402,53 @@ TEST_CASE( "arcopolis pickup transaction with no answer channel cancels via QUIT
     CHECK_FALSE( arcopolis::backend_pickup_transaction_active() );
 }
 
+TEST_CASE( "arcopolis pickup reports the vehicle submenu as a fail-loud outcome", "[arcopolis]" )
+{
+    // The vehicle "Get items from where?" submenu is a uilist that auto-errors in the backend's test_mode
+    // (never reaching the input guard), so src/pickup.cpp reports it directly. The report records
+    // unsupported_submenu, which the live writer reads (read-and-reset) to FAIL LOUD with unsupported_command.
+    using outcome_t = arcopolis::pickup_command_outcome;
+    arcopolis::begin_backend_session( { .steps = {} } );
+    arcopolis::backend_arm_pickup_transaction( 3 );
+    arcopolis::backend_report_pickup_unsupported_submenu();
+    // The outcome survives the seam's stale-clear; the live writer takes it (read-and-reset).
+    CHECK( arcopolis::backend_take_pickup_outcome() == outcome_t::unsupported_submenu );
+    CHECK( arcopolis::backend_take_pickup_outcome() == outcome_t::ok );
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis pickup reports a secondary prompt as a partial outcome", "[arcopolis]" )
+{
+    // The in-activity capacity/wield/spill uilist (handle_problematic_pickup) also auto-errors in test_mode;
+    // src/pickup.cpp reports it as secondary_forced_cancel so the live response is marked partial, NOT full
+    // success (the item that does not fit is left behind -- the engine's own outcome).
+    using outcome_t = arcopolis::pickup_command_outcome;
+    arcopolis::begin_backend_session( { .steps = {} } );
+    arcopolis::backend_arm_pickup_transaction( 5 );
+    arcopolis::backend_report_pickup_secondary_forced_cancel();
+    CHECK( arcopolis::backend_take_pickup_outcome() == outcome_t::secondary_forced_cancel );
+    CHECK( arcopolis::backend_take_pickup_outcome() == outcome_t::ok );
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis pickup outcome reports are inert without an armed transaction",
+           "[arcopolis]" )
+{
+    // examine's auto-pickup tail (and any non-pickup command) never arms the transaction, so the engine's
+    // own pickup paths that call these reporters leave the outcome `ok` -- the report functions are gated,
+    // and the markers never appear for a non-pickup command. Inert outside a session too.
+    using outcome_t = arcopolis::pickup_command_outcome;
+    arcopolis::backend_report_pickup_unsupported_submenu();  // no session at all
+    arcopolis::backend_report_pickup_secondary_forced_cancel();
+    CHECK( arcopolis::backend_take_pickup_outcome() == outcome_t::ok );
+
+    arcopolis::begin_backend_session( { .steps = {} } );  // session, but no pickup transaction armed
+    arcopolis::backend_report_pickup_unsupported_submenu();
+    arcopolis::backend_report_pickup_secondary_forced_cancel();
+    CHECK( arcopolis::backend_take_pickup_outcome() == outcome_t::ok );
+    arcopolis::end_backend_session();
+}
+
 TEST_CASE( "arcopolis wait_for_any_key does not block during a backend session", "[arcopolis]" )
 {
     // The raw "press any key" prompt (input_manager::wait_for_any_key, reached e.g. by examining a

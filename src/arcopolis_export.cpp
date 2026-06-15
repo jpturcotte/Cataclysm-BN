@@ -413,6 +413,15 @@ auto arcopolis::export_current_view( const export_current_view_options &opts ) -
             std::cerr << "arcopolis: " << cmd.error().detail << "\n";
             return exit_code_for( cmd.error().kind );
         }
+        // Non-live FAIL LOUD for promptful commands: a live-only command (e.g. pickup) needs a prompt
+        // answer channel this one-shot mode does not have, so it would only auto-cancel and falsely
+        // report success. Reject it before driving a turn rather than silently no-op it (docs/arcopolis/31).
+        if( is_live_only_command( cmd->command ) ) {
+            std::cerr << "arcopolis: command '" << cmd->command <<
+                      "' requires --arcopolis-live (its in-action menu needs a live prompt answer channel; "
+                      "it is not supported in script/one-shot mode)\n";
+            return exit_code_for( command_error_kind::unsupported_command );
+        }
         // Pre-flight: reject an unsupported verb / bad direction before driving a turn.
         const auto resolved = command_to_action( *cmd );
         if( !resolved ) {

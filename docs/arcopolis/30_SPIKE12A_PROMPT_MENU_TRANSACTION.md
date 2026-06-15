@@ -160,13 +160,19 @@ limitation. The three gaps from the design review are recorded here as such; two
    the regression's carry-both gate on the backpack avatar (`ArcopolisBackpackTest`): two distinct entries
    leave the ground (7 → 5) in one menu visit. (Carry-both needs real capacity — see the next section.)
 
-### Secondary in-activity prompts are NOT YET DRIVEN — a tracked defect
+### Secondary in-activity prompts are NOT YET DRIVEN — a tracked defect (now MARKED; see doc 31)
+
+> **Follow-up update (doc 31):** still not _driven_, but no longer silent. The command response is now
+> explicitly marked `{ forced_cancel, partial, unsupported_prompt:"secondary_capacity" }` and the transcript
+> records `prompt_force_cancelled`. The mechanism note below is also corrected there: in test_mode the
+> secondary `uilist` auto-errors (`UILIST_ERROR`) and never reaches the guard — it is reported by a gated
+> `src/pickup.cpp` call site, not "force-cancelled by the guard."
 
 After `CONFIRM`, the `pickup_activity_actor` may itself raise a **secondary** prompt for an item it cannot
 trivially stash — "too heavy" / "not enough capacity" / bucket-spill / wield-swap — via
 `handle_problematic_pickup`'s `uilist` (`src/pickup.cpp:165-210, 320-346`). **Driving these is not
-implemented**: the transaction answers only the top-level `"PICKUP"` menu, so the guard force-cancels the
-secondary query (no answer channel is armed for it), the client can only ever reach its "cancel" branch, and
+implemented**: the transaction answers only the top-level `"PICKUP"` menu, so the secondary query is
+cancelled (no answer channel is armed for it), the client can only ever reach its "cancel" branch, and
 the activity halts on that item (`src/pickup.cpp:440,459`). This is an **open defect** — drive the secondary
 capacity/wield/spill prompts as their own transactions — **not** a supported path; the forced-cancel is a
 not-yet-implemented gap, not fidelity, and should not be described as "the player declining."
@@ -183,32 +189,29 @@ left on the ground and never logged as picked up. The regression pins both direc
   backpack), the same kind of two-entry selection deposits **both** items, confirming the single-item
   outcome above was the avatar's capacity, not a selection-mechanism limit.
 
-### Known silent-cancel-as-success holes (tracked; fixed in a follow-up)
+### Known silent-cancel-as-success holes — FIXED in the follow-up (doc 31)
 
-The "no hidden auto-cancel-as-success" guarantee holds for the **witnessed** path (live-mode, ground-item
-`pickup`). Two ADJACENT paths the fixture never exercises currently violate it — the command reports
-`ok:true` while a prompt it could not drive was silently cancelled and **nothing was picked up**:
+The "no hidden auto-cancel-as-success" guarantee held for the **witnessed** path (live-mode, ground-item
+`pickup`). Two ADJACENT paths the fixture never exercised violated it; both are now **fixed** in
+[31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md](31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md):
 
-- **Vehicle-cargo tile, live mode.** A tile with BOTH vehicle cargo and ground items makes `pickup::pick_up`
-  open a `uilist( "Get items from where?" )` (`src/pickup.cpp:1269`) BEFORE the `"PICKUP"` menu. The backend
-  serves only the `"PICKUP"` category, so this `UILIST` falls through to the guard, returns `UILIST_CANCEL`,
-  and `pick_up` returns early (`src/pickup.cpp:1272-1273`) — `ok:true`, no prompt, no pickup. (The witness
-  pile has no adjacent vehicle, so the regression never reaches this.)
-- **Non-live (`--arcopolis-command` / one-shot) mode.** `pickup` resolves to `ACTION_PICKUP`, but the steps
-  provider arms the "Pickup where?" direction answer only for `examine` (`src/arcopolis_backend_input.cpp`),
-  so the chooser is guard-cancelled and the command exits `ok:true` without picking up.
-
-These are **tracked defects, not acceptable scope** — per "disclosure is not compliance" the real fix (drive
-the submenu; support non-live mode or fail loud there), alongside driving the secondary capacity prompt
-above, lands in a follow-up PR. Until then the honest statement is: the guarantee is **witnessed for the
-live-mode ground-item path only**, and these two paths are known holes.
+- **Vehicle-cargo tile, live mode (FIXED → fail loud).** A tile with BOTH vehicle cargo and ground items
+  makes `pickup::pick_up` open a `uilist( "Get items from where?" )` (`src/pickup.cpp:1268`) BEFORE the
+  `"PICKUP"` menu. **Mechanism correction:** in test_mode this `uilist` auto-errors (`UILIST_ERROR`) at the
+  top of `uilist::query` (`src/ui.cpp:918`) and never reaches the nested-input guard; `pick_up` would then
+  fall through to a _silent ground-only pickup_ (not "no pickup"). The follow-up intercepts it at the engine
+  call site (gated) and **fails loud** — `ok:false`/`unsupported_command`, no prompt, transcript
+  `prompt_force_cancelled kind=vehicle_submenu`. Witnessed by gate H on `ArcopolisVehicleCargoTest`.
+- **Non-live (`--arcopolis-run-script` / one-shot `--arcopolis-command`) mode (FIXED → fail loud).** `pickup`
+  is now `is_live_only_command()` and rejected at the non-live pre-flight with `unsupported_command`
+  (exit 6) before the world load. Witnessed by gate I.
 
 ### Not supported (named backlog)
 
 The `NEW_PICKUP_MENU` inventory_selector, `WEAR`/`WIELD`, `SELECT_ALL`, filtering, pagination, and every
 non-pickup menu class (`uilist`, `query_popup`, `string_input`, computer). Script/one-shot modes have no
-answer channel, so a pickup there auto-cancels via the existing guard (a known silent-cancel-as-success
-hole — see above).
+answer channel, so a pickup there now **fails loud** with `unsupported_command` (doc 31), instead of the
+earlier silent auto-cancel-as-success.
 
 This is a **feasibility bridge for one prompt class**, named as such — not generic prompt/menu support.
 

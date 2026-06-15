@@ -172,6 +172,16 @@ auto arcopolis::run_script( const run_script_options &opts ) -> int
         if( step.op != "command" ) {
             continue;
         }
+        // Non-live FAIL LOUD for promptful commands: a live-only command (e.g. pickup) needs a prompt
+        // answer channel the script provider does not have, so in non-live mode it would only ever
+        // auto-cancel and falsely report success. Reject it here, before the world load, rather than
+        // silently no-op it (docs/arcopolis/31). The script runner is never live (no prompt_source).
+        if( is_live_only_command( step.command ) ) {
+            std::cerr << "arcopolis: command '" << step.command <<
+                      "' requires --arcopolis-live (its in-action menu needs a live prompt answer channel; "
+                      "it is not supported in script/one-shot mode)\n";
+            return exit_code_for( command_error_kind::unsupported_command );
+        }
         const auto resolved = command_to_action( { .schema_version = arcopolis_script_schema_version,
                               .command = step.command, .direction = step.direction } );
         if( !resolved ) {
