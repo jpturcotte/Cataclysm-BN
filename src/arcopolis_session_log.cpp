@@ -277,6 +277,20 @@ auto arcopolis::write_prompt_completed_line( std::ostream &out,
     out << '\n';
 }
 
+auto arcopolis::write_prompt_force_cancelled_line( std::ostream &out,
+        const prompt_force_cancelled_event &ev ) -> void
+{
+    JsonOut json( out, /*pretty_print=*/false );
+    begin_record( json, "prompt_force_cancelled" );
+    if( ev.step_index ) {
+        json.member( "step_index", *ev.step_index );
+    }
+    json.member( "kind", ev.kind );
+    json.member( "reason", ev.reason );
+    json.end_object();
+    out << '\n';
+}
+
 auto arcopolis::write_session_end_line( std::ostream &out, const session_end_event &ev ) -> void
 {
     JsonOut json( out, /*pretty_print=*/false );
@@ -413,6 +427,15 @@ auto arcopolis::session_log_prompt_completed( const prompt_completed_event &ev )
         return;
     }
     write_prompt_completed_line( *s_log.stream, ev );
+    s_log.stream.flush();
+}
+
+auto arcopolis::session_log_prompt_force_cancelled( const prompt_force_cancelled_event &ev ) -> void
+{
+    if( !s_log.active ) {
+        return;
+    }
+    write_prompt_force_cancelled_line( *s_log.stream, ev );
     s_log.stream.flush();
 }
 
