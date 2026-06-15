@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 12A + follow-up, 2026-06-15)
+# Arcopolis backend — current state (truth as of Spike 12A + follow-up; Spike 13A backend-UI-mode audit, 2026-06-15)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -402,6 +402,21 @@ stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROT
   **Planar diagonals are no longer deferred:** `move` is 8-way (#34) and `examine` is
   8-way-plus-`here` (#31), and the browser prototype now exposes both 8-way (Spike 11B,
   [29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md](29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md)).
+- **Backend UI mode (named architectural prerequisite — Spike 13A audit,
+  [32_SPIKE13A_BACKEND_UI_MODE_AUDIT.md](32_SPIKE13A_BACKEND_UI_MODE_AUDIT.md)).** Spike 12A proved
+  **level-4** driving of the old `"PICKUP"` menu (it reaches a real `input_context::handle_input`
+  loop), and the follow-up (doc 31) made the unsupported pickup-adjacent prompts **fail loud /
+  marked** rather than silently auto-cancel-as-success. Spike 13A audited why broader prompt/menu
+  support is blocked: **`test_mode` conflates two jobs** — suppressing rendering/real keyboard
+  (Arcopolis needs this) **and** aborting some UI loops before their real input runs (Arcopolis does
+  not), most notably **`uilist::query` short-circuiting to `UILIST_ERROR` before its `input_context`
+  is even built** (`src/ui.cpp:918`), so the Spike 11A guard never sees it (`query_popup::query_once`
+  is the same, `src/popup.cpp:269`). A distinct **backend UI mode** — one that keeps the
+  render/keyboard suppression but lets the real `input_context` loops run and be served registered
+  actions, failing loud on any class it cannot yet drive — is now a named backlog item **before**
+  broader prompt/menu support (the new inventory_selector, computer menus, NPC dialogue) and
+  **before** treating pipes as a robust frontend boundary. The narrow proof spike (13B) is proposed
+  in doc 32, not implemented.
 
 ## Build (Windows)
 
