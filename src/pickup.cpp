@@ -16,6 +16,7 @@
 
 #include "activity_actor.h"
 #include "activity_actor_definitions.h"
+#include "arcopolis_backend_input.h"
 #include "auto_pickup.h"
 #include "avatar.h"
 #include "cata_utility.h"
@@ -658,6 +659,25 @@ auto pick_up_from_items( const std::vector<item_stack::iterator> &here, const in
             return;
         }
     } else {
+        // Spike 12A: a TOP-LEVEL pickup command's prompt transaction is armed (LIVE mode only). Expose the
+        // engine's REAL menu entries (stacked_here, in display order) to the external client and arm the
+        // registered-action queue the UNMODIFIED loop below then consumes -- the engine, not the backend,
+        // mutates getitem (including, for a parent entry, auto-marking its children, src/pickup.cpp:1107-1111;
+        // a child updating its parent's all_children_picked, :1112-1123). ALL entries are exposed selectable -- the
+        // client may pick one or several (multi-select) -- with the choice index == the entry's stacked_here
+        // position, so a choice K maps to exactly K DOWN keystrokes (matches == stacked_here, no filter).
+        // Inert outside an armed transaction (examine's pickup tail, script/one-shot modes), so those keep
+        // auto-cancelling via the nested-input guard.
+        if( arcopolis::backend_pickup_transaction_active() ) {
+            std::vector<arcopolis::pickup_prompt_choice> choices;
+            for( const std::size_t i : std::views::iota( std::size_t{ 0 }, stacked_here.size() ) ) {
+                const item &this_item = **stacked_here[i].front();
+                choices.push_back( { .index = static_cast<int>( i ),
+                                     .text = this_item.display_name( stacked_here[i].size() ),
+                                     .enabled = true } );
+            }
+            arcopolis::backend_resolve_pickup_choice( choices );
+        }
         g->temp_exit_fullscreen();
 
         int start = 0;
