@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 12A, 2026-06-14)
+# Arcopolis backend — current state (truth as of Spike 12A + follow-up, 2026-06-15)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -168,16 +168,26 @@ and unwitnessed** by the fixture — no entry has child sub-entries, so the loop
 selecting an entry takes its WHOLE stack because the digit/count keystrokes are not driven (`RIGHT` with no
 preceding digit, src/pickup.cpp:1204-1228); **(3) multi-entry selection — fixed**, witnessed by the carry-
 both gate. After `CONFIRM`, the activity may raise a **secondary** capacity/wield/spill prompt
-(`handle_problematic_pickup` `uilist`); **driving it is not implemented (a tracked defect)**, so the guard
-force-cancels it and the activity halts on that item — not fidelity, a not-yet-built path. The transaction
-does not fake the part it cannot do: a multi-select deposits only what the avatar can carry. The regression
-witnesses both halves: **rejected items** (the over-capacity item left on the ground, never logged as picked
-up) on the default `ArcopolisTest` avatar, and **carry-both** (both selected items leave) on a **3rd fixture
+(`handle_problematic_pickup` `uilist`); **driving it is not implemented (a tracked defect)**, but the
+**follow-up (doc 31) makes it MARKED, not silent**: a gated `src/pickup.cpp` call reports it, so the command
+response carries `{ forced_cancel, partial, unsupported_prompt:"secondary_capacity" }` and the transcript a
+`prompt_force_cancelled` event — a truthful PARTIAL pickup (the over-capacity item is left behind, never
+logged), not full success. The regression witnesses both halves: **rejected items** (the marked partial) on
+the default `ArcopolisTest` avatar, and **carry-both** (both selected items leave) on the **3rd fixture
 `ArcopolisBackpackTest`** whose avatar wears a backpack. `NEW_PICKUP_MENU=true` **fails loud**
-(`unsupported_command`); script/one-shot modes have no answer channel so a pickup there auto-cancels via the
-guard. The new inventory_selector, per-unit quantities, driving the secondary capacity/wield/spill prompts,
-and every other menu class stay backlog. See
-[30_SPIKE12A_PROMPT_MENU_TRANSACTION.md](30_SPIKE12A_PROMPT_MENU_TRANSACTION.md).
+(`unsupported_command`).
+
+**Follow-up (doc 31) — the two remaining silent holes now FAIL LOUD.** `pickup` is **live-only**: a tile with
+BOTH vehicle cargo and ground items opens the `"Get items from where?"` `uilist` (which in test_mode
+auto-errors at `ui.cpp:918`, never reaching the guard) — the follow-up intercepts it at the engine call site
+and answers `unsupported_command` (no silent ground-only pickup; witness fixture `ArcopolisVehicleCargoTest`).
+**Non-live** modes (`--arcopolis-run-script`, one-shot `--arcopolis-command`) reject `pickup` at pre-flight
+with `unsupported_command` (exit 6) before the world load — non-live fails loud for promptful commands
+rather than no-op'ing as success (it does NOT match live's capability; that gap is documented, not hidden).
+The new inventory_selector, per-unit quantities, driving the secondary capacity/wield/spill prompts, and
+every other menu class stay backlog. See
+[30_SPIKE12A_PROMPT_MENU_TRANSACTION.md](30_SPIKE12A_PROMPT_MENU_TRANSACTION.md) and
+[31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md](31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md).
 
 **Movement into an occupied/obstructed tile is a faithful no-op.** A `move` whose destination holds a
 creature, or a closed-but-not-bump-openable obstacle, runs the engine's real `avatar_action::move` leaf
@@ -193,29 +203,30 @@ in the snapshot itself — the `before` snapshot carries a neutral NPC at the mo
 
 ## Capabilities by spike
 
-| Spike | What                                                                                                                                                                                         | State                                   |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| 0     | headless load + one-shot snapshot                                                                                                                                                            | ✅                                      |
-| 1     | `wait` command (bootstrap turn)                                                                                                                                                              | ✅                                      |
-| 2     | persistent `--arcopolis-run-script` + `--arcopolis-export-dir` (T→T→T+1)                                                                                                                     | ✅                                      |
-| 3     | movement via `command → do_turn`                                                                                                                                                             | ❌ failed (turn inversion) — superseded |
-| 3.1A  | input-seam architecture (the fix)                                                                                                                                                            | ✅                                      |
-| 3.1B  | clean-park hardening + final-on-exit snapshot                                                                                                                                                | ✅                                      |
-| 3.1C  | `session.jsonl` transcript                                                                                                                                                                   | ✅                                      |
-| 4     | offline viewer / contract consumer (Python → HTML)                                                                                                                                           | ✅                                      |
-| 5     | `is_avatar` marker + `seed` in `session_start`                                                                                                                                               | ✅                                      |
-| 6A    | nearby monster export (`entities.monsters[]`)                                                                                                                                                | ✅                                      |
-| 6B    | monster witness fixture (`ArcopolisNearMonsterTest`) + monster regression                                                                                                                    | ✅ validated (vs 6A build)              |
-| 7A    | nearby NPC export (`entities.npcs[]`) + NPC blocker regression                                                                                                                               | ✅                                      |
-| 8A    | nearby ground-item export (`entities.items[]`) + item regression                                                                                                                             | ✅                                      |
-| 9A    | external player-loop harness (cell bundles, HTML view/inspect, outcome explain, one-shot run; `tools/arcopolis_client`)                                                                      | ✅                                      |
-| 9B    | minimal persistent live protocol over stdin/stdout JSONL (`--arcopolis-live`, one request at a time, same seam)                                                                              | ✅                                      |
-| 10A   | browser frontend prototype: stdlib HTTP bridge + plain HTML/JS driving `--arcopolis-live` (`tools/arcopolis_frontend/`)                                                                      | ✅                                      |
-| 10B   | frontend-side snapshot diff: changed-tile highlights, before→after inspector, change summary, open/closed door glyphs                                                                        | ✅                                      |
-| 10C   | optional frontend tileset rendering: bridge re-serves `gfx/UltimateCataclysm`, browser paints sprites, glyph fallback                                                                        | ✅                                      |
-| 11A   | directed `examine` via a one-shot nested-input answer + auto-cancel guard at `input_context::handle_input`                                                                                   | ✅                                      |
-| 11B   | 8-way planar move + 8-way-plus-`here` examine in the **browser frontend + bridge** (backend was already 8-way: #34 move, #31 examine)                                                        | ✅                                      |
-| 12A   | GUI-equivalent `pickup` prompt/menu transaction (live mode): the real `"PICKUP"` menu exposed as a `prompt` + selected by registered actions through the engine's own loop (level 4); doc 30 | ✅                                      |
+| Spike | What                                                                                                                                                                                                                         | State                                   |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| 0     | headless load + one-shot snapshot                                                                                                                                                                                            | ✅                                      |
+| 1     | `wait` command (bootstrap turn)                                                                                                                                                                                              | ✅                                      |
+| 2     | persistent `--arcopolis-run-script` + `--arcopolis-export-dir` (T→T→T+1)                                                                                                                                                     | ✅                                      |
+| 3     | movement via `command → do_turn`                                                                                                                                                                                             | ❌ failed (turn inversion) — superseded |
+| 3.1A  | input-seam architecture (the fix)                                                                                                                                                                                            | ✅                                      |
+| 3.1B  | clean-park hardening + final-on-exit snapshot                                                                                                                                                                                | ✅                                      |
+| 3.1C  | `session.jsonl` transcript                                                                                                                                                                                                   | ✅                                      |
+| 4     | offline viewer / contract consumer (Python → HTML)                                                                                                                                                                           | ✅                                      |
+| 5     | `is_avatar` marker + `seed` in `session_start`                                                                                                                                                                               | ✅                                      |
+| 6A    | nearby monster export (`entities.monsters[]`)                                                                                                                                                                                | ✅                                      |
+| 6B    | monster witness fixture (`ArcopolisNearMonsterTest`) + monster regression                                                                                                                                                    | ✅ validated (vs 6A build)              |
+| 7A    | nearby NPC export (`entities.npcs[]`) + NPC blocker regression                                                                                                                                                               | ✅                                      |
+| 8A    | nearby ground-item export (`entities.items[]`) + item regression                                                                                                                                                             | ✅                                      |
+| 9A    | external player-loop harness (cell bundles, HTML view/inspect, outcome explain, one-shot run; `tools/arcopolis_client`)                                                                                                      | ✅                                      |
+| 9B    | minimal persistent live protocol over stdin/stdout JSONL (`--arcopolis-live`, one request at a time, same seam)                                                                                                              | ✅                                      |
+| 10A   | browser frontend prototype: stdlib HTTP bridge + plain HTML/JS driving `--arcopolis-live` (`tools/arcopolis_frontend/`)                                                                                                      | ✅                                      |
+| 10B   | frontend-side snapshot diff: changed-tile highlights, before→after inspector, change summary, open/closed door glyphs                                                                                                        | ✅                                      |
+| 10C   | optional frontend tileset rendering: bridge re-serves `gfx/UltimateCataclysm`, browser paints sprites, glyph fallback                                                                                                        | ✅                                      |
+| 11A   | directed `examine` via a one-shot nested-input answer + auto-cancel guard at `input_context::handle_input`                                                                                                                   | ✅                                      |
+| 11B   | 8-way planar move + 8-way-plus-`here` examine in the **browser frontend + bridge** (backend was already 8-way: #34 move, #31 examine)                                                                                        | ✅                                      |
+| 12A   | GUI-equivalent `pickup` prompt/menu transaction (live mode): the real `"PICKUP"` menu exposed as a `prompt` + selected by registered actions through the engine's own loop (level 4); doc 30                                 | ✅                                      |
+| 12A+  | follow-up: the pickup transaction fails loud (vehicle submenu → `unsupported_command`; non-live pickup → `unsupported_command`) or marks the secondary capacity prompt partial — never silent auto-cancel-as-success; doc 31 | ✅                                      |
 
 ## Source & tests
 
@@ -319,14 +330,19 @@ opens a `prompt` carrying the menu's REAL choices, a `prompt_answer` selecting t
 `[DOWN×K, RIGHT, CONFIRM]` through the engine's own `"PICKUP"` loop (transcript
 `prompt_opened`/`prompt_answered`/`prompt_completed`), the chosen item leaves the ground (a real engine
 state change + a "You pick up:" message), `prompt_cancel` is the GUI ESC no-op, an invalid answer is a
-recoverable rejection with the prompt left open, and `NEW_PICKUP_MENU=true` fails loud. Two further gates
+recoverable rejection with the prompt left open, and `NEW_PICKUP_MENU=true` fails loud. Further gates
 cover multi-select: **rejected items** — a `choices:[0,6]` pick of an over-capacity item + a carriable one
-carries only what fits and leaves the rejected item on the ground, never logged as picked up (driving the
-in-activity capacity prompt is a tracked defect; the guard force-cancels it), on the default avatar — and
-**carry-both** — a `choices:[5,6]` pick deposits BOTH
-items (7 → 5) on the backpack avatar (`ArcopolisBackpackTest`, a copy of `ArcopolisTest` whose avatar wears
-a backpack so two items fit). See
-[30_SPIKE12A_PROMPT_MENU_TRANSACTION.md](30_SPIKE12A_PROMPT_MENU_TRANSACTION.md).
+carries only what fits and leaves the rejected item on the ground, never logged as picked up; the
+**follow-up (doc 31)** additionally asserts the response is MARKED `{ forced_cancel, partial,
+unsupported_prompt:"secondary_capacity" }` + a `prompt_force_cancelled` transcript event (NOT full success) —
+and **carry-both** — a `choices:[5,6]` pick deposits BOTH
+items (7 → 5) on the backpack avatar (`ArcopolisBackpackTest`). The follow-up adds **gate H** (vehicle
+submenu fail-loud on **`ArcopolisVehicleCargoTest`** — a `folding_wagon` injected onto the pile via
+[`docs/arcopolis/make_vehicle_fixture.py`](make_vehicle_fixture.py); a live pickup there emits NO prompt and
+answers `unsupported_command`) and **gate I** (non-live fail-loud — script + one-shot `pickup` exit 6 before
+load). **Run with `pwsh`, not `powershell` 5.1** (the latter mangles UTF-8 reads + options.json BOM → false
+failures). See [30_SPIKE12A_PROMPT_MENU_TRANSACTION.md](30_SPIKE12A_PROMPT_MENU_TRANSACTION.md) and
+[31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md](31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md).
 [`docs/arcopolis/frontend_prototype_regression.ps1`](frontend_prototype_regression.ps1) gates the
 **Spike 10A browser-frontend bridge** on **`ArcopolisTest`**: it starts
 `tools/arcopolis_frontend/prototype_server.py`, drives the whole HTTP API (start → move_n → move_s

@@ -69,13 +69,23 @@ struct live_ready_event {
 auto write_ready_line( std::ostream &out, const live_ready_event &ev ) -> void;
 
 /// A successful export/command response. `snapshot` is the relative NNN_<name>.json filename; `turn`
-/// equals the snapshot's backend.turn (read at the same instant).
+/// equals the snapshot's backend.turn (read at the same instant). The Spike 12A-follow-up marker set is
+/// emitted ONLY for a pickup whose activity force-cancelled an unsupported SECONDARY prompt (capacity/
+/// wield/spill): `ok` stays true because a real PARTIAL pickup happened (what fit was carried), but the
+/// three markers make the partiality unmistakable so the result is never read as a full success. They are
+/// all absent for every other response (every non-pickup command, and a clean pickup), so existing wire
+/// output is byte-unchanged.
 struct live_success_response {
     std::optional<int> id;  ///< the request's id (JSON null when the request omitted it)
     std::string op;         ///< "export" or "command"
     std::string snapshot;
     int export_index = 0;
     int turn = 0;
+    bool forced_cancel =
+        false;          ///< a secondary prompt was force-cancelled (markers emitted iff true)
+    bool partial = false;                ///< the pickup carried only part of the selection
+    std::string
+    unsupported_prompt;      ///< which prompt class was declined (e.g. "secondary_capacity")
 };
 auto write_success_response_line( std::ostream &out, const live_success_response &ev ) -> void;
 
