@@ -192,6 +192,18 @@ driving the in-activity capacity prompt is a tracked defect, so the guard force-
 unchanged (its `.sav` is content-identical to the pre-spike save). See
 `docs/arcopolis/30_SPIKE12A_PROMPT_MENU_TRANSACTION.md`.
 
+A fourth world, `ArcopolisVehicleCargoTest`, lives in the same userdir as the **vehicle-submenu fail-loud
+witness** (Spike 12A follow-up): a clone of `ArcopolisTest` with an exact `folding_wagon` replica (a
+single-tile `folding_frame`+`wheel_caster`+`basketlg_folding` CARGO cart) injected ONTO the ground-item
+pile one south of the post-`move_s` avatar, so that tile has BOTH vehicle cargo and ground items. A live
+`pickup` there hits the `"Get items from where?"` `uilist`, which the prompt transaction does not drive, so
+the follow-up FAILS LOUD (`unsupported_command`, no silent ground-only pickup). Built reproducibly by
+`docs/arcopolis/make_vehicle_fixture.py` (save-edit, no GUI/build), gated by the same
+`docs/arcopolis/prompt_menu_regression.ps1` (gate H). See
+`docs/arcopolis/31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md`. **Run these regressions with `pwsh` (PowerShell 7), not
+`powershell` (5.1)** — 5.1 misreads BOM-less UTF-8 snapshots and writes an options.json BOM, causing
+spurious gate failures on unchanged code.
+
 ## HARD CONSTRAINTS (NEVER VIOLATE)
 
 Before writing **ANY** code, verify:
