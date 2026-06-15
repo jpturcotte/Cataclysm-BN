@@ -109,19 +109,44 @@ auto live_next_action() -> action_id
     if( pump.pending ) {
         const auto pending = *pump.pending;
         pump.pending.reset();
-        const auto written = arcopolis::backend_write_step_snapshot( pending.name, pending.step_index );
-        if( !written ) {
+        // Spike 12A follow-up: a pickup command may have met an UNSUPPORTED in-action prompt the
+        // transaction cannot drive (the guard recorded which, surviving the seam's stale-clear).
+        const auto outcome = arcopolis::backend_take_pickup_outcome();
+        if( outcome == arcopolis::pickup_command_outcome::unsupported_submenu ) {
+            // The pre-menu vehicle "Get items from where?" submenu: FAIL LOUD instead of a success
+            // snapshot. The guard already force-cancelled it (pick_up returned early, no pickup), so no
+            // state changed; answer unsupported_command and keep serving (recoverable). Writing no
+            // snapshot is correct -- nothing happened. The avatar parked with its moves (a cancelled
+            // pickup does not spend the turn), so the session simply reads the next request below.
             send_error( { .id = pending.id, .op = "command",
-                          .code = arcopolis::live_error_code::export_failed,
-                          .message = "failed to write the post-command snapshot" } );
-            return ACTION_NULL;
+                          .code = arcopolis::live_error_code::unsupported_command,
+                          .message = "pickup encountered an unsupported 'Get items from where?' "
+                                     "vehicle-cargo submenu; the prompt transaction drives only the "
+                                     "ground-item PICKUP menu (no items were taken)" } );
+        } else {
+            const auto written = arcopolis::backend_write_step_snapshot( pending.name, pending.step_index );
+            if( !written ) {
+                send_error( { .id = pending.id, .op = "command",
+                              .code = arcopolis::live_error_code::export_failed,
+                              .message = "failed to write the post-command snapshot" } );
+                return ACTION_NULL;
+            }
+            // A secondary capacity/wield/spill prompt force-cancelled mid-activity => a TRUTHFUL PARTIAL
+            // pickup: ok stays true (what fit was carried), but the explicit marker set makes the
+            // partiality unmistakable so the result is never read as full success.
+            const auto partial = outcome == arcopolis::pickup_command_outcome::secondary_forced_cancel;
+            arcopolis::write_success_response_line( std::cout, { .id = pending.id, .op = "command",
+                                                    .snapshot = written->filename,
+                                                    .export_index = written->export_index,
+                                                    .turn = written->turn,
+                                                    .forced_cancel = partial,
+                                                    .partial = partial,
+                                                    .unsupported_prompt = partial
+                                                            ? std::string( "secondary_capacity" )
+                                                            : std::string()
+                                                               } );
+            std::cout.flush();
         }
-        arcopolis::write_success_response_line( std::cout, { .id = pending.id, .op = "command",
-                                                .snapshot = written->filename,
-                                                .export_index = written->export_index,
-                                                .turn = written->turn
-                                                           } );
-        std::cout.flush();
     }
 
     // (b) Read requests until one consumes engine input (a command), or the session ends. `export`
@@ -504,6 +529,14 @@ auto arcopolis::write_success_response_line( std::ostream &out,
     json.member( "snapshot", ev.snapshot );
     json.member( "export_index", ev.export_index );
     json.member( "turn", ev.turn );
+    // Spike 12A follow-up: a partial pickup with an unsupported secondary prompt force-cancelled is marked
+    // explicitly so the response cannot be read as full success (ok stays true -- the partial pickup is
+    // real). Emitted only when set, so non-pickup / clean-pickup responses are byte-identical to before.
+    if( ev.forced_cancel ) {
+        json.member( "forced_cancel", true );
+        json.member( "partial", ev.partial );
+        json.member( "unsupported_prompt", ev.unsupported_prompt );
+    }
     json.end_object();
     out << '\n';
 }

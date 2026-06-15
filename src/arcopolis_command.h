@@ -108,4 +108,15 @@ auto is_supported_target_direction( std::string_view ident ) -> bool;
 /// 11A; shared with pickup, Spike 12A.)
 auto target_direction_nested_answer( std::string_view direction ) -> std::optional<std::string>;
 
+/// True iff a command's CORE action requires a live prompt/menu answer channel to complete -- i.e. it
+/// only works in `--arcopolis-live` mode, because driving its in-action menu needs the live provider's
+/// prompt_source. Today only `pickup` qualifies (its whole purpose is selecting items from a menu, and
+/// the script/one-shot modes have no answer channel, so a pickup there would silently auto-cancel and
+/// falsely report success). `examine` is deliberately NOT live-only: it still faithfully examines in
+/// non-live mode; its auto-pickup tail's force-cancel is the engine's own "Never mind.", not the command
+/// failing its purpose. The non-live entry points (run_script / one-shot pre-flight) reject a live-only
+/// command with unsupported_command before driving any turn -- non-live modes FAIL LOUD for promptful
+/// commands rather than no-op them as success. This is the extension point for future promptful verbs.
+auto is_live_only_command( std::string_view command ) -> bool;
+
 } // namespace arcopolis

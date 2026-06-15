@@ -169,6 +169,18 @@ static pickup_answer handle_problematic_pickup( const item &it, bool &offered_sw
         return CANCEL;
     }
 
+    // Spike 12A follow-up: a live pickup transaction cannot drive this secondary capacity/wield/spill
+    // prompt. It is a uilist, which in the backend's test_mode short-circuits to UILIST_ERROR (src/ui.cpp:918)
+    // WITHOUT reaching the nested-input guard, and would then resolve to CANCEL anyway -- leaving the item
+    // behind. Make that explicit and MARKED rather than silent: record the forced cancel (the live command
+    // is marked a partial pickup, NOT full success -- docs/arcopolis/31) and return CANCEL, exactly the
+    // engine's own test_mode outcome (the rejected item stays on the ground, never logged as picked up).
+    // Gated on an armed backend pickup transaction, so normal play and the GUI are untouched.
+    if( arcopolis::backend_pickup_transaction_active() ) {
+        arcopolis::backend_report_pickup_secondary_forced_cancel();
+        return CANCEL;
+    }
+
     player &u = g->u;
 
     uilist amenu;
@@ -1266,6 +1278,17 @@ auto pickup::pick_up( const tripoint_bub_ms &p, int min, from_where get_items_fr
             const auto veh_has_items = carg && !veh->get_items( carg->part_index() ).empty();
             const auto map_has_items = g->m.has_items( p );
             if( veh_has_items && map_has_items ) {
+                // Spike 12A follow-up: a live pickup transaction cannot drive this "Get items from where?"
+                // submenu. It is a uilist, and in the backend's test_mode uilist::query short-circuits to
+                // UILIST_ERROR (src/ui.cpp:918) WITHOUT reaching input_context::handle_input, so the
+                // nested-input guard never sees it and pick_up would otherwise fall through to a SILENT
+                // ground-only pickup. FAIL LOUD instead: record the outcome and return with no pickup, so
+                // the live command answers unsupported_command (docs/arcopolis/31). Gated on an armed
+                // backend pickup transaction, so normal play and the GUI are completely untouched.
+                if( arcopolis::backend_pickup_transaction_active() ) {
+                    arcopolis::backend_report_pickup_unsupported_submenu();
+                    return;
+                }
                 auto amenu = uilist( _( "Get items from where?" ), { _( "Get items from vehicle cargo" ),
                                      _( "Get items on the ground" )
                                                                    } );
