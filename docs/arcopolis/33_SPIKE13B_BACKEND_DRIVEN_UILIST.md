@@ -60,7 +60,8 @@ the tiles build was already safe — but the loop needs no window at all.) `setu
 
 This is a **backend invariant, not a frontend requirement**: the eventual Arcopolis GUI will render through
 its own protocol/snapshot path, not through BN tiles or BN curses (see the "Frontend boundary" section in
-[ARCOPOLIS_STATE.md](ARCOPOLIS_STATE.md)). The backend must depend on _neither_ renderer.
+[ARCOPOLIS_STATE.md#frontend-boundary-arcopolis-is-neither-bn-tiles-nor-bn-curses](ARCOPOLIS_STATE.md#frontend-boundary-arcopolis-is-neither-bn-tiles-nor-bn-curses)).
+The backend must depend on _neither_ renderer.
 
 **INVARIANT (build-independent, pinned by a unit test):** the Arcopolis backend headless path creates **no
 curses window and calls no render primitive, in any build**. `tests/arcopolis_backend_input_test.cpp` arms a

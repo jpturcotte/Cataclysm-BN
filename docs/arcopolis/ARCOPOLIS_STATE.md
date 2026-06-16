@@ -111,7 +111,7 @@ a new protocol-driven frontend path over the same authoritative simulation. PR #
 into a code invariant after the Codex review caught a backend path that leaned on tiles pseudo-curses (a
 real `newwin` would have crashed a curses build): **backend-driven UI creates no curses window / calls no
 render primitive in any build**, and every future un-abort site must uphold it (see
-[33_SPIKE13B_BACKEND_DRIVEN_UILIST.md](33_SPIKE13B_BACKEND_DRIVEN_UILIST.md)).
+[33_SPIKE13B_BACKEND_DRIVEN_UILIST.md#risks--follow-up](33_SPIKE13B_BACKEND_DRIVEN_UILIST.md#risks--follow-up)).
 
 ## The export contract
 
