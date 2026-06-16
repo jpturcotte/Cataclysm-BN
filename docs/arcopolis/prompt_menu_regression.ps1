@@ -38,10 +38,21 @@
 #     entries leave the ground (7 -> 5) and the others remain -- discrimination proven at the state level.
 #   G (no phantom prompt_completed): `pickup here` on the empty self-tile opens no menu; the transcript has
 #     neither prompt_opened nor prompt_completed.
-#   H (vehicle submenu fail-loud, Spike 12A follow-up, ArcopolisVehicleCargoTest): a live pickup onto a tile
-#     with BOTH vehicle cargo AND ground items emits NO prompt and answers ok:false/unsupported_command
-#     (transcript prompt_force_cancelled kind=vehicle_submenu); the session stays usable. No silent
-#     ground-only pickup.
+#   H (vehicle-source uilist DRIVEN at level 4, Spike 13B, ArcopolisVehicleCargoTest): a live pickup onto a
+#     tile with BOTH vehicle cargo AND ground items now DRIVES the real "Get items from where?" uilist
+#     headlessly instead of failing loud. Four sub-scenarios:
+#       H-probe: the pickup emits the vehicle-source `prompt` (kind=uilist, 2 choices "...vehicle cargo" /
+#         "...ground" in order); answering ground (choice 1) is served [DOWN, CONFIRM] through the real
+#         input_context("UILIST") loop (transcript prompt_opened/answered/completed kind=uilist,
+#         actions_served=2); the old "PICKUP" item menu (kind=menu) then opens SEPARATELY; cancelling it is
+#         the GUI ESC no-op (no pickup). Discovers the ground-menu choice count.
+#       H-pick: the same flow, but the last ground entry is picked and LEAVES the ground (real state change +
+#         "You pick up:"); the session stays usable.
+#       H-cancel: prompt_cancel on the vehicle-source uilist is the GUI ESC -- NO "PICKUP" menu opens, NO
+#         ground items are taken (no silent ground-only pickup), and the session stays usable.
+#       H-recover: a wrong prompt_id AND an out-of-range choice on the vehicle-source uilist are EACH rejected
+#         ok:false/bad_request with the prompt STILL OPEN (prompt_failed prompt_id_mismatch + invalid_answer);
+#         a follow-up valid answer then completes the SAME pickup.
 #   I (non-live fail-loud, Spike 12A follow-up): `pickup` in --arcopolis-run-script and one-shot
 #     --arcopolis-command is rejected with exit 6 (unsupported_command) BEFORE the world load (no snapshot),
 #     because the item menu needs a live answer channel non-live modes lack -- fail loud, not a silent no-op.
@@ -545,32 +556,177 @@ if( $gPhantom ) {
 }
 
 # =============================================================================
-# Scenario H (vehicle submenu FAIL-LOUD, Spike 12A follow-up): on ArcopolisVehicleCargoTest -- a copy of
-# ArcopolisTest with a folding_wagon (1 CARGO item) injected ONTO the south ground-item pile -- a live
-# `pickup direction=move_s` targets a tile with BOTH vehicle cargo AND ground items. game::pickup opens the
-# "Get items from where?" uilist (src/pickup.cpp:1268), which the prompt transaction does NOT drive. The
-# follow-up FAILS LOUD: NO prompt is emitted, the command answers ok:false/unsupported_command, the
-# transcript records prompt_force_cancelled kind=vehicle_submenu, and the session stays usable (a later wait
-# succeeds). This is the honest alternative to silently picking only the ground items.
+# Scenario H (Spike 13B: DRIVE the vehicle-source "Get items from where?" uilist at level 4): on
+# ArcopolisVehicleCargoTest -- a copy of ArcopolisTest with a folding_wagon (1 CARGO item) injected ONTO the
+# south ground-item pile -- a live `pickup direction=move_s` targets a tile with BOTH vehicle cargo AND
+# ground items. game::pickup opens the "Get items from where?" uilist (src/pickup.cpp). Spike 12A's follow-up
+# made this FAIL LOUD; Spike 13B instead DRIVES it: the backend un-aborts the uilist under an armed transaction,
+# runs its setup() headlessly, exposes the REAL entries as a prompt (kind=uilist), and serves the registered
+# UILIST actions ([DOWN, CONFIRM] for "ground") through the real input_context("UILIST") loop, which sets
+# amenu.ret. Choosing ground then flows into the existing old "PICKUP" item menu (kind=menu), driven as before.
+# Helper to read the prompt events (in order) from a scenario's responses.
 # =============================================================================
-$reqH = @(
+function Get-PromptsInOrder { param($Responses) return @(@($Responses) | Where-Object { $_.type -eq 'prompt' }) }
+
+# --- Scenario H-probe: prove the two-prompt flow + the vehicle prompt shape, and discover the ground count.
+#   pickup -> answer vehicle uilist (ground) -> the PICKUP item menu opens -> cancel it (GUI ESC, no pickup).
+$reqHp = @(
     '{"id":1,"op":"command","command":"move","direction":"move_s","name":"approach"}',
-    '{"id":2,"op":"command","command":"pickup","direction":"move_s","name":"pickup_vehicle_tile"}',
-    '{"id":3,"op":"command","command":"wait","name":"still_usable"}',
-    '{"id":4,"op":"quit"}'
+    '{"id":2,"op":"export","name":"before"}',
+    '{"id":3,"op":"command","command":"pickup","direction":"move_s","name":"pickup_probe"}',
+    '{"id":4,"op":"prompt_answer","prompt_id":1,"choice":1}',
+    '{"id":5,"op":"prompt_cancel","prompt_id":2}',
+    '{"id":6,"op":"export","name":"after_cancel"}',
+    '{"id":7,"op":"command","command":"wait","name":"still_usable"}',
+    '{"id":8,"op":"quit"}'
 )
-$H = Invoke-LiveScenario -Name "vehicle_submenu_failloud" -RequestLines $reqH -ScenarioWorld $VehicleWorld
-$evH = Read-Transcript -Dir $H.Dir
-$respH = Index-ById $H.Result.responses
-$promptH = @($H.Result.responses | Where-Object { $_.type -eq 'prompt' })
-$forceCancelH = @($evH | Where-Object { $_.event -eq 'prompt_force_cancelled' -and $_.kind -eq 'vehicle_submenu' })
-$gVeh = ($H.ExitCode -eq 0) -and $H.Result.ok -and ($promptH.Count -eq 0) -and
-        ($respH[2].ok -eq $false) -and ($respH[2].error.code -eq 'unsupported_command') -and
-        ($forceCancelH.Count -ge 1) -and ($respH[3].ok -eq $true)
-if( $gVeh ) {
-    Write-Host "  PASS: vehicle submenu fail-loud -- a live pickup onto the vehicle-cargo + ground-items tile emitted NO prompt, answered ok:false/unsupported_command (transcript prompt_force_cancelled kind=vehicle_submenu), and the session still served a later wait. No silent ground-only pickup." -ForegroundColor Green
+$Hp = Invoke-LiveScenario -Name "vehicle_drive_probe" -RequestLines $reqHp -ScenarioWorld $VehicleWorld
+$evHp = Read-Transcript -Dir $Hp.Dir
+$respHp = Index-ById $Hp.Result.responses
+$promptsHp = Get-PromptsInOrder $Hp.Result.responses
+$snapHpBefore = Read-Snapshot -Dir $Hp.Dir -Name $respHp[2].snapshot
+$vehSouthTile = @( ( [int]$snapHpBefore.avatar.pos_local[0] ),
+    ( [int]$snapHpBefore.avatar.pos_local[1] + 1 ), ( [int]$snapHpBefore.avatar.pos_local[2] ) )
+$itemsHpBefore = Get-ItemsAt -Snapshot $snapHpBefore -PosLocal $vehSouthTile
+$snapHpAfter = Read-Snapshot -Dir $Hp.Dir -Name $respHp[6].snapshot
+$itemsHpAfter = Get-ItemsAt -Snapshot $snapHpAfter -PosLocal $vehSouthTile
+
+# Vehicle prompt is the FIRST prompt (kind=uilist, exactly 2 choices in order); the PICKUP menu is the second.
+$vehPrompt = if( $promptsHp.Count -ge 1 ) { $promptsHp[0] } else { $null }
+$menuPrompt = if( $promptsHp.Count -ge 2 ) { $promptsHp[1] } else { $null }
+$vehChoices = if( $vehPrompt ) { @($vehPrompt.choices) } else { @() }
+$vehCargoFirst = ($vehChoices.Count -eq 2) -and ($vehChoices[0].text -like '*vehicle*' -or $vehChoices[0].text -like '*cargo*')
+$groundSecond = ($vehChoices.Count -eq 2) -and ($vehChoices[1].text -like '*ground*')
+$openedUilistHp = @($evHp | Where-Object { $_.event -eq 'prompt_opened' -and $_.kind -eq 'uilist' })
+$answeredUilistHp = @($evHp | Where-Object { $_.event -eq 'prompt_answered' -and $_.kind -eq 'uilist' })
+$completedUilistHp = @($evHp | Where-Object { $_.event -eq 'prompt_completed' -and $_.kind -eq 'uilist' })
+$uilistActionsHp = if( $answeredUilistHp.Count -ge 1 ) { @($answeredUilistHp[0].actions) } else { @() }
+$vehGroundCount = if( $menuPrompt ) { @($menuPrompt.choices).Count } else { 0 }
+
+# --- Gate H1 (vehicle prompt shape + level-4 drive): kind=uilist, 2 choices in order, served [DOWN, CONFIRM].
+$gH1 = ($Hp.ExitCode -eq 0) -and $Hp.Result.ok -and
+       ($vehPrompt -and ($vehPrompt.kind -eq 'uilist') -and ($vehChoices.Count -eq 2)) -and
+       $vehCargoFirst -and $groundSecond -and
+       ($openedUilistHp.Count -ge 1) -and ($openedUilistHp[0].choices.Count -eq 2) -and
+       ($answeredUilistHp.Count -ge 1) -and ((@($answeredUilistHp[0].choices) -join ',') -eq '1') -and
+       (($uilistActionsHp -join ',') -eq 'DOWN,CONFIRM') -and
+       ($completedUilistHp.Count -ge 1) -and ($completedUilistHp[0].actions_served -eq 2) -and
+       ($menuPrompt -and ($menuPrompt.kind -eq 'menu')) -and ($vehGroundCount -ge 1)
+if( $gH1 ) {
+    Write-Host "  PASS: vehicle-source uilist DRIVEN (level 4) -- prompt kind=uilist with 2 choices in order ['$($vehChoices[0].text)','$($vehChoices[1].text)']; answering ground served [$($uilistActionsHp -join ', ')] through input_context('UILIST') (prompt_completed kind=uilist actions_served=2); the old 'PICKUP' menu (kind=menu, $vehGroundCount choices) then opened SEPARATELY." -ForegroundColor Green
 } else {
-    Write-Host "  FAIL: vehicle submenu fail-loud -- exit=$($H.ExitCode) ok=$($H.Result.ok) prompts=$($promptH.Count) pickup=$($respH[2] | ConvertTo-Json -Compress) forceCancel=$($forceCancelH.Count) wait=$($respH[3].ok)" -ForegroundColor Red
+    Write-Host "  FAIL: vehicle-source uilist drive -- exit=$($Hp.ExitCode) ok=$($Hp.Result.ok) vehKind=$($vehPrompt.kind) vehChoices=$($vehChoices.Count) cargoFirst=$vehCargoFirst groundSecond=$groundSecond openedUilist=$($openedUilistHp.Count) answeredChoices=[$(@($answeredUilistHp[0].choices) -join ',')] uilistActions=[$($uilistActionsHp -join ', ')] completed=$($completedUilistHp[0].actions_served) menuKind=$($menuPrompt.kind) groundCount=$vehGroundCount" -ForegroundColor Red
+    $fail++
+    if( -not $Hp.Result -or $promptsHp.Count -lt 2 ) { Write-Host "PICKUP REGRESSION: aborting (vehicle drive did not reach the two-prompt flow)." -ForegroundColor Red; exit 1 }
+}
+
+# --- Gate H2 (probe is a no-op): cancelling the PICKUP menu after choosing ground takes NO items; usable.
+$gH2 = ($respHp[4].ok -eq $true) -and ($itemsHpBefore.Count -ge 1) -and
+       ($itemsHpAfter.Count -eq $itemsHpBefore.Count) -and ($respHp[7].ok -eq $true)
+if( $gH2 ) {
+    Write-Host "  PASS: vehicle-then-ground probe is a no-op -- the PICKUP menu cancel took no items ($($itemsHpBefore.Count) ground items unchanged); the session served a later wait." -ForegroundColor Green
+} else {
+    Write-Host "  FAIL: vehicle probe no-op -- cancelAck=$($respHp[4].ok) before=$($itemsHpBefore.Count) after=$($itemsHpAfter.Count) wait=$($respHp[7].ok)" -ForegroundColor Red
+    $fail++
+}
+
+# --- Scenario H-pick: drive vehicle->ground, then pick the LAST ground entry; it must leave the ground.
+$vehK = [Math]::Max(0, $vehGroundCount - 1)
+$reqHk = @(
+    '{"id":1,"op":"command","command":"move","direction":"move_s","name":"approach"}',
+    '{"id":2,"op":"export","name":"before"}',
+    '{"id":3,"op":"command","command":"pickup","direction":"move_s","name":"pickup"}',
+    '{"id":4,"op":"prompt_answer","prompt_id":1,"choice":1}',
+    ('{"id":5,"op":"prompt_answer","prompt_id":2,"choice":' + $vehK + '}'),
+    '{"id":6,"op":"export","name":"after_pick"}',
+    '{"id":7,"op":"command","command":"wait","name":"drain"}',
+    '{"id":8,"op":"export","name":"after_wait"}',
+    '{"id":9,"op":"quit"}'
+)
+$Hk = Invoke-LiveScenario -Name "vehicle_drive_pick" -RequestLines $reqHk -ScenarioWorld $VehicleWorld
+$evHk = Read-Transcript -Dir $Hk.Dir
+$respHk = Index-ById $Hk.Result.responses
+$snapHkBefore = Read-Snapshot -Dir $Hk.Dir -Name $respHk[2].snapshot
+$snapHkAfter = Read-Snapshot -Dir $Hk.Dir -Name $respHk[8].snapshot
+$hkTile = @( ( [int]$snapHkBefore.avatar.pos_local[0] ),
+    ( [int]$snapHkBefore.avatar.pos_local[1] + 1 ), ( [int]$snapHkBefore.avatar.pos_local[2] ) )
+$beforeHk = Get-ItemsAt -Snapshot $snapHkBefore -PosLocal $hkTile
+$afterHk = Get-ItemsAt -Snapshot $snapHkAfter -PosLocal $hkTile
+$pickupMsgsHk = @((Get-MessageTexts $snapHkAfter) | Where-Object { $_ -like '*You pick up*' })
+$answeredUilistHk = @($evHk | Where-Object { $_.event -eq 'prompt_answered' -and $_.kind -eq 'uilist' })
+$answeredMenuHk = @($evHk | Where-Object { $_.event -eq 'prompt_answered' -and ($_.kind -eq $null -or $_.kind -eq 'menu' -or $_.kind -eq '') })
+$gH3 = ($Hk.ExitCode -eq 0) -and $Hk.Result.ok -and ($respHk[4].ok -eq $true) -and ($respHk[5].ok -eq $true) -and
+       ($answeredUilistHk.Count -ge 1) -and ((@($answeredUilistHk[0].actions) -join ',') -eq 'DOWN,CONFIRM') -and
+       ($answeredMenuHk.Count -ge 1) -and
+       ($beforeHk.Count -ge 1) -and ($afterHk.Count -lt $beforeHk.Count) -and ($pickupMsgsHk.Count -ge 1)
+if( $gH3 ) {
+    Write-Host "  PASS: vehicle-source drive picks a ground item -- after choosing ground (served [DOWN, CONFIRM]) and the LAST PICKUP entry (choice $vehK), the south tile went $($beforeHk.Count) -> $($afterHk.Count) ground items and the engine logged '$($pickupMsgsHk[0])'." -ForegroundColor Green
+} else {
+    Write-Host "  FAIL: vehicle-source drive pick -- exit=$($Hk.ExitCode) vehAck=$($respHk[4].ok) menuAck=$($respHk[5].ok) uilistActions=[$(@($answeredUilistHk[0].actions) -join ', ')] menuAnswered=$($answeredMenuHk.Count) before=$($beforeHk.Count) after=$($afterHk.Count) msgs=$($pickupMsgsHk.Count)" -ForegroundColor Red
+    $fail++
+}
+
+# --- Scenario H-cancel: prompt_cancel the VEHICLE uilist -> NO PICKUP menu, NO ground pickup, session usable.
+$reqHc = @(
+    '{"id":1,"op":"command","command":"move","direction":"move_s","name":"approach"}',
+    '{"id":2,"op":"export","name":"before"}',
+    '{"id":3,"op":"command","command":"pickup","direction":"move_s","name":"pickup_cancel"}',
+    '{"id":4,"op":"prompt_cancel","prompt_id":1}',
+    '{"id":5,"op":"export","name":"after_cancel"}',
+    '{"id":6,"op":"command","command":"wait","name":"still_usable"}',
+    '{"id":7,"op":"quit"}'
+)
+$Hc = Invoke-LiveScenario -Name "vehicle_cancel" -RequestLines $reqHc -ScenarioWorld $VehicleWorld
+$evHc = Read-Transcript -Dir $Hc.Dir
+$respHc = Index-ById $Hc.Result.responses
+$promptsHc = Get-PromptsInOrder $Hc.Result.responses
+$snapHcBefore = Read-Snapshot -Dir $Hc.Dir -Name $respHc[2].snapshot
+$snapHcAfter = Read-Snapshot -Dir $Hc.Dir -Name $respHc[5].snapshot
+$hcTile = @( ( [int]$snapHcBefore.avatar.pos_local[0] ),
+    ( [int]$snapHcBefore.avatar.pos_local[1] + 1 ), ( [int]$snapHcBefore.avatar.pos_local[2] ) )
+$beforeHc = Get-ItemsAt -Snapshot $snapHcBefore -PosLocal $hcTile
+$afterHc = Get-ItemsAt -Snapshot $snapHcAfter -PosLocal $hcTile
+$cancelledUilistHc = @($evHc | Where-Object { $_.event -eq 'prompt_cancelled' -and $_.kind -eq 'uilist' })
+$pickupMsgsHc = @((Get-MessageTexts $snapHcAfter) | Where-Object { $_ -like '*You pick up*' })
+$gH4 = ($Hc.ExitCode -eq 0) -and $Hc.Result.ok -and ($respHc[3].ok -eq $true) -and
+       ($promptsHc.Count -eq 1) -and ($promptsHc[0].kind -eq 'uilist') -and ($cancelledUilistHc.Count -ge 1) -and
+       ($beforeHc.Count -ge 1) -and ($afterHc.Count -eq $beforeHc.Count) -and ($pickupMsgsHc.Count -eq 0) -and
+       ($respHc[6].ok -eq $true)
+if( $gH4 ) {
+    Write-Host "  PASS: vehicle-source cancel -- prompt_cancel on the uilist opened NO 'PICKUP' menu (1 prompt only), took NO ground items ($($beforeHc.Count) unchanged), logged no pickup, transcript prompt_cancelled kind=uilist; session served a later wait. No silent ground-only pickup." -ForegroundColor Green
+} else {
+    Write-Host "  FAIL: vehicle-source cancel -- exit=$($Hc.ExitCode) cancelAck=$($respHc[3].ok) prompts=$($promptsHc.Count) firstKind=$($promptsHc[0].kind) cancelledUilist=$($cancelledUilistHc.Count) before=$($beforeHc.Count) after=$($afterHc.Count) pickupMsgs=$($pickupMsgsHc.Count) wait=$($respHc[6].ok)" -ForegroundColor Red
+    $fail++
+}
+
+# --- Scenario H-recover: wrong prompt_id AND out-of-range choice on the vehicle uilist are each rejected
+# (prompt stays open), then a valid ground answer completes the SAME pickup.
+$reqHr = @(
+    '{"id":1,"op":"command","command":"move","direction":"move_s","name":"approach"}',
+    '{"id":2,"op":"command","command":"pickup","direction":"move_s","name":"pickup"}',
+    '{"id":3,"op":"prompt_answer","prompt_id":999,"choice":1}',
+    '{"id":4,"op":"prompt_answer","prompt_id":1,"choice":2}',
+    '{"id":5,"op":"prompt_answer","prompt_id":1,"choice":1}',
+    ('{"id":6,"op":"prompt_answer","prompt_id":2,"choice":' + $vehK + '}'),
+    '{"id":7,"op":"export","name":"after_pick"}',
+    '{"id":8,"op":"command","command":"wait","name":"after"}',
+    '{"id":9,"op":"quit"}'
+)
+$Hr = Invoke-LiveScenario -Name "vehicle_recover" -RequestLines $reqHr -ScenarioWorld $VehicleWorld
+$evHr = Read-Transcript -Dir $Hr.Dir
+$respsHr = @($Hr.Result.responses)
+$rejectHr = @($respsHr | Where-Object { $_.type -eq 'response' -and $_.op -eq 'prompt_answer' -and $_.ok -eq $false })
+$rejectBadReqHr = @($rejectHr | Where-Object { $_.error.code -eq 'bad_request' })
+$failedHr = @($evHr | Where-Object { $_.event -eq 'prompt_failed' })
+$mismatchHr = @($failedHr | Where-Object { $_.reason -eq 'prompt_id_mismatch' })
+$rangeHr = @($failedHr | Where-Object { $_.reason -eq 'invalid_answer' })
+$cmdOkHr = @($respsHr | Where-Object { $_.type -eq 'response' -and $_.op -eq 'command' -and $_.id -eq 2 -and $_.ok -eq $true })
+$gH5 = ($Hr.ExitCode -eq 0) -and $Hr.Result.ok -and ($rejectHr.Count -ge 2) -and ($rejectBadReqHr.Count -ge 2) -and
+       ($mismatchHr.Count -ge 1) -and ($rangeHr.Count -ge 1) -and ($cmdOkHr.Count -ge 1)
+if( $gH5 ) {
+    Write-Host "  PASS: vehicle-source recovery -- wrong prompt_id (999) AND out-of-range choice (2) each rejected ok:false/bad_request with the uilist STILL OPEN (prompt_failed prompt_id_mismatch + invalid_answer), then a valid ground answer completed the SAME pickup ok:true." -ForegroundColor Green
+} else {
+    Write-Host "  FAIL: vehicle-source recovery -- exit=$($Hr.ExitCode) reject=$($rejectHr.Count) badReq=$($rejectBadReqHr.Count) mismatch=$($mismatchHr.Count) range=$($rangeHr.Count) cmdOk=$($cmdOkHr.Count)" -ForegroundColor Red
     $fail++
 }
 
