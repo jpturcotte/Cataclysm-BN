@@ -629,9 +629,17 @@ void uilist::setup()
         w_y  = w_y_setup.fun( w_height );
     }
 
-    window = catacurses::newwin( w_height, w_width, point( w_x, w_y ) );
-    if( !window ) {
-        abort();
+    // Spike 13B: in the headless Arcopolis backend UI mode the window is never drawn (show() is not called;
+    // ui_manager::redraw() is a test_mode no-op) and the input loop reads only fentries/selected/retvals --
+    // so skip creating it. This keeps the non-render setup path build-independent: in a curses build
+    // catacurses::newwin is the real ncurses ::newwin (src/ncurses_def.cpp), and --arcopolis-live skips
+    // initscr()/init_interface() (test_mode), so a ::newwin before initscr would abort/crash here. (The tiles
+    // build's pseudo-curses newwin is harmless even at 0x0, but the loop needs no window at all.)
+    if( !arcopolis::backend_ui_mode_active() ) {
+        window = catacurses::newwin( w_height, w_width, point( w_x, w_y ) );
+        if( !window ) {
+            abort();
+        }
     }
 
     if( !started ) {

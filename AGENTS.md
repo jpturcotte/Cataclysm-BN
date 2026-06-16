@@ -53,6 +53,7 @@ Sync upstream by fast-forwarding `main` to `upstream/main` and pushing it, then 
 - Do not bridge existing UI screens one by one.
 - Do not add third-party dependencies.
 - Default to small, additive, well-tested changes scoped to `src/arcopolis_*` and `docs/arcopolis/`; modify shared engine files (the turn loop, `messages`, `map`, …) only when a spike justifies it and the change is gated behind the `--arcopolis-*` modes.
+- **Backend headless UI: create NO curses window and call NO render primitive, in ANY build.** The `--arcopolis-*` modes run in `test_mode` with `initscr()`/`init_interface()` skipped (`src/main.cpp`). When un-aborting a `test_mode`-gated UI loop to drive it headlessly (e.g. the Spike 13B `uilist`), run its data-population (`setup()`/`filterlist()`) but SKIP window creation — `catacurses::newwin` is the **real ncurses `::newwin`** in the curses build (`src/ncurses_def.cpp`, `#if !(TILES||_WIN32)`) and is fatal before `initscr`, while the tiles regression (tiles-only) can never witness that. Every future un-abort site (popup, query_popup, inventory_selector) must uphold this, gated strictly on `arcopolis::backend_ui_mode_active()`.
 - When exploring code, record exact file paths, functions, classes, and call paths.
 - If uncertain, state uncertainty and list what to inspect next.
 - Use PowerShell commands for Windows-local instructions.

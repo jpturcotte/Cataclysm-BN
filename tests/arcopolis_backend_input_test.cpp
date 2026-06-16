@@ -579,6 +579,40 @@ TEST_CASE( "arcopolis cata_test uilist still aborts to UILIST_ERROR without a ba
     CHECK_FALSE( msgs.empty() );
 }
 
+TEST_CASE( "arcopolis backend uilist setup populates state but creates NO curses window",
+           "[arcopolis]" )
+{
+    // INVARIANT (build-independent): the Arcopolis backend headless path must create no curses window and
+    // call no render primitive in ANY build. The driven uilist loop reads only entries/retvals/fentries, so
+    // setup() under backend_ui_mode_active() runs its data-population pass but SKIPS catacurses::newwin --
+    // which in a curses build is the real ncurses ::newwin (src/ncurses_def.cpp), fatal before initscr (which
+    // --arcopolis-live skips under test_mode). This pins that here in the tiles cata_test: the tiles
+    // pseudo-curses newwin would return a NON-null window, so `!menu.window` FAILS the instant a regression
+    // re-adds an unconditional newwin -- catching the curses-build crash in the build we CAN run. (Codex
+    // review, PR #40.)
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .uilist_prompt_source = []( const arcopolis::backend_uilist_prompt_request & )
+                                                -> std::optional<int> { return 1; } } );
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    arcopolis::backend_begin_uilist_transaction();
+    REQUIRE( arcopolis::backend_ui_mode_active() );
+
+    uilist menu;  // default ctor's init() does NOT abort here (backend_ui_mode_active() is true)
+    menu.text = "Get items from where?";
+    menu.addentry( "Get items from vehicle cargo" );  // entry 0
+    menu.addentry( "Get items on the ground" );        // entry 1
+    menu.setup();  // the engine's own non-render layout/data pass
+
+    CHECK( !menu.window );                  // the load-bearing invariant: NO window was created
+    CHECK( menu.entries[0].retval ==
+           0 );   // setup()'s data pass ran: retvals auto-assigned to the index
+    CHECK( menu.entries[1].retval ==
+           1 );   // (so the real loop's CONFIRM resolves ground -> from_ground=1)
+
+    arcopolis::backend_end_uilist_transaction();
+    arcopolis::end_backend_session();
+}
+
 TEST_CASE( "arcopolis wait_for_any_key does not block during a backend session", "[arcopolis]" )
 {
     // The raw "press any key" prompt (input_manager::wait_for_any_key, reached e.g. by examining a

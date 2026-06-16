@@ -46,11 +46,25 @@ secondary capacity block (unchanged)                     src/pickup.cpp handle_p
 this — and (2) aborts `uilist::init`/`query` before the real loop runs — Arcopolis does not. 13B drops only
 job (2), for exactly one menu.
 
-**Headless-safety of `setup()` (verified):** in arcopolis mode `TERMX=TERMY=0` (`init_interface` is skipped
-because `test_mode`, `src/main.cpp`), but `catacurses::newwin(0,0,…)` returns a **non-null** window
-(`src/cursesport.cpp:65`), so `setup()`'s `if(!window) abort()` never fires. With `TERMX=TERMY=0` `setup()`
-yields a 0×0 off-screen window, `vmax=-4` (harmless — only `PAGE_UP`/`PAGE_DOWN` use `vmax`, never sent),
-`fentries=[0,1]`, retvals `0`/`1`. A single `DOWN` uses the literal `+1` (`src/ui.cpp:828`), not `vmax`.
+**Headless-safety of `setup()` — NO window is created (build-independent):** under the gate `setup()` skips
+its `window = catacurses::newwin(...)` (and the `if(!window) abort()`) entirely; the loop never needs a
+window (`show()` is not called — `ui_manager::redraw()` is a `test_mode` no-op — and `query()`/`scrollby`/
+`CONFIRM` read only `fentries`/`selected`/retvals). This matters for the **curses** build: there
+`catacurses::newwin` is the real ncurses `::newwin` (`src/ncurses_def.cpp:71`, guarded `#if !(TILES||_WIN32)`),
+and `--arcopolis-live` skips `initscr()`/`init_interface()` (`test_mode`, `src/main.cpp:882` `if(!test_mode)`),
+so a `::newwin` before `initscr` would abort/crash; skipping it keeps the non-render path safe in **both**
+builds. (The tiles pseudo-curses `newwin` returns a non-null buffer even at 0×0, `src/cursesport.cpp:65`, so
+the tiles build was already safe — but the loop needs no window at all.) `setup()` still runs `filterlist()`
+(window-free): `fentries=[0,1]`, retvals `0`/`1`; `vmax` is unused for a single `DOWN` (the literal `+1`,
+`src/ui.cpp:828`). Found by the Codex review on PR #40.
+
+**INVARIANT (build-independent, pinned by a unit test):** the Arcopolis backend headless path creates **no
+curses window and calls no render primitive, in any build**. `tests/arcopolis_backend_input_test.cpp` arms a
+backend uilist transaction, runs `setup()`, and asserts `!menu.window` (plus the retvals it populated) — in
+the tiles `cata_test` the pseudo-curses `newwin` would leave `menu.window` **non-null**, so the assertion
+fails the instant a regression re-adds an unconditional `newwin`, catching the curses-build crash in the
+build we can actually run. **Every future un-abort site (`query_popup`, `popup()`, `inventory_selector`) must
+uphold this invariant** — see the Risks section.
 
 ## Chosen implementation shape (and why)
 
@@ -68,8 +82,9 @@ Three gated touches in `src/ui.cpp` (include `arcopolis_backend_input.h`):
   (`if( backend_ui_mode_active() && !started ) { setup(); }`). This is a **non-render initialization** path:
   `ui_manager::redraw()` stays a test_mode no-op, so `show()` is never called and nothing draws. It runs the
   engine's **own** layout/data pass (the same `setup()` the GUI runs via its resize callback) so
-  `fentries`/`keymap`/`vmax`/retvals exist for the loop to act on. It does **not** set `ret` or the final
-  selection — those come solely from the served actions. (This deviates from doc 32's "via the redraw/resize
+  `fentries`/`keymap`/`vmax`/retvals exist for the loop to act on — but under the gate `setup()` **skips
+  creating the curses window** (see Headless-safety above), so the path needs no `initscr`/render in any
+  build. It does **not** set `ret` or the final selection — those come solely from the served actions. (This deviates from doc 32's "via the redraw/resize
   callbacks" sketch; the direct call is **safer** because it avoids un-suppressing draws globally, and it
   touches only `this` uilist.)
 
@@ -163,10 +178,11 @@ fail-loud) are unchanged.
 
 ## Validation — PASS (2026-06-15, RelWithDebInfo + ccache, MSVC)
 
-- `[arcopolis]` unit suite: **709 assertions / 101 cases** pass (new: the `backend_ui_mode_active` gate, the
-  `"UILIST"` serve branch + queue builder, the no-channel fail-loud, the `kind` formatter field, and the
+- `[arcopolis]` unit suite: **713 assertions / 102 cases** pass (new: the `backend_ui_mode_active` gate, the
+  `"UILIST"` serve branch + queue builder, the no-channel fail-loud, the `kind` formatter field, the
   **cata_test invariant** — a `uilist` with no backend session still returns `UILIST_ERROR`, asserted via
-  `capture_debugmsg_during`).
+  `capture_debugmsg_during` — and the **no-window invariant** — a backend-UI `setup()` leaves `menu.window`
+  empty while populating retvals, so a regression re-adding an unconditional `newwin` fails here).
 - [`prompt_menu_regression.ps1`](prompt_menu_regression.ps1) all gates exit 0 (`pwsh`).
 - No regression: `examine_`, `movement_`, `live_protocol_`, `client_harness_`, `frontend_prototype_`, and
   `item_`/`monster_`/`npc_export_` all exit 0.
@@ -188,8 +204,16 @@ or prompt/menu support.**
 
 - The un-abort is per-transaction; any future un-abort site **must** key on `backend_ui_mode_active()`, never
   a weaker gate, or unrelated uilists would un-abort.
-- The `setup()` direct call relies on `catacurses::newwin` tolerating 0×0; a future change there would need
-  re-checking (the spike pins this with the headless-safety trace above).
+- **The no-window/no-render invariant binds every future un-abort site** (`query_popup`, `popup()`,
+  `inventory_selector`), not just this `uilist`: each must run its data-population without creating a curses
+  window or calling a render primitive, because the headless backend has no `initscr` and the curses build's
+  `catacurses::newwin` is fatal before it. The tiles-only regression cannot witness this, so the invariant is
+  pinned by a unit test (`!menu.window` after a backend-UI `setup()`); add an equivalent pin for each new
+  site. This was missed in the original spike (verified `newwin` safe for the tiles build only — the symbol
+  has a second, unsafe ncurses definition) and caught by the Codex review on PR #40.
+- The `setup()` direct call **skips** the curses window under the gate (see Headless-safety), so it no longer
+  depends on `catacurses::newwin` behaviour and is safe in both the tiles and curses builds. A future change
+  that makes the backend uilist loop actually need a window would have to provide a headless-safe one.
 - Next: drive the secondary capacity/wield/spill `uilist` as its own transaction (close the marked-partial
   defect), then `query_popup`/`popup()` (a distinct `"POPUP_WAIT"` category + the `PF_GET_KEY` `ANY_INPUT`
   caveat from doc 32), building on this proven mode.
