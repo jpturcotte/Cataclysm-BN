@@ -242,6 +242,18 @@ auto backend_report_pickup_unsupported_submenu() -> void;
 /// event. Inert unless a pickup transaction is active.
 auto backend_report_pickup_secondary_forced_cancel() -> void;
 
+/// Called by src/pickup.cpp when handle_problematic_pickup is reached during an active backend session but
+/// with NO armed pickup transaction (Spike 14 / PR #42 review). The only path is a MULTI-TICK pickup
+/// activity that resumed on a later do_turn after the transaction was cleared at the seam return, so there
+/// is no armed transaction/channel to drive the uilist and no owed command response to mark. Without this,
+/// the uilist would test_mode-abort to a SILENT cancel mid-session. Logs a `prompt_force_cancelled` event
+/// (kind="secondary_capacity_orphaned") so the engine's own CANCEL is MARKED in the transcript, never
+/// silent. Sets NO pickup_outcome (no owed response exists to mark, and it must not leak a partial marker
+/// into a later command). Gated to the orphaned case: inert with no session AND inert while a pickup
+/// transaction IS armed (the drive / no-channel paths own that case). Threading the transaction across
+/// resumed activity ticks remains deferred (docs/arcopolis/34).
+auto backend_report_pickup_orphaned_secondary() -> void;
+
 /// Reads and resets the current pickup command's unsupported-sub-prompt outcome (defaults to `ok`).
 /// Called once by the live response writer when the owed pickup response is emitted. Reset to `ok`.
 auto backend_take_pickup_outcome() -> pickup_command_outcome;

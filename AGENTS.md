@@ -205,9 +205,23 @@ item menu. The earlier fail-loud is retained only as the no-channel fallback (no
 Built reproducibly by `docs/arcopolis/make_vehicle_fixture.py` (save-edit, no GUI/build), gated by
 `docs/arcopolis/prompt_menu_regression.ps1` (gate H, four sub-scenarios). See
 `docs/arcopolis/33_SPIKE13B_BACKEND_DRIVEN_UILIST.md` (and the historical
-`docs/arcopolis/31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md`). **Run these regressions with `pwsh` (PowerShell 7), not
-`powershell` (5.1)** — 5.1 misreads BOM-less UTF-8 snapshots and writes an options.json BOM, causing
-spurious gate failures on unchanged code.
+`docs/arcopolis/31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md`).
+
+A fifth world, `ArcopolisCapacityTest`, lives in the same userdir as the **backend-driven secondary
+capacity/wield/spill `uilist` multi-entry witness** (Spike 14; was the Spike 12A-follow-up marked-partial
+witness): a clone of `ArcopolisTest` with ONE bulky `jacket_leather` (ARMOR/OUTER, 4500 ml, not a bucket,
+no children) injected onto the same south ground pile. Picking the jacket exceeds the unarmed avatar's
+volume capacity, so `pickup_activity_actor::handle_problematic_pickup` raises a `uilist` with WEAR + WIELD
+= 2 enabled entries; **Spike 14 DRIVES it at level 4 by REUSING the Spike 13B machinery unchanged** at a
+second site (per-transaction `backend_ui_mode_active()` gate around the in-activity `uilist`, the same
+`"UILIST"` serve branch and `live_uilist_prompt` channel — renamed from `live_vehicle_source_prompt`).
+The marked-partial behavior is retained as the no-channel fallback (unit-tested). Built reproducibly by
+`docs/arcopolis/make_capacity_fixture.py` (save-edit, no GUI/build), gated by `prompt_menu_regression.ps1`
+(gate E converted to driven WIELD on `ArcopolisTest`'s blanket + gate J on `ArcopolisCapacityTest` with
+five sub-scenarios). See `docs/arcopolis/34_SPIKE14_SECONDARY_PICKUP_UILIST.md`.
+
+**Run these regressions with `pwsh` (PowerShell 7), not `powershell` (5.1)** — 5.1 misreads BOM-less UTF-8
+snapshots and writes an options.json BOM, causing spurious gate failures on unchanged code.
 
 ## HARD CONSTRAINTS (NEVER VIOLATE)
 
