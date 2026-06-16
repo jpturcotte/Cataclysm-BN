@@ -451,6 +451,35 @@ TEST_CASE( "arcopolis pickup outcome reports are inert without an armed transact
     arcopolis::end_backend_session();
 }
 
+TEST_CASE( "arcopolis Spike 14 orphaned secondary report marks but sets no outcome", "[arcopolis]" )
+{
+    // PR #42 review fix: handle_problematic_pickup reached during a backend session with NO armed pickup
+    // transaction (a multi-tick pickup activity resumed after the transaction was cleared) reports an
+    // ORPHANED secondary so the engine's test_mode CANCEL is MARKED in the transcript, never silent. The
+    // reporter is gated to exactly that case and must NEVER set pickup_outcome (there is no owed response
+    // to mark, and a leaked partial marker could mis-mark an unrelated later command).
+    using outcome_t = arcopolis::pickup_command_outcome;
+    arcopolis::backend_report_pickup_orphaned_secondary();  // no session -> inert (no crash)
+    CHECK( arcopolis::backend_take_pickup_outcome() == outcome_t::ok );
+
+    arcopolis::begin_backend_session( { .steps = {} } );
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    // A transaction IS armed -> NOT the orphaned case -> inert (the drive / no-channel paths own it).
+    arcopolis::backend_report_pickup_orphaned_secondary();
+    CHECK( arcopolis::backend_take_pickup_outcome() ==
+           outcome_t::ok );  // backend_arm reset it; still ok
+    arcopolis::end_backend_session();
+
+    // Session active, NO transaction -> the orphaned case. It logs a transcript event (no transcript open
+    // here, so nothing to observe) and crucially sets NO outcome -- it must not leak a partial marker.
+    arcopolis::begin_backend_session( { .steps = {} } );
+    REQUIRE( arcopolis::backend_session_active() );
+    REQUIRE_FALSE( arcopolis::backend_pickup_transaction_active() );
+    arcopolis::backend_report_pickup_orphaned_secondary();
+    CHECK( arcopolis::backend_take_pickup_outcome() == outcome_t::ok );  // no partial marker leaked
+    arcopolis::end_backend_session();
+}
+
 // --- Spike 13B: backend-driven uilist transaction (the "Get items from where?" vehicle-source submenu). ---
 
 TEST_CASE( "arcopolis backend_ui_mode_active gates on an armed uilist transaction only",
@@ -543,6 +572,40 @@ TEST_CASE( "arcopolis backend-driven uilist builds the right action queue per an
     CHECK( served_for( 1 ) == std::vector<std::string> { "DOWN", "CONFIRM" } );  // ground (entry 1)
     CHECK( served_for( std::nullopt ) == std::vector<std::string> { "QUIT" } );  // cancel / EOF
     CHECK( served_for( 5 ) == std::vector<std::string> { "QUIT" } );             // out of range -> cancel
+}
+
+TEST_CASE( "arcopolis backend-driven uilist refuses a disabled-entry shape", "[arcopolis]" )
+{
+    // PR #42 review (Codex P2): the single-select DOWN x choice -> CONFIRM translation is UNSAFE when any
+    // entry is disabled -- uilist::filterlist() lands the initial highlight on the first ENABLED entry and
+    // uilist::scrollby() skips disabled entries (src/ui.cpp), so a raw position index mis-navigates to a
+    // DIFFERENT enabled action (wield/wear the wrong item). The driver must REFUSE such a request WITHOUT
+    // asking the client and serve QUIT (the engine's UILIST_CANCEL), never a navigation queue. (The pickup
+    // call site also refuses + marks partial before reaching here; this is the general driver-level guard.)
+    const std::vector<std::string> uilist_actions = { "UP", "DOWN", "CONFIRM", "QUIT" };
+    bool client_asked = false;
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .uilist_prompt_source = [&client_asked]( const arcopolis::backend_uilist_prompt_request & )
+    -> std::optional<int> {
+        client_asked = true;
+        return 1;
+    } } );
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    arcopolis::backend_begin_uilist_transaction();
+    arcopolis::backend_resolve_uilist_choice( { .kind = "uilist",
+            .title = "Not enough capacity to stash leather jacket",
+    .choices = { { .index = 0, .text = "Wear leather jacket", .enabled = false },  // a DISABLED entry
+        { .index = 1, .text = "Wield leather jacket", .enabled = true }
+    } } );
+    CHECK_FALSE( client_asked );  // refused before ever asking the client
+    // The first served action is QUIT -- never a DOWN that could land on the wrong enabled entry. (Once the
+    // queue drains, the nested-input guard keeps returning the registered QUIT as a safety net, so the real
+    // uilist loop always cancels; we assert only that the queued action is the cancel, not a navigation step.)
+    const std::string *first = arcopolis::backend_nested_input_action( "UILIST", uilist_actions, -1 );
+    REQUIRE( first != nullptr );
+    CHECK( *first == "QUIT" );
+    arcopolis::backend_end_uilist_transaction();
+    arcopolis::end_backend_session();
 }
 
 TEST_CASE( "arcopolis vehicle submenu fails loud with no uilist answer channel", "[arcopolis]" )

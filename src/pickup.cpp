@@ -184,10 +184,23 @@ static pickup_answer handle_problematic_pickup( const item &it, bool &offered_sw
     // logged as picked up). NOT silent success.
     //
     // Gated on an armed backend pickup transaction so normal play and the GUI are untouched.
-    const bool drive = arcopolis::backend_pickup_transaction_active()
-                       && arcopolis::backend_uilist_prompt_available();
-    if( arcopolis::backend_pickup_transaction_active() && !drive ) {
+    const bool transaction = arcopolis::backend_pickup_transaction_active();
+    const bool drive = transaction && arcopolis::backend_uilist_prompt_available();
+    if( transaction && !drive ) {
         arcopolis::backend_report_pickup_secondary_forced_cancel();
+        return CANCEL;
+    }
+    // PR #42 review fix: a backend session reached this secondary uilist with NO armed pickup transaction.
+    // The only path here is a MULTI-TICK pickup activity that resumed on a later do_turn -- between ticks,
+    // next_backend_action's clear_stale_nested_input() cleared the transaction. Without an armed transaction
+    // (and its channel) the uilist cannot be driven, and amenu.query() would test_mode-abort to a SILENT
+    // CANCEL during a backend session. Mark it in the transcript so it is never silent, then take the
+    // engine's own cancel outcome (the item is left behind). This upholds the AGENTS.md fail-loud/marked
+    // rule for the deferred multi-tick path; threading the transaction across resumed activity ticks is the
+    // named follow-up (docs/arcopolis/34). Inert in normal play (no session) and for examine's auto-pickup
+    // tail (which cancels at the "PICKUP" menu and never reaches here).
+    if( !transaction && arcopolis::backend_session_active() ) {
+        arcopolis::backend_report_pickup_orphaned_secondary();
         return CANCEL;
     }
     if( drive ) {
@@ -249,6 +262,23 @@ static pickup_answer handle_problematic_pickup( const item &it, bool &offered_sw
                 .text = amenu.entries[i].txt,
                 .enabled = amenu.entries[i].enabled,
             } );
+        }
+        // PR #42 review (Codex P2): ENFORCE the all-enabled precondition, do not merely document it. A REAL
+        // capacity prompt can disable an entry (e.g. too-heavy WOOL armor + WOOLALLERGY -> WEAR disabled,
+        // WIELD enabled; or a NO_UNWIELD wielded weapon -> WIELD disabled). uilist::filterlist() lands the
+        // initial highlight on the first ENABLED entry and uilist::scrollby() skips disabled entries
+        // (src/ui.cpp), so the client's raw position index would mis-navigate to a DIFFERENT enabled action
+        // -- wielding/wearing the WRONG item. We do NOT drive a disabled-entry shape (acceptance criterion
+        // #1): mark it as the doc-31 partial (item left behind, response marked not-full-success) instead of
+        // risking the wrong selection. The uilist_transaction_guard disarms the just-armed transaction on
+        // return. (backend_resolve_uilist_choice also refuses such requests as defense-in-depth.)
+        const bool all_enabled = std::ranges::all_of( request.choices,
+        []( const arcopolis::pickup_prompt_choice & c ) {
+            return c.enabled;
+        } );
+        if( !all_enabled ) {
+            arcopolis::backend_report_pickup_secondary_forced_cancel();
+            return CANCEL;
         }
         arcopolis::backend_resolve_uilist_choice( request );
     }

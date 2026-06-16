@@ -93,10 +93,14 @@ wire format is **byte-unchanged** (Gate H continues to pass identically — conf
 The block:
 
 ```cpp
-const bool drive = arcopolis::backend_pickup_transaction_active()
-                   && arcopolis::backend_uilist_prompt_available();
-if( arcopolis::backend_pickup_transaction_active() && !drive ) {
+const bool transaction = arcopolis::backend_pickup_transaction_active();
+const bool drive = transaction && arcopolis::backend_uilist_prompt_available();
+if( transaction && !drive ) {                        // misconfigured live: no channel -> doc-31 marked partial
     arcopolis::backend_report_pickup_secondary_forced_cancel();
+    return CANCEL;
+}
+if( !transaction && arcopolis::backend_session_active() ) {   // PR #42 review: resumed multi-tick, orphaned
+    arcopolis::backend_report_pickup_orphaned_secondary();    // MARK in transcript -> never a silent CANCEL
     return CANCEL;
 }
 if( drive ) {
@@ -174,28 +178,46 @@ remains for the no-channel fallback only (unit-tested).
 
 These bound what the spike claims and what it MUST NOT silently regress.
 
-1. **All-enabled-entries only.** The level-4 equivalence claim is **limited to witnesses where every entry
-   in the driven uilist is `enabled:true`.** `backend_resolve_uilist_choice` maps choice index `K` →
-   `[DOWN×K, CONFIRM]`, while the engine's `uilist::scrollby` skips disabled entries on advance — a queue
-   walking past disabled entries can overshoot. The spike **does not** claim general uilist index-navigation
-   correctness across disabled entries. The fixtures produce all-enabled entries; the regression and unit
-   tests assert `enabled:true` on every choice in every driven path. **Disabled-entry navigation is
-   unresolved; it does not become a future hazard tracked elsewhere — it is unresolved and must be solved
-   before any future witness with disabled entries is driven.**
+1. **All-enabled-entries only — ENFORCED in code, not just documented (PR #42 review, Codex P2).** The
+   level-4 equivalence claim is **limited to uilists where every entry is `enabled:true`.**
+   `backend_resolve_uilist_choice` maps choice index `K` → `[DOWN×K, CONFIRM]`, while the engine's
+   `uilist::filterlist()` lands the initial highlight on the first _enabled_ entry and `uilist::scrollby()`
+   skips disabled entries (both verified at the implementing line, `src/ui.cpp`), so a raw position index
+   would mis-navigate to a _different_ enabled action when any entry is disabled. A **real** capacity prompt
+   can present a disabled entry (e.g. a too-heavy WOOL armor item + `WOOLALLERGY` → WEAR disabled, WIELD
+   enabled; or a `NO_UNWIELD` wielded weapon → WIELD disabled). Spike 14 therefore **refuses** a
+   disabled-entry shape rather than risk the wrong selection, in **two** places: (a) `handle_problematic_pickup`
+   (`src/pickup.cpp`) checks all-enabled before arming the prompt and, if any entry is disabled, takes the
+   doc-31 **marked-partial** path (`backend_report_pickup_secondary_forced_cancel` — item left behind,
+   response marked not-full-success) instead of driving; (b) `backend_resolve_uilist_choice` itself refuses
+   any disabled-entry request as defense-in-depth — it serves `QUIT` (the engine's `UILIST_CANCEL`) without
+   asking the client and logs `prompt_cancelled` reason `disabled_entry_unsupported`, protecting the
+   vehicle-source path and any future caller (pinned by a unit test). The fixtures produce all-enabled
+   entries; the regression and unit tests assert `enabled:true` on every driven choice. **Disabled-entry
+   _navigation_ (translating over the selectable-only path) remains unresolved/deferred** — what changed is
+   that the unsafe path now fails loud / marks instead of silently mis-selecting.
 
-2. **Multi-tick pickup activities are unsupported, not silently succeeded.** If `handle_problematic_pickup`
-   is reached on a resumed activity tick (after `next_backend_action` has cleared `pickup_transaction`),
-   the driven path will not engage — neither `backend_pickup_transaction_active()` nor the no-channel
-   fallback fires. The result today is a fall-through to `uilist::query`'s test_mode abort → CANCEL with no
-   marker. **The witnesses MUST NOT silently regress into apparent success.** Spike 14 chooses **option
-   (a)** from the plan: the witnesses use small piles (1 jacket on Gate J, 2 chosen items on Gate E) that
-   provably complete in one tick on a healthy avatar. **Multi-tick pickup activities with capacity prompts
-   are backlog**; threading the pickup transaction across activity resumes is the named follow-up. If/when
-   the first multi-tick driven witness arrives, this acceptance bar must be met by either (a) keeping it
-   single-tick by construction or (b) adding a defensive mark/fail-loud guard for the
-   transaction-cleared-but-session-active path. **The bar: no path through `handle_problematic_pickup`
-   during a backend session may produce an `ok:true` response with no markers via an unintended silent
-   CANCEL.**
+2. **Multi-tick pickup activities are marked, not silently succeeded (defensive guard implemented).** If
+   `handle_problematic_pickup` is reached on a resumed activity tick (after `next_backend_action` has cleared
+   `pickup_transaction`), the driven path cannot engage — neither `backend_pickup_transaction_active()` nor
+   the no-channel fallback fires, and `uilist::query`'s test_mode abort would CANCEL **silently**. Spike 14
+   does **both** plan options: (a) the witnesses use small piles (1 jacket on Gate J, 2 chosen items on
+   Gate E) that provably complete in one tick on a healthy avatar; **and (b) a defensive guard** — when
+   `handle_problematic_pickup` runs with `backend_session_active() && !backend_pickup_transaction_active()`,
+   `backend_report_pickup_orphaned_secondary()` logs a `prompt_force_cancelled` transcript event
+   (`kind="secondary_capacity_orphaned"`) before the engine's CANCEL, so the path is **MARKED, never
+   silent**. The reporter sets **no** `pickup_outcome` (there is no owed command response for a resumed-tick
+   prompt, and a leaked partial marker must not mis-mark an unrelated later command). **Driving** the prompt
+   on a resumed tick (threading the transaction across activity resumes) remains the named follow-up — what
+   Spike 14 does not do is _drive_ it; what it now guarantees is it is never a silent CANCEL. **The bar — no
+   path through `handle_problematic_pickup` during a backend session may produce a silent CANCEL with no
+   marker — is met by construction (single-tick witnesses) AND by the defensive guard (resumed ticks).**
+
+   _Reachability note (why the guard is safe and fires only here):_ `handle_problematic_pickup` during a
+   backend session is reached **only** by a manual `pickup` whose activity runs it — examine's auto-pickup
+   tail cancels at the `"PICKUP"` menu via the nested-input guard and never reaches it, and auto-pickup
+   (`opts.autopickup`) sets `option = CANCEL` _without_ calling it (`src/pickup.cpp`). So the guard fires for
+   exactly the resumed-multi-tick case and zero current witnessed scenarios (confirmed: no regression).
 
 3. **Renderer neutrality** — pinned by the shared Spike 13B unit-test invariant
    (`!menu.window` after a backend-UI `setup()`). Spike 14 adds a second pin
@@ -258,7 +280,9 @@ already in BN.
 - `src/arcopolis_live.{cpp,h}` — rename `live_vehicle_source_prompt` → `live_uilist_prompt`; update the
   doc comment to call out the second use site; generalize the "uilist prompt is single-select" error
   message (was "the 'Get items from where?' prompt is single-select"). The function body is unchanged.
-- `src/arcopolis_backend_input.{h,cpp}` — NO change. All needed symbols already exist.
+- `src/arcopolis_backend_input.{h,cpp}` — one additive symbol: `backend_report_pickup_orphaned_secondary()`
+  (the PR #42 review defensive guard — marks the resumed-multi-tick orphaned case in the transcript, sets no
+  `pickup_outcome`). No change to the existing uilist transaction machinery.
 - `src/ui.cpp` — NO change. Spike 13B's three gates serve this site verbatim.
 - `tests/arcopolis_backend_input_test.cpp` — two new test cases: WEAR/WIELD-shaped queue building (the
   multi-entry secondary capacity shape) and the no-window invariant pinned for that shape.
@@ -299,10 +323,12 @@ already in BN.
 ## Remaining unsupported (named backlog)
 
 - **Multi-tick pickup activities** that span the seam re-entry: the pickup transaction is not (yet) threaded
-  across activity resumes, so a long pickup whose capacity prompts open on later ticks would fall through
-  to the GUI uilist path → test_mode abort → silent CANCEL. **Acceptance criterion #2 binds this to
-  "unsupported, not silently succeeded"**; Spike 14's witnesses stay single-tick. Threading the transaction
-  across activity resumes is the named follow-up.
+  across activity resumes, so a long pickup whose capacity prompts open on later ticks cannot be **driven**.
+  Per acceptance criterion #2 this is no longer a _silent_ hole — the defensive
+  `backend_report_pickup_orphaned_secondary()` guard MARKS it (`prompt_force_cancelled
+  kind="secondary_capacity_orphaned"`) and leaves the item behind. The named follow-up is to _drive_ it:
+  thread the pickup transaction (and its uilist channel) across resumed activity ticks so a resumed-tick
+  capacity prompt is answered through the same registered-action path instead of marked.
 - **Disabled-entry uilist navigation** (acceptance criterion #1): the `[DOWN×K, CONFIRM]` translation
   assumes all entries before the target are enabled. Witnesses use all-enabled-entries. A future fix
   (account for `scrollby` skipping disabled entries) is the prerequisite for any witness with disabled
