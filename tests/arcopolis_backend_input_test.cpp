@@ -613,6 +613,76 @@ TEST_CASE( "arcopolis backend uilist setup populates state but creates NO curses
     arcopolis::end_backend_session();
 }
 
+// --- Spike 14: backend-driven uilist transaction at a SECOND site -- the secondary capacity/wield/spill
+// uilist (handle_problematic_pickup, src/pickup.cpp), reusing the Spike 13B machinery unchanged. The seam
+// (gate / serve branch / channel) is byte-identical to the vehicle-source path; these tests pin that the
+// same machinery serves a different uilist shape (WEAR/WIELD choices) without regression.
+
+TEST_CASE( "arcopolis Spike 14 secondary capacity uilist serves WEAR/WIELD via the same UILIST seam",
+           "[arcopolis]" )
+{
+    // The handle_problematic_pickup uilist (Spike 14 witness) has at most 4 entries (WEAR/WIELD/EMPTY/SPILL).
+    // The witness scenario has 2: WEAR+WIELD for an over-capacity armor item. Choose entry 1 (WIELD) -> queue
+    // [DOWN, CONFIRM] consumed through the real "UILIST" loop, same as the vehicle-source ground choice.
+    const std::vector<std::string> uilist_actions = { "UP", "DOWN", "CONFIRM", "QUIT" };
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .uilist_prompt_source = []( const arcopolis::backend_uilist_prompt_request & req )
+    -> std::optional<int> {
+        CHECK( req.kind == "uilist" );
+        CHECK( req.title == "Not enough capacity to stash leather jacket" );
+        REQUIRE( req.choices.size() == 2 );
+        CHECK( req.choices[0].text == "Wear leather jacket" );
+        CHECK( req.choices[0].enabled );        // Spike 14 acceptance: all-enabled-entries only
+        CHECK( req.choices[1].text == "Wield leather jacket" );
+        CHECK( req.choices[1].enabled );
+        return 1;  // choose WIELD (entry 1)
+    } } );
+    CHECK( arcopolis::backend_uilist_prompt_available() );
+    arcopolis::backend_arm_pickup_transaction( 7 );
+    arcopolis::backend_begin_uilist_transaction();
+    arcopolis::backend_resolve_uilist_choice( { .kind = "uilist",
+            .title = "Not enough capacity to stash leather jacket",
+    .choices = { { .index = 0, .text = "Wear leather jacket", .enabled = true },
+        { .index = 1, .text = "Wield leather jacket", .enabled = true }
+    } } );
+    for( const std::string &expected : { "DOWN", "CONFIRM" } ) {
+        const std::string *served = arcopolis::backend_nested_input_action( "UILIST", uilist_actions, -1 );
+        REQUIRE( served != nullptr );
+        CHECK( *served == expected );
+    }
+    arcopolis::backend_end_uilist_transaction();
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis Spike 14 secondary capacity setup leaves NO curses window", "[arcopolis]" )
+{
+    // The no-window invariant binds EVERY un-abort site, not just the vehicle submenu. Pin it for the
+    // secondary capacity uilist's shape too: setup() under backend_ui_mode_active() populates the entry
+    // retvals/fentries without ever calling catacurses::newwin -- so the curses build (where ::newwin is
+    // the real ncurses one, fatal before initscr) never crashes here. The tiles cata_test we CAN run
+    // witnesses this because the tiles pseudo-curses newwin returns a non-null window, so a regression
+    // re-adding an unconditional newwin would make !menu.window FAIL.
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .uilist_prompt_source = []( const arcopolis::backend_uilist_prompt_request & )
+                                                -> std::optional<int> { return 1; } } );
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    arcopolis::backend_begin_uilist_transaction();
+    REQUIRE( arcopolis::backend_ui_mode_active() );
+
+    uilist menu;
+    menu.text = "Not enough capacity to stash leather jacket";
+    menu.addentry( "Wear leather jacket" );    // entry 0
+    menu.addentry( "Wield leather jacket" );    // entry 1
+    menu.setup();
+
+    CHECK( !menu.window );                  // the load-bearing invariant for ANY un-aborted uilist
+    CHECK( menu.entries[0].retval == 0 );
+    CHECK( menu.entries[1].retval == 1 );
+
+    arcopolis::backend_end_uilist_transaction();
+    arcopolis::end_backend_session();
+}
+
 TEST_CASE( "arcopolis wait_for_any_key does not block during a backend session", "[arcopolis]" )
 {
     // The raw "press any key" prompt (input_manager::wait_for_any_key, reached e.g. by examining a

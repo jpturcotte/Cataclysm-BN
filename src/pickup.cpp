@@ -169,17 +169,35 @@ static pickup_answer handle_problematic_pickup( const item &it, bool &offered_sw
         return CANCEL;
     }
 
-    // Spike 12A follow-up: a live pickup transaction cannot drive this secondary capacity/wield/spill
-    // prompt. It is a uilist, which in the backend's test_mode short-circuits to UILIST_ERROR (src/ui.cpp:918)
-    // WITHOUT reaching the nested-input guard, and would then resolve to CANCEL anyway -- leaving the item
-    // behind. Make that explicit and MARKED rather than silent: record the forced cancel (the live command
-    // is marked a partial pickup, NOT full success -- docs/arcopolis/31) and return CANCEL, exactly the
-    // engine's own test_mode outcome (the rejected item stays on the ground, never logged as picked up).
-    // Gated on an armed backend pickup transaction, so normal play and the GUI are untouched.
-    if( arcopolis::backend_pickup_transaction_active() ) {
+    // Spike 14 (docs/arcopolis/34): a live pickup transaction with a uilist channel DRIVES this secondary
+    // capacity/wield/spill uilist at level 4 via the Spike 13B mechanism -- arm a uilist transaction so
+    // backend_ui_mode_active() is true (un-aborting uilist::init/query for exactly this menu, src/ui.cpp),
+    // expose the REAL amenu.entries as a prompt, and serve registered UILIST actions [DOWN x choice,
+    // CONFIRM] (or [QUIT] for cancel) through the engine's own input_context("UILIST")::handle_input loop,
+    // which sets amenu.ret. The backend NEVER mutates amenu.ret/selected/fentries.
+    //
+    // Without a uilist channel (a misconfigured live session; non-live cannot reach here -- `pickup` is
+    // is_live_only_command and rejects at pre-flight), fall back to the doc-31 marked-partial path: record
+    // the forced cancel so the live command response carries forced_cancel + partial +
+    // unsupported_prompt="secondary_capacity" and the transcript a prompt_force_cancelled event, then
+    // return CANCEL (the engine's own test_mode outcome -- the rejected item stays on the ground, never
+    // logged as picked up). NOT silent success.
+    //
+    // Gated on an armed backend pickup transaction so normal play and the GUI are untouched.
+    const bool drive = arcopolis::backend_pickup_transaction_active()
+                       && arcopolis::backend_uilist_prompt_available();
+    if( arcopolis::backend_pickup_transaction_active() && !drive ) {
         arcopolis::backend_report_pickup_secondary_forced_cancel();
         return CANCEL;
     }
+    if( drive ) {
+        // MUST arm BEFORE the uilist is constructed -- the default ctor's init() reads
+        // backend_ui_mode_active() to decide the test_mode abort (src/ui.cpp:159-162).
+        arcopolis::backend_begin_uilist_transaction();
+    }
+    // RAII guard: closes the transaction on EVERY return path so the un-abort gate never leaks into the
+    // next command. Inert when not armed, so unconditional construction is safe on the GUI path too.
+    arcopolis::uilist_transaction_guard uilist_guard;
 
     player &u = g->u;
 
@@ -209,6 +227,30 @@ static pickup_answer handle_problematic_pickup( const item &it, bool &offered_sw
     if( it.is_bucket_nonempty() ) {
         amenu.addentry( SPILL, u.can_pick_volume( it ), 's', _( "Spill %s, then pick up %s" ),
                         it.contents.front().tname(), it.display_name() );
+    }
+
+    if( drive ) {
+        // Expose the REAL amenu.entries (txt + enabled + position index) as the prompt, then arm the
+        // registered-action queue the real uilist loop consumes. Spike 14's equivalence claim is limited
+        // to all-enabled entries -- backend_resolve_uilist_choice translates choice K -> [DOWN x K,
+        // CONFIRM], while uilist::scrollby skips disabled entries (src/ui.cpp:828-840), so a queue that
+        // walks past disabled entries can overshoot the intended target. Disabled-entry navigation is
+        // unresolved (see docs/arcopolis/34); the spike's regression asserts every choice is enabled.
+        auto request = arcopolis::backend_uilist_prompt_request{
+            .kind = "uilist",
+            .title = explain,
+            .choices = {},
+            .cancelable = true,
+        };
+        request.choices.reserve( amenu.entries.size() );
+        for( std::size_t i = 0; i < amenu.entries.size(); ++i ) {
+            request.choices.push_back( {
+                .index = static_cast<int>( i ),
+                .text = amenu.entries[i].txt,
+                .enabled = amenu.entries[i].enabled,
+            } );
+        }
+        arcopolis::backend_resolve_uilist_choice( request );
     }
 
     amenu.query();
