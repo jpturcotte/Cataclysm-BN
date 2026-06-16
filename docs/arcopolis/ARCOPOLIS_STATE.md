@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 12A + follow-up; Spike 13A audit + Spike 13B backend-driven uilist, 2026-06-15)
+# Arcopolis backend — current state (truth as of Spike 14 backend-driven secondary capacity uilist, 2026-06-16)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -212,11 +212,31 @@ ground (`ret=1=from_ground`) flows into the existing old `"PICKUP"` item menu, d
 fail-loud is **retained as the no-channel fallback** (non-live / misconfigured: no `uilist_prompt_source` →
 `unsupported_command`). Witness `ArcopolisVehicleCargoTest`. **Non-live** modes (`--arcopolis-run-script`,
 one-shot `--arcopolis-command`) still reject `pickup` at pre-flight with `unsupported_command` (exit 6) before
-the world load. The secondary capacity/wield/spill `uilist` is still **marked-partial, not driven**; generic
-`uilist`, the new inventory_selector, per-unit quantities, and every other menu class stay backlog. See
-[30_SPIKE12A_PROMPT_MENU_TRANSACTION.md](30_SPIKE12A_PROMPT_MENU_TRANSACTION.md),
-[31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md](31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md) and
-[33_SPIKE13B_BACKEND_DRIVEN_UILIST.md](33_SPIKE13B_BACKEND_DRIVEN_UILIST.md).
+the world load.
+
+**The secondary capacity/wield/spill `uilist` is now DRIVEN at level 4 too (Spike 14, doc 34).** When
+`pickup_activity_actor` raises `handle_problematic_pickup`'s `uilist` for an item that does not fit, a live
+session with the same Spike 13B mechanism (per-transaction `backend_ui_mode_active()` gate + the unchanged
+`backend_resolve_uilist_choice`/`"UILIST"` serve branch) arms a fresh uilist transaction around the
+construction, exposes the real `amenu.entries` (`Wear X` / `Wield X` / `Empty X` / `Spill X`, each with the
+engine's own `enabled` flag) as `kind:"uilist"`, and the real `input_context("UILIST")::handle_input` loop
+consumes the served `[DOWN×K, CONFIRM]` (or `[QUIT]`) — setting `amenu.ret = WEAR`/`WIELD`/`EMPTY`/`SPILL`,
+which `pick_one_up` then routes to `u.wear_item`/`u.wield`/spill/empty. The `live_vehicle_source_prompt`
+hook is renamed `live_uilist_prompt` to match its now-general use across both backend-driven uilists.
+Witnesses: `ArcopolisTest`'s WIELD-blanket scenario (single-entry uilist; the existing Gate E converted
+from force-cancel-marker to driven-WIELD) and the new `ArcopolisCapacityTest` fixture (a clone with
+`jacket_leather` injected onto the south pile, giving WEAR+WIELD = 2 enabled entries — DOWN-navigation
+witness, the new Gate J with five sub-gates). **Equivalence is bounded:** the claim is limited to
+all-enabled uilist entries (`scrollby` skips disabled entries, so a `[DOWN×K, CONFIRM]` queue could
+overshoot past disabled entries — unresolved). The doc-31 marked-partial behavior (`forced_cancel` /
+`partial` / `unsupported_prompt:"secondary_capacity"` + `prompt_force_cancelled kind=secondary_capacity`)
+is **retained as the no-channel fallback** for misconfigured live sessions (unit-tested). Generic
+`uilist`, the new inventory_selector, per-unit quantities, multi-tick pickup activities (the
+`pickup_transaction` is not threaded across activity resumes), and every other menu class stay backlog.
+See [30_SPIKE12A_PROMPT_MENU_TRANSACTION.md](30_SPIKE12A_PROMPT_MENU_TRANSACTION.md),
+[31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md](31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md),
+[33_SPIKE13B_BACKEND_DRIVEN_UILIST.md](33_SPIKE13B_BACKEND_DRIVEN_UILIST.md), and
+[34_SPIKE14_SECONDARY_PICKUP_UILIST.md](34_SPIKE14_SECONDARY_PICKUP_UILIST.md).
 
 **Movement into an occupied/obstructed tile is a faithful no-op.** A `move` whose destination holds a
 creature, or a closed-but-not-bump-openable obstacle, runs the engine's real `avatar_action::move` leaf
@@ -258,6 +278,7 @@ in the snapshot itself — the `before` snapshot carries a neutral NPC at the mo
 | 12A+  | follow-up: the pickup transaction fails loud (vehicle submenu → `unsupported_command`; non-live pickup → `unsupported_command`) or marks the secondary capacity prompt partial — never silent auto-cancel-as-success; doc 31 | ✅                                      |
 | 13A   | backend-UI-mode audit: `test_mode` conflates render/keyboard suppression (wanted) with aborting UI loops before their real input (not wanted); classifies every mechanism; designs (not builds) the mode; doc 32             | ✅ audit only                           |
 | 13B   | one backend-driven `uilist` at level 4: the vehicle-source `"Get items from where?"` submenu un-aborted + setup-headless + driven via `input_context("UILIST")` (was fail-loud); doc 33                                      | ✅                                      |
+| 14    | second backend-driven `uilist` at level 4: the in-activity secondary capacity/wield/spill `uilist` (`handle_problematic_pickup`) reuses the 13B mechanism unchanged at a second site (was marked-partial); doc 34            | ✅                                      |
 
 ## Source & tests
 
@@ -290,7 +311,11 @@ adds a fourth gated engine touch:** a session-gated pre-loop block in `pick_up_f
 upstream-rebase collision surface):** `uilist::init`/`query` in `src/ui.cpp` take the `test_mode` abort
 only when `!backend_ui_mode_active()`, and `query()` runs `setup()` directly under the gate (a non-render
 init path); the vehicle-source block in `src/pickup.cpp` drives that uilist, leaving the `uilist::query`
-loop itself UNMODIFIED.
+loop itself UNMODIFIED. **Spike 14 reuses those touches verbatim at a second `src/pickup.cpp` site
+(`handle_problematic_pickup`)** — no new gated engine touch, no new public Arcopolis symbol; the only
+seam-layer change is the `live_vehicle_source_prompt` → `live_uilist_prompt` rename in
+`src/arcopolis_live.cpp` (the body is unchanged), making the channel's now-general use across both
+backend-driven uilists explicit in the name.
 Unit tests: `tests/arcopolis_*_test.cpp` (`[arcopolis]` tag). Consumers (all stdlib-only,
 deliberately share-nothing so each independently re-derives the contract):
 `tools/arcopolis_viewer/make_report.py` (Spike 4 offline HTML report) and
@@ -461,14 +486,17 @@ stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROT
   render/keyboard suppression but lets the real `input_context` loops run and be served registered
   actions, failing loud on any class it cannot yet drive — is now a named backlog item **before**
   broader prompt/menu support (the new inventory_selector, computer menus, NPC dialogue) and
-  **before** treating pipes as a robust frontend boundary. **The narrow proof spike (13B) is now BUILT
+  **before** treating pipes as a robust frontend boundary. **The narrow proof spike (13B) is BUILT
   ([33_SPIKE13B_BACKEND_DRIVEN_UILIST.md](33_SPIKE13B_BACKEND_DRIVEN_UILIST.md)):** one `uilist` (the
   vehicle-source pickup submenu) runs headlessly to its real `input_context("UILIST")::handle_input`
   loop, with `setup()` populating `fentries`/retvals on a non-render path, consuming registered
   `DOWN`/`CONFIRM` Arcopolis supplies through the seam, at equivalence level 4 — gated on a
-  per-transaction `backend_ui_mode_active()` so cata_test and every other `uilist` still abort. Broader
-  prompt/menu support (the secondary capacity `uilist`, `query_popup`/`popup()`, the inventory_selector,
-  computer menus, NPC dialogue) can now build on the proven mode; none are implemented yet.
+  per-transaction `backend_ui_mode_active()` so cata_test and every other `uilist` still abort. **Spike 14
+  ([34_SPIKE14_SECONDARY_PICKUP_UILIST.md](34_SPIKE14_SECONDARY_PICKUP_UILIST.md)) generalizes the mode by
+  reusing the same machinery unchanged at a second site:** the in-activity secondary capacity/wield/spill
+  `uilist` (`handle_problematic_pickup`) is now driven too. Broader prompt/menu support (`query_popup` /
+  `popup()`, the inventory_selector, computer menus, NPC dialogue) can build on the proven mode; none are
+  implemented yet.
 
 ## Build (Windows)
 
