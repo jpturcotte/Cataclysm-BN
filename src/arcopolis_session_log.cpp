@@ -234,6 +234,9 @@ auto arcopolis::write_prompt_answered_line( std::ostream &out,
         json.write( a );
     }
     json.end_array();
+    if( !ev.kind.empty() ) {
+        json.member( "kind", ev.kind );
+    }
     json.end_object();
     out << '\n';
 }
@@ -247,6 +250,9 @@ auto arcopolis::write_prompt_cancelled_line( std::ostream &out,
         json.member( "step_index", *ev.step_index );
     }
     json.member( "reason", ev.reason );
+    if( !ev.kind.empty() ) {
+        json.member( "kind", ev.kind );
+    }
     json.end_object();
     out << '\n';
 }
@@ -273,6 +279,9 @@ auto arcopolis::write_prompt_completed_line( std::ostream &out,
         json.member( "step_index", *ev.step_index );
     }
     json.member( "actions_served", ev.actions_served );
+    if( !ev.kind.empty() ) {
+        json.member( "kind", ev.kind );
+    }
     json.end_object();
     out << '\n';
 }

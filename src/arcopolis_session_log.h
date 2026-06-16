@@ -148,18 +148,23 @@ struct prompt_opened_event {
 /// `prompt_answered`: the client chose one or more listed options; the backend translated `choices` into
 /// the registered input `actions` (e.g. ["RIGHT","DOWN","DOWN","RIGHT","CONFIRM"]) the engine's OWN menu
 /// loop then consumes (one `RIGHT` mark per chosen entry, navigated by `DOWN`, finalized by `CONFIRM`).
+/// `kind` (Spike 13B) names the prompt class ("uilist" for the vehicle-source submenu); emitted only when
+/// non-empty, so the old "PICKUP" menu's record (kind unset) stays byte-identical.
 struct prompt_answered_event {
     std::optional<int> step_index;
     std::vector<int> choices;
     std::vector<std::string> actions;
+    std::string kind;  ///< Spike 13B: prompt class; field omitted from the record when empty
 };
 
 /// `prompt_cancelled`: the client cancelled (or disconnected); the backend armed the menu's cancel action
 /// (== the GUI player pressing ESC). `reason` is "client_cancel" (live cancel or EOF mid-prompt) or
-/// "no_channel" (script/one-shot mode, where there is no answer channel to ask on).
+/// "no_channel" (script/one-shot mode, where there is no answer channel to ask on). `kind` (Spike 13B) as
+/// in prompt_answered: emitted only when non-empty.
 struct prompt_cancelled_event {
     std::optional<int> step_index;
     std::string reason;
+    std::string kind;  ///< Spike 13B: prompt class; field omitted from the record when empty
 };
 
 /// `prompt_failed`: an invalid/malformed prompt answer was rejected; the prompt stays open for a retry and
@@ -171,10 +176,13 @@ struct prompt_failed_event {
 };
 
 /// `prompt_completed`: control returned to the top-level seam after the transaction -- the engine's menu
-/// loop consumed `actions_served` registered actions to completion (or cancel).
+/// loop consumed `actions_served` registered actions to completion (or cancel). `kind` (Spike 13B) names
+/// the prompt class ("uilist"); emitted only when non-empty, so the old "PICKUP" menu's record stays
+/// byte-identical.
 struct prompt_completed_event {
     std::optional<int> step_index;
     int actions_served = 0;
+    std::string kind;  ///< Spike 13B: prompt class; field omitted from the record when empty
 };
 
 /// `prompt_force_cancelled`: an UNSUPPORTED prompt the backend cannot drive was force-cancelled during a

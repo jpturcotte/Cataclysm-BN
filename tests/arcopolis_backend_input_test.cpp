@@ -8,7 +8,9 @@
 #include "arcopolis_backend_input.h"
 #include "arcopolis_command.h"  // command_error_kind
 #include "arcopolis_script.h"   // script_step
+#include "debug.h"              // capture_debugmsg_during (cata_test uilist-abort witness)
 #include "input.h"              // inp_mngr, input_manager::wait_for_any_key (raw-read guard)
+#include "ui.h"                 // uilist, UILIST_ERROR (Spike 13B backend-UI-mode witnesses)
 
 // Unit tests for the Arcopolis backend INPUT SOURCE (Spike 3.1A, mechanism M1). These cover the pure,
 // world-independent parts: the command->action_id resolver (command_to_action) and the session/cursor
@@ -446,6 +448,168 @@ TEST_CASE( "arcopolis pickup outcome reports are inert without an armed transact
     arcopolis::backend_report_pickup_unsupported_submenu();
     arcopolis::backend_report_pickup_secondary_forced_cancel();
     CHECK( arcopolis::backend_take_pickup_outcome() == outcome_t::ok );
+    arcopolis::end_backend_session();
+}
+
+// --- Spike 13B: backend-driven uilist transaction (the "Get items from where?" vehicle-source submenu). ---
+
+TEST_CASE( "arcopolis backend_ui_mode_active gates on an armed uilist transaction only",
+           "[arcopolis]" )
+{
+    // The uilist test_mode-abort bypass (src/ui.cpp) keys on this gate and NOTHING weaker. It must be false
+    // outside a session, false inside a session with no uilist transaction (even with a pickup transaction
+    // armed), true only between begin/end of a uilist transaction.
+    CHECK_FALSE( arcopolis::backend_ui_mode_active() );           // no session
+    arcopolis::begin_backend_session( { .steps = {} } );
+    CHECK_FALSE( arcopolis::backend_ui_mode_active() );           // session, nothing armed
+    arcopolis::backend_begin_uilist_transaction();                // inert without a pickup transaction
+    CHECK_FALSE( arcopolis::backend_ui_mode_active() );
+    arcopolis::backend_arm_pickup_transaction( 1 );
+    CHECK_FALSE( arcopolis::backend_ui_mode_active() );           // pickup transaction is not enough
+    arcopolis::backend_begin_uilist_transaction();
+    CHECK( arcopolis::backend_ui_mode_active() );                 // armed
+    arcopolis::backend_end_uilist_transaction();
+    CHECK_FALSE( arcopolis::backend_ui_mode_active() );           // cleared
+    arcopolis::backend_end_uilist_transaction();                  // idempotent
+    CHECK_FALSE( arcopolis::backend_ui_mode_active() );
+    arcopolis::end_backend_session();
+    CHECK_FALSE( arcopolis::backend_ui_mode_active() );
+}
+
+TEST_CASE( "arcopolis backend-driven uilist serves DOWN+CONFIRM for the ground choice",
+           "[arcopolis]" )
+{
+    // The witnessed level-4 path: the client picks entry 1 (ground), and the backend translates it into the
+    // registered UILIST actions [DOWN, CONFIRM] the real uilist loop consumes -- one per blocking read, only
+    // for the "UILIST" category.
+    const std::vector<std::string> uilist_actions = { "UP", "DOWN", "PAGE_UP", "PAGE_DOWN", "CONFIRM", "QUIT" };
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .uilist_prompt_source = []( const arcopolis::backend_uilist_prompt_request & req )
+    -> std::optional<int> {
+        CHECK( req.kind == "uilist" );
+        CHECK( req.choices.size() == 2 );
+        return 1;  // choose "ground" (entry 1)
+    } } );
+    CHECK( arcopolis::backend_uilist_prompt_available() );
+    arcopolis::backend_arm_pickup_transaction( 4 );
+    arcopolis::backend_begin_uilist_transaction();
+    arcopolis::backend_resolve_uilist_choice( { .kind = "uilist", .title = "Get items from where?",
+    .choices = { { .index = 0, .text = "vehicle", .enabled = true },
+        { .index = 1, .text = "ground", .enabled = true }
+    } } );
+    for( const std::string &expected : { "DOWN", "CONFIRM" } ) {
+        const std::string *served = arcopolis::backend_nested_input_action( "UILIST", uilist_actions, -1 );
+        REQUIRE( served != nullptr );
+        CHECK( *served == expected );
+    }
+    // A timeout-bounded poll passes through (a blocking read only is served), mirroring the PICKUP queue.
+    CHECK( arcopolis::backend_nested_input_action( "UILIST", uilist_actions, 0 ) == nullptr );
+    arcopolis::backend_end_uilist_transaction();
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis backend-driven uilist builds the right action queue per answer",
+           "[arcopolis]" )
+{
+    // The single-select queue: choose entry K -> DOWN x K then CONFIRM; cancel / EOF / out-of-range -> QUIT.
+    const std::vector<std::string> uilist_actions = { "UP", "DOWN", "CONFIRM", "QUIT" };
+    auto served_for = [&]( const std::optional<int> &answer ) -> std::vector<std::string> {
+        arcopolis::begin_backend_session( {
+            .steps = {},
+            .uilist_prompt_source = [answer]( const arcopolis::backend_uilist_prompt_request & )
+            -> std::optional<int> { return answer; } } );
+        arcopolis::backend_arm_pickup_transaction( 0 );
+        arcopolis::backend_begin_uilist_transaction();
+        arcopolis::backend_resolve_uilist_choice( {
+            .kind = "uilist", .title = "t",
+            .choices = { { .index = 0, .text = "cargo", .enabled = true },
+                { .index = 1, .text = "ground", .enabled = true }
+            } } );
+        std::vector<std::string> served;
+        for( ;; )
+        {
+            const std::string *a = arcopolis::backend_nested_input_action( "UILIST", uilist_actions, -1 );
+            REQUIRE( a != nullptr );
+            served.push_back( *a );
+            if( *a == "CONFIRM" || *a == "QUIT" ) {
+                break;  // the queue's terminal element is always the loop-exit action
+            }
+        }
+        arcopolis::backend_end_uilist_transaction();
+        arcopolis::end_backend_session();
+        return served;
+    };
+    CHECK( served_for( 0 ) == std::vector<std::string> { "CONFIRM" } );          // cargo (entry 0)
+    CHECK( served_for( 1 ) == std::vector<std::string> { "DOWN", "CONFIRM" } );  // ground (entry 1)
+    CHECK( served_for( std::nullopt ) == std::vector<std::string> { "QUIT" } );  // cancel / EOF
+    CHECK( served_for( 5 ) == std::vector<std::string> { "QUIT" } );             // out of range -> cancel
+}
+
+TEST_CASE( "arcopolis vehicle submenu fails loud with no uilist answer channel", "[arcopolis]" )
+{
+    // No uilist_prompt_source (script/one-shot / misconfigured live): the engine call site (src/pickup.cpp)
+    // finds backend_uilist_prompt_available() false and reports unsupported_submenu instead of driving a
+    // uilist with no channel -- preserving the doc-31 fail-loud. With a channel set it is available.
+    using outcome_t = arcopolis::pickup_command_outcome;
+    arcopolis::begin_backend_session( { .steps = {} } );  // no uilist_prompt_source
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    CHECK_FALSE( arcopolis::backend_uilist_prompt_available() );
+    arcopolis::backend_report_pickup_unsupported_submenu();  // exactly what src/pickup.cpp does in that branch
+    CHECK( arcopolis::backend_take_pickup_outcome() == outcome_t::unsupported_submenu );
+    arcopolis::end_backend_session();
+
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .uilist_prompt_source = []( const arcopolis::backend_uilist_prompt_request & )
+                                                -> std::optional<int> { return 0; } } );
+    CHECK( arcopolis::backend_uilist_prompt_available() );
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis cata_test uilist still aborts to UILIST_ERROR without a backend session",
+           "[arcopolis]" )
+{
+    // The invariant the Spike 13B un-abort must NOT break: ordinary test_mode (cata_test, no backend
+    // session) still short-circuits every uilist to UILIST_ERROR. backend_ui_mode_active() is false here, so
+    // both init() and query() take the abort (each emits its debugmsg, captured so the test does not abort).
+    REQUIRE_FALSE( arcopolis::backend_ui_mode_active() );
+    const std::string msgs = capture_debugmsg_during( []() {
+        uilist menu( "Get items from where?", { "Get items from vehicle cargo", "Get items on the ground" } );
+        CHECK( menu.ret == UILIST_ERROR );
+    } );
+    CHECK_FALSE( msgs.empty() );
+}
+
+TEST_CASE( "arcopolis backend uilist setup populates state but creates NO curses window",
+           "[arcopolis]" )
+{
+    // INVARIANT (build-independent): the Arcopolis backend headless path must create no curses window and
+    // call no render primitive in ANY build. The driven uilist loop reads only entries/retvals/fentries, so
+    // setup() under backend_ui_mode_active() runs its data-population pass but SKIPS catacurses::newwin --
+    // which in a curses build is the real ncurses ::newwin (src/ncurses_def.cpp), fatal before initscr (which
+    // --arcopolis-live skips under test_mode). This pins that here in the tiles cata_test: the tiles
+    // pseudo-curses newwin would return a NON-null window, so `!menu.window` FAILS the instant a regression
+    // re-adds an unconditional newwin -- catching the curses-build crash in the build we CAN run. (Codex
+    // review, PR #40.)
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .uilist_prompt_source = []( const arcopolis::backend_uilist_prompt_request & )
+                                                -> std::optional<int> { return 1; } } );
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    arcopolis::backend_begin_uilist_transaction();
+    REQUIRE( arcopolis::backend_ui_mode_active() );
+
+    uilist menu;  // default ctor's init() does NOT abort here (backend_ui_mode_active() is true)
+    menu.text = "Get items from where?";
+    menu.addentry( "Get items from vehicle cargo" );  // entry 0
+    menu.addentry( "Get items on the ground" );        // entry 1
+    menu.setup();  // the engine's own non-render layout/data pass
+
+    CHECK( !menu.window );                  // the load-bearing invariant: NO window was created
+    CHECK( menu.entries[0].retval ==
+           0 );   // setup()'s data pass ran: retvals auto-assigned to the index
+    CHECK( menu.entries[1].retval ==
+           1 );   // (so the real loop's CONFIRM resolves ground -> from_ground=1)
+
+    arcopolis::backend_end_uilist_transaction();
     arcopolis::end_backend_session();
 }
 

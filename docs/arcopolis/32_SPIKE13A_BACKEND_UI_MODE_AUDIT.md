@@ -305,6 +305,18 @@ The narrowest proof of this design:
 One fixture/witness, one prompt class, no new command surface. If it holds, broader prompt/menu
 support (the new inventory_selector, computer menus, NPC dialogue) can build on the proven mode.
 
+> **Spike 13B result (2026-06-15) — it holds.** Built exactly per this design and proven at runtime in
+> [33_SPIKE13B_BACKEND_DRIVEN_UILIST.md](33_SPIKE13B_BACKEND_DRIVEN_UILIST.md): the vehicle-source
+> `"Get items from where?"` `uilist` runs headlessly to its real `input_context("UILIST")::handle_input`
+> loop, with `setup()`/`filterlist()` populating `fentries`/`vmax`/retvals on a non-render path (the
+> direct-call variant of strategy point 3 — `setup()` is called from `uilist::query()` under the gate
+> rather than via the redraw/resize callbacks, which avoids touching `ui_manager.cpp` and un-suppressing
+> draws globally), and the engine's own loop consuming registered `DOWN`/`CONFIRM` (equivalence **level
+> 4**). The gate is `arcopolis::backend_ui_mode_active()` = `session.active && session.uilist_transaction`
+> (strategy point 1), scoped to exactly the one armed menu (strategy point 2's "scope the un-abort to the
+> targeted menu"). cata_test's `uilist` still returns `UILIST_ERROR` (asserted). The audit history above is
+> unchanged; this note only records that the proposed spike was implemented and passed.
+
 ## Claim → cite → verdict audit
 
 Per [[cite-the-implementing-line]] — each load-bearing claim verified at the implementing line

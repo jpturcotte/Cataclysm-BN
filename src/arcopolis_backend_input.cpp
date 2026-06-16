@@ -55,6 +55,17 @@ struct backend_session {
     arcopolis::pickup_command_outcome pickup_outcome =
         arcopolis::pickup_command_outcome::ok;       ///< Spike 12A follow-up: unsupported sub-prompt outcome;
     ///< survives clear_stale, consumed by the live response writer
+    arcopolis::backend_uilist_prompt_source
+    uilist_prompt_source;  ///< Spike 13B: live uilist answer channel
+    bool uilist_transaction =
+        false;                 ///< Spike 13B: a uilist drive is armed (the un-abort gate)
+    bool uilist_opened = false;                      ///< Spike 13B: a real uilist prompt was exposed
+    std::optional<int>
+    uilist_step_index;            ///< the arming pickup command's step index (correlation)
+    std::vector<std::string> uilist_queue;           ///< Spike 13B: registered UILIST actions, in order
+    std::size_t uilist_cursor = 0;                   ///< next uilist_queue index to serve
+    int uilist_served =
+        0;                           ///< uilist actions served (the prompt_completed count)
 };
 
 backend_session session;
@@ -77,6 +88,13 @@ std::string nested_served_action;
 const std::string pickup_menu_category = "PICKUP";
 /// Stable storage for a served pickup-queue action (handle_input returns a const reference).
 std::string pickup_served_action;
+
+/// The category of the engine's `uilist` input context (src/ui.cpp create_main_input_context, member
+/// `input_category` defaults to "UILIST") -- the only context the Spike 13B registered-action queue is
+/// served to. Distinct from pickup_menu_category: a different loop in a different translation unit.
+const std::string uilist_menu_category = "UILIST";
+/// Stable storage for a served uilist-queue action (handle_input returns a const reference).
+std::string uilist_served_action;
 
 /// Force-clears the nested slot at a return to the top-level seam. An armed-but-unconsumed answer is
 /// recorded as a `nested_input_unconsumed` transcript event BEFORE any pending live response is written
@@ -112,6 +130,24 @@ auto clear_stale_nested_input() -> void
     session.pickup_queue.clear();
     session.pickup_cursor = 0;
     session.pickup_served = 0;
+    // Spike 13B: defensively close out any uilist transaction at the seam return. The normal path clears it
+    // synchronously via backend_end_uilist_transaction() (a scope guard in src/pickup.cpp) the instant the
+    // submenu closes, so this almost never fires; it guards a leak (an early return that skipped the guard)
+    // by bookending the missing prompt_completed and clearing the state, so nothing leaks into the next
+    // command's prompts.
+    if( session.uilist_transaction && session.uilist_opened ) {
+        arcopolis::session_log_prompt_completed( {
+            .step_index = session.uilist_step_index,
+            .actions_served = session.uilist_served,
+            .kind = "uilist",
+        } );
+    }
+    session.uilist_transaction = false;
+    session.uilist_opened = false;
+    session.uilist_step_index.reset();
+    session.uilist_queue.clear();
+    session.uilist_cursor = 0;
+    session.uilist_served = 0;
 }
 
 /// The machine-readable name a `nested_input_guard` event records for its reason.
@@ -223,6 +259,7 @@ auto arcopolis::begin_backend_session( const backend_session_options &opts ) -> 
         .failure = std::nullopt,
         .live_source = opts.live_source,
         .prompt_source = opts.prompt_source,
+        .uilist_prompt_source = opts.uilist_prompt_source,
     };
 }
 
@@ -451,6 +488,107 @@ void
     }
 }
 
+auto arcopolis::backend_ui_mode_active() -> bool
+{
+    return session.active && session.uilist_transaction;
+}
+
+auto arcopolis::backend_uilist_prompt_available() -> bool
+{
+    return session.active && static_cast<bool>( session.uilist_prompt_source );
+}
+
+auto arcopolis::backend_begin_uilist_transaction() -> void
+{
+    // Gated on an armed pickup transaction (the only backend-driven uilist arises inside a live pickup).
+    // Inert otherwise. MUST run before the uilist is constructed: the default ctor's init() reads
+    // backend_ui_mode_active() to decide the test_mode abort.
+    if( !session.active || !session.pickup_transaction ) {
+        return;
+    }
+    session.uilist_transaction = true;
+    session.uilist_opened = false;  // set true only once a real uilist prompt is exposed (resolve)
+    session.uilist_step_index = session.pickup_step_index;
+    session.uilist_queue.clear();
+    session.uilist_cursor = 0;
+    session.uilist_served = 0;
+}
+
+auto arcopolis::backend_resolve_uilist_choice( const backend_uilist_prompt_request &request ) ->
+void
+{
+    // Inert unless a uilist transaction is armed (backend_begin_uilist_transaction set it). Defense in
+    // depth: the engine call site already gates on it.
+    if( !session.active || !session.uilist_transaction ) {
+        return;
+    }
+    // Record the opened prompt with the engine's REAL uilist choices (read from amenu.entries by the caller).
+    auto opened = arcopolis::prompt_opened_event{ .step_index = session.uilist_step_index,
+            .kind = request.kind };
+    for( const pickup_prompt_choice &c : request.choices ) {
+        opened.choices.push_back( { .index = c.index, .text = c.text, .enabled = c.enabled } );
+    }
+    arcopolis::session_log_prompt_opened( opened );
+    session.uilist_opened = true;
+    // Ask the live client for a SINGLE choice. The caller only reaches here with a channel present
+    // (it checks backend_uilist_prompt_available() first), but a null channel yields cancel for safety.
+    const auto answer = session.uilist_prompt_source
+                        ? session.uilist_prompt_source( request )
+                        : std::optional<int> {};
+    session.uilist_cursor = 0;
+    session.uilist_served = 0;
+    const auto valid = answer && *answer >= 0 && *answer < static_cast<int>( request.choices.size() );
+    if( valid ) {
+        // Translate the chosen entry index into the registered keystrokes a GUI player would press: from the
+        // menu's start at entry 0, DOWN once per step down to the chosen entry, then CONFIRM. The real uilist
+        // loop (src/ui.cpp uilist::query) consumes these through input_context::handle_input and sets
+        // amenu.ret = entries[selected].retval -- the backend never touches ret/selected.
+        session.uilist_queue.clear();
+        session.uilist_queue.insert( session.uilist_queue.end(),
+                                     static_cast<std::size_t>( *answer ), "DOWN" );
+        session.uilist_queue.emplace_back( "CONFIRM" );
+        arcopolis::session_log_prompt_answered( { .step_index = session.uilist_step_index,
+                                                .choices = std::vector<int> { *answer },
+                                                .actions = session.uilist_queue,
+                                                .kind = request.kind } );
+    } else {
+        // Cancel / EOF / out-of-range / absent channel: serve the registered QUIT (the GUI ESC), which the
+        // real loop turns into amenu.ret = UILIST_CANCEL (allow_cancel registers QUIT, src/ui.cpp:224).
+        session.uilist_queue = { nested_cancel_quit };
+        arcopolis::session_log_prompt_cancelled( { .step_index = session.uilist_step_index,
+                .reason = session.uilist_prompt_source ? "client_cancel" : "no_channel",
+                .kind = request.kind } );
+    }
+}
+
+auto arcopolis::backend_end_uilist_transaction() -> void
+{
+    // Inert when not armed (safe to call from a scope guard on the GUI path, or twice). Idempotent.
+    if( !session.uilist_transaction ) {
+        return;
+    }
+    // Bookend the transaction with how many registered actions the uilist loop consumed -- only if a real
+    // prompt opened (resolve sets uilist_opened; a path that armed but never reached the menu opened nothing).
+    if( session.uilist_opened ) {
+        arcopolis::session_log_prompt_completed( {
+            .step_index = session.uilist_step_index,
+            .actions_served = session.uilist_served,
+            .kind = "uilist",
+        } );
+    }
+    session.uilist_transaction = false;
+    session.uilist_opened = false;
+    session.uilist_step_index.reset();
+    session.uilist_queue.clear();
+    session.uilist_cursor = 0;
+    session.uilist_served = 0;
+}
+
+arcopolis::uilist_transaction_guard::~uilist_transaction_guard()
+{
+    arcopolis::backend_end_uilist_transaction();
+}
+
 auto arcopolis::decide_nested_input( const nested_input_observation &obs ) -> nested_input_decision
 {
     // A timeout >= 0 read is a poll (e.g. the activity-interrupt check, game.cpp
@@ -503,6 +641,23 @@ auto arcopolis::backend_nested_input_action( const std::string &category,
             ++session.pickup_cursor;
             ++session.pickup_served;
             return &pickup_served_action;
+        }
+    }
+    // Spike 13B: serve the next queued registered UILIST action to the engine's backend-driven uilist loop
+    // (src/ui.cpp uilist::query's input_context("UILIST") loop). Same shape as the PICKUP queue: only a
+    // BLOCKING read (timeout < 0), only while the asking context is "UILIST", only while actions remain. The
+    // real uilist loop reacts to DOWN/CONFIRM and sets amenu.ret; a drained queue falls through to the guard
+    // below, which (QUIT is registered for a cancelable uilist) cancels -- the loop's UILIST_CANCEL -- so the
+    // loop never hangs. Only ever non-empty while a uilist transaction is armed (the secondary capacity
+    // uilist, raised after the transaction is cleared, sees an empty queue and its own test_mode abort).
+    if( timeout < 0 && category == uilist_menu_category
+        && session.uilist_cursor < session.uilist_queue.size() ) {
+        const auto &front = session.uilist_queue[session.uilist_cursor];
+        if( ranges::contains( registered_actions, front ) ) {
+            uilist_served_action = front;
+            ++session.uilist_cursor;
+            ++session.uilist_served;
+            return &uilist_served_action;
         }
     }
     const auto armed = backend_nested_input_armed();
