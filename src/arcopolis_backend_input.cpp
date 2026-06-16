@@ -426,6 +426,28 @@ auto arcopolis::backend_report_pickup_secondary_forced_cancel() -> void
     } );
 }
 
+auto arcopolis::backend_report_pickup_orphaned_secondary() -> void
+{
+    // Fires ONLY for the orphaned case: a backend session is active but NO pickup transaction is armed (a
+    // multi-tick pickup activity resumed on a later do_turn, after clear_stale_nested_input cleared the
+    // transaction at the seam return). Inert during normal play (no session) and inert while a transaction
+    // IS armed (the drive / no-channel paths own that case -- this would double-report otherwise). Logs a
+    // transcript prompt_force_cancelled so the engine's own test_mode CANCEL is MARKED, never silent. Sets
+    // NO pickup_outcome: there is no owed command response for this resumed-activity prompt to mark, and
+    // mutating the outcome could leak a partial marker into an unrelated later response.
+    if( !session.active || session.pickup_transaction ) {
+        return;
+    }
+    session_log_prompt_force_cancelled( {
+        .step_index = std::nullopt,
+        .kind = "secondary_capacity_orphaned",
+        .reason = "a secondary capacity/wield/spill prompt was reached during a backend session with no "
+        "armed pickup transaction (a multi-tick pickup activity resumed after the transaction was cleared); "
+        "the prompt is not driven and the item is left behind. Threading the pickup transaction across "
+        "resumed activity ticks is deferred (docs/arcopolis/34).",
+    } );
+}
+
 auto arcopolis::backend_take_pickup_outcome() -> pickup_command_outcome
 {
     const auto outcome = session.pickup_outcome;
@@ -530,6 +552,27 @@ void
     }
     arcopolis::session_log_prompt_opened( opened );
     session.uilist_opened = true;
+    // PR #42 review (Codex P2) defense-in-depth: the single-select DOWN x choice -> CONFIRM translation
+    // assumes EVERY entry is enabled. uilist::filterlist() lands the initial highlight on the first ENABLED
+    // entry and uilist::scrollby() skips disabled entries (src/ui.cpp), so a raw position index would
+    // mis-navigate to a DIFFERENT enabled action when any entry is disabled. This driver does NOT support
+    // disabled-entry shapes (acceptance criterion #1): if any choice is disabled, refuse WITHOUT asking the
+    // client -- serve QUIT (the engine's UILIST_CANCEL) and log prompt_cancelled reason
+    // "disabled_entry_unsupported" -- rather than risk the wrong selection. (The pickup call site already
+    // refuses + marks partial before reaching here; this guards every other caller and is the unit-test hook.)
+    const auto any_disabled = std::ranges::any_of( request.choices,
+    []( const pickup_prompt_choice & c ) {
+        return !c.enabled;
+    } );
+    if( any_disabled ) {
+        session.uilist_cursor = 0;
+        session.uilist_served = 0;
+        session.uilist_queue = { nested_cancel_quit };
+        arcopolis::session_log_prompt_cancelled( { .step_index = session.uilist_step_index,
+                .reason = "disabled_entry_unsupported",
+                .kind = request.kind } );
+        return;
+    }
     // Ask the live client for a SINGLE choice. The caller only reaches here with a channel present
     // (it checks backend_uilist_prompt_available() first), but a null channel yields cancel for safety.
     const auto answer = session.uilist_prompt_source

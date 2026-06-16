@@ -1,11 +1,17 @@
 # Arcopolis Spike 12A follow-up — the pickup transaction fails loud, never silently auto-cancel-as-success
 
-> **Superseded for one path (Spike 13B, 2026-06-15):** the **vehicle "Get items from where?" submenu** (P1
-> below) is no longer fail-loud in **live** mode — it is now **driven at level 4**
-> ([33_SPIKE13B_BACKEND_DRIVEN_UILIST.md](33_SPIKE13B_BACKEND_DRIVEN_UILIST.md)). The fail-loud is retained
-> as the **no-channel fallback** (non-live / misconfigured). The non-live pre-flight reject (P2) and the
-> secondary capacity/wield/spill marked-partial are **unchanged**. This historical record is otherwise
-> accurate as of its date; see doc 33 for the current vehicle-submenu behavior.
+> **Superseded for two paths (Spikes 13B and 14):**
+>
+> - The **vehicle "Get items from where?" submenu** (P1 below) is no longer fail-loud in **live** mode — it
+>   is now **driven at level 4** (Spike 13B,
+>   [33_SPIKE13B_BACKEND_DRIVEN_UILIST.md](33_SPIKE13B_BACKEND_DRIVEN_UILIST.md)).
+> - The **secondary capacity/wield/spill prompt** ("Secondary in-activity prompts" section below) is no
+>   longer marked-partial in **live** mode — it is now **driven at level 4** (Spike 14,
+>   [34_SPIKE14_SECONDARY_PICKUP_UILIST.md](34_SPIKE14_SECONDARY_PICKUP_UILIST.md)).
+>
+> The fail-loud / marked-partial behaviors are **retained as the no-channel fallback** (non-live /
+> misconfigured live sessions). The non-live pre-flight reject (P2) is **unchanged**. This historical record
+> is otherwise accurate as of its date; see docs 33 / 34 for the current driven behaviors.
 
 **Status: implementation + decision record (2026-06-15).** A direct follow-up to
 [30_SPIKE12A_PROMPT_MENU_TRANSACTION.md](30_SPIKE12A_PROMPT_MENU_TRANSACTION.md). Spike 12A proved a

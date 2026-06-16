@@ -27,12 +27,12 @@
 #     follow-up valid answer completes the SAME command; the session is uncorrupted.
 #   D (NEW_PICKUP_MENU=true fail-loud): a pickup is rejected ok:false unsupported_command BEFORE any
 #     prompt (no silent route to the unsupported inventory_selector); a later wait still works.
-#   E (rejected items): a multi-select [0,6] where the bulky entry is over-capacity -> the engine carries
-#     only what fits (the shard), LEAVES the rejected blanket on the ground, and never logs it as picked up.
-#     Driving the in-activity capacity prompt is NOT implemented (tracked defect). Spike 12A follow-up:
-#     the command response is MARKED { forced_cancel, partial, unsupported_prompt:"secondary_capacity" } and
-#     the transcript records prompt_force_cancelled -- NOT full success, a partial result with the secondary
-#     prompt force-cancelled and explicitly marked.
+#   E (Spike 14: drive the secondary capacity uilist at level 4 -- WIELD-blanket): a multi-select [0,6]
+#     where the bulky blanket is over-capacity raises the secondary capacity uilist (single entry:
+#     "Wield blanket", avatar unarmed); answering choice:0 (WIELD) serves [CONFIRM] through the real
+#     input_context("UILIST") loop, the engine wields the blanket via u.wield -> blanket leaves ground,
+#     becomes primary_weapon, shard is stashed, response clean ok:true with NO forced_cancel/partial
+#     markers (the doc-31 markers now live ONLY on the no-channel fallback, covered by the unit suite).
 #   F (multi-select carry-both, ArcopolisBackpackTest): a multi-select [5,6] on the backpack avatar drives
 #     TWO RIGHT marks ([DOWN x5, RIGHT, DOWN, RIGHT, CONFIRM]) through the engine's own loop; BOTH chosen
 #     entries leave the ground (7 -> 5) and the others remain -- discrimination proven at the state level.
@@ -56,6 +56,20 @@
 #   I (non-live fail-loud, Spike 12A follow-up): `pickup` in --arcopolis-run-script and one-shot
 #     --arcopolis-command is rejected with exit 6 (unsupported_command) BEFORE the world load (no snapshot),
 #     because the item menu needs a live answer channel non-live modes lack -- fail loud, not a silent no-op.
+#   J (Spike 14 multi-entry secondary capacity uilist, ArcopolisCapacityTest): a copy of ArcopolisTest with
+#     ONE over-volume ARMOR item (jacket_leather) injected onto the south pile; built reproducibly by
+#     docs/arcopolis/make_capacity_fixture.py. Picking the jacket raises the secondary capacity uilist with
+#     WEAR + WIELD = exactly 2 entries, both enabled (acceptance criterion #1). Five sub-gates:
+#       J-probe: discover the jacket's PICKUP-menu index (stacked_here ordering varies).
+#       J-pick-wield: answer choice:1 (WIELD) -> served [DOWN, CONFIRM] (DOWN-navigation witness);
+#         engine wields the jacket via u.wield -> jacket leaves ground, primary_weapon witnessed.
+#       J-pick-wear: answer choice:0 (WEAR) -> served [CONFIRM] (no DOWN; position 0); engine wears
+#         the jacket via u.wear_item -> jacket leaves ground.
+#       J-cancel: prompt_cancel on the secondary uilist -> served [QUIT] -> UILIST_CANCEL -> CANCEL;
+#         jacket stays on ground, NEVER logged as picked up; response clean ok:true (NOT forced_cancel:
+#         a real player cancel through the engine loop, distinct from the no-channel marked-partial).
+#       J-recover: wrong prompt_id + out-of-range each rejected with the secondary uilist STILL OPEN; a
+#         valid answer then completes the SAME pickup.
 #   No backend hangs (strict per-response timeout kills + FAILS); every live session quits with exit 0.
 #
 # NEW_PICKUP_MENU, AUTOSELECT_SINGLE_VALID_TARGET, and AUTO_PICKUP are PINNED in the sandbox options.json
@@ -73,6 +87,7 @@ param(
     [string]$World      = "ArcopolisTest",
     [string]$BackpackWorld = "ArcopolisBackpackTest",
     [string]$VehicleWorld = "ArcopolisVehicleCargoTest",
+    [string]$CapacityWorld = "ArcopolisCapacityTest",
     [string]$OutRoot    = ".\out\arco_pickup_regress",
     [string]$Driver     = "docs\arcopolis\prompt_menu_live_driver.py",
     [string]$HarnessDir = "tools\arcopolis_client",
@@ -103,6 +118,10 @@ if( -not (Test-Path $fixtureBackpackWorld) ) {
 $fixtureVehicleWorld = Join-Path $FixtureSrc (Join-Path "save" $VehicleWorld)
 if( -not (Test-Path $fixtureVehicleWorld) ) {
     Stop-WithCode "Fixture world '$VehicleWorld' not found at $fixtureVehicleWorld -- the vehicle-submenu fail-loud witness needs the cargo-vehicle fixture (a copy of $World with a folding_wagon injected onto the ground-item pile; build it with docs/arcopolis/make_vehicle_fixture.py)." 5
+}
+$fixtureCapacityWorld = Join-Path $FixtureSrc (Join-Path "save" $CapacityWorld)
+if( -not (Test-Path $fixtureCapacityWorld) ) {
+    Stop-WithCode "Fixture world '$CapacityWorld' not found at $fixtureCapacityWorld -- the Spike 14 multi-entry secondary-capacity uilist witness needs a copy of $World with one over-volume ARMOR item (jacket_leather) injected onto the ground-item pile; build it with docs/arcopolis/make_capacity_fixture.py." 5
 }
 if( -not (Get-Command python -ErrorAction SilentlyContinue) ) {
     Stop-WithCode "python not found on PATH (needed to run the live driver). See 00_WINDOWS_LOCAL_ENVIRONMENT.md." 6
@@ -193,6 +212,9 @@ function Get-MessageTexts {
 
 # Responses indexed by id (the prompt event has no id field key we rely on; gather it separately).
 function Index-ById { param($Responses) $h = @{}; foreach( $r in @($Responses) ) { if( $null -ne $r.id ) { $h[[int]$r.id] = $r } }; return $h }
+
+# Prompt events from a scenario's responses, in order (Spike 13B + Spike 14: scenarios may have >1 prompt).
+function Get-PromptsInOrder { param($Responses) return @(@($Responses) | Where-Object { $_.type -eq 'prompt' }) }
 
 $fail = 0
 # NEW_PICKUP_MENU defaults to false (and is absent from the fixture's options.json), so A/B/C use the old
@@ -356,16 +378,22 @@ if( $g7 ) {
 # Scenario C (invalid-answer recovery): a WRONG prompt_id and an out-of-range choice are EACH rejected with
 # the prompt STILL OPEN; a follow-up valid answer completes the SAME command. The wrong-prompt_id rejection
 # proves the transaction correlates the answer to the active prompt (not just op/choices).
+# The valid answer picks the LAST entry (the tiny glass shard, proven to FIT by Scenario B) rather than
+# entry 0 (the over-capacity blanket): a fitting item completes WITHOUT raising the secondary capacity
+# uilist, keeping this scenario focused on PICKUP-menu recovery. (Driving that secondary uilist is fully
+# witnessed by Scenarios E + J; if Scenario C picked the blanket it would now open a uilist this driver
+# does not answer -- a different transaction, out of scope here.)
 #   step_index: export0, move1, pickup2, (reject bad prompt_id), (reject out-of-range), (valid), export3, wait, quit
 # =============================================================================
 $bad = $choiceCount + 5
+$validC = $choiceCount - 1
 $reqC = @(
     '{"id":1,"op":"export","name":"start"}',
     '{"id":2,"op":"command","command":"move","direction":"move_s","name":"approach"}',
     '{"id":3,"op":"command","command":"pickup","direction":"move_s","name":"pickup"}',
     '{"id":4,"op":"prompt_answer","prompt_id":999,"choice":0}',
     ('{"id":5,"op":"prompt_answer","prompt_id":1,"choice":' + $bad + '}'),
-    '{"id":6,"op":"prompt_answer","prompt_id":1,"choice":0}',
+    ('{"id":6,"op":"prompt_answer","prompt_id":1,"choice":' + $validC + '}'),
     '{"id":7,"op":"export","name":"after_pick"}',
     '{"id":8,"op":"command","command":"wait","name":"after"}',
     '{"id":9,"op":"quit"}'
@@ -416,60 +444,89 @@ if( $g9 ) {
 Set-SandboxOption -Name "NEW_PICKUP_MENU" -Value $false
 
 # =============================================================================
-# Scenario E (rejected items -- honest partial pickup, MARKED not-full-success): on the DEFAULT no-backpack
-# avatar, the client selects TWO entries, one of which the avatar cannot carry (the bulky [0] "folded
-# emergency blanket", 500 ml -- the evac-shelter avatar has room for only one small item). The engine
-# carries the one that fits (the glass shard) and leaves the over-capacity blanket on the ground. Driving
-# the in-activity capacity uilist (handle_problematic_pickup) is NOT IMPLEMENTED -- a tracked defect. The
-# Spike 12A follow-up makes that NON-SILENT: src/pickup.cpp reports it (backend_report_pickup_secondary_
-# forced_cancel) so this command response carries the explicit marker set { forced_cancel, partial,
-# unsupported_prompt:"secondary_capacity" } and the transcript a prompt_force_cancelled event. This is NOT
-# full success -- it is a partial engine result with an unsupported secondary prompt force-cancelled and
-# explicitly MARKED. The transaction does NOT fake the part it cannot do: the rejected item stays and is
-# NEVER logged as picked up, while the transcript still shows the client's full 2-entry intent (two RIGHT marks).
+# Scenario E (Spike 14: DRIVE the secondary capacity uilist at level 4 -- WIELD-blanket witness). On the
+# DEFAULT no-backpack avatar, the client selects TWO entries [0,6] (over-capacity blanket + tiny shard).
+# After CONFIRM, the pickup activity raises a SECONDARY capacity uilist for the blanket
+# (handle_problematic_pickup, src/pickup.cpp). Spike 12A's follow-up MARKED that as forced_cancel/partial
+# (docs/arcopolis/31); Spike 14 (docs/arcopolis/34) DRIVES it at level 4: the blanket scenario opens a
+# SINGLE-entry uilist (WIELD only -- blanket is not armor, avatar is unarmed; no SPILL/EMPTY). Answering
+# choice:0 (WIELD) serves [CONFIRM] through the real input_context("UILIST") loop, the engine sets
+# amenu.ret=WIELD, pick_one_up calls u.wield -> the blanket LEAVES the ground AND becomes the avatar's
+# primary_weapon (a real engine state change witnessed via the "Wielding" message), the shard is stashed,
+# the south tile goes 7 -> 5, and the response carries NO forced_cancel/partial/unsupported_prompt markers
+# (this is no longer a partial; it is a real player choice through the engine's own loop). Witnesses:
+# Spike 14's acceptance criterion #1 (all-enabled entries -- the single WIELD entry is enabled:true) and
+# the no-silent-success guarantee (Spike 14 acceptance criterion #5: the doc-31 fail-loud markers live
+# only in the no-channel fallback now, covered by the unit suite, not on this driven path).
 # =============================================================================
 $reqR = @(
     '{"id":1,"op":"export","name":"start"}',
     '{"id":2,"op":"command","command":"move","direction":"move_s","name":"approach"}',
     '{"id":3,"op":"export","name":"before"}',
-    '{"id":4,"op":"command","command":"pickup","direction":"move_s","name":"pickup_reject"}',
+    '{"id":4,"op":"command","command":"pickup","direction":"move_s","name":"pickup_drive_wield"}',
     '{"id":5,"op":"prompt_answer","prompt_id":1,"choices":[0,6]}',
-    '{"id":6,"op":"export","name":"after_pick"}',
-    '{"id":7,"op":"command","command":"wait","name":"drain"}',
-    '{"id":8,"op":"export","name":"after_wait"}',
-    '{"id":9,"op":"quit"}'
+    '{"id":6,"op":"prompt_answer","prompt_id":2,"choice":0}',
+    '{"id":7,"op":"export","name":"after_pick"}',
+    '{"id":8,"op":"command","command":"wait","name":"drain"}',
+    '{"id":9,"op":"export","name":"after_wait"}',
+    '{"id":10,"op":"quit"}'
 )
-$R = Invoke-LiveScenario -Name "rejected_items" -RequestLines $reqR
+$R = Invoke-LiveScenario -Name "drive_secondary_wield" -RequestLines $reqR
 $evR = Read-Transcript -Dir $R.Dir
 $respR = Index-ById $R.Result.responses
-$answeredR = @($evR | Where-Object { $_.event -eq 'prompt_answered' })
-$answeredChoicesR = if( $answeredR.Count -ge 1 ) { @($answeredR[0].choices) } else { @() }
-$actionsR = if( $answeredR.Count -ge 1 ) { @($answeredR[0].actions) } else { @() }
-# choices [0,6] -> RIGHT (mark blanket entry 0), DOWN x6 (walk to entry 6), RIGHT (mark the shard), CONFIRM.
-$expectedR = @('RIGHT') + @( for( $i = 0; $i -lt 6; $i++ ) { 'DOWN' } ) + @('RIGHT', 'CONFIRM')
+$promptsR = Get-PromptsInOrder $R.Result.responses
+# Two prompts in order: the PICKUP item menu (kind=menu) then the secondary capacity uilist (kind=uilist).
+$menuPromptR = if( $promptsR.Count -ge 1 ) { $promptsR[0] } else { $null }
+$uilistPromptR = if( $promptsR.Count -ge 2 ) { $promptsR[1] } else { $null }
+$uilistChoicesR = if( $uilistPromptR ) { @($uilistPromptR.choices) } else { @() }
+# Acceptance criterion #1: all-enabled-entries only. The blanket's single uilist entry MUST be enabled.
+$uilistAllEnabledR = ($uilistChoicesR.Count -ge 1) -and (@($uilistChoicesR | Where-Object { -not $_.enabled }).Count -eq 0)
+$uilistEntryTextR = if( $uilistChoicesR.Count -ge 1 ) { $uilistChoicesR[0].text } else { '' }
+$uilistTitleR = if( $uilistPromptR ) { $uilistPromptR.title } else { '' }
+# Transcript witnesses: the menu prompt was answered with [0,6] (the existing multi-select arming), then
+# the uilist prompt was answered with choice 0 served [CONFIRM] (single CONFIRM, no DOWN -- the only entry
+# is at position 0). Spike 14 forbids any prompt_force_cancelled on this driven path.
+$answeredMenuR = @($evR | Where-Object { $_.event -eq 'prompt_answered' -and ($_.kind -eq $null -or $_.kind -eq '' -or $_.kind -eq 'menu') })
+$answeredUilistR = @($evR | Where-Object { $_.event -eq 'prompt_answered' -and $_.kind -eq 'uilist' })
+$completedUilistR = @($evR | Where-Object { $_.event -eq 'prompt_completed' -and $_.kind -eq 'uilist' })
+$forceCancelEvR = @($evR | Where-Object { $_.event -eq 'prompt_force_cancelled' })
+$menuChoicesR = if( $answeredMenuR.Count -ge 1 ) { @($answeredMenuR[0].choices) } else { @() }
+$menuActionsR = if( $answeredMenuR.Count -ge 1 ) { @($answeredMenuR[0].actions) } else { @() }
+$uilistChoicesAnsR = if( $answeredUilistR.Count -ge 1 ) { @($answeredUilistR[0].choices) } else { @() }
+$uilistActionsR = if( $answeredUilistR.Count -ge 1 ) { @($answeredUilistR[0].actions) } else { @() }
+# Menu queue [0,6] -> RIGHT (mark blanket entry 0), DOWN x6 (walk to entry 6), RIGHT (mark shard), CONFIRM.
+$expectedMenuR = @('RIGHT') + @( for( $i = 0; $i -lt 6; $i++ ) { 'DOWN' } ) + @('RIGHT', 'CONFIRM')
+# Uilist queue choice 0 -> single CONFIRM (no DOWN; the only entry sits at position 0).
+$expectedUilistR = @('CONFIRM')
 $snapBeforeR = Read-Snapshot -Dir $R.Dir -Name $respR[3].snapshot
-$snapAfterR = Read-Snapshot -Dir $R.Dir -Name $respR[8].snapshot
+$snapAfterR = Read-Snapshot -Dir $R.Dir -Name $respR[9].snapshot
 $beforeR = Get-ItemsAt -Snapshot $snapBeforeR -PosLocal $southTile
 $afterR = Get-ItemsAt -Snapshot $snapAfterR -PosLocal $southTile
 $afterNamesR = @($afterR | ForEach-Object { $_.name })
-$blanketStaysR = @($afterNamesR | Where-Object { $_ -like '*folded emergency blanket*' } ).Count -ge 1
+$blanketGoneR = @($afterNamesR | Where-Object { $_ -like '*folded emergency blanket*' } ).Count -eq 0
 $shardGoneR = @($afterNamesR | Where-Object { $_ -like '*glass shard*' } ).Count -eq 0
 $pickupMsgsR = @((Get-MessageTexts $snapAfterR) | Where-Object { $_ -like '*You pick up*' })
-$blanketPickedMsgR = @($pickupMsgsR | Where-Object { $_ -like '*blanket*' } ).Count
-# Spike 12A follow-up: the secondary capacity prompt is force-cancelled, so the command response is MARKED
-# not-full-success (ok stays true -- a real partial pickup happened) and the transcript records it.
-$markedR = ($respR[4].forced_cancel -eq $true) -and ($respR[4].partial -eq $true) -and
-           ($respR[4].unsupported_prompt -eq 'secondary_capacity')
-$forceCancelEvR = @($evR | Where-Object { $_.event -eq 'prompt_force_cancelled' -and $_.kind -eq 'secondary_capacity' })
-$gRej = ($R.ExitCode -eq 0) -and $R.Result.ok -and ($respR[4].ok -eq $true) -and
-        (($answeredChoicesR -join ',') -eq '0,6') -and (($actionsR -join ',') -eq ($expectedR -join ',')) -and
-        ($afterR.Count -eq ($beforeR.Count - 1)) -and $blanketStaysR -and $shardGoneR -and
-        ($pickupMsgsR.Count -eq 1) -and ($blanketPickedMsgR -eq 0) -and
-        $markedR -and ($forceCancelEvR.Count -ge 1)
+$wieldMsgR = @((Get-MessageTexts $snapAfterR) | Where-Object { $_ -like '*Wielding*' -and $_ -like '*blanket*' })
+# Spike 14: this command response is a CLEAN ok:true with NO partial/forced_cancel/unsupported_prompt
+# markers (the doc-31 markers move to the no-channel fallback only). And no prompt_force_cancelled events.
+$cleanRespR = ($respR[4].ok -eq $true) -and (-not $respR[4].forced_cancel) -and (-not $respR[4].partial) -and
+              (-not $respR[4].unsupported_prompt)
+$gRej = ($R.ExitCode -eq 0) -and $R.Result.ok -and ($respR[4].ok -eq $true) -and ($respR[5].ok -eq $true) -and
+        ($menuPromptR -and $menuPromptR.kind -eq 'menu') -and
+        ($uilistPromptR -and $uilistPromptR.kind -eq 'uilist') -and
+        ($uilistChoicesR.Count -eq 1) -and $uilistAllEnabledR -and
+        ($uilistEntryTextR -like '*Wield*' -and $uilistEntryTextR -like '*blanket*') -and
+        ($uilistTitleR -like '*blanket*') -and
+        (($menuChoicesR -join ',') -eq '0,6') -and (($menuActionsR -join ',') -eq ($expectedMenuR -join ',')) -and
+        (($uilistChoicesAnsR -join ',') -eq '0') -and (($uilistActionsR -join ',') -eq ($expectedUilistR -join ',')) -and
+        ($completedUilistR.Count -ge 1) -and ($completedUilistR[0].actions_served -eq 1) -and
+        ($forceCancelEvR.Count -eq 0) -and $cleanRespR -and
+        ($afterR.Count -eq ($beforeR.Count - 2)) -and $blanketGoneR -and $shardGoneR -and
+        ($pickupMsgsR.Count -ge 1) -and ($wieldMsgR.Count -ge 1)
 if( $gRej ) {
-    Write-Host "  PASS: rejected items (no-backpack avatar) -- chose [0,6] (over-capacity blanket + shard); engine carried only the shard ($($beforeR.Count) -> $($afterR.Count)), the rejected blanket stays on the ground and is NEVER logged as picked up. NOT full success: response MARKED forced_cancel/partial/unsupported_prompt=secondary_capacity + transcript prompt_force_cancelled (an honest partial pickup, the secondary prompt is force-cancelled and marked, not driven)." -ForegroundColor Green
+    Write-Host "  PASS: secondary capacity uilist DRIVEN (level 4) WIELD-blanket -- chose [0,6] on PICKUP menu (kind=menu), then capacity uilist (kind=uilist) opened with the REAL single-entry choice '$uilistEntryTextR' (title '$uilistTitleR') enabled:true; answering choice:0 served [$($uilistActionsR -join ', ')] through input_context('UILIST') (prompt_completed kind=uilist actions_served=1); engine wielded the blanket via u.wield (message: '$($wieldMsgR[0])'), south tile $($beforeR.Count) -> $($afterR.Count) (both gone), shard stashed; response is clean ok:true with NO partial/forced_cancel markers and NO prompt_force_cancelled events." -ForegroundColor Green
 } else {
-    Write-Host "  FAIL: rejected items -- exit=$($R.ExitCode) pickup=$($respR[4].ok) marked=$markedR forceCancelEv=$($forceCancelEvR.Count) choices=[$($answeredChoicesR -join ', ')] actions=[$($actionsR -join ', ')] before=$($beforeR.Count) after=$($afterR.Count) blanketStays=$blanketStaysR shardGone=$shardGoneR msgs=$($pickupMsgsR.Count) blanketPicked=$blanketPickedMsgR" -ForegroundColor Red
+    Write-Host "  FAIL: secondary capacity drive WIELD -- exit=$($R.ExitCode) pickup=$($respR[4].ok) uilistAck=$($respR[5].ok) menuKind=$($menuPromptR.kind) uilistKind=$($uilistPromptR.kind) uilistChoices=$($uilistChoicesR.Count) allEnabled=$uilistAllEnabledR uilistText='$uilistEntryTextR' title='$uilistTitleR' menuChoices=[$($menuChoicesR -join ', ')] menuActions=[$($menuActionsR -join ', ')] uilistChoicesAns=[$($uilistChoicesAnsR -join ', ')] uilistActions=[$($uilistActionsR -join ', ')] completedServed=$($completedUilistR[0].actions_served) forceCancelEv=$($forceCancelEvR.Count) cleanResp=$cleanRespR before=$($beforeR.Count) after=$($afterR.Count) blanketGone=$blanketGoneR shardGone=$shardGoneR msgs=$($pickupMsgsR.Count) wieldMsgs=$($wieldMsgR.Count)" -ForegroundColor Red
     $fail++
 }
 
@@ -564,9 +621,7 @@ if( $gPhantom ) {
 # runs its setup() headlessly, exposes the REAL entries as a prompt (kind=uilist), and serves the registered
 # UILIST actions ([DOWN, CONFIRM] for "ground") through the real input_context("UILIST") loop, which sets
 # amenu.ret. Choosing ground then flows into the existing old "PICKUP" item menu (kind=menu), driven as before.
-# Helper to read the prompt events (in order) from a scenario's responses.
 # =============================================================================
-function Get-PromptsInOrder { param($Responses) return @(@($Responses) | Where-Object { $_.type -eq 'prompt' }) }
 
 # --- Scenario H-probe: prove the two-prompt flow + the vehicle prompt shape, and discover the ground count.
 #   pickup -> answer vehicle uilist (ground) -> the PICKUP item menu opens -> cancel it (GUI ESC, no pickup).
@@ -765,6 +820,212 @@ if( $gNonLive ) {
     Write-Host "  PASS: non-live fail-loud -- both --arcopolis-run-script and one-shot --arcopolis-command rejected pickup with exit $expectedNonLiveExit (unsupported_command) BEFORE the world load; no snapshot written, clear 'requires --arcopolis-live' message. Non-live fails loud for promptful commands instead of a silent no-op." -ForegroundColor Green
 } else {
     Write-Host "  FAIL: non-live fail-loud -- scriptExit=$($ps.ExitCode) oneshotExit=$($po.ExitCode) (expected $expectedNonLiveExit) snapshotWritten=$(Test-Path $oneshotSnap) scriptErr='$scriptErrText' oneshotErr='$oneshotErrText'" -ForegroundColor Red
+    $fail++
+}
+
+# =============================================================================
+# Scenario J (Spike 14, ArcopolisCapacityTest: DRIVE the secondary capacity uilist at level 4 with a
+# MULTI-ENTRY witness -- WEAR + WIELD, both enabled). The fixture injects ONE bulky armor item
+# (jacket_leather, data/json/items/armor/coats.json: 4500 ml, ARMOR/OUTER, not a bucket, no children)
+# onto ArcopolisTest's south ground pile. Picking the jacket exceeds the unarmed avatar's tiny volume
+# capacity, so the activity raises handle_problematic_pickup -> uilist with WEAR (is_armor) + WIELD
+# (avatar unarmed; no NO_UNWIELD weapon to dispose of) = exactly 2 entries, both enabled
+# (acceptance criterion #1). Sub-gates J-probe (discover the jacket's menu index + assert prompt shape),
+# J-pick-wield (drive entry 1 -> [DOWN, CONFIRM] -> u.wield), J-pick-wear (drive entry 0 -> [CONFIRM] ->
+# u.wear), J-cancel (real player cancel via QUIT -> jacket stays, NOT a force-cancel), J-recover (wrong
+# prompt_id + out-of-range each rejected; the prompt stays open; a valid answer completes).
+# =============================================================================
+
+# --- J-probe: cancel the PICKUP menu just to discover the jacket's index (stacked_here ordering varies).
+$reqJp = @(
+    '{"id":1,"op":"command","command":"move","direction":"move_s","name":"approach"}',
+    '{"id":2,"op":"command","command":"pickup","direction":"move_s","name":"pickup_probe"}',
+    '{"id":3,"op":"prompt_cancel","prompt_id":1}',
+    '{"id":4,"op":"quit"}'
+)
+$Jp = Invoke-LiveScenario -Name "capacity_probe" -RequestLines $reqJp -ScenarioWorld $CapacityWorld
+$promptsJp = Get-PromptsInOrder $Jp.Result.responses
+$menuPromptJp = if( $promptsJp.Count -ge 1 ) { $promptsJp[0] } else { $null }
+$jacketIdxJ = -1
+if( $menuPromptJp ) {
+    for( $i = 0; $i -lt @($menuPromptJp.choices).Count; $i++ ) {
+        if( @($menuPromptJp.choices)[$i].text -like '*leather jacket*' ) { $jacketIdxJ = $i; break }
+    }
+}
+$gJ0 = ($Jp.ExitCode -eq 0) -and $Jp.Result.ok -and $menuPromptJp -and ($menuPromptJp.kind -eq 'menu') -and ($jacketIdxJ -ge 0)
+if( $gJ0 ) {
+    Write-Host "  PASS: capacity probe -- PICKUP menu opens with the jacket at index $jacketIdxJ ($($menuPromptJp.choices.Count) total entries)." -ForegroundColor Green
+} else {
+    Write-Host "  FAIL: capacity probe -- exit=$($Jp.ExitCode) menuKind=$($menuPromptJp.kind) jacketIdx=$jacketIdxJ choices=$($menuPromptJp.choices.Count) (rebuild the fixture: docs/arcopolis/make_capacity_fixture.py)." -ForegroundColor Red
+    $fail++
+    if( $jacketIdxJ -lt 0 ) {
+        Write-Host "PICKUP REGRESSION: aborting (capacity probe could not find the witness jacket)." -ForegroundColor Red
+        exit 1
+    }
+}
+
+# --- J-pick-wield: pick the jacket on the PICKUP menu; secondary uilist (2 entries) -> answer WIELD (entry 1)
+#     served [DOWN, CONFIRM] through input_context("UILIST"); engine wields the jacket -> u.wield ->
+#     jacket leaves the ground AND becomes primary_weapon (witnessed via the "Wielding" message); response
+#     is clean ok:true with NO partial/forced_cancel/unsupported_prompt markers, NO prompt_force_cancelled.
+$reqJw = @(
+    '{"id":1,"op":"command","command":"move","direction":"move_s","name":"approach"}',
+    '{"id":2,"op":"export","name":"before"}',
+    '{"id":3,"op":"command","command":"pickup","direction":"move_s","name":"pickup_wield"}',
+    ('{"id":4,"op":"prompt_answer","prompt_id":1,"choices":[' + $jacketIdxJ + ']}'),
+    '{"id":5,"op":"prompt_answer","prompt_id":2,"choice":1}',
+    '{"id":6,"op":"export","name":"after_pick"}',
+    '{"id":7,"op":"command","command":"wait","name":"drain"}',
+    '{"id":8,"op":"export","name":"after_wait"}',
+    '{"id":9,"op":"quit"}'
+)
+$Jw = Invoke-LiveScenario -Name "capacity_wield" -RequestLines $reqJw -ScenarioWorld $CapacityWorld
+$evJw = Read-Transcript -Dir $Jw.Dir
+$respJw = Index-ById $Jw.Result.responses
+$promptsJw = Get-PromptsInOrder $Jw.Result.responses
+$uilistPromptJw = if( $promptsJw.Count -ge 2 ) { $promptsJw[1] } else { $null }
+$uilistChoicesJw = if( $uilistPromptJw ) { @($uilistPromptJw.choices) } else { @() }
+$uilistAllEnabledJw = ($uilistChoicesJw.Count -ge 2) -and (@($uilistChoicesJw | Where-Object { -not $_.enabled }).Count -eq 0)
+$wearEntryJw = ($uilistChoicesJw.Count -ge 2) -and ($uilistChoicesJw[0].text -like '*Wear*' -and $uilistChoicesJw[0].text -like '*leather jacket*')
+$wieldEntryJw = ($uilistChoicesJw.Count -ge 2) -and ($uilistChoicesJw[1].text -like '*Wield*' -and $uilistChoicesJw[1].text -like '*leather jacket*')
+$answeredUilistJw = @($evJw | Where-Object { $_.event -eq 'prompt_answered' -and $_.kind -eq 'uilist' })
+$completedUilistJw = @($evJw | Where-Object { $_.event -eq 'prompt_completed' -and $_.kind -eq 'uilist' })
+$uilistActionsJw = if( $answeredUilistJw.Count -ge 1 ) { @($answeredUilistJw[0].actions) } else { @() }
+$forceCancelJw = @($evJw | Where-Object { $_.event -eq 'prompt_force_cancelled' })
+$snapJwBefore = Read-Snapshot -Dir $Jw.Dir -Name $respJw[2].snapshot
+$snapJwAfter = Read-Snapshot -Dir $Jw.Dir -Name $respJw[8].snapshot
+$jwTile = @( ( [int]$snapJwBefore.avatar.pos_local[0] ),
+    ( [int]$snapJwBefore.avatar.pos_local[1] + 1 ), ( [int]$snapJwBefore.avatar.pos_local[2] ) )
+$beforeJw = Get-ItemsAt -Snapshot $snapJwBefore -PosLocal $jwTile
+$afterJw = Get-ItemsAt -Snapshot $snapJwAfter -PosLocal $jwTile
+$afterNamesJw = @($afterJw | ForEach-Object { $_.name })
+$jacketGoneJw = @($afterNamesJw | Where-Object { $_ -like '*leather jacket*' } ).Count -eq 0
+$wieldMsgJw = @((Get-MessageTexts $snapJwAfter) | Where-Object { $_ -like '*Wielding*' -and $_ -like '*leather jacket*' })
+$cleanRespJw = ($respJw[3].ok -eq $true) -and (-not $respJw[3].forced_cancel) -and (-not $respJw[3].partial) -and (-not $respJw[3].unsupported_prompt)
+$gJ1 = ($Jw.ExitCode -eq 0) -and $Jw.Result.ok -and ($respJw[3].ok -eq $true) -and ($respJw[4].ok -eq $true) -and
+       ($uilistPromptJw -and $uilistPromptJw.kind -eq 'uilist') -and
+       ($uilistChoicesJw.Count -eq 2) -and $uilistAllEnabledJw -and $wearEntryJw -and $wieldEntryJw -and
+       ($answeredUilistJw.Count -ge 1) -and ((@($answeredUilistJw[0].choices) -join ',') -eq '1') -and
+       (($uilistActionsJw -join ',') -eq 'DOWN,CONFIRM') -and
+       ($completedUilistJw.Count -ge 1) -and ($completedUilistJw[0].actions_served -eq 2) -and
+       ($forceCancelJw.Count -eq 0) -and $cleanRespJw -and
+       ($afterJw.Count -eq ($beforeJw.Count - 1)) -and $jacketGoneJw -and ($wieldMsgJw.Count -ge 1)
+if( $gJ1 ) {
+    Write-Host "  PASS: capacity multi-entry DRIVE WIELD (level 4) -- secondary uilist (kind=uilist) opened with 2 enabled entries [Wear / Wield leather jacket]; answer choice:1 served [$($uilistActionsJw -join ', ')] through input_context('UILIST') (prompt_completed kind=uilist actions_served=2); engine wielded the jacket ('$($wieldMsgJw[0])'), south tile $($beforeJw.Count) -> $($afterJw.Count); response clean ok:true with NO partial/forced_cancel markers." -ForegroundColor Green
+} else {
+    Write-Host "  FAIL: capacity multi-entry WIELD -- exit=$($Jw.ExitCode) pickupAck=$($respJw[3].ok) uilistAck=$($respJw[4].ok) uilistKind=$($uilistPromptJw.kind) choices=$($uilistChoicesJw.Count) allEnabled=$uilistAllEnabledJw wearEntry=$wearEntryJw wieldEntry=$wieldEntryJw uilistActions=[$($uilistActionsJw -join ', ')] served=$($completedUilistJw[0].actions_served) forceCancel=$($forceCancelJw.Count) cleanResp=$cleanRespJw before=$($beforeJw.Count) after=$($afterJw.Count) jacketGone=$jacketGoneJw wieldMsg=$($wieldMsgJw.Count)" -ForegroundColor Red
+    $fail++
+}
+
+# --- J-pick-wear: answer choice:0 (WEAR) -> served [CONFIRM] (no DOWN; position 0) -> u.wear -> jacket
+#     leaves ground and is added to the avatar's worn list. Tile decreases by 1.
+$reqJwr = @(
+    '{"id":1,"op":"command","command":"move","direction":"move_s","name":"approach"}',
+    '{"id":2,"op":"export","name":"before"}',
+    '{"id":3,"op":"command","command":"pickup","direction":"move_s","name":"pickup_wear"}',
+    ('{"id":4,"op":"prompt_answer","prompt_id":1,"choices":[' + $jacketIdxJ + ']}'),
+    '{"id":5,"op":"prompt_answer","prompt_id":2,"choice":0}',
+    '{"id":6,"op":"export","name":"after_pick"}',
+    '{"id":7,"op":"command","command":"wait","name":"drain"}',
+    '{"id":8,"op":"export","name":"after_wait"}',
+    '{"id":9,"op":"quit"}'
+)
+$Jwr = Invoke-LiveScenario -Name "capacity_wear" -RequestLines $reqJwr -ScenarioWorld $CapacityWorld
+$evJwr = Read-Transcript -Dir $Jwr.Dir
+$respJwr = Index-ById $Jwr.Result.responses
+$answeredUilistJwr = @($evJwr | Where-Object { $_.event -eq 'prompt_answered' -and $_.kind -eq 'uilist' })
+$completedUilistJwr = @($evJwr | Where-Object { $_.event -eq 'prompt_completed' -and $_.kind -eq 'uilist' })
+$uilistActionsJwr = if( $answeredUilistJwr.Count -ge 1 ) { @($answeredUilistJwr[0].actions) } else { @() }
+$forceCancelJwr = @($evJwr | Where-Object { $_.event -eq 'prompt_force_cancelled' })
+$snapJwrBefore = Read-Snapshot -Dir $Jwr.Dir -Name $respJwr[2].snapshot
+$snapJwrAfter = Read-Snapshot -Dir $Jwr.Dir -Name $respJwr[8].snapshot
+$jwrTile = @( ( [int]$snapJwrBefore.avatar.pos_local[0] ),
+    ( [int]$snapJwrBefore.avatar.pos_local[1] + 1 ), ( [int]$snapJwrBefore.avatar.pos_local[2] ) )
+$beforeJwr = Get-ItemsAt -Snapshot $snapJwrBefore -PosLocal $jwrTile
+$afterJwr = Get-ItemsAt -Snapshot $snapJwrAfter -PosLocal $jwrTile
+$afterNamesJwr = @($afterJwr | ForEach-Object { $_.name })
+$jacketGoneJwr = @($afterNamesJwr | Where-Object { $_ -like '*leather jacket*' } ).Count -eq 0
+$cleanRespJwr = ($respJwr[3].ok -eq $true) -and (-not $respJwr[3].forced_cancel) -and (-not $respJwr[3].partial) -and (-not $respJwr[3].unsupported_prompt)
+$gJ2 = ($Jwr.ExitCode -eq 0) -and $Jwr.Result.ok -and ($respJwr[3].ok -eq $true) -and ($respJwr[4].ok -eq $true) -and
+       ($answeredUilistJwr.Count -ge 1) -and ((@($answeredUilistJwr[0].choices) -join ',') -eq '0') -and
+       (($uilistActionsJwr -join ',') -eq 'CONFIRM') -and
+       ($completedUilistJwr.Count -ge 1) -and ($completedUilistJwr[0].actions_served -eq 1) -and
+       ($forceCancelJwr.Count -eq 0) -and $cleanRespJwr -and
+       ($afterJwr.Count -eq ($beforeJwr.Count - 1)) -and $jacketGoneJwr
+if( $gJ2 ) {
+    Write-Host "  PASS: capacity multi-entry DRIVE WEAR (level 4) -- answer choice:0 served [CONFIRM] (no DOWN; position 0); engine wore the jacket, south tile $($beforeJwr.Count) -> $($afterJwr.Count); response clean ok:true." -ForegroundColor Green
+} else {
+    Write-Host "  FAIL: capacity multi-entry WEAR -- exit=$($Jwr.ExitCode) pickupAck=$($respJwr[3].ok) uilistAck=$($respJwr[4].ok) uilistActions=[$($uilistActionsJwr -join ', ')] served=$($completedUilistJwr[0].actions_served) before=$($beforeJwr.Count) after=$($afterJwr.Count) jacketGone=$jacketGoneJwr cleanResp=$cleanRespJwr" -ForegroundColor Red
+    $fail++
+}
+
+# --- J-cancel: prompt_cancel on the secondary uilist -> served [QUIT] -> engine returns UILIST_CANCEL ->
+#     CANCEL -> jacket stays on ground (NEVER logged as picked up). Response is clean ok:true (NOT
+#     forced_cancel: a real player cancel through the engine's own loop). Transcript: prompt_cancelled
+#     kind=uilist, NO prompt_force_cancelled.
+$reqJc = @(
+    '{"id":1,"op":"command","command":"move","direction":"move_s","name":"approach"}',
+    '{"id":2,"op":"export","name":"before"}',
+    '{"id":3,"op":"command","command":"pickup","direction":"move_s","name":"pickup_cancel"}',
+    ('{"id":4,"op":"prompt_answer","prompt_id":1,"choices":[' + $jacketIdxJ + ']}'),
+    '{"id":5,"op":"prompt_cancel","prompt_id":2}',
+    '{"id":6,"op":"export","name":"after_cancel"}',
+    '{"id":7,"op":"command","command":"wait","name":"after"}',
+    '{"id":8,"op":"quit"}'
+)
+$Jc = Invoke-LiveScenario -Name "capacity_cancel" -RequestLines $reqJc -ScenarioWorld $CapacityWorld
+$evJc = Read-Transcript -Dir $Jc.Dir
+$respJc = Index-ById $Jc.Result.responses
+$cancelledUilistJc = @($evJc | Where-Object { $_.event -eq 'prompt_cancelled' -and $_.kind -eq 'uilist' })
+$forceCancelJc = @($evJc | Where-Object { $_.event -eq 'prompt_force_cancelled' })
+$snapJcBefore = Read-Snapshot -Dir $Jc.Dir -Name $respJc[2].snapshot
+$snapJcAfter = Read-Snapshot -Dir $Jc.Dir -Name $respJc[6].snapshot
+$jcTile = @( ( [int]$snapJcBefore.avatar.pos_local[0] ),
+    ( [int]$snapJcBefore.avatar.pos_local[1] + 1 ), ( [int]$snapJcBefore.avatar.pos_local[2] ) )
+$beforeJc = Get-ItemsAt -Snapshot $snapJcBefore -PosLocal $jcTile
+$afterJc = Get-ItemsAt -Snapshot $snapJcAfter -PosLocal $jcTile
+$afterNamesJc = @($afterJc | ForEach-Object { $_.name })
+$jacketStaysJc = @($afterNamesJc | Where-Object { $_ -like '*leather jacket*' } ).Count -ge 1
+$pickupMsgsJc = @((Get-MessageTexts $snapJcAfter) | Where-Object { $_ -like '*You pick up*' -and $_ -like '*leather jacket*' })
+$cleanRespJc = ($respJc[3].ok -eq $true) -and (-not $respJc[3].forced_cancel) -and (-not $respJc[3].partial) -and (-not $respJc[3].unsupported_prompt)
+$gJ3 = ($Jc.ExitCode -eq 0) -and $Jc.Result.ok -and ($respJc[3].ok -eq $true) -and ($respJc[4].ok -eq $true) -and
+       ($cancelledUilistJc.Count -ge 1) -and ($forceCancelJc.Count -eq 0) -and $cleanRespJc -and
+       $jacketStaysJc -and ($pickupMsgsJc.Count -eq 0)
+if( $gJ3 ) {
+    Write-Host "  PASS: capacity multi-entry CANCEL -- prompt_cancel on the secondary uilist returned UILIST_CANCEL through the engine loop; jacket stays on the ground (count $($beforeJc.Count) unchanged), NEVER logged as picked up; response clean ok:true (NOT forced_cancel: a real player cancel)." -ForegroundColor Green
+} else {
+    Write-Host "  FAIL: capacity multi-entry CANCEL -- exit=$($Jc.ExitCode) cancelAck=$($respJc[4].ok) cancelled=$($cancelledUilistJc.Count) forceCancel=$($forceCancelJc.Count) cleanResp=$cleanRespJc jacketStays=$jacketStaysJc pickupMsgs=$($pickupMsgsJc.Count)" -ForegroundColor Red
+    $fail++
+}
+
+# --- J-recover: wrong prompt_id AND out-of-range choice on the SECONDARY uilist are each rejected ok:false/
+#     bad_request with the prompt STILL OPEN (prompt_failed prompt_id_mismatch + invalid_answer); a valid
+#     WIELD answer then completes the SAME pickup ok:true.
+$reqJr = @(
+    '{"id":1,"op":"command","command":"move","direction":"move_s","name":"approach"}',
+    '{"id":2,"op":"command","command":"pickup","direction":"move_s","name":"pickup_recover"}',
+    ('{"id":3,"op":"prompt_answer","prompt_id":1,"choices":[' + $jacketIdxJ + ']}'),
+    '{"id":4,"op":"prompt_answer","prompt_id":999,"choice":1}',
+    '{"id":5,"op":"prompt_answer","prompt_id":2,"choice":7}',
+    '{"id":6,"op":"prompt_answer","prompt_id":2,"choice":1}',
+    '{"id":7,"op":"command","command":"wait","name":"after"}',
+    '{"id":8,"op":"quit"}'
+)
+$Jr = Invoke-LiveScenario -Name "capacity_recover" -RequestLines $reqJr -ScenarioWorld $CapacityWorld
+$evJr = Read-Transcript -Dir $Jr.Dir
+$respsJr = @($Jr.Result.responses)
+$rejectJr = @($respsJr | Where-Object { $_.type -eq 'response' -and $_.op -eq 'prompt_answer' -and $_.ok -eq $false })
+$rejectBadReqJr = @($rejectJr | Where-Object { $_.error.code -eq 'bad_request' })
+$failedJr = @($evJr | Where-Object { $_.event -eq 'prompt_failed' })
+$mismatchJr = @($failedJr | Where-Object { $_.reason -eq 'prompt_id_mismatch' })
+$rangeJr = @($failedJr | Where-Object { $_.reason -eq 'invalid_answer' })
+$cmdOkJr = @($respsJr | Where-Object { $_.type -eq 'response' -and $_.op -eq 'command' -and $_.id -eq 2 -and $_.ok -eq $true })
+$gJ4 = ($Jr.ExitCode -eq 0) -and $Jr.Result.ok -and ($rejectJr.Count -ge 2) -and ($rejectBadReqJr.Count -ge 2) -and
+       ($mismatchJr.Count -ge 1) -and ($rangeJr.Count -ge 1) -and ($cmdOkJr.Count -ge 1)
+if( $gJ4 ) {
+    Write-Host "  PASS: capacity multi-entry RECOVER -- wrong prompt_id (999) AND out-of-range choice (7) each rejected ok:false/bad_request with the secondary uilist STILL OPEN (prompt_failed prompt_id_mismatch + invalid_answer); a valid WIELD answer then completed the SAME pickup ok:true." -ForegroundColor Green
+} else {
+    Write-Host "  FAIL: capacity multi-entry RECOVER -- exit=$($Jr.ExitCode) reject=$($rejectJr.Count) badReq=$($rejectBadReqJr.Count) mismatch=$($mismatchJr.Count) range=$($rangeJr.Count) cmdOk=$($cmdOkJr.Count)" -ForegroundColor Red
     $fail++
 }
 
