@@ -58,6 +58,10 @@ the tiles build was already safe — but the loop needs no window at all.) `setu
 (window-free): `fentries=[0,1]`, retvals `0`/`1`; `vmax` is unused for a single `DOWN` (the literal `+1`,
 `src/ui.cpp:828`). Found by the Codex review on PR #40.
 
+This is a **backend invariant, not a frontend requirement**: the eventual Arcopolis GUI will render through
+its own protocol/snapshot path, not through BN tiles or BN curses (see the "Frontend boundary" section in
+[ARCOPOLIS_STATE.md](ARCOPOLIS_STATE.md)). The backend must depend on _neither_ renderer.
+
 **INVARIANT (build-independent, pinned by a unit test):** the Arcopolis backend headless path creates **no
 curses window and calls no render primitive, in any build**. `tests/arcopolis_backend_input_test.cpp` arms a
 backend uilist transaction, runs `setup()`, and asserts `!menu.window` (plus the retvals it populated) — in
