@@ -89,6 +89,30 @@ engine state. Answer GUI-vs-headless questions **from the code**, never by spinn
 The Spike 3 failure came from driving `command → do_turn` (which inverts action/top-half ordering);
 3.1A replaced it with the input seam. Do not resurrect `apply_command`-style turn driving.
 
+### Frontend boundary: Arcopolis is neither BN tiles nor BN curses
+
+Arcopolis is **not** a replacement implementation of the existing BN tiles or curses UI. The eventual
+Arcopolis GUI is a separate external frontend that talks to the BN process through the Arcopolis protocol
+and renders snapshots/prompts itself — it is **Arcopolis-protocol-compatible, not tiles- or
+curses-compatible** (no screen-scraping of either BN frontend).
+
+Therefore the Arcopolis **backend** path must be **build-flavor-neutral** — it depends on _neither_
+renderer:
+
+- it must not depend on tiles pseudo-curses behaviour (e.g. `cursesport.cpp`'s `newwin` tolerating 0×0);
+- it must not require real curses/ncurses initialization (`ncurses_def.cpp`'s `::newwin` needs `initscr`);
+- it must not allocate renderer windows or call render primitives in backend mode;
+- it must keep stdout reserved for protocol JSONL;
+- it may use engine UI/input data structures **only** where those structures are needed to reach the real
+  engine input loop and consume registered actions (the level-4 seam) — never to draw.
+
+The existing BN tiles and curses frontends remain normal BN frontends, not Arcopolis targets. Arcopolis is
+a new protocol-driven frontend path over the same authoritative simulation. PR #40 (Spike 13B) turned this
+into a code invariant after the Codex review caught a backend path that leaned on tiles pseudo-curses (a
+real `newwin` would have crashed a curses build): **backend-driven UI creates no curses window / calls no
+render primitive in any build**, and every future un-abort site must uphold it (see
+[33_SPIKE13B_BACKEND_DRIVEN_UILIST.md#risks--follow-up](33_SPIKE13B_BACKEND_DRIVEN_UILIST.md#risks--follow-up)).
+
 ## The export contract
 
 ### Snapshot `NNN_<name>.json` (`schema_version` 1)
