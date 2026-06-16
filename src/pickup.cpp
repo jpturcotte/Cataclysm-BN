@@ -1278,20 +1278,53 @@ auto pickup::pick_up( const tripoint_bub_ms &p, int min, from_where get_items_fr
             const auto veh_has_items = carg && !veh->get_items( carg->part_index() ).empty();
             const auto map_has_items = g->m.has_items( p );
             if( veh_has_items && map_has_items ) {
-                // Spike 12A follow-up: a live pickup transaction cannot drive this "Get items from where?"
-                // submenu. It is a uilist, and in the backend's test_mode uilist::query short-circuits to
-                // UILIST_ERROR (src/ui.cpp:918) WITHOUT reaching input_context::handle_input, so the
-                // nested-input guard never sees it and pick_up would otherwise fall through to a SILENT
-                // ground-only pickup. FAIL LOUD instead: record the outcome and return with no pickup, so
-                // the live command answers unsupported_command (docs/arcopolis/31). Gated on an armed
-                // backend pickup transaction, so normal play and the GUI are completely untouched.
-                if( arcopolis::backend_pickup_transaction_active() ) {
+                // Spike 13B: drive this real "Get items from where?" uilist at level 4 in a backend session.
+                // In the backend's test_mode a uilist normally short-circuits to UILIST_ERROR at the top of
+                // uilist::query (src/ui.cpp) WITHOUT reaching input_context::handle_input. Under an armed
+                // pickup transaction WITH a live answer channel we instead DRIVE it: arm a uilist transaction
+                // (so init()/query() do not abort and setup() runs headlessly to populate fentries/retvals),
+                // expose the menu's REAL entries to the client, translate the answer into registered UILIST
+                // actions, and let the real uilist loop consume them and set amenu.ret. With NO answer channel
+                // (non-live / misconfigured) FAIL LOUD instead (docs/arcopolis/31) -- never a silent
+                // ground-only pickup. Everything below is gated on the transaction, so normal play and the GUI
+                // run the plain uilist unchanged. (The arm MUST precede the uilist's construction: the default
+                // ctor's init() reads the gate.)
+                const auto drive_uilist = arcopolis::backend_pickup_transaction_active() &&
+                                          arcopolis::backend_uilist_prompt_available();
+                if( arcopolis::backend_pickup_transaction_active() &&
+                    !arcopolis::backend_uilist_prompt_available() ) {
                     arcopolis::backend_report_pickup_unsupported_submenu();
                     return;
                 }
-                auto amenu = uilist( _( "Get items from where?" ), { _( "Get items from vehicle cargo" ),
-                                     _( "Get items on the ground" )
-                                                                   } );
+                if( drive_uilist ) {
+                    arcopolis::backend_begin_uilist_transaction();
+                }
+                // RAII: clear the uilist transaction on EVERY exit from this block (cancel return,
+                // fall-through, exception) so the un-abort can never leak into the next command or into the
+                // later ground item menu / secondary capacity uilist (which must stay aborted / fail-loud).
+                // backend_end is inert when not armed, so the GUI path is untouched.
+                [[maybe_unused]] const auto uilist_guard = arcopolis::uilist_transaction_guard{};
+                // Build the uilist explicitly. uilist::addentry( str ) == entries.emplace_back( str )
+                // (src/ui.cpp), so this is byte-for-byte equivalent to the old
+                // `uilist( _( "Get items from where?" ), { ... } )` convenience constructor -- the GUI path is
+                // unchanged -- but the explicit form lets us read the prompt choices from the REAL
+                // amenu.entries between population and query().
+                uilist amenu;
+                amenu.text = _( "Get items from where?" );
+                amenu.addentry( _( "Get items from vehicle cargo" ) );  // entry 0 -> from_cargo
+                amenu.addentry( _( "Get items on the ground" ) );       // entry 1 -> from_ground
+                if( drive_uilist ) {
+                    std::vector<arcopolis::pickup_prompt_choice> choices;
+                    for( const std::size_t i : std::views::iota( std::size_t{ 0 }, amenu.entries.size() ) ) {
+                        choices.push_back( { .index = static_cast<int>( i ),
+                                             .text = amenu.entries[i].txt,
+                                             .enabled = amenu.entries[i].enabled } );
+                    }
+                    arcopolis::backend_resolve_uilist_choice( { .kind = "uilist",
+                            .title = "Get items from where?",
+                            .choices = choices } );
+                }
+                amenu.query();  // the real uilist loop consumes the queued UILIST actions and sets amenu.ret
                 if( amenu.ret == UILIST_CANCEL ) {
                     return;
                 }

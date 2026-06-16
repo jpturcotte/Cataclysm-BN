@@ -8,6 +8,7 @@
 #include <iterator>
 #include <memory>
 
+#include "arcopolis_backend_input.h"  // arcopolis::backend_ui_mode_active (Spike 13B uilist un-abort gate)
 #include "avatar.h"
 #include "cata_utility.h"
 #include "catacharset.h"
@@ -151,7 +152,11 @@ uilist::operator int() const
  */
 void uilist::init()
 {
-    if( test_mode ) {
+    // Spike 13B: the Arcopolis backend runs in test_mode (no render/keyboard), which normally aborts every
+    // uilist. While a backend uilist transaction is armed (and ONLY then -- backend_ui_mode_active() keys on
+    // a per-transaction flag, never the broad session) the engine intentionally drives ONE real uilist
+    // headlessly, so do NOT take the abort. cata_test (test_mode, no backend session) is unchanged.
+    if( test_mode && !arcopolis::backend_ui_mode_active() ) {
         debugmsg( "uilist must not be used in test mode" );
         return;
     }
@@ -915,7 +920,9 @@ shared_ptr_fast<ui_adaptor> uilist::create_or_get_ui_adaptor()
  */
 void uilist::query( bool loop, int timeout )
 {
-    if( test_mode ) {
+    // Spike 13B: same gate as init() -- a backend uilist transaction (and ONLY that) drives one real uilist
+    // headlessly; every other test_mode uilist still aborts (cata_test unchanged).
+    if( test_mode && !arcopolis::backend_ui_mode_active() ) {
         debugmsg( "Tried to open UI in test mode" );
         ret = UILIST_ERROR;
         return;
@@ -930,6 +937,18 @@ void uilist::query( bool loop, int timeout )
     input_context ctxt = create_main_input_context();
 
     shared_ptr_fast<ui_adaptor> ui = create_or_get_ui_adaptor();
+
+    // Spike 13B: in backend UI mode there is no rendering, so ui_manager::redraw() below is a test_mode
+    // no-op (src/ui_manager.cpp) -- the on_redraw/on_screen_resize callbacks that normally run setup() never
+    // fire. setup() is the engine's own layout/data pass: it assigns each entry's retval (when -1), builds
+    // keymap, and runs filterlist() to populate fentries. Without it fentries stays empty and CONFIRM
+    // no-ops (the loop could not select). Run it directly here as a NON-RENDER initialization path (no draw;
+    // show() is never called). This is NOT a substitute for input: it does not set `ret` or the final
+    // selection -- the chosen entry and `ret` come solely from the registered actions the loop consumes
+    // below through input_context::handle_input().
+    if( arcopolis::backend_ui_mode_active() && !started ) {
+        setup();
+    }
 
     ui_manager::redraw();
 

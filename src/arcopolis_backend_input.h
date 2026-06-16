@@ -42,6 +42,27 @@ using backend_prompt_source =
     std::function < auto( const std::vector<pickup_prompt_choice> & ) -> std::optional<std::vector<int>>
     >;
 
+/// A backend-driven `uilist` prompt request (Spike 13B): the engine's REAL `uilist` entries (read from
+/// `amenu.entries` -- txt/enabled + position index), plus the menu's `kind`/`title`, exposed to the live
+/// client. `kind` ("uilist") distinguishes this prompt from the old "PICKUP" item menu ("menu") in the
+/// protocol and the transcript. The `index` of each choice equals its DOWN-navigation distance from the
+/// menu's start at entry 0.
+struct backend_uilist_prompt_request {
+    std::string kind = "uilist";                ///< protocol/transcript prompt class
+    std::string
+    title;                          ///< the menu's header text (e.g. "Get items from where?")
+    std::vector<pickup_prompt_choice>
+    choices;  ///< the REAL amenu.entries (txt/enabled + position index)
+    bool cancelable = true;
+};
+
+/// The live single-select `uilist` answer channel (Spike 13B): given the engine's real `uilist` choices,
+/// returns the chosen entry index (0-based position), or nullopt for an explicit client cancel / EOF (==
+/// the GUI player pressing ESC). Set only in live mode; null elsewhere (a `uilist` then has no answer
+/// channel, so the engine call site fails loud rather than driving it).
+using backend_uilist_prompt_source =
+    std::function < auto( const backend_uilist_prompt_request & ) -> std::optional<int> >;
+
 /// Inputs for an input-seam backend session (mechanism M1): the ordered steps to drive the engine with,
 /// and the directory inline `export` steps write their snapshots into.
 struct backend_session_options {
@@ -51,6 +72,8 @@ struct backend_session_options {
     live_source;  ///< Spike 9B live mode: when set, replaces the steps walk entirely
     backend_prompt_source
     prompt_source;  ///< Spike 12A live mode: the pickup menu-answer channel (null elsewhere)
+    backend_uilist_prompt_source
+    uilist_prompt_source;  ///< Spike 13B live mode: the backend-driven uilist answer channel (null elsewhere)
 };
 
 /// Begins a backend input session: while it is active, game::handle_action() takes its action from
@@ -222,6 +245,63 @@ auto backend_report_pickup_secondary_forced_cancel() -> void;
 /// Reads and resets the current pickup command's unsupported-sub-prompt outcome (defaults to `ok`).
 /// Called once by the live response writer when the owed pickup response is emitted. Reset to `ok`.
 auto backend_take_pickup_outcome() -> pickup_command_outcome;
+
+// --- Spike 13B: ONE backend-driven uilist transaction (live mode only). The "Get items from where?"
+// vehicle-source submenu (src/pickup.cpp) is a real `uilist`. Under a backend session that opts in
+// (backend_ui_mode_active), the uilist's test_mode abort in init()/query() is bypassed so its real
+// input_context("UILIST") loop runs, and the backend drives its selection at LEVEL 4 -- the SAME
+// registered actions a player presses (DOWN/CONFIRM/QUIT), consumed by that loop, which sets amenu.ret.
+// The backend NEVER mutates amenu.ret/selected/fentries as a substitute for input; it only runs the
+// uilist's own setup() on a non-render path (so fentries/retvals exist for the loop to act on) and feeds
+// the queued actions through the seam. DISTINCT from the "PICKUP" queue above (different category, a
+// single-select navigate-then-CONFIRM queue). ---
+
+/// True ONLY while a uilist transaction is armed (between backend_begin_uilist_transaction and
+/// backend_end_uilist_transaction). This -- and nothing weaker -- is the gate src/ui.cpp's
+/// uilist::init/query/setup test_mode-abort bypass keys off, so the un-abort fires for EXACTLY the
+/// witnessed menu and no other uilist. It MUST NOT be replaced by backend_pickup_transaction_active() or
+/// backend_session_active() at any un-abort site. Inert (false) outside a session.
+auto backend_ui_mode_active() -> bool;
+
+/// True when the session has a live uilist answer channel (set only in live mode). The engine call site
+/// checks this and FAILS LOUD (unsupported_submenu) when false, rather than driving a uilist with no
+/// channel -- preserving the doc-31 fail-loud for non-live / misconfigured sessions.
+auto backend_uilist_prompt_available() -> bool;
+
+/// Arms a uilist transaction (makes backend_ui_mode_active() true) so the `uilist` about to be CONSTRUCTED
+/// does not take the test_mode abort in init()/query(). MUST be called BEFORE the uilist object is
+/// constructed (the default ctor's init() reads the gate). Records the arming pickup command's step index
+/// for transcript correlation and clears any prior queue. Gated on an armed pickup transaction (the only
+/// backend-driven uilist arises inside a live pickup). Inert otherwise.
+auto backend_begin_uilist_transaction() -> void;
+
+/// Called by src/pickup.cpp AFTER the uilist's entries are populated (so `request.choices` are the REAL
+/// amenu.entries) and BEFORE amenu.query(). Logs `prompt_opened` (kind), asks the live client via the
+/// session's uilist_prompt_source, and ARMS the registered-action queue the real uilist loop consumes:
+/// [DOWN x choice, "CONFIRM"] for a valid single choice (logs `prompt_answered`), or ["QUIT"] for a
+/// cancel / EOF / out-of-range / absent channel (logs `prompt_cancelled`). The terminal element is always
+/// the loop-exit action, so the loop never exits with actions unserved. NEVER touches amenu.ret/selected
+/// -- the engine loop does, by reacting to the served actions. Inert unless a uilist transaction is armed.
+auto backend_resolve_uilist_choice( const backend_uilist_prompt_request &request ) -> void;
+
+/// Closes the uilist transaction: logs `prompt_completed` (kind="uilist", actions_served) if a prompt was
+/// opened, then clears all uilist transaction state -- so backend_ui_mode_active() becomes false again
+/// BEFORE pick_up continues into the ground item menu / activity (whose own uilists must stay aborted /
+/// fail-loud). Inert (no-op) when not armed, so it is safe to call unconditionally / from a scope guard on
+/// the GUI path. Idempotent.
+auto backend_end_uilist_transaction() -> void;
+
+/// RAII guard: calls backend_end_uilist_transaction() on scope exit -- on cancel return, normal
+/// fall-through, or an exception -- so a partially-driven uilist can never leak the armed flag into the
+/// next command. backend_end is inert when not armed, so constructing this on the GUI path is harmless.
+struct uilist_transaction_guard {
+    uilist_transaction_guard() = default;
+    ~uilist_transaction_guard();
+    uilist_transaction_guard( const uilist_transaction_guard & ) = delete;
+    auto operator=( const uilist_transaction_guard & ) -> uilist_transaction_guard & = delete;
+    uilist_transaction_guard( uilist_transaction_guard && ) = delete;
+    auto operator=( uilist_transaction_guard && ) -> uilist_transaction_guard & = delete;
+};
 
 /// What backend_write_step_snapshot() wrote, for a live-protocol response: the snapshot's relative
 /// filename plus the scalars the response echoes (turn read at the same instant as the snapshot).
