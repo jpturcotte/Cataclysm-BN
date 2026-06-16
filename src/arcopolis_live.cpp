@@ -323,6 +323,89 @@ std::optional<std::vector<int>>
     }
 }
 
+/// The live backend-driven uilist answer channel (Spike 13B; registered as the session's
+/// uilist_prompt_source). Called from INSIDE pick_up (mid-do_turn) when the "Get items from where?"
+/// vehicle-source uilist is armed: emits a `prompt` event with kind="uilist" carrying the engine's REAL
+/// uilist entries, then blocks reading a SINGLE-select answer. A valid in-range choice is acked and
+/// returned (the backend then translates it into the registered UILIST actions [DOWN x choice, CONFIRM] the
+/// real uilist loop consumes); an explicit cancel / EOF returns nullopt (the loop's UILIST_CANCEL); an
+/// invalid / multi / out-of-range / wrong-prompt_id answer is rejected ok:false and the prompt stays OPEN.
+/// Same single-std::cin-reader discipline as live_pickup_prompt (live_next_action already returned the
+/// action), so there is no re-entrancy and the stall backstop cannot fire mid-do_turn.
+auto live_vehicle_source_prompt( const arcopolis::backend_uilist_prompt_request &request ) ->
+std::optional<int>
+{
+    const auto command_id = pump.pending ? pump.pending->id : std::optional<int> {};
+    const auto step_index = pump.pending ? std::optional<int>( pump.pending->step_index )
+                            : std::optional<int> {};
+    const auto prompt_id = ++pump.prompt_seq;
+    arcopolis::write_prompt_line( std::cout, { .id = command_id,
+                                  .prompt_id = prompt_id,
+                                  .kind = request.kind,
+                                  .title = request.title,
+                                  .choices = request.choices,
+                                  .cancelable = request.cancelable
+                                             } );
+    std::cout.flush();
+    for( ;; ) {
+        std::string line;
+        if( !std::getline( std::cin, line ) ) {
+            return std::nullopt;  // EOF mid-prompt: cancel; the outer loop then ends the session cleanly.
+        }
+        if( !line.empty() && line.back() == '\r' ) {
+            line.pop_back();
+        }
+        if( line.empty() ) {
+            continue;
+        }
+        const auto answer = arcopolis::parse_prompt_answer( line,
+                            static_cast<int>( request.choices.size() ) );
+        if( !answer ) {
+            // Recoverable (incl. out-of-range): the prompt stays OPEN; no engine state was touched.
+            arcopolis::session_log_prompt_failed( { .step_index = step_index,
+                                                    .reason = "invalid_answer",
+                                                    .detail = answer.error().message } );
+            send_error( { .id = answer.error().id, .op = "prompt_answer",
+                          .code = answer.error().code, .message = answer.error().message } );
+            continue;
+        }
+        if( answer->prompt_id != prompt_id ) {
+            const auto detail = "prompt_id " + std::to_string( answer->prompt_id ) +
+                                " does not match the active prompt " + std::to_string( prompt_id );
+            arcopolis::session_log_prompt_failed( { .step_index = step_index,
+                                                    .reason = "prompt_id_mismatch",
+                                                    .detail = detail } );
+            send_error( { .id = answer->id, .op = "prompt_answer",
+                          .code = arcopolis::live_error_code::bad_request, .message = detail } );
+            continue;
+        }
+        if( answer->act == arcopolis::live_prompt_answer::action::cancel ) {
+            arcopolis::write_prompt_ack_line( std::cout, { .id = answer->id, .prompt_id = prompt_id,
+                                              .choices = std::nullopt
+                                                         } );
+            std::cout.flush();
+            return std::nullopt;
+        }
+        // The vehicle-source uilist is SINGLE-select. A multi-choice answer is a recoverable bad_request
+        // (the prompt stays OPEN), distinct from the multi-select PICKUP item menu above.
+        if( answer->choices.size() != 1 ) {
+            const auto detail = std::string( "the 'Get items from where?' prompt is single-select; "
+                                             "answer with exactly one choice" );
+            arcopolis::session_log_prompt_failed( { .step_index = step_index,
+                                                    .reason = "invalid_answer",
+                                                    .detail = detail } );
+            send_error( { .id = answer->id, .op = "prompt_answer",
+                          .code = arcopolis::live_error_code::bad_request, .message = detail } );
+            continue;
+        }
+        arcopolis::write_prompt_ack_line( std::cout, { .id = answer->id, .prompt_id = prompt_id,
+                                          .choices = answer->choices
+                                                     } );
+        std::cout.flush();
+        return answer->choices.front();
+    }
+}
+
 } // namespace
 
 auto arcopolis::live_error_code_name( live_error_code code ) -> std::string
@@ -668,9 +751,11 @@ auto arcopolis::run_live( const live_options &opts ) -> int
     pump = live_pump{};  // reset the TU-local pump (one live session per process)
 
     // The pump replaces the steps walk entirely: it is consulted at the same handle_action() seam. The
-    // prompt_source serves the Spike 12A pickup menu transaction (live mode only).
+    // prompt_source serves the Spike 12A pickup item menu; uilist_prompt_source serves the Spike 13B
+    // backend-driven "Get items from where?" vehicle-source uilist (both live mode only).
     begin_backend_session( { .steps = {}, .export_dir = opts.export_dir,
-                             .live_source = live_next_action, .prompt_source = live_pickup_prompt } );
+                             .live_source = live_next_action, .prompt_source = live_pickup_prompt,
+                             .uilist_prompt_source = live_vehicle_source_prompt } );
 
     // The transcript is a default deliverable; failure to OPEN it is surfaced before driving the
     // engine, exactly like run_script (no backend result exists yet to be masked).
