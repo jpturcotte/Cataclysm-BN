@@ -412,6 +412,8 @@ TEST_CASE( "arcopolis prompt_answered record carries the multi-select choices an
         CHECK( obj.get_int_array( "choices" ) == std::vector<int> { 0, 2 } );
         CHECK( obj.get_string_array( "actions" ) ==
                std::vector<std::string> { "RIGHT", "DOWN", "DOWN", "RIGHT", "CONFIRM" } );
+        // Spike 13B: kind unset (the old "PICKUP" menu) omits the field -- the existing wire is byte-identical.
+        CHECK_FALSE( obj.has_member( "kind" ) );
     } );
 }
 
@@ -424,6 +426,7 @@ TEST_CASE( "arcopolis prompt_cancelled record carries the reason and omits an un
         CHECK( obj.get_string( "event" ) == "prompt_cancelled" );
         CHECK_FALSE( obj.has_member( "step_index" ) );
         CHECK( obj.get_string( "reason" ) == "no_channel" );
+        CHECK_FALSE( obj.has_member( "kind" ) );  // Spike 13B: kind unset omits the field (byte-identical)
     } );
 }
 
@@ -453,7 +456,51 @@ TEST_CASE( "arcopolis prompt_completed record carries the served-action count", 
         CHECK( obj.get_string( "event" ) == "prompt_completed" );
         CHECK( obj.get_int( "step_index" ) == 3 );
         CHECK( obj.get_int( "actions_served" ) == 5 );
+        CHECK_FALSE( obj.has_member( "kind" ) );  // Spike 13B: kind unset omits the field (byte-identical)
     } );
+}
+
+TEST_CASE( "arcopolis prompt records carry the kind field for a backend-driven uilist",
+           "[arcopolis]" )
+{
+    // Spike 13B: the vehicle-source uilist sets kind="uilist" on prompt_answered/cancelled/completed so a
+    // reader can distinguish it from the old "PICKUP" item menu (kind unset). Emitted only when non-empty.
+    SECTION( "prompt_answered" ) {
+        std::ostringstream out;
+        arcopolis::write_prompt_answered_line( out, { .step_index = std::optional<int>( 2 ),
+                                               .choices = std::vector<int> { 1 },
+                                               .actions = std::vector<std::string> { "DOWN", "CONFIRM" },
+                                               .kind = "uilist"
+                                                    } );
+        with_record( out.str(), []( const auto & obj ) {
+            CHECK( obj.get_string( "event" ) == "prompt_answered" );
+            CHECK( obj.get_int_array( "choices" ) == std::vector<int> { 1 } );
+            CHECK( obj.get_string_array( "actions" ) == std::vector<std::string> { "DOWN", "CONFIRM" } );
+            CHECK( obj.get_string( "kind" ) == "uilist" );
+        } );
+    }
+    SECTION( "prompt_cancelled" ) {
+        std::ostringstream out;
+        arcopolis::write_prompt_cancelled_line( out, { .step_index = std::optional<int>( 2 ),
+                                                .reason = "client_cancel", .kind = "uilist"
+                                                     } );
+        with_record( out.str(), []( const auto & obj ) {
+            CHECK( obj.get_string( "event" ) == "prompt_cancelled" );
+            CHECK( obj.get_string( "reason" ) == "client_cancel" );
+            CHECK( obj.get_string( "kind" ) == "uilist" );
+        } );
+    }
+    SECTION( "prompt_completed" ) {
+        std::ostringstream out;
+        arcopolis::write_prompt_completed_line( out, { .step_index = std::optional<int>( 2 ),
+                                                .actions_served = 2, .kind = "uilist"
+                                                     } );
+        with_record( out.str(), []( const auto & obj ) {
+            CHECK( obj.get_string( "event" ) == "prompt_completed" );
+            CHECK( obj.get_int( "actions_served" ) == 2 );
+            CHECK( obj.get_string( "kind" ) == "uilist" );
+        } );
+    }
 }
 
 TEST_CASE( "arcopolis prompt_force_cancelled record names the kind and reason", "[arcopolis]" )
