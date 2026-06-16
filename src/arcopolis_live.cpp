@@ -323,16 +323,18 @@ std::optional<std::vector<int>>
     }
 }
 
-/// The live backend-driven uilist answer channel (Spike 13B; registered as the session's
-/// uilist_prompt_source). Called from INSIDE pick_up (mid-do_turn) when the "Get items from where?"
-/// vehicle-source uilist is armed: emits a `prompt` event with kind="uilist" carrying the engine's REAL
-/// uilist entries, then blocks reading a SINGLE-select answer. A valid in-range choice is acked and
+/// The live backend-driven single-select uilist answer channel (Spike 13B; reused by Spike 14, registered
+/// as the session's uilist_prompt_source). Called from INSIDE pick_up / pickup_activity (mid-do_turn) when
+/// a backend-driven uilist is armed -- in this fork, the "Get items from where?" vehicle-source submenu
+/// (Spike 13B) and the secondary capacity/wield/spill uilist after CONFIRM (Spike 14). Emits a `prompt`
+/// event with kind="uilist" carrying the engine's REAL uilist entries (request.choices, drawn from
+/// amenu.entries), then blocks reading a SINGLE-select answer. A valid in-range choice is acked and
 /// returned (the backend then translates it into the registered UILIST actions [DOWN x choice, CONFIRM] the
 /// real uilist loop consumes); an explicit cancel / EOF returns nullopt (the loop's UILIST_CANCEL); an
 /// invalid / multi / out-of-range / wrong-prompt_id answer is rejected ok:false and the prompt stays OPEN.
 /// Same single-std::cin-reader discipline as live_pickup_prompt (live_next_action already returned the
 /// action), so there is no re-entrancy and the stall backstop cannot fire mid-do_turn.
-auto live_vehicle_source_prompt( const arcopolis::backend_uilist_prompt_request &request ) ->
+auto live_uilist_prompt( const arcopolis::backend_uilist_prompt_request &request ) ->
 std::optional<int>
 {
     const auto command_id = pump.pending ? pump.pending->id : std::optional<int> {};
@@ -386,10 +388,10 @@ std::optional<int>
             std::cout.flush();
             return std::nullopt;
         }
-        // The vehicle-source uilist is SINGLE-select. A multi-choice answer is a recoverable bad_request
+        // Backend-driven uilists are SINGLE-select. A multi-choice answer is a recoverable bad_request
         // (the prompt stays OPEN), distinct from the multi-select PICKUP item menu above.
         if( answer->choices.size() != 1 ) {
-            const auto detail = std::string( "the 'Get items from where?' prompt is single-select; "
+            const auto detail = std::string( "the uilist prompt is single-select; "
                                              "answer with exactly one choice" );
             arcopolis::session_log_prompt_failed( { .step_index = step_index,
                                                     .reason = "invalid_answer",
@@ -752,10 +754,10 @@ auto arcopolis::run_live( const live_options &opts ) -> int
 
     // The pump replaces the steps walk entirely: it is consulted at the same handle_action() seam. The
     // prompt_source serves the Spike 12A pickup item menu; uilist_prompt_source serves the Spike 13B
-    // backend-driven "Get items from where?" vehicle-source uilist (both live mode only).
+    // backend-driven single-select uilist (vehicle-source submenu + secondary capacity, both live only).
     begin_backend_session( { .steps = {}, .export_dir = opts.export_dir,
                              .live_source = live_next_action, .prompt_source = live_pickup_prompt,
-                             .uilist_prompt_source = live_vehicle_source_prompt } );
+                             .uilist_prompt_source = live_uilist_prompt } );
 
     // The transcript is a default deliverable; failure to OPEN it is surfaced before driving the
     // engine, exactly like run_script (no backend result exists yet to be masked).
