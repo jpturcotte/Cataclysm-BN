@@ -1,5 +1,12 @@
 # Arcopolis Spike 12A follow-up — the pickup transaction fails loud, never silently auto-cancel-as-success
 
+> **Superseded for one path (Spike 13B, 2026-06-15):** the **vehicle "Get items from where?" submenu** (P1
+> below) is no longer fail-loud in **live** mode — it is now **driven at level 4**
+> ([33_SPIKE13B_BACKEND_DRIVEN_UILIST.md](33_SPIKE13B_BACKEND_DRIVEN_UILIST.md)). The fail-loud is retained
+> as the **no-channel fallback** (non-live / misconfigured). The non-live pre-flight reject (P2) and the
+> secondary capacity/wield/spill marked-partial are **unchanged**. This historical record is otherwise
+> accurate as of its date; see doc 33 for the current vehicle-submenu behavior.
+
 **Status: implementation + decision record (2026-06-15).** A direct follow-up to
 [30_SPIKE12A_PROMPT_MENU_TRANSACTION.md](30_SPIKE12A_PROMPT_MENU_TRANSACTION.md). Spike 12A proved a
 GUI-equivalent (level-4) prompt/menu transaction for the old `"PICKUP"` ground-item menu, but three
