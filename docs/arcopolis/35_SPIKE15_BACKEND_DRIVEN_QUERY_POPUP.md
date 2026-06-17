@@ -147,10 +147,15 @@ ONLY difference              the answer's TRANSPORT: a JSON prompt + a single ch
 Backend→client (mid-command), distinguished by `kind:"query_popup"` and `cancelable:false`:
 
 ```json
-{"type":"prompt","id":<cmd-id>,"prompt_id":1,"kind":"query_popup","title":"Take down the mattress?",
+{"type":"prompt","id":<cmd-id>,"prompt_id":1,"kind":"query_popup","title":"Take down the mattress? (Case Sensitive)",
  "choices":[{"index":0,"text":"YES","enabled":true},{"index":1,"text":"NO","enabled":true}],
  "cancelable":false}
 ```
+
+`title` carries the **same message a GUI player sees**, including the `" (Case Sensitive)"` suffix `query_yn`
+appends when `FORCE_CAPITAL_YN` is set (its default; on in the fixture) — it is the popup's formatted message,
+not the raw `query_yn` argument (Codex PR#43 P3). `choices[].text` currently carries the option **action ids**
+`YES`/`NO`; the option's semantic identity is the `index` (0=YES, 1=NO), which is what the client keys off.
 
 Answer (client→backend, single-select, same parser as the uilist): `{"op":"prompt_answer","prompt_id":1,"choice":0}`
 (0 = YES, 1 = NO). Wire behavior: a valid choice → `ok:true` ack then the command's terminal response;
@@ -206,8 +211,9 @@ logs `prompt_cancelled` (reason `noncancelable_closed`).
 `ArcopolisDeployedFurnitureTest` (built by [`make_furniture_fixture.py`](make_furniture_fixture.py)), with
 `AUTOSELECT_SINGLE_VALID_TARGET=false` + `AUTO_PICKUP=false` pinned, run with `pwsh`. Six gates:
 
-- **Y1 (accept probe):** the examine opens one `prompt` kind=query_popup, prompt_id 1, title "Take down the
-  mattress?", 2 choices [YES, NO] in order, both enabled, cancelable:false.
+- **Y1 (accept probe):** the examine opens one `prompt` kind=query_popup, prompt_id 1, title EXACTLY "Take
+  down the mattress? (Case Sensitive)" (the GUI player's formatted message; FORCE_CAPITAL_YN is on in the
+  fixture), 2 choices [YES, NO] in order, both enabled, cancelable:false.
 - **Y2 (level-4 transcript):** answering choice:0 (YES) served `[LEFT, CONFIRM]`; prompt_opened/answered/
   completed kind=query_popup, actions_served=2; no prompt_force_cancelled.
 - **Y3 (state change, YES):** the east tile's furniture `f_floor_mattress` → gone, a `mattress` item dropped,

@@ -713,10 +713,14 @@ bool query_yn( const std::string &text )
                             : input_context::allow_all_keys;
 
     query_popup popup;
+    // Spike 15 / Codex PR#43 (P3): hoist the message format so the backend request title can reuse the EXACT
+    // string a GUI player sees -- including the FORCE_CAPITAL_YN "(Case Sensitive)" suffix -- rather than the
+    // raw `text` (which drops the suffix on the live wire under the default FORCE_CAPITAL_YN=true).
+    const char *const msg_fmt = force_uc ?
+                                pgettext( "query_yn", "%s (Case Sensitive)" ) :
+                                pgettext( "query_yn", "%s" );
     popup.context( "YESNO" )
-    .message( force_uc ?
-              pgettext( "query_yn", "%s (Case Sensitive)" ) :
-              pgettext( "query_yn", "%s" ), text )
+    .message( msg_fmt, text )
     .option( "YES", allow_key )
     .option( "NO", allow_key )
     .cursor( 1 )
@@ -730,7 +734,9 @@ bool query_yn( const std::string &text )
     // play, cata_test, non-live, and every non-witnessed query_yn, where query_once still test_mode-aborts.
     if( arcopolis::backend_query_popup_mode_active() ) {
         arcopolis::backend_resolve_query_popup_choice( {
-            .title = text,
+            // string_format substitutes `text` as the %s argument (never as a format string), so a furniture
+            // name containing '%' cannot double-format; the title is byte-identical to popup.message()'s text.
+            .title = string_format( msg_fmt, text ),
             .choices = { { .index = 0, .text = "YES", .enabled = true },
                 { .index = 1, .text = "NO", .enabled = true }
             },

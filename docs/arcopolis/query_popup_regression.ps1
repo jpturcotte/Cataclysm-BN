@@ -14,8 +14,11 @@
 # direction=move_e` targets it. The avatar never moves; the only state change is the furniture take-down.
 #
 # Gates:
-#   Y1 (accept probe): `examine move_e` opens a `prompt` kind="query_popup", title "Take down the mattress?",
-#     EXACTLY 2 choices [0]=YES / [1]=NO in order, both enabled, cancelable:false (query_yn has no QUIT).
+#   Y1 (accept probe): `examine move_e` opens a `prompt` kind="query_popup", title EXACTLY "Take down the
+#     mattress? (Case Sensitive)" -- FORCE_CAPITAL_YN is true in the fixture (its default), so query_yn formats
+#     the (Case Sensitive) suffix and the wire title must carry the GUI player's exact message (guards the
+#     Codex PR#43 title-fidelity fix). EXACTLY 2 choices [0]=YES / [1]=NO in order, both enabled,
+#     cancelable:false (query_yn has no QUIT).
 #   Y2 (LEVEL-4 transcript): answering choice:0 (YES) -> served [LEFT, CONFIRM] through the real
 #     input_context("YESNO") loop; transcript prompt_opened (kind=query_popup, the 2 real choices,
 #     witness=examine_deployed_furniture_take_down -- proving WHICH audited site was driven) /
@@ -188,12 +191,15 @@ $evY = Read-Transcript -Dir $Y.Dir
 $respY = Index-ById $Y.Result.responses
 $promptsY = Get-PromptsInOrder $Y.Result.responses
 
-# --- Gate Y1: one prompt, kind=query_popup, the 2 real YES/NO choices in order, not cancelable. ---
+# --- Gate Y1: one prompt, kind=query_popup, the 2 real YES/NO choices in order, not cancelable. The title is
+#     asserted EXACTLY incl. the "(Case Sensitive)" suffix: the fixture pins FORCE_CAPITAL_YN=true (its
+#     default), so the wire title must match the GUI player's formatted message byte-for-byte -- a raw,
+#     suffix-less title (the pre-fix bug) FAILS this gate. ---
 $pY = if( $promptsY.Count -ge 1 ) { $promptsY[0] } else { $null }
 $choicesY = if( $pY ) { @($pY.choices) } else { @() }
 $g1 = ($Y.ExitCode -eq 0) -and $Y.Result -and $Y.Result.ok -and $Y.Result.ready_seen -and
       ($promptsY.Count -eq 1) -and $pY -and ($pY.kind -eq 'query_popup') -and ($pY.prompt_id -eq 1) -and
-      ($pY.title -like '*Take down*mattress*') -and ($pY.cancelable -eq $false) -and
+      ($pY.title -eq 'Take down the mattress? (Case Sensitive)') -and ($pY.cancelable -eq $false) -and
       ($choicesY.Count -eq 2) -and ($choicesY[0].index -eq 0) -and ($choicesY[0].text -eq 'YES') -and
       ($choicesY[1].index -eq 1) -and ($choicesY[1].text -eq 'NO') -and
       ($choicesY[0].enabled -eq $true) -and ($choicesY[1].enabled -eq $true)
