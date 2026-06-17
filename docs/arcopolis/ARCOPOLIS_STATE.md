@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 14 backend-driven secondary capacity uilist, 2026-06-16)
+# Arcopolis backend — current state (truth as of Spike 15 backend-driven query_popup, 2026-06-16)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -238,6 +238,30 @@ See [30_SPIKE12A_PROMPT_MENU_TRANSACTION.md](30_SPIKE12A_PROMPT_MENU_TRANSACTION
 [33_SPIKE13B_BACKEND_DRIVEN_UILIST.md](33_SPIKE13B_BACKEND_DRIVEN_UILIST.md), and
 [34_SPIKE14_SECONDARY_PICKUP_UILIST.md](34_SPIKE14_SECONDARY_PICKUP_UILIST.md).
 
+**A `query_yn` (`query_popup`) is now DRIVEN at level 4 too (Spike 15, doc 35) — a DIFFERENT Class 2
+mechanism than `uilist`.** A live **`examine`** of a deployed furniture reaches
+`iexamine::deployed_furniture`'s `query_yn("Take down the %s?")` (`input_context("YESNO")`). The un-abort is
+**witness-scoped, never command/session-wide**: a `query_popup_witness_guard` at THAT one call site (gated on
+a live `examine` precondition) arms a per-prompt `query_popup_transaction`, and a new
+`backend_query_popup_mode_active()` gate un-aborts `query_popup::query_once`'s `test_mode` short-circuit
+(`src/popup.cpp`) for **only** that one query_yn — every other `query_yn` an examine can reach (e.g. "Slip
+through the %s?") still aborts (returns NO). The client's YES/NO choice is served as registered horizontal-
+button-row actions (**YES → `[LEFT, CONFIRM]`**, **NO → `[CONFIRM]`** from the NO-default cursor) through the
+real `input_context("YESNO")::handle_input` loop, which sets `result.action` (the backend never sets it);
+`query_yn` returns it and `deployed_furniture` runs the engine's own `take_down_deployed_furniture` (YES) or
+no-op (NO). **Renderer-neutral with NO extra setup path** (unlike `uilist`): `query_popup`'s `options`/`cur`
+are builder-populated before `query()`, and the redraw/resize callbacks (`init()`→`newwin`/`show()`) are
+`test_mode` no-ops in `ui_manager::redraw_invalidated()`, so no window is created (pinned by a unit test that
+runs a real `query()` and asserts `!popup.has_window()`). `query_yn` is **not cancelable** (no `QUIT`): a
+`prompt_cancel` is rejected (`prompt_failed noncancelable`, prompt stays open) and an EOF/closed client is
+served the visible default and marked `prompt_cancelled noncancelable_closed` (NOT an answer) — never a
+fabricated cancel, never a hang (the EOF path exits 0, gate-witnessed). Reuses the Spike 13B prompt/answer
+wire with `kind:"query_popup"` and the existing `prompt_*` transcript events; no new event kinds. Witness
+`ArcopolisDeployedFurnitureTest` (an `f_floor_mattress` placed one east of the avatar, built by
+[`make_furniture_fixture.py`](make_furniture_fixture.py)), gated by
+[`query_popup_regression.ps1`](query_popup_regression.ps1) (6 gates incl. accept/reject/recovery/EOF). See
+[35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md](35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md).
+
 **Movement into an occupied/obstructed tile is a faithful no-op.** A `move` whose destination holds a
 creature, or a closed-but-not-bump-openable obstacle, runs the engine's real `avatar_action::move` leaf
 and can end the turn with the avatar not having moved — exactly as in the GUI. The studied case
@@ -279,6 +303,7 @@ in the snapshot itself — the `before` snapshot carries a neutral NPC at the mo
 | 13A   | backend-UI-mode audit: `test_mode` conflates render/keyboard suppression (wanted) with aborting UI loops before their real input (not wanted); classifies every mechanism; designs (not builds) the mode; doc 32             | ✅ audit only                           |
 | 13B   | one backend-driven `uilist` at level 4: the vehicle-source `"Get items from where?"` submenu un-aborted + setup-headless + driven via `input_context("UILIST")` (was fail-loud); doc 33                                      | ✅                                      |
 | 14    | second backend-driven `uilist` at level 4: the in-activity secondary capacity/wield/spill `uilist` (`handle_problematic_pickup`) reuses the 13B mechanism unchanged at a second site (was marked-partial); doc 34            | ✅                                      |
+| 15    | one backend-driven `query_popup` at level 4: the deployed-furniture take-down `query_yn` (`input_context("YESNO")`), driven via served `LEFT`/`CONFIRM` through the real `query_once` loop, witness-scoped to that one call site (a different Class 2 mechanism than `uilist`); doc 35 | ✅                                      |
 
 ## Source & tests
 
@@ -315,7 +340,18 @@ loop itself UNMODIFIED. **Spike 14 reuses those touches verbatim at a second `sr
 (`handle_problematic_pickup`)** — no new gated engine touch, no new public Arcopolis symbol; the only
 seam-layer change is the `live_vehicle_source_prompt` → `live_uilist_prompt` rename in
 `src/arcopolis_live.cpp` (the body is unchanged), making the channel's now-general use across both
-backend-driven uilists explicit in the name.
+backend-driven uilists explicit in the name. **Spike 15 adds the parallel `query_popup` machinery**:
+`arcopolis_backend_input.{h,cpp}` gain `backend_query_popup_mode_active()`, the
+`examine_query_popup_command`/`query_popup_transaction` flags,
+`backend_arm_examine_query_popup_command`/`backend_begin/resolve/end_query_popup_transaction`, the
+`query_popup_witness_guard` RAII type, the `backend_query_popup_request` struct + `query_popup_source` hook,
+and a `"YESNO"` serve branch; `arcopolis_live.{h,cpp}` add `live_query_popup_prompt` (single-select,
+non-cancelable) + arm the examine precondition; and **two new gated engine touches** — `query_popup::query_once`
+in `src/popup.cpp` takes its `test_mode` abort only when `!backend_query_popup_mode_active()` (plus two
+additive const accessors `current_index()`/`has_window()`), and `query_yn` in `src/output.cpp` drives the
+real loop under the gate — with the witness guard (the discriminator) in `iexamine::deployed_furniture`
+(`src/iexamine.cpp`). The `prompt_*` transcript events + the prompt/answer wire are reused with
+`kind:"query_popup"` (no new event kinds).
 Unit tests: `tests/arcopolis_*_test.cpp` (`[arcopolis]` tag). Consumers (all stdlib-only,
 deliberately share-nothing so each independently re-derives the contract):
 `tools/arcopolis_viewer/make_report.py` (Spike 4 offline HTML report) and
@@ -414,6 +450,18 @@ mangles UTF-8 reads + options.json BOM → false failures). See
 [30_SPIKE12A_PROMPT_MENU_TRANSACTION.md](30_SPIKE12A_PROMPT_MENU_TRANSACTION.md),
 [31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md](31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md) and
 [33_SPIKE13B_BACKEND_DRIVEN_UILIST.md](33_SPIKE13B_BACKEND_DRIVEN_UILIST.md).
+[`docs/arcopolis/query_popup_regression.ps1`](query_popup_regression.ps1) gates the **Spike 15
+backend-driven `query_popup`** on **`ArcopolisDeployedFurnitureTest`** (a clone of `ArcopolisTest` with one
+`f_floor_mattress` placed one tile EAST of the avatar, built by
+[`make_furniture_fixture.py`](make_furniture_fixture.py)), reusing
+[`prompt_menu_live_driver.py`](prompt_menu_live_driver.py) unchanged — six gates: a live `examine move_e`
+opens a `kind=query_popup` prompt (2 ordered YES/NO choices, `cancelable:false`); answering YES is served
+`[LEFT, CONFIRM]` and NO `[CONFIRM]` through the real `input_context("YESNO")` loop (`prompt_completed
+kind=query_popup`); YES takes down the furniture (`f_floor_mattress`→absent + a `mattress` item dropped +
+"You take down the mattress.") while NO leaves it; an out-of-range/wrong-`prompt_id`/non-cancelable
+`prompt_cancel` are each rejected with the prompt open then a valid answer completes; and an EOF/closed
+client exits CLEAN (backend exit 0, transcript `prompt_cancelled noncancelable_closed`, not an answer). See
+[35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md](35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md).
 [`docs/arcopolis/frontend_prototype_regression.ps1`](frontend_prototype_regression.ps1) gates the
 **Spike 10A browser-frontend bridge** on **`ArcopolisTest`**: it starts
 `tools/arcopolis_frontend/prototype_server.py`, drives the whole HTTP API (start → move_n → move_s
@@ -494,8 +542,14 @@ stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROT
   per-transaction `backend_ui_mode_active()` so cata_test and every other `uilist` still abort. **Spike 14
   ([34_SPIKE14_SECONDARY_PICKUP_UILIST.md](34_SPIKE14_SECONDARY_PICKUP_UILIST.md)) generalizes the mode by
   reusing the same machinery unchanged at a second site:** the in-activity secondary capacity/wield/spill
-  `uilist` (`handle_problematic_pickup`) is now driven too. Broader prompt/menu support (`query_popup` /
-  `popup()`, the inventory_selector, computer menus, NPC dialogue) can build on the proven mode; none are
+  `uilist` (`handle_problematic_pickup`) is now driven too. **Spike 15
+  ([35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md](35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md)) extends the mode to a
+  DIFFERENT Class 2 mechanism — `query_popup`:** the deployed-furniture take-down `query_yn`
+  (`input_context("YESNO")`) is now driven at level 4 via served `LEFT`/`CONFIRM`, with its OWN per-prompt
+  gate `backend_query_popup_mode_active()` un-aborting `query_popup::query_once` (`src/popup.cpp:277`),
+  witness-scoped to that one call site. Still backlog: the `popup()`/`popup_getkey()` family (`"POPUP_WAIT"`
+  + the `PF_GET_KEY` `ANY_INPUT` caveat from doc 32), generic `query_popup` / any other `query_yn`, the new
+  inventory_selector, computer menus, and NPC dialogue — all can build on the proven mode; none are
   implemented yet.
 
 ## Build (Windows)

@@ -220,6 +220,21 @@ The marked-partial behavior is retained as the no-channel fallback (unit-tested)
 (gate E converted to driven WIELD on `ArcopolisTest`'s blanket + gate J on `ArcopolisCapacityTest` with
 five sub-scenarios). See `docs/arcopolis/34_SPIKE14_SECONDARY_PICKUP_UILIST.md`.
 
+A sixth world, `ArcopolisDeployedFurnitureTest`, lives in the same userdir as the **backend-driven
+`query_popup` (`query_yn`) witness** (Spike 15): a clone of `ArcopolisTest` with ONE `f_floor_mattress`
+(`examine_action: "deployed_furniture"`, `deployed_item: "mattress"`) placed on the clean `t_floor` tile one
+tile EAST of the avatar. A live `examine direction=move_e` reaches `iexamine::deployed_furniture`'s
+`query_yn("Take down the %s?")` (`input_context("YESNO")`); **Spike 15 DRIVES it at level 4** — a
+`query_popup_witness_guard` at that one call site arms a per-prompt `query_popup_transaction`, the new
+`backend_query_popup_mode_active()` gate un-aborts `query_popup::query_once`'s `test_mode` abort
+(`src/popup.cpp`) for ONLY that one query_yn, and the client's YES/NO is served as registered `LEFT`/`CONFIRM`
+through the real `input_context("YESNO")` loop (YES takes down the furniture via the engine's own
+`take_down_deployed_furniture`; NO is a no-op). `query_yn` is **not cancelable** (no fabricated cancel; EOF
+serves the visible default, marked `noncancelable_closed`). Built reproducibly by
+`docs/arcopolis/make_furniture_fixture.py` (save-edit, no GUI/build), gated by
+`docs/arcopolis/query_popup_regression.ps1` (six gates: accept/reject/state-change/recovery/EOF). See
+`docs/arcopolis/35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md`.
+
 **Run these regressions with `pwsh` (PowerShell 7), not `powershell` (5.1)** — 5.1 misreads BOM-less UTF-8
 snapshots and writes an options.json BOM, causing spurious gate failures on unchanged code.
 
