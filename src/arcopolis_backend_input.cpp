@@ -66,6 +66,21 @@ struct backend_session {
     std::size_t uilist_cursor = 0;                   ///< next uilist_queue index to serve
     int uilist_served =
         0;                           ///< uilist actions served (the prompt_completed count)
+    arcopolis::backend_query_popup_source
+    query_popup_source;  ///< Spike 15: live query_popup (query_yn) answer channel
+    bool examine_query_popup_command =
+        false;  ///< Spike 15: a live examine command armed the precondition
+    bool query_popup_transaction =
+        false;  ///< Spike 15: a query_popup drive is armed (the un-abort gate)
+    bool query_popup_opened =
+        false;                 ///< Spike 15: a real query_popup prompt was exposed
+    std::string
+    query_popup_witness;                 ///< Spike 15: which call site armed it (emitted in prompt_opened)
+    std::optional<int> query_popup_step_index;       ///< the arming examine command's step index
+    std::vector<std::string> query_popup_queue;      ///< Spike 15: registered YESNO actions, in order
+    std::size_t query_popup_cursor = 0;              ///< next query_popup_queue index to serve
+    int query_popup_served =
+        0;                       ///< query_popup actions served (the prompt_completed count)
 };
 
 backend_session session;
@@ -95,6 +110,14 @@ std::string pickup_served_action;
 const std::string uilist_menu_category = "UILIST";
 /// Stable storage for a served uilist-queue action (handle_input returns a const reference).
 std::string uilist_served_action;
+
+/// The category of the engine's `query_popup` input context (src/popup.cpp query_once `input_context(
+/// category )`; query_yn sets it to "YESNO", src/output.cpp:715) -- the only context the Spike 15
+/// registered-action queue is served to. Distinct from uilist_menu_category: a horizontal LEFT/RIGHT/CONFIRM
+/// button row in a different translation unit.
+const std::string query_popup_category = "YESNO";
+/// Stable storage for a served query_popup-queue action (handle_input returns a const reference).
+std::string query_popup_served_action;
 
 /// Force-clears the nested slot at a return to the top-level seam. An armed-but-unconsumed answer is
 /// recorded as a `nested_input_unconsumed` transcript event BEFORE any pending live response is written
@@ -148,6 +171,26 @@ auto clear_stale_nested_input() -> void
     session.uilist_queue.clear();
     session.uilist_cursor = 0;
     session.uilist_served = 0;
+    // Spike 15: defensively close any leaked query_popup transaction at the seam return. The normal path
+    // clears it synchronously via the witness guard the instant the witnessed query_yn returns (well before
+    // here), so this almost never fires; it bookends a missing prompt_completed and clears the state so
+    // nothing leaks into the next command's prompts.
+    if( session.query_popup_transaction && session.query_popup_opened ) {
+        arcopolis::session_log_prompt_completed( {
+            .step_index = session.query_popup_step_index,
+            .actions_served = session.query_popup_served,
+            .kind = "query_popup",
+        } );
+    }
+    session.query_popup_transaction = false;
+    session.query_popup_opened = false;
+    session.query_popup_witness.clear();
+    session.query_popup_queue.clear();
+    session.query_popup_cursor = 0;
+    session.query_popup_served = 0;
+    // Spike 15: clear the per-command examine query_popup precondition (the gate the witness guard checks).
+    session.examine_query_popup_command = false;
+    session.query_popup_step_index.reset();
 }
 
 /// The machine-readable name a `nested_input_guard` event records for its reason.
@@ -260,6 +303,7 @@ auto arcopolis::begin_backend_session( const backend_session_options &opts ) -> 
         .live_source = opts.live_source,
         .prompt_source = opts.prompt_source,
         .uilist_prompt_source = opts.uilist_prompt_source,
+        .query_popup_source = opts.query_popup_source,
     };
 }
 
@@ -632,6 +676,149 @@ arcopolis::uilist_transaction_guard::~uilist_transaction_guard()
     arcopolis::backend_end_uilist_transaction();
 }
 
+auto arcopolis::backend_query_popup_mode_active() -> bool
+{
+    return session.active && session.query_popup_transaction;
+}
+
+auto arcopolis::backend_examine_query_popup_command_active() -> bool
+{
+    return session.active && session.examine_query_popup_command;
+}
+
+auto arcopolis::backend_query_popup_prompt_available() -> bool
+{
+    return session.active && static_cast<bool>( session.query_popup_source );
+}
+
+auto arcopolis::backend_arm_examine_query_popup_command( const std::optional<int> &step_index ) ->
+void
+{
+    // Inert outside a session, like every other public mutator.
+    if( !session.active ) {
+        return;
+    }
+    session.examine_query_popup_command = true;
+    session.query_popup_step_index = step_index;
+}
+
+auto arcopolis::backend_begin_query_popup_transaction( const std::string &witness_id ) -> void
+{
+    // Gated on an armed examine command precondition AND an available prompt channel (the only
+    // backend-driven query_popup arises inside a live examine, which always has a channel). The channel
+    // gate matters for a misconfigured session: without a `query_popup_source` there is nothing to ask, so
+    // we must NOT arm -- query_yn then takes its normal test_mode abort (returns NO) instead of driving a
+    // loop with no answer channel (the AGENTS.md "don't drive a prompt you can't answer" rule; mirrors the
+    // Spike 13B/14 uilist call site, which checks backend_uilist_prompt_available() before driving). Inert
+    // otherwise -- so the witness guard at iexamine::deployed_furniture is a no-op in normal play, non-live,
+    // and any examine that did not arm the precondition. MUST run before query_yn's query_popup reaches
+    // query_once (which reads backend_query_popup_mode_active()).
+    if( !backend_examine_query_popup_command_active() || !backend_query_popup_prompt_available() ) {
+        return;
+    }
+    session.query_popup_transaction = true;
+    session.query_popup_opened = false;  // set true only once a real prompt is exposed (resolve)
+    session.query_popup_witness = witness_id;
+    session.query_popup_queue.clear();
+    session.query_popup_cursor = 0;
+    session.query_popup_served = 0;
+}
+
+auto arcopolis::backend_resolve_query_popup_choice( const backend_query_popup_request &request ) ->
+void
+{
+    // Inert unless a query_popup transaction is armed (the witness guard set it). Defense in depth: the
+    // query_yn drive-block already gates on backend_query_popup_mode_active().
+    if( !session.active || !session.query_popup_transaction ) {
+        return;
+    }
+    // Record the opened prompt with the engine's REAL query_popup options (read from the constructed popup).
+    auto opened = arcopolis::prompt_opened_event{ .step_index = session.query_popup_step_index,
+            .kind = request.kind, .witness = session.query_popup_witness };
+    for( const pickup_prompt_choice &c : request.choices ) {
+        opened.choices.push_back( { .index = c.index, .text = c.text, .enabled = c.enabled } );
+    }
+    arcopolis::session_log_prompt_opened( opened );
+    session.query_popup_opened = true;
+    // Ask the live client for a SINGLE choice. The answer channel is an invariant here:
+    // backend_begin_query_popup_transaction refuses to arm the transaction without a registered
+    // query_popup_source (its backend_query_popup_prompt_available() gate), and the source is never cleared
+    // mid-session, so it is non-null whenever this gated resolve runs. A null RETURN (EOF / closed client)
+    // takes the closed-default branch below.
+    const auto answer = session.query_popup_source( request );
+    session.query_popup_cursor = 0;
+    session.query_popup_served = 0;
+    const auto valid = answer && *answer >= 0 && *answer < static_cast<int>( request.choices.size() );
+    if( valid ) {
+        // Translate the chosen option index into the registered keystrokes a GUI player would press: from the
+        // popup's REAL starting cursor, navigate the horizontal button row LEFT (toward 0) or RIGHT (toward
+        // the end) to the chosen option, then CONFIRM. CONFIRM is filter-free: query_once sets res.action =
+        // options[cur].action without consulting the per-option key filter (src/popup.cpp:325-329), so this
+        // is robust regardless of FORCE_CAPITAL_YN and the synthetic input event. The real query_once loop
+        // moves the cursor and sets the result -- the backend never sets it.
+        session.query_popup_queue.clear();
+        const int start = static_cast<int>( request.cursor_start );
+        const int target = *answer;
+        if( target < start ) {
+            session.query_popup_queue.insert( session.query_popup_queue.end(),
+                                              static_cast<std::size_t>( start - target ), "LEFT" );
+        } else if( target > start ) {
+            session.query_popup_queue.insert( session.query_popup_queue.end(),
+                                              static_cast<std::size_t>( target - start ), "RIGHT" );
+        }
+        session.query_popup_queue.emplace_back( "CONFIRM" );
+        arcopolis::session_log_prompt_answered( { .step_index = session.query_popup_step_index,
+                                                .choices = std::vector<int> { target },
+                                                .actions = session.query_popup_queue,
+                                                .kind = request.kind } );
+    } else {
+        // EOF / closed client: the source returned no choice. query_yn is NOT cancelable -- no QUIT is
+        // registered, so there is nothing to serve as a cancel. To avoid a headless hang, CONFIRM the popup's
+        // pre-selected visible default (the starting cursor -- NO for query_yn). This is logged as a CLOSED
+        // prompt, NOT prompt_answered: the client did not intentionally choose the default; the engine fell to
+        // its own visible default because the channel closed. (An out-of-range answer lands here too -- same
+        // safe default, same closed record.)
+        session.query_popup_queue = { "CONFIRM" };
+        arcopolis::session_log_prompt_cancelled( { .step_index = session.query_popup_step_index,
+                .reason = "noncancelable_closed",
+                .kind = request.kind } );
+    }
+}
+
+auto arcopolis::backend_end_query_popup_transaction() -> void
+{
+    // Inert when not armed (safe to call from the witness guard on the GUI path, or twice). Idempotent.
+    if( !session.query_popup_transaction ) {
+        return;
+    }
+    // Bookend the transaction with how many registered actions the query_popup loop consumed -- only if a
+    // real prompt opened (resolve sets query_popup_opened; a guard that armed but whose query_yn never
+    // reached query_once opened nothing).
+    if( session.query_popup_opened ) {
+        arcopolis::session_log_prompt_completed( {
+            .step_index = session.query_popup_step_index,
+            .actions_served = session.query_popup_served,
+            .kind = "query_popup",
+        } );
+    }
+    session.query_popup_transaction = false;
+    session.query_popup_opened = false;
+    session.query_popup_witness.clear();
+    session.query_popup_queue.clear();
+    session.query_popup_cursor = 0;
+    session.query_popup_served = 0;
+}
+
+arcopolis::query_popup_witness_guard::query_popup_witness_guard( const std::string &witness_id )
+{
+    arcopolis::backend_begin_query_popup_transaction( witness_id );
+}
+
+arcopolis::query_popup_witness_guard::~query_popup_witness_guard()
+{
+    arcopolis::backend_end_query_popup_transaction();
+}
+
 auto arcopolis::decide_nested_input( const nested_input_observation &obs ) -> nested_input_decision
 {
     // A timeout >= 0 read is a poll (e.g. the activity-interrupt check, game.cpp
@@ -701,6 +888,23 @@ auto arcopolis::backend_nested_input_action( const std::string &category,
             ++session.uilist_cursor;
             ++session.uilist_served;
             return &uilist_served_action;
+        }
+    }
+    // Spike 15: serve the next queued registered YESNO action to the engine's backend-driven query_popup
+    // loop (src/popup.cpp query_once's input_context("YESNO") loop). Same shape as the UILIST/PICKUP queues:
+    // only a BLOCKING read (timeout < 0), only while the asking context is "YESNO", only while actions
+    // remain. LEFT/RIGHT/CONFIRM are all registered in the "YESNO" context (src/popup.cpp:282-284); the real
+    // query_once loop moves the cursor on LEFT/RIGHT and, on CONFIRM, sets res.action = options[cur].action
+    // (the backend never sets the result). Only ever non-empty while a query_popup transaction is armed (the
+    // witnessed deployed-furniture take-down query_yn); a drained queue falls through to the guard below.
+    if( timeout < 0 && category == query_popup_category
+        && session.query_popup_cursor < session.query_popup_queue.size() ) {
+        const auto &front = session.query_popup_queue[session.query_popup_cursor];
+        if( ranges::contains( registered_actions, front ) ) {
+            query_popup_served_action = front;
+            ++session.query_popup_cursor;
+            ++session.query_popup_served;
+            return &query_popup_served_action;
         }
     }
     const auto armed = backend_nested_input_armed();

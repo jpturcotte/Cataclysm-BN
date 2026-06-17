@@ -20,6 +20,7 @@
 #include <type_traits>
 #include <cmath>
 
+#include "arcopolis_backend_input.h"  // arcopolis::backend_query_popup_mode_active (Spike 15 query_yn drive-block)
 #include "cached_options.h"
 #include "cata_utility.h"
 #include "catacharset.h"
@@ -711,17 +712,40 @@ bool query_yn( const std::string &text )
     const auto &allow_key = force_uc ? input_context::disallow_lower_case
                             : input_context::allow_all_keys;
 
-    return query_popup()
-           .context( "YESNO" )
-           .message( force_uc ?
-                     pgettext( "query_yn", "%s (Case Sensitive)" ) :
-                     pgettext( "query_yn", "%s" ), text )
-           .option( "YES", allow_key )
-           .option( "NO", allow_key )
-           .cursor( 1 )
-           .default_color( c_light_red )
-           .query()
-           .action == "YES";
+    query_popup popup;
+    // Spike 15 / Codex PR#43 (P3): hoist the message format so the backend request title can reuse the EXACT
+    // string a GUI player sees -- including the FORCE_CAPITAL_YN "(Case Sensitive)" suffix -- rather than the
+    // raw `text` (which drops the suffix on the live wire under the default FORCE_CAPITAL_YN=true).
+    const char *const msg_fmt = force_uc ?
+                                pgettext( "query_yn", "%s (Case Sensitive)" ) :
+                                pgettext( "query_yn", "%s" );
+    popup.context( "YESNO" )
+    .message( msg_fmt, text )
+    .option( "YES", allow_key )
+    .option( "NO", allow_key )
+    .cursor( 1 )
+    .default_color( c_light_red );
+
+    // Arcopolis Spike 15: drive a backend query_popup ONLY while a witness-scoped transaction is armed (the
+    // guard at the ONE audited call site, iexamine::deployed_furniture). Then expose this query_yn's REAL
+    // options (YES/NO, at positions 0/1, all enabled) and the popup's REAL starting cursor to the live
+    // client, and arm the registered LEFT/RIGHT/CONFIRM queue the real query_once("YESNO") loop below
+    // consumes -- it sets result.action; the backend never sets it. Inert (no transaction armed) for normal
+    // play, cata_test, non-live, and every non-witnessed query_yn, where query_once still test_mode-aborts.
+    if( arcopolis::backend_query_popup_mode_active() ) {
+        arcopolis::backend_resolve_query_popup_choice( {
+            // string_format substitutes `text` as the %s argument (never as a format string), so a furniture
+            // name containing '%' cannot double-format; the title is byte-identical to popup.message()'s text.
+            .title = string_format( msg_fmt, text ),
+            .choices = { { .index = 0, .text = "YES", .enabled = true },
+                { .index = 1, .text = "NO", .enabled = true }
+            },
+            .cursor_start = popup.current_index(),
+            .cancelable = false,
+        } );
+    }
+
+    return popup.query().action == "YES";
 }
 
 bool query_int( int &result, int default_val, const std::string &text )

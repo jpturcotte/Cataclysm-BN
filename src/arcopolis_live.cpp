@@ -239,6 +239,13 @@ auto live_next_action() -> action_id
             if( req->command == "pickup" ) {
                 arcopolis::backend_arm_pickup_transaction( step_index );
             }
+            // Spike 15: arm the examine query_popup PRECONDITION (the gate the witness guard at
+            // iexamine::deployed_furniture checks before arming its per-prompt transaction). ONLY `examine`
+            // arms it; even then it only enables driving the ONE witnessed query_yn (the deployed-furniture
+            // take-down) -- every other examine query_yn has no witness guard and aborts as in test_mode.
+            if( req->command == "examine" ) {
+                arcopolis::backend_arm_examine_query_popup_command( step_index );
+            }
             pump.pending = live_pending{ .id = req->id, .name = req->name, .step_index = step_index };
             return *resolved;
         }
@@ -393,6 +400,98 @@ std::optional<int>
         if( answer->choices.size() != 1 ) {
             const auto detail = std::string( "the uilist prompt is single-select; "
                                              "answer with exactly one choice" );
+            arcopolis::session_log_prompt_failed( { .step_index = step_index,
+                                                    .reason = "invalid_answer",
+                                                    .detail = detail } );
+            send_error( { .id = answer->id, .op = "prompt_answer",
+                          .code = arcopolis::live_error_code::bad_request, .message = detail } );
+            continue;
+        }
+        arcopolis::write_prompt_ack_line( std::cout, { .id = answer->id, .prompt_id = prompt_id,
+                                          .choices = answer->choices
+                                                     } );
+        std::cout.flush();
+        return answer->choices.front();
+    }
+}
+
+/// The live backend-driven single-select query_popup answer channel (Spike 15; registered as the session's
+/// query_popup_source). Called from INSIDE query_yn (mid-do_turn) when the WITNESSED query_popup transaction
+/// is armed -- in this fork, iexamine::deployed_furniture's "Take down the %s?" query_yn (reached by an
+/// `examine`). Emits a `prompt` event with kind="query_popup" carrying the engine's REAL options
+/// (request.choices = the YES/NO option actions), cancelable=false, then blocks reading a SINGLE-select
+/// answer. A valid in-range choice (0=YES / 1=NO) is acked and returned (the backend then translates it into
+/// the registered YESNO actions [LEFT/RIGHT x ..., CONFIRM] the real query_once loop consumes); an invalid /
+/// multi / out-of-range / wrong-prompt_id answer is rejected ok:false and the prompt stays OPEN. A
+/// `prompt_cancel` is REJECTED (query_yn is not cancelable -- there is no QUIT to serve; the prompt stays
+/// OPEN), distinct from the cancelable uilist. EOF returns nullopt -- the resolve then CONFIRMs the popup's
+/// pre-selected visible default (NO) so the engine loop exits, marked as a CLOSED prompt, not an answer.
+/// Same single-std::cin-reader discipline as live_uilist_prompt (live_next_action already returned the
+/// action), so there is no re-entrancy and the stall backstop cannot fire mid-do_turn.
+auto live_query_popup_prompt( const arcopolis::backend_query_popup_request &request ) ->
+std::optional<int>
+{
+    const auto command_id = pump.pending ? pump.pending->id : std::optional<int> {};
+    const auto step_index = pump.pending ? std::optional<int>( pump.pending->step_index )
+                            : std::optional<int> {};
+    const auto prompt_id = ++pump.prompt_seq;
+    arcopolis::write_prompt_line( std::cout, { .id = command_id,
+                                  .prompt_id = prompt_id,
+                                  .kind = request.kind,
+                                  .title = request.title,
+                                  .choices = request.choices,
+                                  .cancelable = request.cancelable
+                                             } );
+    std::cout.flush();
+    for( ;; ) {
+        std::string line;
+        if( !std::getline( std::cin, line ) ) {
+            return std::nullopt;  // EOF mid-prompt: the resolve serves the popup's visible default (NO).
+        }
+        if( !line.empty() && line.back() == '\r' ) {
+            line.pop_back();
+        }
+        if( line.empty() ) {
+            continue;
+        }
+        const auto answer = arcopolis::parse_prompt_answer( line,
+                            static_cast<int>( request.choices.size() ) );
+        if( !answer ) {
+            // Recoverable (incl. out-of-range): the prompt stays OPEN; no engine state was touched.
+            arcopolis::session_log_prompt_failed( { .step_index = step_index,
+                                                    .reason = "invalid_answer",
+                                                    .detail = answer.error().message } );
+            send_error( { .id = answer.error().id, .op = "prompt_answer",
+                          .code = answer.error().code, .message = answer.error().message } );
+            continue;
+        }
+        if( answer->prompt_id != prompt_id ) {
+            const auto detail = "prompt_id " + std::to_string( answer->prompt_id ) +
+                                " does not match the active prompt " + std::to_string( prompt_id );
+            arcopolis::session_log_prompt_failed( { .step_index = step_index,
+                                                    .reason = "prompt_id_mismatch",
+                                                    .detail = detail } );
+            send_error( { .id = answer->id, .op = "prompt_answer",
+                          .code = arcopolis::live_error_code::bad_request, .message = detail } );
+            continue;
+        }
+        if( answer->act == arcopolis::live_prompt_answer::action::cancel ) {
+            // query_yn is NOT cancelable: there is no registered QUIT to serve. Reject the cancel and keep
+            // the prompt OPEN (the client must answer with a choice), distinct from the cancelable uilist.
+            // Do NOT invent a cancel outcome (docs/arcopolis/35).
+            const auto detail = std::string( "this query_popup is not cancelable; answer with a choice "
+                                             "(0 = YES, 1 = NO)" );
+            arcopolis::session_log_prompt_failed( { .step_index = step_index,
+                                                    .reason = "noncancelable",
+                                                    .detail = detail } );
+            send_error( { .id = answer->id, .op = "prompt_answer",
+                          .code = arcopolis::live_error_code::bad_request, .message = detail } );
+            continue;
+        }
+        // Backend-driven query_popups are SINGLE-select. A multi-choice answer is a recoverable bad_request.
+        if( answer->choices.size() != 1 ) {
+            const auto detail = std::string( "the query_popup is single-select; answer with exactly one "
+                                             "choice" );
             arcopolis::session_log_prompt_failed( { .step_index = step_index,
                                                     .reason = "invalid_answer",
                                                     .detail = detail } );
@@ -754,10 +853,12 @@ auto arcopolis::run_live( const live_options &opts ) -> int
 
     // The pump replaces the steps walk entirely: it is consulted at the same handle_action() seam. The
     // prompt_source serves the Spike 12A pickup item menu; uilist_prompt_source serves the Spike 13B
-    // backend-driven single-select uilist (vehicle-source submenu + secondary capacity, both live only).
+    // backend-driven single-select uilist (vehicle-source submenu + secondary capacity, both live only);
+    // query_popup_source serves the Spike 15 backend-driven query_yn (the deployed-furniture take-down).
     begin_backend_session( { .steps = {}, .export_dir = opts.export_dir,
                              .live_source = live_next_action, .prompt_source = live_pickup_prompt,
-                             .uilist_prompt_source = live_uilist_prompt } );
+                             .uilist_prompt_source = live_uilist_prompt,
+                             .query_popup_source = live_query_popup_prompt } );
 
     // The transcript is a default deliverable; failure to OPEN it is surfaced before driving the
     // engine, exactly like run_script (no backend result exists yet to be masked).

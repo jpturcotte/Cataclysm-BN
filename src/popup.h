@@ -190,6 +190,19 @@ class query_popup
          */
         result query();
 
+        /**
+         * Arcopolis backend (Spike 15): the popup's current cursor index. A backend-driven query_popup
+         * transaction reads it so it can compute the LEFT/RIGHT navigation to a chosen option from the
+         * popup's REAL starting cursor (e.g. query_yn() starts on `NO`, index 1) -- never a parallel model.
+         */
+        auto current_index() const -> size_t;
+        /**
+         * Arcopolis backend (Spike 15): true once a curses window was allocated (init() ran). The headless
+         * backend un-abort path must create NO curses window in any build; pinned by a unit test, mirroring
+         * the uilist `!window` invariant (Spike 13B).
+         */
+        auto has_window() const -> bool;
+
     protected:
         /**
          * Create or get a ui_adaptor on the UI stack to handle redrawing and

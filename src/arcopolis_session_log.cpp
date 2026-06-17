@@ -200,6 +200,9 @@ auto arcopolis::write_prompt_opened_line( std::ostream &out, const prompt_opened
         json.member( "step_index", *ev.step_index );
     }
     json.member( "kind", ev.kind );
+    if( !ev.witness.empty() ) {
+        json.member( "witness", ev.witness );
+    }
     json.member( "choices" );
     json.start_array();
     for( const prompt_choice_log &c : ev.choices ) {

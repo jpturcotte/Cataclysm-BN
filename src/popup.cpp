@@ -4,6 +4,7 @@
 #include <array>
 #include <memory>
 
+#include "arcopolis_backend_input.h"  // arcopolis::backend_query_popup_mode_active (Spike 15 query_popup un-abort gate)
 #include "cached_options.h"
 #include "catacharset.h"
 #include "ime.h"
@@ -266,7 +267,14 @@ query_popup::result query_popup::query_once()
         return { false, "ERROR", {} };
     }
 
-    if( test_mode ) {
+    // Arcopolis Spike 15: a backend-driven query_popup transaction un-aborts EXACTLY the one witnessed
+    // query_yn (a per-prompt, witness-scoped gate -- never command/session-wide), so its real
+    // input_context("YESNO") loop runs headlessly and the backend serves it registered LEFT/RIGHT/CONFIRM
+    // actions. cata_test (no backend session) and every other query_popup still take the test_mode abort.
+    // The selection state (options/cur) is set by the builder before query(), and the redraw/resize
+    // callbacks (init()->newwin / show()) are test_mode no-ops in ui_manager::redraw_invalidated(), so this
+    // path creates NO curses window and calls NO render primitive in any build (mirrors the uilist invariant).
+    if( test_mode && !arcopolis::backend_query_popup_mode_active() ) {
         return { false, "ERROR", {} };
     }
 
@@ -356,6 +364,16 @@ query_popup::result query_popup::query()
         res = query_once();
     } while( res.wait_input );
     return res;
+}
+
+auto query_popup::current_index() const -> size_t
+{
+    return cur;
+}
+
+auto query_popup::has_window() const -> bool
+{
+    return static_cast<bool>( win );
 }
 
 std::string query_popup::wait_text( const std::string &text, const nc_color &bar_color )

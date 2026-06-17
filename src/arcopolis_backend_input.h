@@ -63,6 +63,31 @@ struct backend_uilist_prompt_request {
 using backend_uilist_prompt_source =
     std::function < auto( const backend_uilist_prompt_request & ) -> std::optional<int> >;
 
+/// A backend-driven `query_popup` prompt request (Spike 15): the engine's REAL query_popup options (read
+/// from the constructed query_popup -- for `query_yn` these are the two YES/NO option actions, each
+/// enabled, at positions 0/1), the popup's `cursor_start` (so the backend can compute the LEFT/RIGHT
+/// navigation to a chosen option from the popup's real starting cursor -- query_yn starts on NO=1), plus
+/// the menu's `kind`/`title`. `cancelable` is false for a `query_yn` (no QUIT is registered). DISTINCT
+/// from the uilist request: query_popup navigates a horizontal button row (LEFT/RIGHT) rather than a
+/// vertical list (DOWN), and query_yn cannot be cancelled.
+struct backend_query_popup_request {
+    std::string kind = "query_popup";           ///< protocol/transcript prompt class
+    std::string
+    title;                          ///< the popup's message text (e.g. "Take down the mattress?")
+    std::vector<pickup_prompt_choice>
+    choices;  ///< the REAL query_popup options (txt = option action, position index, all enabled)
+    std::size_t cursor_start = 0;               ///< the popup's starting cursor (query_yn: 1 = NO)
+    bool cancelable = false;                     ///< query_yn registers no QUIT -- not cancelable
+};
+
+/// The live single-select `query_popup` answer channel (Spike 15): given the engine's real query_popup
+/// options, returns the chosen option index (0-based position), or nullopt on EOF / closed client (the
+/// resolve then serves the popup's visible default -- CONFIRM on the starting cursor -- to avoid a hang,
+/// marked as a closed prompt, NOT an intentional answer). Set only in live mode; null elsewhere (the
+/// witness guard then never arms, so the query_yn aborts as in normal test_mode).
+using backend_query_popup_source =
+    std::function < auto( const backend_query_popup_request & ) -> std::optional<int> >;
+
 /// Inputs for an input-seam backend session (mechanism M1): the ordered steps to drive the engine with,
 /// and the directory inline `export` steps write their snapshots into.
 struct backend_session_options {
@@ -74,6 +99,8 @@ struct backend_session_options {
     prompt_source;  ///< Spike 12A live mode: the pickup menu-answer channel (null elsewhere)
     backend_uilist_prompt_source
     uilist_prompt_source;  ///< Spike 13B live mode: the backend-driven uilist answer channel (null elsewhere)
+    backend_query_popup_source
+    query_popup_source;  ///< Spike 15 live mode: the backend-driven query_popup (query_yn) answer channel (null elsewhere)
 };
 
 /// Begins a backend input session: while it is active, game::handle_action() takes its action from
@@ -313,6 +340,84 @@ struct uilist_transaction_guard {
     auto operator=( const uilist_transaction_guard & ) -> uilist_transaction_guard & = delete;
     uilist_transaction_guard( uilist_transaction_guard && ) = delete;
     auto operator=( uilist_transaction_guard && ) -> uilist_transaction_guard & = delete;
+};
+
+// --- Spike 15: ONE backend-driven query_popup transaction (live mode only). The witnessed call site is
+// iexamine::deployed_furniture's query_yn("Take down the %s?") (reached by `examine`). The un-abort is
+// WITNESS-SCOPED, never command/session-wide: a tiny RAII query_popup_witness_guard at THAT one call site
+// arms the per-prompt transaction, so query_popup::query_once()'s test_mode abort is bypassed for exactly
+// that one query_yn and no other. Every other query_yn an examine can reach (e.g. "Slip through the %s?")
+// has no guard, so it aborts as in normal test_mode -- this spike claims ONE query_popup witness, not
+// generic query_yn support. Past the un-abort, the real input_context("YESNO") loop runs and the backend
+// drives its selection at LEVEL 4 -- registered LEFT/RIGHT/CONFIRM a player would press, consumed by that
+// loop, which sets result.action; the backend never sets the result. DISTINCT from the "UILIST" queue: a
+// horizontal-button-row navigate-then-CONFIRM queue served to the "YESNO" category. ---
+
+/// True ONLY while a query_popup transaction is armed (between the witness guard's construction and
+/// destruction). This -- and nothing weaker (never backend_examine_query_popup_command_active() or
+/// backend_session_active()) -- is the gate src/popup.cpp's query_once test_mode-abort bypass and
+/// src/output.cpp's query_yn drive-block key off, so the un-abort fires for EXACTLY the witnessed
+/// query_yn and no other query_popup. Inert (false) outside a session.
+auto backend_query_popup_mode_active() -> bool;
+
+/// True while an `examine` command's query_popup precondition is armed -- the gate the witness guard
+/// checks before arming the per-prompt transaction. Armed ONLY for the live `examine` command (never
+/// merely because a session is active), and cleared at the next top-level seam return. Without it the
+/// witness guard never arms, so query_yn aborts as in normal test_mode (the non-live / non-examine path).
+/// Inert (false) outside a session.
+auto backend_examine_query_popup_command_active() -> bool;
+
+/// True when the session has a live query_popup answer channel (set only in live mode). The witness guard
+/// arms only when both this and the examine command precondition hold, so a misconfigured session (no
+/// channel) leaves query_yn aborting rather than driving with nothing to ask.
+auto backend_query_popup_prompt_available() -> bool;
+
+/// Arms the `examine` command's query_popup precondition (sets the flag + records the command's step index
+/// for transcript correlation). Called at live `examine` dispatch. Inert outside a session. Cleared at the
+/// next top-level seam return (alongside the one-shot slot / pickup transaction).
+auto backend_arm_examine_query_popup_command( const std::optional<int> &step_index ) -> void;
+
+/// Arms a query_popup transaction (makes backend_query_popup_mode_active() true) so the query_yn about to
+/// run does not take its test_mode abort. MUST run BEFORE query_yn's query_popup reaches query_once (the
+/// witness guard's constructor calls this, immediately before the query_yn). `witness_id` names WHICH
+/// audited call site armed it (e.g. "examine_deployed_furniture_take_down") and is emitted in the
+/// `prompt_opened` transcript record, so a reader can confirm the driven prompt was the witnessed one. Gated
+/// on BOTH an armed examine command precondition AND a registered answer channel
+/// (backend_query_popup_prompt_available()): the only backend-driven query_popup arises inside a live
+/// examine, which always has a channel; without one there is nothing to ask, so it refuses to arm and the
+/// query_yn aborts as in normal test_mode. Inert otherwise -- so the guard at iexamine::deployed_furniture is
+/// a no-op in normal play / non-live / non-examine.
+auto backend_begin_query_popup_transaction( const std::string &witness_id ) -> void;
+
+/// Called by src/output.cpp's query_yn drive-block (only while a transaction is armed) AFTER the
+/// query_popup's options are built, with `request.choices` the REAL options and `request.cursor_start` the
+/// real starting cursor. Logs `prompt_opened` (kind="query_popup"), asks the live client via the session's
+/// query_popup_source, and ARMS the registered-action queue the real query_once loop consumes:
+/// [LEFT|RIGHT x |cursor_start - choice|, "CONFIRM"] for a valid choice (logs `prompt_answered`), or
+/// ["CONFIRM"] on EOF / closed client (CONFIRM the popup's pre-selected visible default -- query_yn's NO --
+/// to avoid a headless hang, logged as a CLOSED prompt via `prompt_cancelled` reason "noncancelable_closed",
+/// NOT prompt_answered: the client did not intentionally choose the default). NEVER touches the popup's
+/// result/cursor -- the engine loop does, by reacting to the served actions. Inert unless a transaction is armed.
+auto backend_resolve_query_popup_choice( const backend_query_popup_request &request ) -> void;
+
+/// Closes the query_popup transaction: logs `prompt_completed` (kind="query_popup", actions_served) if a
+/// prompt was opened, then clears all query_popup transaction state -- so backend_query_popup_mode_active()
+/// becomes false again BEFORE control returns past the witnessed query_yn (the examine pickup tail's own
+/// prompts must stay aborted / guard-handled). Inert (no-op) when not armed, so a scope guard on the GUI
+/// path is harmless. Idempotent.
+auto backend_end_query_popup_transaction() -> void;
+
+/// RAII guard placed at the ONE witnessed query_yn call site (iexamine::deployed_furniture): its
+/// constructor arms the query_popup transaction (gated -- inert unless a live examine command is active),
+/// its destructor ends it. Because it exists at exactly one call site, no other query_yn is ever
+/// un-aborted. Constructing it elsewhere or on the GUI path is harmless (begin/end are both gated/inert).
+struct query_popup_witness_guard {
+    explicit query_popup_witness_guard( const std::string &witness_id );
+    ~query_popup_witness_guard();
+    query_popup_witness_guard( const query_popup_witness_guard & ) = delete;
+    auto operator=( const query_popup_witness_guard & ) -> query_popup_witness_guard & = delete;
+    query_popup_witness_guard( query_popup_witness_guard && ) = delete;
+    auto operator=( query_popup_witness_guard && ) -> query_popup_witness_guard & = delete;
 };
 
 /// What backend_write_step_snapshot() wrote, for a live-protocol response: the snapshot's relative

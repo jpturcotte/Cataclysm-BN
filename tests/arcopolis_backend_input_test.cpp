@@ -10,6 +10,8 @@
 #include "arcopolis_script.h"   // script_step
 #include "debug.h"              // capture_debugmsg_during (cata_test uilist-abort witness)
 #include "input.h"              // inp_mngr, input_manager::wait_for_any_key (raw-read guard)
+#include "output.h"             // query_yn (Spike 15 cata_test query_popup-abort witness)
+#include "popup.h"              // query_popup (Spike 15 backend-driven query_popup witnesses)
 #include "ui.h"                 // uilist, UILIST_ERROR (Spike 13B backend-UI-mode witnesses)
 
 // Unit tests for the Arcopolis backend INPUT SOURCE (Spike 3.1A, mechanism M1). These cover the pure,
@@ -761,4 +763,181 @@ TEST_CASE( "arcopolis wait_for_any_key does not block during a backend session",
     CHECK( arcopolis::backend_session_active() );
     arcopolis::end_backend_session();
     CHECK_FALSE( arcopolis::backend_session_active() );
+}
+
+// --- Spike 15: backend-driven query_popup transaction (the deployed-furniture "Take down the %s?"
+// query_yn). The un-abort is WITNESS-SCOPED -- armed only by the guard at that one call site, never by the
+// command precondition or the session alone -- so no other query_yn is ever driven. The serve branch
+// translates a YES/NO choice into the registered LEFT/RIGHT/CONFIRM a player would press on the horizontal
+// button row, consumed by the real input_context("YESNO") loop in query_popup::query_once. ---
+
+TEST_CASE( "arcopolis backend_query_popup_mode_active gates on an armed witness transaction only",
+           "[arcopolis]" )
+{
+    // The query_popup test_mode-abort bypass (src/popup.cpp) and the query_yn drive-block (src/output.cpp)
+    // key on this gate and NOTHING weaker. This case pins the GATE STATE: the per-COMMAND examine precondition
+    // alone does NOT flip it -- only the per-PROMPT witness guard (begin/end) does. The downstream consequence
+    // -- a non-witnessed query_yn during an examine (e.g. iexamine.cpp's "Slip through the %s?") is never
+    // un-aborted -- follows STRUCTURALLY from there being no witness guard at those call sites; this test does
+    // not itself construct a second query_yn. (Amendment 1: witness-scoping.) A channel IS present throughout
+    // so this isolates the command/transaction dimension; the separate no-channel test below covers that
+    // backend_begin refuses to arm without a channel.
+    CHECK_FALSE( arcopolis::backend_query_popup_mode_active() );            // no session
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .query_popup_source = []( const arcopolis::backend_query_popup_request & )
+                                                -> std::optional<int> { return 0; } } );
+    CHECK_FALSE(
+        arcopolis::backend_query_popup_mode_active() );            // session + channel, nothing armed
+    arcopolis::backend_begin_query_popup_transaction( "w" );               // inert without the examine command
+    CHECK_FALSE( arcopolis::backend_query_popup_mode_active() );
+    arcopolis::backend_arm_examine_query_popup_command( 1 );
+    CHECK( arcopolis::backend_examine_query_popup_command_active() );
+    CHECK_FALSE(
+        arcopolis::backend_query_popup_mode_active() );            // the command precondition is NOT enough
+    arcopolis::backend_begin_query_popup_transaction( "w" );
+    CHECK( arcopolis::backend_query_popup_mode_active() );                  // command + channel + begin -> armed
+    arcopolis::backend_end_query_popup_transaction();
+    CHECK_FALSE( arcopolis::backend_query_popup_mode_active() );            // cleared
+    arcopolis::backend_end_query_popup_transaction();                      // idempotent
+    CHECK_FALSE( arcopolis::backend_query_popup_mode_active() );
+    arcopolis::end_backend_session();
+    CHECK_FALSE( arcopolis::backend_query_popup_mode_active() );
+}
+
+TEST_CASE( "arcopolis query_popup answer channel availability GATES arming", "[arcopolis]" )
+{
+    // backend_begin_query_popup_transaction must refuse to arm without a live answer channel: a
+    // misconfigured session (examine command armed, but NO query_popup_source) leaves query_yn taking its
+    // normal test_mode abort (returns NO) rather than driving a loop with nothing to ask -- the AGENTS.md
+    // "don't drive a prompt you can't answer" rule, mirroring the uilist call site's prompt-available check.
+    // This asserts the channel is actually USED to gate arming, not merely that the predicate returns a bool.
+    arcopolis::begin_backend_session( { .steps = {} } );  // no query_popup_source
+    CHECK_FALSE( arcopolis::backend_query_popup_prompt_available() );
+    arcopolis::backend_arm_examine_query_popup_command( 0 );
+    arcopolis::backend_begin_query_popup_transaction( "examine_deployed_furniture_take_down" );
+    CHECK_FALSE(
+        arcopolis::backend_query_popup_mode_active() );  // NO channel -> NOT armed (the gating itself)
+    arcopolis::backend_end_query_popup_transaction();
+    arcopolis::end_backend_session();
+
+    // With a channel registered, the same command + begin sequence DOES arm the transaction.
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .query_popup_source = []( const arcopolis::backend_query_popup_request & )
+                                                -> std::optional<int> { return 0; } } );
+    CHECK( arcopolis::backend_query_popup_prompt_available() );
+    arcopolis::backend_arm_examine_query_popup_command( 0 );
+    arcopolis::backend_begin_query_popup_transaction( "examine_deployed_furniture_take_down" );
+    CHECK( arcopolis::backend_query_popup_mode_active() );  // channel present -> armed
+    arcopolis::backend_end_query_popup_transaction();
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis backend-driven query_popup builds the right YESNO action queue per answer",
+           "[arcopolis]" )
+{
+    // The single-select horizontal-button-row queue, from query_yn's starting cursor 1 (NO): choosing entry
+    // 0 (YES) -> [LEFT, CONFIRM]; entry 1 (NO) -> [CONFIRM]; EOF / closed client (nullopt) -> [CONFIRM] (the
+    // engine's visible default, NO -- same engine action as an intentional NO, but the transcript records it
+    // as a CLOSED prompt, not an answer; the regression checks that distinction). Served one per BLOCKING
+    // read, only for the "YESNO" category.
+    const std::vector<std::string> yesno_actions = { "LEFT", "RIGHT", "CONFIRM", "YES", "NO", "HELP_KEYBINDINGS" };
+    auto served_for = [&]( const std::optional<int> &answer ) -> std::vector<std::string> {
+        arcopolis::begin_backend_session( {
+            .steps = {},
+            .query_popup_source = [answer]( const arcopolis::backend_query_popup_request & )
+            -> std::optional<int> { return answer; } } );
+        arcopolis::backend_arm_examine_query_popup_command( 0 );
+        arcopolis::backend_begin_query_popup_transaction( "examine_deployed_furniture_take_down" );
+        arcopolis::backend_resolve_query_popup_choice( {
+            .title = "Take down the mattress?",
+            .choices = { { .index = 0, .text = "YES", .enabled = true },
+                { .index = 1, .text = "NO", .enabled = true }
+            },
+            .cursor_start = 1, .cancelable = false } );
+        std::vector<std::string> served;
+        for( ;; )
+        {
+            const std::string *a = arcopolis::backend_nested_input_action( "YESNO", yesno_actions, -1 );
+            REQUIRE( a != nullptr );
+            served.push_back( *a );
+            if( *a == "CONFIRM" ) {
+                break;  // CONFIRM is always the queue's terminal element
+            }
+        }
+        // A timeout-bounded poll passes through (only a blocking read is served), like the UILIST/PICKUP queues.
+        CHECK( arcopolis::backend_nested_input_action( "YESNO", yesno_actions, 0 ) == nullptr );
+        arcopolis::backend_end_query_popup_transaction();
+        arcopolis::end_backend_session();
+        return served;
+    };
+    CHECK( served_for( 0 ) == std::vector<std::string> { "LEFT", "CONFIRM" } );    // YES (entry 0)
+    CHECK( served_for( 1 ) == std::vector<std::string> { "CONFIRM" } );            // NO (entry 1, already the cursor)
+    CHECK( served_for( std::nullopt ) == std::vector<std::string> { "CONFIRM" } ); // closed -> CONFIRM the default
+}
+
+TEST_CASE( "arcopolis backend-driven query_popup runs query() headless with NO window",
+           "[arcopolis]" )
+{
+    // The level-4 path in a unit context, end to end: a real query_yn-shaped query_popup runs its UNMODIFIED
+    // query()/query_once loop under an armed witness transaction. The served LEFT/CONFIRM (YES) or CONFIRM
+    // (NO) reach input_context("YESNO")::handle_input through the seam (the hook short-circuits at the top of
+    // handle_input, so no real input source is touched), query_once sets res.action, and NO curses window is
+    // created -- the init()->newwin / show() redraw + resize callbacks are test_mode no-ops in
+    // ui_manager::redraw_invalidated(), so the un-abort path is renderer-neutral (the Spike 13B invariant,
+    // pinned here for query_popup). The backend never sets the result; the engine's own loop does.
+    // SCOPE: this case hand-builds the query_popup and calls backend_resolve_query_popup_choice directly (NOT
+    // via query_yn), so it asserts the query_yn-SHAPED request -- the popup's REAL cursor_start
+    // (current_index()) plus YES/NO literals -- and the renderer-neutral loop. output.cpp's drive-block
+    // wiring (the real query_yn building the request from its OWN options) is exercised by the regression's
+    // Gate Y2, not by this unit.
+    inp_mngr.init();  // make the input system ready (matches tests/input_test.cpp); the hook still short-circuits
+    auto drive = [&]( int choice ) -> std::string {
+        arcopolis::begin_backend_session( {
+            .steps = {},
+            .query_popup_source = [choice]( const arcopolis::backend_query_popup_request & req )
+            -> std::optional<int> {
+                CHECK( req.kind == "query_popup" );
+                REQUIRE( req.choices.size() == 2 );
+                CHECK( req.choices[0].text == "YES" );
+                CHECK( req.choices[1].text == "NO" );
+                CHECK( req.cursor_start == 1 );      // query_yn starts the cursor on NO (real popup.current_index())
+                CHECK_FALSE( req.cancelable );       // test-supplied shape; query_yn's cancelable=false is set at output.cpp's drive-block (regression-covered)
+                return choice;
+            } } );
+        arcopolis::backend_arm_examine_query_popup_command( 0 );
+        query_popup popup;
+        popup.context( "YESNO" )
+        .message( "%s", std::string( "Take down the mattress?" ) )
+        .option( "YES" )
+        .option( "NO" )
+        .cursor( 1 );
+        std::string action;
+        {
+            arcopolis::query_popup_witness_guard guard( "examine_deployed_furniture_take_down" );
+            REQUIRE( arcopolis::backend_query_popup_mode_active() );
+            arcopolis::backend_resolve_query_popup_choice( {
+                .title = "Take down the mattress?",
+                .choices = { { .index = 0, .text = "YES", .enabled = true },
+                    { .index = 1, .text = "NO", .enabled = true }
+                },
+                .cursor_start = popup.current_index(),
+                .cancelable = false } );
+            action = popup.query().action;  // drives the real query_once loop through the seam
+        }
+        CHECK_FALSE( popup.has_window() );  // the load-bearing invariant: NO curses window was created
+        arcopolis::end_backend_session();
+        return action;
+    };
+    CHECK( drive( 0 ) == "YES" );  // entry 0: served [LEFT, CONFIRM] -> options[0] == "YES"
+    CHECK( drive( 1 ) == "NO" );   // entry 1: served [CONFIRM] on the NO cursor -> options[1] == "NO"
+}
+
+TEST_CASE( "arcopolis cata_test query_popup still aborts without a backend session", "[arcopolis]" )
+{
+    // The invariant the Spike 15 un-abort must NOT break: ordinary test_mode (cata_test, no backend session)
+    // still short-circuits query_popup to {false,"ERROR",{}} at the top of query_once -- so query_yn returns
+    // false (action "ERROR" != "YES"), exactly as before this spike. backend_query_popup_mode_active() is
+    // false here, so the abort is taken and no input_context loop runs.
+    REQUIRE_FALSE( arcopolis::backend_query_popup_mode_active() );
+    CHECK_FALSE( query_yn( "Take down the mattress?" ) );
 }
