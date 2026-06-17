@@ -74,7 +74,8 @@ struct backend_session {
         false;  ///< Spike 15: a query_popup drive is armed (the un-abort gate)
     bool query_popup_opened =
         false;                 ///< Spike 15: a real query_popup prompt was exposed
-    std::string query_popup_witness;                 ///< Spike 15: which audited call site armed it
+    std::string
+    query_popup_witness;                 ///< Spike 15: which call site armed it (emitted in prompt_opened)
     std::optional<int> query_popup_step_index;       ///< the arming examine command's step index
     std::vector<std::string> query_popup_queue;      ///< Spike 15: registered YESNO actions, in order
     std::size_t query_popup_cursor = 0;              ///< next query_popup_queue index to serve
@@ -703,11 +704,16 @@ void
 
 auto arcopolis::backend_begin_query_popup_transaction( const std::string &witness_id ) -> void
 {
-    // Gated on an armed examine command precondition (the only backend-driven query_popup arises inside a
-    // live examine). Inert otherwise -- so the witness guard at iexamine::deployed_furniture is a no-op in
-    // normal play, non-live, and any examine that did not arm the precondition. MUST run before query_yn's
-    // query_popup reaches query_once (which reads backend_query_popup_mode_active()).
-    if( !session.active || !session.examine_query_popup_command ) {
+    // Gated on an armed examine command precondition AND an available prompt channel (the only
+    // backend-driven query_popup arises inside a live examine, which always has a channel). The channel
+    // gate matters for a misconfigured session: without a `query_popup_source` there is nothing to ask, so
+    // we must NOT arm -- query_yn then takes its normal test_mode abort (returns NO) instead of driving a
+    // loop with no answer channel (the AGENTS.md "don't drive a prompt you can't answer" rule; mirrors the
+    // Spike 13B/14 uilist call site, which checks backend_uilist_prompt_available() before driving). Inert
+    // otherwise -- so the witness guard at iexamine::deployed_furniture is a no-op in normal play, non-live,
+    // and any examine that did not arm the precondition. MUST run before query_yn's query_popup reaches
+    // query_once (which reads backend_query_popup_mode_active()).
+    if( !backend_examine_query_popup_command_active() || !backend_query_popup_prompt_available() ) {
         return;
     }
     session.query_popup_transaction = true;
@@ -728,16 +734,18 @@ void
     }
     // Record the opened prompt with the engine's REAL query_popup options (read from the constructed popup).
     auto opened = arcopolis::prompt_opened_event{ .step_index = session.query_popup_step_index,
-            .kind = request.kind };
+            .kind = request.kind, .witness = session.query_popup_witness };
     for( const pickup_prompt_choice &c : request.choices ) {
         opened.choices.push_back( { .index = c.index, .text = c.text, .enabled = c.enabled } );
     }
     arcopolis::session_log_prompt_opened( opened );
     session.query_popup_opened = true;
-    // Ask the live client for a SINGLE choice. A null channel yields the closed-default branch below.
-    const auto answer = session.query_popup_source
-                        ? session.query_popup_source( request )
-                        : std::optional<int> {};
+    // Ask the live client for a SINGLE choice. The answer channel is an invariant here:
+    // backend_begin_query_popup_transaction refuses to arm the transaction without a registered
+    // query_popup_source (its backend_query_popup_prompt_available() gate), and the source is never cleared
+    // mid-session, so it is non-null whenever this gated resolve runs. A null RETURN (EOF / closed client)
+    // takes the closed-default branch below.
+    const auto answer = session.query_popup_source( request );
     session.query_popup_cursor = 0;
     session.query_popup_served = 0;
     const auto valid = answer && *answer >= 0 && *answer < static_cast<int>( request.choices.size() );
@@ -764,14 +772,15 @@ void
                                                 .actions = session.query_popup_queue,
                                                 .kind = request.kind } );
     } else {
-        // EOF / closed client / absent channel: query_yn is NOT cancelable -- no QUIT is registered, so there
-        // is nothing to serve as a cancel. To avoid a headless hang, CONFIRM the popup's pre-selected visible
-        // default (the starting cursor -- NO for query_yn). This is logged as a CLOSED prompt, NOT
-        // prompt_answered: the client did not intentionally choose the default; the engine fell to its own
-        // visible default because the channel closed.
+        // EOF / closed client: the source returned no choice. query_yn is NOT cancelable -- no QUIT is
+        // registered, so there is nothing to serve as a cancel. To avoid a headless hang, CONFIRM the popup's
+        // pre-selected visible default (the starting cursor -- NO for query_yn). This is logged as a CLOSED
+        // prompt, NOT prompt_answered: the client did not intentionally choose the default; the engine fell to
+        // its own visible default because the channel closed. (An out-of-range answer lands here too -- same
+        // safe default, same closed record.)
         session.query_popup_queue = { "CONFIRM" };
         arcopolis::session_log_prompt_cancelled( { .step_index = session.query_popup_step_index,
-                .reason = session.query_popup_source ? "noncancelable_closed" : "no_channel",
+                .reason = "noncancelable_closed",
                 .kind = request.kind } );
     }
 }

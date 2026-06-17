@@ -45,7 +45,7 @@ query_yn(text)                                   src/output.cpp:708
         .option("YES").option("NO").cursor(1)    src/output.cpp:720-722 (options 0=YES / 1=NO; cursor starts on NO=1)
   Spike 15 drive-block (gated)                    src/output.cpp:731-740 (resolve from the REAL options + cursor)
   return pop.query().action == "YES"             src/output.cpp:742
-query_popup::query_once()                        src/popup.cpp:263
+query_popup::query_once()                        src/popup.cpp:264
   test_mode abort (gated !mode_active)            src/popup.cpp:277-279 (NEW gate)
   create_or_get_adaptor(); ui_manager::redraw()   src/popup.cpp:281-283 (redraw is a test_mode no-op)
   input_context ctxt(category)                    src/popup.cpp:285 (category "YESNO")
@@ -54,7 +54,7 @@ query_popup::query_once()                        src/popup.cpp:263
   LEFT -> --cur ; RIGHT -> ++cur                  src/popup.cpp:321-332 (horizontal button row)
   CONFIRM -> res.action = options[cur].action     src/popup.cpp:333-337 (FILTER-FREE; sets the result)
 seam: backend_nested_input_action(cat,regs,t)    src/input.cpp:943 (top of handle_input; hook short-circuits)
-  "YESNO" serve branch                            src/arcopolis_backend_input.cpp:891 (NEW, mirrors the "UILIST" branch)
+  "YESNO" serve branch                            src/arcopolis_backend_input.cpp:900 (NEW, mirrors the "UILIST" branch)
 ```
 
 **The two `test_mode` jobs (doc 32):** `test_mode` both (1) suppresses render/keyboard — Arcopolis wants
@@ -83,13 +83,13 @@ query_yn support** — examine can reach other query_yn calls (e.g. a second `qu
 audited. So, exactly as the `uilist` spikes keyed the un-abort on a per-prompt transaction (not
 `backend_session_active()`), Spike 15 uses **three nested scopes, the innermost being the discriminator**:
 
-| Scope                                                                                                 | What                          | Armed by                                                                                              | Cleared by                                   |
-| ----------------------------------------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| **command precondition** `examine_query_popup_command`                                                | a live `examine` is in flight | `backend_arm_examine_query_popup_command` (`src/arcopolis_live.cpp:247`, at examine dispatch)         | the seam return (`clear_stale_nested_input`) |
-| **witness guard (discriminator)** `query_popup_witness_guard("examine_deployed_furniture_take_down")` | THIS one audited call site    | its ctor (`src/iexamine.cpp:1427`), gated on the precondition                                         | its dtor                                     |
-| **per-prompt gate** `query_popup_transaction`                                                         | the un-abort itself           | the guard's ctor (via `backend_begin_query_popup_transaction`, `src/arcopolis_backend_input.cpp:704`) | the guard's dtor / `clear_stale`             |
+| Scope                                                                                                 | What                          | Armed by                                                                                                                                                                                                                                                       | Cleared by                                   |
+| ----------------------------------------------------------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| **command precondition** `examine_query_popup_command`                                                | a live `examine` is in flight | `backend_arm_examine_query_popup_command` (`src/arcopolis_live.cpp:247`, at examine dispatch)                                                                                                                                                                  | the seam return (`clear_stale_nested_input`) |
+| **witness guard (discriminator)** `query_popup_witness_guard("examine_deployed_furniture_take_down")` | THIS one audited call site    | its ctor (`src/iexamine.cpp:1427`) → `backend_begin_query_popup_transaction`, which arms only when BOTH `backend_examine_query_popup_command_active()` AND `backend_query_popup_prompt_available()` hold (an armed live examine + a registered answer channel) | its dtor                                     |
+| **per-prompt gate** `query_popup_transaction`                                                         | the un-abort itself           | the guard's ctor (via `backend_begin_query_popup_transaction`, `src/arcopolis_backend_input.cpp:705`)                                                                                                                                                          | the guard's dtor / `clear_stale`             |
 
-`backend_query_popup_mode_active()` (`src/arcopolis_backend_input.cpp:678`) = `session.active &&
+`backend_query_popup_mode_active()` (`src/arcopolis_backend_input.cpp:679`) = `session.active &&
 session.query_popup_transaction` is the **only** gate the `popup.cpp` un-abort and the `query_yn` drive-block
 key off. Because the witness guard exists at **exactly one call site**, no other query_yn is ever un-aborted.
 Pinned by a unit test (command precondition armed but no witness guard → gate stays false → query_yn aborts).
@@ -160,7 +160,9 @@ invalid / out-of-range / multi-choice / wrong `prompt_id` / `prompt_cancel`-on-a
 ## Transcript shape (`session.jsonl`)
 
 Reuses the existing `prompt_*` events with `kind:"query_popup"` (no new event kinds): `prompt_opened`
-(kind=query_popup, the 2 real choices) · `prompt_answered` (kind=query_popup, `choices:[0]`,
+(kind=query_popup, the 2 real choices, plus `witness:"examine_deployed_furniture_take_down"` naming WHICH
+audited call site armed it — Spike 15 adds this one `prompt_opened` field, omitted for menu/uilist records so
+they stay byte-identical) · `prompt_answered` (kind=query_popup, `choices:[0]`,
 `actions:["LEFT","CONFIRM"]`) · `prompt_completed` (kind=query_popup, `actions_served:2`). A rejected attempt
 logs `prompt_failed` (reason `invalid_answer` / `prompt_id_mismatch` / `noncancelable`); a closed channel
 logs `prompt_cancelled` (reason `noncancelable_closed`).
@@ -185,11 +187,11 @@ logs `prompt_cancelled` (reason `noncancelable_closed`).
 - `src/iexamine.cpp` — one `query_popup_witness_guard` added to `deployed_furniture` (`:1427`, the sole
   discriminator).
 - `src/arcopolis_backend_input.{h,cpp}` — the `backend_query_popup_request` struct, the
-  `backend_query_popup_source` hook, the session flags, `backend_query_popup_mode_active` (`:678`) /
+  `backend_query_popup_source` hook, the session flags, `backend_query_popup_mode_active` (`:679`) /
   `backend_examine_query_popup_command_active` / `backend_query_popup_prompt_available`,
-  `backend_arm_examine_query_popup_command` (`:693`), `backend_begin/end_query_popup_transaction` (`:704`),
-  the `query_popup_witness_guard` RAII type (`:805`), `backend_resolve_query_popup_choice` (`:721`), the
-  `"YESNO"` serve branch (`:891`), and the seam-return clear.
+  `backend_arm_examine_query_popup_command` (`:694`), `backend_begin/end_query_popup_transaction` (`:705`),
+  the `query_popup_witness_guard` RAII type (`:812`), `backend_resolve_query_popup_choice` (`:727`), the
+  `"YESNO"` serve branch (`:900`), and the seam-return clear.
 - `src/arcopolis_live.{h,cpp}` — `live_query_popup_prompt` (`:431`; kind="query_popup", single-select,
   non-cancelable cancel-rejection, EOF→closed-default), wired as `opts.query_popup_source` (`:861`); the
   examine command arms the precondition (`:247`).
@@ -246,9 +248,9 @@ logs `prompt_cancelled` (reason `noncancelable_closed`).
 
 ## Remaining unsupported (named backlog)
 
-- **Generic `query_popup`** and **every other `query_yn`** (e.g. the second deployed-furniture-style
-  `query_yn` at `src/iexamine.cpp:1489`, "Slip through the %s?"): only the ONE deployed-furniture witness is
-  driven; no broader query_yn support is claimed.
+- **Generic `query_popup`** and **every other `query_yn`** (e.g. "Slip through the %s?" at
+  `src/iexamine.cpp:1409`, or the second deployed-furniture-style "Take down the %s?" at `:1489`): only the
+  ONE deployed-furniture witness is driven; no broader query_yn support is claimed.
 - **`popup()` / `popup_getkey()` family** (context `"POPUP_WAIT"`; `PF_GET_KEY` registers `ANY_INPUT`, not a
   normal option/cancel shape — a distinct hazard, doc 32): not driven.
 - **Cancelable query_popups** (a `query_popup` with `allow_cancel`, registering `QUIT`): the witness is

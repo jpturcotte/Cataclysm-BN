@@ -379,10 +379,14 @@ auto backend_arm_examine_query_popup_command( const std::optional<int> &step_ind
 
 /// Arms a query_popup transaction (makes backend_query_popup_mode_active() true) so the query_yn about to
 /// run does not take its test_mode abort. MUST run BEFORE query_yn's query_popup reaches query_once (the
-/// witness guard's constructor calls this, immediately before the query_yn). `witness_id` records WHICH
-/// audited call site armed it (e.g. "examine_deployed_furniture_take_down"). Gated on an armed examine
-/// command precondition (the only backend-driven query_popup arises inside a live examine). Inert otherwise
-/// -- so the guard at iexamine::deployed_furniture is a no-op in normal play / non-live / non-examine.
+/// witness guard's constructor calls this, immediately before the query_yn). `witness_id` names WHICH
+/// audited call site armed it (e.g. "examine_deployed_furniture_take_down") and is emitted in the
+/// `prompt_opened` transcript record, so a reader can confirm the driven prompt was the witnessed one. Gated
+/// on BOTH an armed examine command precondition AND a registered answer channel
+/// (backend_query_popup_prompt_available()): the only backend-driven query_popup arises inside a live
+/// examine, which always has a channel; without one there is nothing to ask, so it refuses to arm and the
+/// query_yn aborts as in normal test_mode. Inert otherwise -- so the guard at iexamine::deployed_furniture is
+/// a no-op in normal play / non-live / non-examine.
 auto backend_begin_query_popup_transaction( const std::string &witness_id ) -> void;
 
 /// Called by src/output.cpp's query_yn drive-block (only while a transaction is armed) AFTER the

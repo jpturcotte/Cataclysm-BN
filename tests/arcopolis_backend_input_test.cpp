@@ -775,12 +775,19 @@ TEST_CASE( "arcopolis backend_query_popup_mode_active gates on an armed witness 
            "[arcopolis]" )
 {
     // The query_popup test_mode-abort bypass (src/popup.cpp) and the query_yn drive-block (src/output.cpp)
-    // key on this gate and NOTHING weaker. Critically, the per-COMMAND examine precondition is NOT enough:
-    // only the per-PROMPT witness guard (begin/end) flips the gate, so a non-witnessed query_yn during an
-    // examine (e.g. iexamine.cpp's "Slip through the %s?") is never un-aborted. (Amendment 1: witness-scoping.)
+    // key on this gate and NOTHING weaker. This case pins the GATE STATE: the per-COMMAND examine precondition
+    // alone does NOT flip it -- only the per-PROMPT witness guard (begin/end) does. The downstream consequence
+    // -- a non-witnessed query_yn during an examine (e.g. iexamine.cpp's "Slip through the %s?") is never
+    // un-aborted -- follows STRUCTURALLY from there being no witness guard at those call sites; this test does
+    // not itself construct a second query_yn. (Amendment 1: witness-scoping.) A channel IS present throughout
+    // so this isolates the command/transaction dimension; the separate no-channel test below covers that
+    // backend_begin refuses to arm without a channel.
     CHECK_FALSE( arcopolis::backend_query_popup_mode_active() );            // no session
-    arcopolis::begin_backend_session( { .steps = {} } );
-    CHECK_FALSE( arcopolis::backend_query_popup_mode_active() );            // session, nothing armed
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .query_popup_source = []( const arcopolis::backend_query_popup_request & )
+                                                -> std::optional<int> { return 0; } } );
+    CHECK_FALSE(
+        arcopolis::backend_query_popup_mode_active() );            // session + channel, nothing armed
     arcopolis::backend_begin_query_popup_transaction( "w" );               // inert without the examine command
     CHECK_FALSE( arcopolis::backend_query_popup_mode_active() );
     arcopolis::backend_arm_examine_query_popup_command( 1 );
@@ -788,7 +795,7 @@ TEST_CASE( "arcopolis backend_query_popup_mode_active gates on an armed witness 
     CHECK_FALSE(
         arcopolis::backend_query_popup_mode_active() );            // the command precondition is NOT enough
     arcopolis::backend_begin_query_popup_transaction( "w" );
-    CHECK( arcopolis::backend_query_popup_mode_active() );                  // the witness guard armed it
+    CHECK( arcopolis::backend_query_popup_mode_active() );                  // command + channel + begin -> armed
     arcopolis::backend_end_query_popup_transaction();
     CHECK_FALSE( arcopolis::backend_query_popup_mode_active() );            // cleared
     arcopolis::backend_end_query_popup_transaction();                      // idempotent
@@ -797,16 +804,31 @@ TEST_CASE( "arcopolis backend_query_popup_mode_active gates on an armed witness 
     CHECK_FALSE( arcopolis::backend_query_popup_mode_active() );
 }
 
-TEST_CASE( "arcopolis query_popup answer channel availability", "[arcopolis]" )
+TEST_CASE( "arcopolis query_popup answer channel availability GATES arming", "[arcopolis]" )
 {
+    // backend_begin_query_popup_transaction must refuse to arm without a live answer channel: a
+    // misconfigured session (examine command armed, but NO query_popup_source) leaves query_yn taking its
+    // normal test_mode abort (returns NO) rather than driving a loop with nothing to ask -- the AGENTS.md
+    // "don't drive a prompt you can't answer" rule, mirroring the uilist call site's prompt-available check.
+    // This asserts the channel is actually USED to gate arming, not merely that the predicate returns a bool.
     arcopolis::begin_backend_session( { .steps = {} } );  // no query_popup_source
     CHECK_FALSE( arcopolis::backend_query_popup_prompt_available() );
+    arcopolis::backend_arm_examine_query_popup_command( 0 );
+    arcopolis::backend_begin_query_popup_transaction( "examine_deployed_furniture_take_down" );
+    CHECK_FALSE(
+        arcopolis::backend_query_popup_mode_active() );  // NO channel -> NOT armed (the gating itself)
+    arcopolis::backend_end_query_popup_transaction();
     arcopolis::end_backend_session();
 
+    // With a channel registered, the same command + begin sequence DOES arm the transaction.
     arcopolis::begin_backend_session( { .steps = {},
                                         .query_popup_source = []( const arcopolis::backend_query_popup_request & )
                                                 -> std::optional<int> { return 0; } } );
     CHECK( arcopolis::backend_query_popup_prompt_available() );
+    arcopolis::backend_arm_examine_query_popup_command( 0 );
+    arcopolis::backend_begin_query_popup_transaction( "examine_deployed_furniture_take_down" );
+    CHECK( arcopolis::backend_query_popup_mode_active() );  // channel present -> armed
+    arcopolis::backend_end_query_popup_transaction();
     arcopolis::end_backend_session();
 }
 
@@ -863,6 +885,11 @@ TEST_CASE( "arcopolis backend-driven query_popup runs query() headless with NO w
     // created -- the init()->newwin / show() redraw + resize callbacks are test_mode no-ops in
     // ui_manager::redraw_invalidated(), so the un-abort path is renderer-neutral (the Spike 13B invariant,
     // pinned here for query_popup). The backend never sets the result; the engine's own loop does.
+    // SCOPE: this case hand-builds the query_popup and calls backend_resolve_query_popup_choice directly (NOT
+    // via query_yn), so it asserts the query_yn-SHAPED request -- the popup's REAL cursor_start
+    // (current_index()) plus YES/NO literals -- and the renderer-neutral loop. output.cpp's drive-block
+    // wiring (the real query_yn building the request from its OWN options) is exercised by the regression's
+    // Gate Y2, not by this unit.
     inp_mngr.init();  // make the input system ready (matches tests/input_test.cpp); the hook still short-circuits
     auto drive = [&]( int choice ) -> std::string {
         arcopolis::begin_backend_session( {
@@ -873,8 +900,8 @@ TEST_CASE( "arcopolis backend-driven query_popup runs query() headless with NO w
                 REQUIRE( req.choices.size() == 2 );
                 CHECK( req.choices[0].text == "YES" );
                 CHECK( req.choices[1].text == "NO" );
-                CHECK( req.cursor_start == 1 );      // query_yn starts the cursor on NO
-                CHECK_FALSE( req.cancelable );       // query_yn registers no QUIT
+                CHECK( req.cursor_start == 1 );      // query_yn starts the cursor on NO (real popup.current_index())
+                CHECK_FALSE( req.cancelable );       // test-supplied shape; query_yn's cancelable=false is set at output.cpp's drive-block (regression-covered)
                 return choice;
             } } );
         arcopolis::backend_arm_examine_query_popup_command( 0 );

@@ -17,7 +17,8 @@
 #   Y1 (accept probe): `examine move_e` opens a `prompt` kind="query_popup", title "Take down the mattress?",
 #     EXACTLY 2 choices [0]=YES / [1]=NO in order, both enabled, cancelable:false (query_yn has no QUIT).
 #   Y2 (LEVEL-4 transcript): answering choice:0 (YES) -> served [LEFT, CONFIRM] through the real
-#     input_context("YESNO") loop; transcript prompt_opened (kind=query_popup, the 2 real choices) /
+#     input_context("YESNO") loop; transcript prompt_opened (kind=query_popup, the 2 real choices,
+#     witness=examine_deployed_furniture_take_down -- proving WHICH audited site was driven) /
 #     prompt_answered (choices [0], actions [LEFT, CONFIRM], kind=query_popup) / prompt_completed
 #     (kind=query_popup, actions_served=2); NO prompt_force_cancelled.
 #   Y3 (REAL state change, YES): the east tile's furniture was f_floor_mattress before and is gone (f_null)
@@ -212,13 +213,14 @@ $forceCancelY = @($evY | Where-Object { $_.event -eq 'prompt_force_cancelled' })
 $ansChoicesY = if( $answeredY.Count -ge 1 ) { @($answeredY[0].choices) } else { @() }
 $ansActionsY = if( $answeredY.Count -ge 1 ) { @($answeredY[0].actions) } else { @() }
 $g2 = ($respY[3].ok -eq $true) -and ($openedY.Count -ge 1) -and ($openedY[0].choices.Count -eq 2) -and
+      ($openedY[0].witness -eq 'examine_deployed_furniture_take_down') -and
       ($answeredY.Count -ge 1) -and (($ansChoicesY -join ',') -eq '0') -and
       (($ansActionsY -join ',') -eq 'LEFT,CONFIRM') -and
       ($completedY.Count -ge 1) -and ($completedY[0].actions_served -eq 2) -and ($forceCancelY.Count -eq 0)
 if( $g2 ) {
-    Write-Host "  PASS: Y2 (level-4) -- prompt_opened (2 choices), prompt_answered choices [0] served [$($ansActionsY -join ', ')], prompt_completed kind=query_popup actions_served=2; no force-cancel." -ForegroundColor Green
+    Write-Host "  PASS: Y2 (level-4) -- prompt_opened (2 choices, witness=examine_deployed_furniture_take_down), prompt_answered choices [0] served [$($ansActionsY -join ', ')], prompt_completed kind=query_popup actions_served=2; no force-cancel." -ForegroundColor Green
 } else {
-    Write-Host "  FAIL: Y2 -- ansOk=$($respY[3].ok) opened=$($openedY.Count) answeredChoices=[$($ansChoicesY -join ', ')] actions=[$($ansActionsY -join ', ')] completedServed=$($completedY[0].actions_served) forceCancel=$($forceCancelY.Count)" -ForegroundColor Red
+    Write-Host "  FAIL: Y2 -- ansOk=$($respY[3].ok) opened=$($openedY.Count) witness=$($openedY[0].witness) answeredChoices=[$($ansChoicesY -join ', ')] actions=[$($ansActionsY -join ', ')] completedServed=$($completedY[0].actions_served) forceCancel=$($forceCancelY.Count)" -ForegroundColor Red
     $fail++
 }
 

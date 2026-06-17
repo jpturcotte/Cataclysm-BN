@@ -380,6 +380,8 @@ TEST_CASE( "arcopolis prompt_opened record carries the kind and the engine's rea
         CHECK( obj.get_string( "event" ) == "prompt_opened" );
         CHECK( obj.get_int( "step_index" ) == 3 );
         CHECK( obj.get_string( "kind" ) == "menu" );
+        CHECK_FALSE(
+            obj.has_member( "witness" ) );  // omitted when empty (menu/uilist records stay byte-identical)
         JsonArray choices = obj.get_array( "choices" );
         REQUIRE( choices.size() == 2 );
         JsonObject c0 = choices.get_object( 0 );
@@ -392,6 +394,28 @@ TEST_CASE( "arcopolis prompt_opened record carries the kind and the engine's rea
         CHECK( c1.get_int( "index" ) == 1 );
         CHECK( c1.get_string( "text" ) == "glass shard (1)" );
         CHECK( c1.get_bool( "enabled" ) );
+    } );
+}
+
+TEST_CASE( "arcopolis prompt_opened record carries the witness for a backend-driven prompt",
+           "[arcopolis]" )
+{
+    // Spike 15: a witnessed backend-driven query_popup records WHICH audited call site armed it, so the
+    // transcript proves the driven prompt was the witnessed one (the integration regression's Gate Y2 then
+    // asserts this end to end). Emitted only when non-empty -- the menu/uilist case above pins it absent.
+    std::ostringstream out;
+    arcopolis::write_prompt_opened_line( out, { .step_index = std::optional<int>( 2 ),
+                                         .kind = "query_popup",
+    .choices = {
+        { .index = 0, .text = "YES", .enabled = true },
+        { .index = 1, .text = "NO", .enabled = true },
+    },
+    .witness = "examine_deployed_furniture_take_down"
+                                              } );
+    with_record( out.str(), []( const auto & obj ) {
+        CHECK( obj.get_string( "event" ) == "prompt_opened" );
+        CHECK( obj.get_string( "kind" ) == "query_popup" );
+        CHECK( obj.get_string( "witness" ) == "examine_deployed_furniture_take_down" );
     } );
 }
 
