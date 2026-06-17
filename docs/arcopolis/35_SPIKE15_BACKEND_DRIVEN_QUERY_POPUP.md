@@ -154,8 +154,18 @@ Backend→client (mid-command), distinguished by `kind:"query_popup"` and `cance
 
 `title` carries the **same message a GUI player sees**, including the `" (Case Sensitive)"` suffix `query_yn`
 appends when `FORCE_CAPITAL_YN` is set (its default; on in the fixture) — it is the popup's formatted message,
-not the raw `query_yn` argument (Codex PR#43 P3). `choices[].text` currently carries the option **action ids**
-`YES`/`NO`; the option's semantic identity is the `index` (0=YES, 1=NO), which is what the client keys off.
+not the raw `query_yn` argument (Codex PR#43 P3).
+
+**`choices[].text` contract (deliberate).** For `kind:"query_popup"`, `text` carries the option **action id**
+(`YES`/`NO`), NOT the GUI's rendered label — an intentional divergence from the menu/uilist convention (where
+`text` is the displayed entry label). Rationale: the option's identity is the **`index`** (0=YES, 1=NO), which
+is what the client keys off, and a stable, locale-independent id is more useful to a renderer-neutral frontend
+than the keyboard-entangled string a GUI player actually sees — `input_context::get_desc` (`src/popup.cpp` →
+`src/input.cpp`) renders `query_yn`'s buttons as `"(Y)es"`/`"(N)o"` with the bound-key hint, an artifact
+meaningless to a mouse-first frontend. The same id `text` appears in the `prompt_opened` transcript record.
+(Codex PR#43 weighed sending the clean localized name `get_action_name` → "Yes"/"No" instead; deferred, since
+`index` already encodes identity — revisit if the frontend is ever specified to display `choices[].text`
+verbatim.)
 
 Answer (client→backend, single-select, same parser as the uilist): `{"op":"prompt_answer","prompt_id":1,"choice":0}`
 (0 = YES, 1 = NO). Wire behavior: a valid choice → `ok:true` ack then the command's terminal response;
