@@ -83,11 +83,11 @@ query_yn support** — examine can reach other query_yn calls (e.g. a second `qu
 audited. So, exactly as the `uilist` spikes keyed the un-abort on a per-prompt transaction (not
 `backend_session_active()`), Spike 15 uses **three nested scopes, the innermost being the discriminator**:
 
-| Scope | What | Armed by | Cleared by |
-| ----- | ---- | -------- | ---------- |
-| **command precondition** `examine_query_popup_command` | a live `examine` is in flight | `backend_arm_examine_query_popup_command` (`src/arcopolis_live.cpp:247`, at examine dispatch) | the seam return (`clear_stale_nested_input`) |
-| **witness guard (discriminator)** `query_popup_witness_guard("examine_deployed_furniture_take_down")` | THIS one audited call site | its ctor (`src/iexamine.cpp:1427`), gated on the precondition | its dtor |
-| **per-prompt gate** `query_popup_transaction` | the un-abort itself | the guard's ctor (via `backend_begin_query_popup_transaction`, `src/arcopolis_backend_input.cpp:704`) | the guard's dtor / `clear_stale` |
+| Scope                                                                                                 | What                          | Armed by                                                                                              | Cleared by                                   |
+| ----------------------------------------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| **command precondition** `examine_query_popup_command`                                                | a live `examine` is in flight | `backend_arm_examine_query_popup_command` (`src/arcopolis_live.cpp:247`, at examine dispatch)         | the seam return (`clear_stale_nested_input`) |
+| **witness guard (discriminator)** `query_popup_witness_guard("examine_deployed_furniture_take_down")` | THIS one audited call site    | its ctor (`src/iexamine.cpp:1427`), gated on the precondition                                         | its dtor                                     |
+| **per-prompt gate** `query_popup_transaction`                                                         | the un-abort itself           | the guard's ctor (via `backend_begin_query_popup_transaction`, `src/arcopolis_backend_input.cpp:704`) | the guard's dtor / `clear_stale`             |
 
 `backend_query_popup_mode_active()` (`src/arcopolis_backend_input.cpp:678`) = `session.active &&
 session.query_popup_transaction` is the **only** gate the `popup.cpp` un-abort and the `query_yn` drive-block
@@ -167,11 +167,11 @@ logs `prompt_cancelled` (reason `noncancelable_closed`).
 
 ## Exact UI-mode / test_mode behavior
 
-| Context                                                | `test_mode` | `backend_query_popup_mode_active()` | `query_popup::query_once()`                                                |
-| ------------------------------------------------------ | ----------- | ----------------------------------- | ------------------------------------------------------------------------- |
-| Normal GUI play                                        | false       | false                               | renders + real input (unchanged)                                          |
-| cata_test (no backend session)                         | true        | false                               | aborts → `{false,"ERROR",{}}` (unchanged)                                 |
-| Backend session, examine command but no witness guard  | true        | false                               | aborts (e.g. a non-witnessed examine query_yn like "Slip through")        |
+| Context                                                | `test_mode` | `backend_query_popup_mode_active()` | `query_popup::query_once()`                                                              |
+| ------------------------------------------------------ | ----------- | ----------------------------------- | ---------------------------------------------------------------------------------------- |
+| Normal GUI play                                        | false       | false                               | renders + real input (unchanged)                                                         |
+| cata_test (no backend session)                         | true        | false                               | aborts → `{false,"ERROR",{}}` (unchanged)                                                |
+| Backend session, examine command but no witness guard  | true        | false                               | aborts (e.g. a non-witnessed examine query_yn like "Slip through")                       |
 | Backend session, the deployed-furniture query_yn armed | true        | **true**                            | runs the real `input_context("YESNO")` loop; served `LEFT`/`CONFIRM` set `result.action` |
 
 ## Source code
@@ -273,17 +273,17 @@ loud / rejects / aborts — never a silent success.
 
 Per [[cite-the-implementing-line]] — each load-bearing claim, the verification TYPE, and the evidence:
 
-| Load-bearing claim                                                                                       | Cite / evidence                                                | Type       | Verdict |
-| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------- | ------- |
-| `query_popup::query_once` aborts under test_mode before its `input_context`                              | `src/popup.cpp:277-279` vs `:285`/`:309`                       | structural (read) | ✅ |
-| `query_yn` uses `input_context("YESNO")`, options YES/NO, cursor 1 (NO), not cancelable                  | `src/output.cpp:714-724`                                       | structural (read) | ✅ |
-| `CONFIRM` sets `res.action = options[cur].action` filter-free; the direct-option branch consults a filter | `src/popup.cpp:333-337` vs `:338-346`                          | structural (read) | ✅ |
-| `redraw_invalidated` early-returns under test_mode BEFORE the resize/redraw callbacks (no `newwin`/`show`) | `src/ui_manager.cpp:325-330, 360-388, 390-430`                | structural (read) | ✅ |
-| the un-aborted query_popup creates NO curses window (renderer-neutral)                                   | unit test: full-`query()` drive asserts `!popup.has_window()`  | behavioral (test) | ✅ |
-| served `LEFT`/`CONFIRM` reach the real `input_context("YESNO")` loop and set `result.action`             | Gate Y2 (`actions:["LEFT","CONFIRM"]`, level-4) + unit drive   | behavioral (run)  | ✅ |
-| the witnessed continuation (YES) is the engine's own `take_down_deployed_furniture`                      | Gate Y3 (furniture→f_null, mattress dropped, engine message)   | behavioral (run)  | ✅ |
-| witness-scoping: only the guarded call site is driven; the command precondition alone does not arm       | unit test (precondition armed, no guard → gate false)          | behavioral (test) | ✅ |
-| `query_yn` is not cancelable; cancel is rejected, EOF is marked closed (not an answer), no hang/exit-12  | Gate R (reject) + Gate E (EOF exits 0, `noncancelable_closed`) | behavioral (run)  | ✅ |
-| cata_test query_popup still aborts (no backend session)                                                 | unit test (`query_yn` returns false, no input loop)            | behavioral (test) | ✅ |
-| `iexamine::deployed_furniture`'s query_yn is the first/only prompt; `take_down` is prompt-free           | `src/iexamine.cpp:1418-1433`; `src/map_utils.cpp:33-42`; `tests/deployed_furniture_test.cpp` | structural+behavioral (read+test) | ✅ |
-| `f_floor_mattress` has `examine_action:"deployed_furniture"` + `deployed_item:"mattress"`               | `data/json/furniture_and_terrain/furniture-sleep.json:128-140` | structural (read) | ✅ |
+| Load-bearing claim                                                                                         | Cite / evidence                                                                              | Type                              | Verdict |
+| ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------- | ------- |
+| `query_popup::query_once` aborts under test_mode before its `input_context`                                | `src/popup.cpp:277-279` vs `:285`/`:309`                                                     | structural (read)                 | ✅      |
+| `query_yn` uses `input_context("YESNO")`, options YES/NO, cursor 1 (NO), not cancelable                    | `src/output.cpp:714-724`                                                                     | structural (read)                 | ✅      |
+| `CONFIRM` sets `res.action = options[cur].action` filter-free; the direct-option branch consults a filter  | `src/popup.cpp:333-337` vs `:338-346`                                                        | structural (read)                 | ✅      |
+| `redraw_invalidated` early-returns under test_mode BEFORE the resize/redraw callbacks (no `newwin`/`show`) | `src/ui_manager.cpp:325-330, 360-388, 390-430`                                               | structural (read)                 | ✅      |
+| the un-aborted query_popup creates NO curses window (renderer-neutral)                                     | unit test: full-`query()` drive asserts `!popup.has_window()`                                | behavioral (test)                 | ✅      |
+| served `LEFT`/`CONFIRM` reach the real `input_context("YESNO")` loop and set `result.action`               | Gate Y2 (`actions:["LEFT","CONFIRM"]`, level-4) + unit drive                                 | behavioral (run)                  | ✅      |
+| the witnessed continuation (YES) is the engine's own `take_down_deployed_furniture`                        | Gate Y3 (furniture→f_null, mattress dropped, engine message)                                 | behavioral (run)                  | ✅      |
+| witness-scoping: only the guarded call site is driven; the command precondition alone does not arm         | unit test (precondition armed, no guard → gate false)                                        | behavioral (test)                 | ✅      |
+| `query_yn` is not cancelable; cancel is rejected, EOF is marked closed (not an answer), no hang/exit-12    | Gate R (reject) + Gate E (EOF exits 0, `noncancelable_closed`)                               | behavioral (run)                  | ✅      |
+| cata_test query_popup still aborts (no backend session)                                                    | unit test (`query_yn` returns false, no input loop)                                          | behavioral (test)                 | ✅      |
+| `iexamine::deployed_furniture`'s query_yn is the first/only prompt; `take_down` is prompt-free             | `src/iexamine.cpp:1418-1433`; `src/map_utils.cpp:33-42`; `tests/deployed_furniture_test.cpp` | structural+behavioral (read+test) | ✅      |
+| `f_floor_mattress` has `examine_action:"deployed_furniture"` + `deployed_item:"mattress"`                  | `data/json/furniture_and_terrain/furniture-sleep.json:128-140`                               | structural (read)                 | ✅      |
