@@ -138,11 +138,15 @@ struct prompt_choice_log {
 };
 
 /// `prompt_opened`: a real engine prompt/menu was reached during a command and exposed to the client.
-/// `kind` is the prompt class (v0: "menu"); `choices` are the engine's real entries.
+/// `kind` is the prompt class (v0: "menu"); `choices` are the engine's real entries. `witness` (Spike 15)
+/// names the witnessed call site that armed a backend-driven prompt (e.g.
+/// "examine_deployed_furniture_take_down"), so the transcript proves WHICH audited site was driven; emitted
+/// only when non-empty, so menu/uilist records (no witness) stay byte-identical.
 struct prompt_opened_event {
     std::optional<int> step_index;
     std::string kind;
     std::vector<prompt_choice_log> choices;
+    std::string witness;
 };
 
 /// `prompt_answered`: the client chose one or more listed options; the backend translated `choices` into
