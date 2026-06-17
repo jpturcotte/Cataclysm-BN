@@ -16,6 +16,7 @@
 #include "action.h"
 #include "activity_actor.h"
 #include "activity_actor_definitions.h"
+#include "arcopolis_backend_input.h"  // arcopolis::query_popup_witness_guard (Spike 15 query_popup witness)
 #include "action_time_scale.h"
 // TODO (https://github.com/cataclysmbn/Cataclysm-BN/issues/1612):
 // Remove that include after repair_activity_actor.
@@ -1411,6 +1412,13 @@ void iexamine::bars( player &p, const tripoint_bub_ms &examp )
 void iexamine::deployed_furniture( player &p, const tripoint_bub_ms &pos )
 {
     map &here = get_map();
+    // Arcopolis Spike 15: this is the ONE audited query_popup witness. The guard arms a witness-scoped
+    // query_popup transaction around the take-down query_yn so the backend can drive it at level 4 through
+    // its real input_context("YESNO") loop -- but ONLY while a live `examine` command is active (the guard's
+    // begin is gated; it is a no-op in normal play, non-live, and any examine that did not reach here). No
+    // other query_yn carries this guard, so the un-abort never widens to generic query_yn support. The guard
+    // ends (closing the transaction) when this function returns, before the examine pickup tail runs.
+    arcopolis::query_popup_witness_guard query_popup_guard( "examine_deployed_furniture_take_down" );
     if( !query_yn( _( "Take down the %s?" ), here.furn( pos ).obj().name() ) ) {
         return;
     }
