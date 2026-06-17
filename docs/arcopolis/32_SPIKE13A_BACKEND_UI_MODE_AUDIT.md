@@ -13,6 +13,20 @@ attempt to drive `uilist`.**
 > proves none. (Per the AGENTS.md "every Arcopolis plan must state the equivalence level"
 > requirement.)
 
+> **Supersession note (2026-06-16).** The "blocked class" (Class 2) this audit identified has since been
+> driven at level 4 for three call sites, so the "future work" framing below for those is **superseded** (the
+> classification + design remain accurate): the **`uilist`** abort (`src/ui.cpp`) is un-aborted for the
+> vehicle-source submenu in [33_SPIKE13B_BACKEND_DRIVEN_UILIST.md](33_SPIKE13B_BACKEND_DRIVEN_UILIST.md) and
+> the secondary-capacity uilist in [34_SPIKE14_SECONDARY_PICKUP_UILIST.md](34_SPIKE14_SECONDARY_PICKUP_UILIST.md),
+> and the **`query_popup`** abort (`query_popup::query_once`, cited below as `src/popup.cpp:269` — now
+> `src/popup.cpp:277` after intervening edits) is un-aborted for the deployed-furniture `query_yn("YESNO")`
+> in [35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md](35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md). All three key the
+> un-abort on a **per-prompt** gate (`backend_ui_mode_active()` / `backend_query_popup_mode_active()`), so
+> cata_test and every other call site still abort. Still un-driven (genuine future work): the `popup()` /
+> `popup_getkey()` family (`"POPUP_WAIT"` + `PF_GET_KEY`'s `ANY_INPUT`), generic `query_popup` / any other
+> `query_yn`, the `inventory_selector`, computer UI, NPC dialogue, and ranged `TARGET`. Line numbers below are
+> as of the audit date and may have drifted; see the implementing docs for current lines.
+
 ## Executive summary
 
 `test_mode` does **two** jobs that Arcopolis must separate:
