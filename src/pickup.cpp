@@ -176,12 +176,18 @@ static pickup_answer handle_problematic_pickup( const item &it, bool &offered_sw
     // CONFIRM] (or [QUIT] for cancel) through the engine's own input_context("UILIST")::handle_input loop,
     // which sets amenu.ret. The backend NEVER mutates amenu.ret/selected/fentries.
     //
-    // Without a uilist channel (a misconfigured live session; non-live cannot reach here -- `pickup` is
-    // is_live_only_command and rejects at pre-flight), fall back to the doc-31 marked-partial path: record
-    // the forced cancel so the live command response carries forced_cancel + partial +
+    // Without a uilist channel (a misconfigured live session), fall back to the doc-31 marked-partial path:
+    // record the forced cancel so the live command response carries forced_cancel + partial +
     // unsupported_prompt="secondary_capacity" and the transcript a prompt_force_cancelled event, then
     // return CANCEL (the engine's own test_mode outcome -- the rejected item stays on the ground, never
     // logged as picked up). NOT silent success.
+    //
+    // NOTE (Spike 16, docs/arcopolis/36): a non-live `--arcopolis-run-script` pickup WITH declared
+    // prompt_answers now DOES reach this function (the relaxed pre-flight in arcopolis_script.cpp) -- but
+    // run_script installs the uilist channel, so it takes the `drive` branch below, not this no-channel
+    // fallback (regression W3). The disabled-entry gate further down ALSO records this forced-cancel
+    // outcome; in script mode that outcome is surfaced as a fail-loud script_prompt_failed at the seam
+    // return (clear_stale_scripted_prompt_answers), never a silent exit-0 success.
     //
     // Gated on an armed backend pickup transaction so normal play and the GUI are untouched.
     const bool transaction = arcopolis::backend_pickup_transaction_active();

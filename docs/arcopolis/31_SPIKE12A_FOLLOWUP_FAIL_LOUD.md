@@ -10,8 +10,14 @@
 >   [34_SPIKE14_SECONDARY_PICKUP_UILIST.md](34_SPIKE14_SECONDARY_PICKUP_UILIST.md)).
 >
 > The fail-loud / marked-partial behaviors are **retained as the no-channel fallback** (non-live /
-> misconfigured live sessions). The non-live pre-flight reject (P2) is **unchanged**. This historical record
-> is otherwise accurate as of its date; see docs 33 / 34 for the current driven behaviors.
+> misconfigured live sessions). This historical record is otherwise accurate as of its date; see docs 33 / 34
+> for the current driven behaviors.
+>
+> **Updated again (Spike 16, [36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md](36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md)):** the
+> non-live pre-flight reject (P2) is now **narrowed** — a `--arcopolis-run-script` `pickup` that declares
+> `prompt_answers` is allowed and driven at level 4 (the script prompt sources are the non-live answer
+> channel). The exit-6 pre-flight reject still applies to a run-script pickup with NO declared answers and to
+> **every one-shot `--arcopolis-command` pickup** (still no answer channel there).
 
 **Status: implementation + decision record (2026-06-15).** A direct follow-up to
 [30_SPIKE12A_PROMPT_MENU_TRANSACTION.md](30_SPIKE12A_PROMPT_MENU_TRANSACTION.md). Spike 12A proved a

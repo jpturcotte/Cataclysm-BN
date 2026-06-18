@@ -81,6 +81,13 @@ struct backend_session {
     std::size_t query_popup_cursor = 0;              ///< next query_popup_queue index to serve
     int query_popup_served =
         0;                       ///< query_popup actions served (the prompt_completed count)
+    // Spike 16: non-live script prompt answers -- the active command's declared answers + consume cursor.
+    // Loaded at each command dispatch (next_backend_action); consumed in order by the script prompt sources;
+    // leftover entries at the seam return FAIL LOUD (clear_stale_scripted_prompt_answers). Empty in live mode.
+    std::vector<arcopolis::script_prompt_answer> script_prompt_answers;
+    std::size_t script_prompt_cursor = 0;            ///< next script_prompt_answers index to consume
+    std::optional<int>
+    script_prompt_step_index;     ///< the arming command's step index (transcript correlation)
 };
 
 backend_session session;
@@ -288,6 +295,165 @@ auto write_session_snapshot( const std::string &label, const std::optional<int> 
     };
 }
 
+/// Records a fatal non-live script-prompt failure (Spike 16): sets session.failure (mapped to exit 13) and
+/// `done` so the steps walk stops and run_script aborts honestly with session_end status "error". Logs a
+/// typed `error` transcript record at the point of detection; when a prompt was open the calling source logs
+/// the per-prompt `prompt_failed` detail FIRST (Amendment 1: prompt_failed precedes any engine loop-exit
+/// action, so an escape QUIT/CONFIRM is never misread as a user cancel). First failure wins. Inert outside a
+/// session.
+auto record_script_prompt_failure( const std::string &detail,
+                                   const std::optional<int> &step_index ) -> void
+{
+    if( !session.active || session.failure ) {
+        return;
+    }
+    session.failure = arcopolis::command_error{
+        .kind = arcopolis::command_error_kind::script_prompt_failed,
+        .detail = detail,
+    };
+    session.done = true;
+    arcopolis::session_log_error( {
+        .step_index = step_index,
+        .kind = arcopolis::command_error_kind::script_prompt_failed,
+        .detail = detail,
+    } );
+}
+
+/// Peeks the next declared script prompt answer and checks it matches the open prompt's class (and title,
+/// when one is supplied -- the "menu" hook has none). On a match returns the answer (the caller validates
+/// choice/cancel); on a missing answer / kind mismatch / title mismatch it logs `prompt_failed` (the
+/// per-prompt reason + detail) then records the fatal failure and returns nullptr. Does NOT advance the
+/// cursor (the caller advances only on a fully-accepted answer). Spike 16.
+auto match_scripted_answer( const std::string &expected_kind, const std::string *title,
+                            const std::optional<int> &step_index )
+-> const arcopolis::script_prompt_answer * // *NOPAD*
+{
+    if( session.script_prompt_cursor >= session.script_prompt_answers.size() ) {
+        const auto detail = string_format(
+                                "a '%s' prompt opened but the script declares no answer for it", expected_kind.c_str() );
+        arcopolis::session_log_prompt_failed( { .step_index = step_index,
+                                                .reason = "no_scripted_answer", .detail = detail } );
+        record_script_prompt_failure( detail, step_index );
+        return nullptr;
+    }
+    const arcopolis::script_prompt_answer &ans =
+        session.script_prompt_answers[session.script_prompt_cursor];
+    if( ans.kind != expected_kind ) {
+        const auto detail = string_format(
+                                "scripted answer kind '%s' does not match the open '%s' prompt",
+                                ans.kind.c_str(), expected_kind.c_str() );
+        arcopolis::session_log_prompt_failed( { .step_index = step_index,
+                                                .reason = "kind_mismatch", .detail = detail } );
+        record_script_prompt_failure( detail, step_index );
+        return nullptr;
+    }
+    if( title ) {
+        if( ans.title_exact && *ans.title_exact != *title ) {
+            const auto detail = string_format(
+                                    "scripted title_exact '%s' does not equal the prompt title '%s'",
+                                    ans.title_exact->c_str(), title->c_str() );
+            arcopolis::session_log_prompt_failed( { .step_index = step_index,
+                                                    .reason = "title_mismatch", .detail = detail } );
+            record_script_prompt_failure( detail, step_index );
+            return nullptr;
+        }
+        if( ans.title_contains && title->find( *ans.title_contains ) == std::string::npos ) {
+            const auto detail = string_format(
+                                    "scripted title_contains '%s' is not a substring of the prompt title '%s'",
+                                    ans.title_contains->c_str(), title->c_str() );
+            arcopolis::session_log_prompt_failed( { .step_index = step_index,
+                                                    .reason = "title_mismatch", .detail = detail } );
+            record_script_prompt_failure( detail, step_index );
+            return nullptr;
+        }
+    }
+    return &ans;
+}
+
+/// Shared single-select script matcher for the uilist / query_popup sources: matches the next answer (kind +
+/// optional title), then accepts exactly one in-range choice, or a cancel ONLY if the prompt is cancelable.
+/// Returns the chosen index, or nullopt on a legitimate cancel / a recorded fatal failure. Spike 16.
+auto match_single_select_scripted( const std::string &expected_kind, const std::string &title,
+                                   std::size_t choices_size, bool cancelable,
+                                   const std::optional<int> &step_index ) -> std::optional<int>
+{
+    const arcopolis::script_prompt_answer *ans = match_scripted_answer( expected_kind, &title,
+            step_index );
+    if( !ans ) {
+        return std::nullopt;
+    }
+    if( ans->cancel ) {
+        if( !cancelable ) {
+            const auto detail = string_format(
+                                    "scripted cancel on a non-cancelable '%s' prompt", expected_kind.c_str() );
+            arcopolis::session_log_prompt_failed( { .step_index = step_index,
+                                                    .reason = "noncancelable", .detail = detail } );
+            record_script_prompt_failure( detail, step_index );
+            return std::nullopt;
+        }
+        ++session.script_prompt_cursor;  // legitimate cancel -> resolve serves the loop-exit QUIT
+        return std::nullopt;
+    }
+    if( ans->choices.size() != 1 ) {
+        const auto detail = string_format(
+                                "the '%s' prompt is single-select; declare exactly one choice", expected_kind.c_str() );
+        arcopolis::session_log_prompt_failed( { .step_index = step_index,
+                                                .reason = "invalid_answer", .detail = detail } );
+        record_script_prompt_failure( detail, step_index );
+        return std::nullopt;
+    }
+    const int idx = ans->choices.front();
+    if( idx < 0 || idx >= static_cast<int>( choices_size ) ) {
+        const auto detail = string_format( "'%s' choice %d out of range [0, %d)",
+                                           expected_kind.c_str(), idx, static_cast<int>( choices_size ) );
+        arcopolis::session_log_prompt_failed( { .step_index = step_index,
+                                                .reason = "choice_out_of_range", .detail = detail } );
+        record_script_prompt_failure( detail, step_index );
+        return std::nullopt;
+    }
+    ++session.script_prompt_cursor;
+    return idx;
+}
+
+/// Force-clears the script prompt-answer queue at a return to the top-level seam (Spike 16), and surfaces a
+/// pickup's UNSUPPORTED-sub-prompt outcome as a fail-loud script failure in script mode. Cases:
+///  - **unused answers:** any answer the just-completed command did not consume is an authoring error (a
+///    declared answer with no matching prompt) -- FAIL LOUD.
+///  - **forced-cancel outcome (the doc-31/Spike-14 honesty gap fixed here):** a pickup can end with an
+///    unsupported in-activity sub-prompt force-cancelled -- the disabled-entry secondary capacity/wield/spill
+///    uilist (Spike 14's all-enabled bound, src/pickup.cpp:279-282) or a no-channel submenu. LIVE mode marks
+///    that partial via backend_take_pickup_outcome() in its response writer (src/arcopolis_live.cpp); SCRIPT
+///    mode has no writer, so without this the run would end status="ok"/exit 0 with the item silently left
+///    behind -- the silent auto-cancel-as-success AGENTS.md forbids. In script mode (no live_source) we read
+///    the outcome here and FAIL LOUD on a non-ok value. Live mode is gated out (live_source set) -- its
+///    writer owns + resets the outcome before the next seam return, so this never double-consumes there.
+/// Both are skipped once a fatal failure is already recorded (don't double-mark). Then the queue is cleared
+/// so nothing leaks into the next command. Inert in live mode (the queue is never loaded there).
+auto clear_stale_scripted_prompt_answers() -> void
+{
+    if( !session.live_source && !session.failure
+        && arcopolis::backend_take_pickup_outcome() != arcopolis::pickup_command_outcome::ok ) {
+        record_script_prompt_failure(
+            "a pickup reached an in-activity sub-prompt that script mode does not drive (e.g. a "
+            "disabled-entry secondary capacity/wield/spill uilist -- Spike 14's all-enabled bound); the "
+            "over-capacity item was left behind. Failing loud rather than reporting a silent partial as full "
+            "success.",
+            session.script_prompt_step_index );
+    }
+    if( !session.failure
+        && session.script_prompt_cursor < session.script_prompt_answers.size() ) {
+        const auto unused =
+            static_cast<int>( session.script_prompt_answers.size() - session.script_prompt_cursor );
+        record_script_prompt_failure(
+            string_format( "%d scripted prompt answer(s) were not consumed by the command "
+                           "(a declared answer had no matching prompt)", unused ),
+            session.script_prompt_step_index );
+    }
+    session.script_prompt_answers.clear();
+    session.script_prompt_cursor = 0;
+    session.script_prompt_step_index.reset();
+}
+
 } // namespace
 
 auto arcopolis::begin_backend_session( const backend_session_options &opts ) -> void
@@ -339,10 +505,20 @@ auto arcopolis::next_backend_action() -> action_id
     // BEFORE the live pull below, so the event precedes the pending live response written inside the
     // pull and can never leak into the next command's prompts.
     clear_stale_nested_input();
+    // Spike 16: also force-clear the previous command's scripted prompt-answer queue before the next command
+    // loads its own. Any answer the just-completed command did not consume is an authoring error and FAILS
+    // LOUD here (a declared answer with no matching prompt).
+    clear_stale_scripted_prompt_answers();
     // Spike 9B live mode: the session's pull source replaces the steps walk entirely. It runs at this
     // same faithful input-loop instant and owns its exports/termination (backend_mark_input_done()).
     if( session.live_source ) {
         return session.live_source();
+    }
+    // Spike 16: a mid-command fatal script-prompt failure set `done` (and session.failure); stop the steps
+    // walk so no further steps run -- the cursor has already advanced past the failed command. run_script's
+    // post-loop check surfaces session.failure as the exit code (13) with session_end status "error".
+    if( session.done ) {
+        return ACTION_NULL;
     }
     while( session.cursor < session.steps.size() ) {
         const auto &step = session.steps[session.cursor];
@@ -373,14 +549,30 @@ auto arcopolis::next_backend_action() -> action_id
             .direction = step.direction,
             .action_id = resolved ? std::optional<std::string>( action_ident( *resolved ) ) : std::nullopt,
         } );
-        // Spike 11A: arm the one-shot direction answer AFTER the command event (arming emits nothing,
-        // so every nested_input_* event of this dispatch orders after its command event).
-        if( step.command == "examine" && resolved ) {
+        // Spike 11A/16: arm the one-shot direction answer for examine AND pickup -- both use the
+        // allow_vertical=false "Examine/Pickup where?" chooser. AFTER the command event (arming emits
+        // nothing, so every nested_input_* event of this dispatch orders after its command event).
+        if( ( step.command == "examine" || step.command == "pickup" ) && resolved ) {
             if( const auto answer = target_direction_nested_answer( step.direction ) ) {
                 backend_arm_nested_input( { .action = *answer,
                                             .direction = step.direction,
                                             .step_index = step_index } );
             }
+        }
+        // Spike 16: arm the prompt transactions a scripted prompted command needs (mirroring
+        // live_next_action) and load this command's declared answers for the script prompt sources to
+        // consume in order. A `pickup` reaches the old "PICKUP" menu (and possibly a vehicle-source /
+        // secondary-capacity uilist); an `examine` of a deployed furniture reaches the take-down query_yn.
+        // run_script installs the script_*_prompt sources, so these feed the SAME backend_resolve_* path as
+        // live mode. Non-prompt commands (move/wait) carry no declared answers (parser-enforced), so the
+        // load is a no-op for them.
+        if( resolved ) {
+            if( step.command == "pickup" ) {
+                backend_arm_pickup_transaction( step_index );
+            } else if( step.command == "examine" ) {
+                backend_arm_examine_query_popup_command( step_index );
+            }
+            backend_load_scripted_prompt_answers( step.prompt_answers, step_index );
         }
         return resolved.value_or( ACTION_NULL );
     }
@@ -817,6 +1009,73 @@ arcopolis::query_popup_witness_guard::query_popup_witness_guard( const std::stri
 arcopolis::query_popup_witness_guard::~query_popup_witness_guard()
 {
     arcopolis::backend_end_query_popup_transaction();
+}
+
+auto arcopolis::backend_load_scripted_prompt_answers(
+    const std::vector<script_prompt_answer> &answers, const std::optional<int> &step_index ) -> void
+{
+    // Inert outside a session, like every other public mutator. Loaded fresh at each command dispatch so the
+    // consume cursor and the (Amendment-2) single-turn scope reset per command.
+    if( !session.active ) {
+        return;
+    }
+    session.script_prompt_answers = answers;
+    session.script_prompt_cursor = 0;
+    session.script_prompt_step_index = step_index;
+}
+
+auto arcopolis::script_pickup_prompt( const std::vector<pickup_prompt_choice> &choices ) ->
+std::optional<std::vector<int>>
+{
+    // The script-mode counterpart of arcopolis_live's live_pickup_prompt: instead of blocking on stdin it
+    // consumes the next declared answer. Returns the same internal result type (chosen indices, or nullopt
+    // for cancel) so backend_resolve_pickup_choice converts it into registered actions identically.
+    if( !session.active ) {
+        return std::nullopt;
+    }
+    const auto step_index = session.pickup_step_index;
+    const script_prompt_answer *ans = match_scripted_answer( "menu", nullptr, step_index );
+    if( !ans ) {
+        return std::nullopt;  // mismatch/missing recorded a fatal failure
+    }
+    if( ans->cancel ) {
+        ++session.script_prompt_cursor;  // legitimate cancel (the old "PICKUP" menu is cancelable)
+        return std::nullopt;
+    }
+    const int n = static_cast<int>( choices.size() );
+    const bool any_bad = ans->choices.empty()
+    || std::ranges::any_of( ans->choices, [n]( const int c ) {
+        return c < 0 || c >= n;
+    } );
+    if( any_bad ) {
+        const auto detail = string_format( "menu choice out of range [0, %d)", n );
+        session_log_prompt_failed( { .step_index = step_index,
+                                     .reason = "choice_out_of_range", .detail = detail } );
+        record_script_prompt_failure( detail, step_index );
+        return std::nullopt;
+    }
+    ++session.script_prompt_cursor;
+    return ans->choices;
+}
+
+auto arcopolis::script_uilist_prompt( const backend_uilist_prompt_request &request ) ->
+std::optional<int>
+{
+    if( !session.active ) {
+        return std::nullopt;
+    }
+    return match_single_select_scripted( "uilist", request.title, request.choices.size(),
+                                         request.cancelable, session.uilist_step_index );
+}
+
+auto arcopolis::script_query_popup_prompt( const backend_query_popup_request &request ) ->
+std::optional<int>
+{
+    if( !session.active ) {
+        return std::nullopt;
+    }
+    return match_single_select_scripted( "query_popup", request.title, request.choices.size(),
+                                         request.cancelable, session.query_popup_step_index );
 }
 
 auto arcopolis::decide_nested_input( const nested_input_observation &obs ) -> nested_input_decision

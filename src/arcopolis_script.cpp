@@ -38,6 +38,93 @@ auto end_summary_with_state( const std::string &status ) -> arcopolis::session_e
     };
 }
 
+/// Parses + STRUCTURALLY validates the optional `prompt_answers` array on a command step (Spike 16). Only
+/// valid on the prompted verbs (pickup/examine). Canonicalizes `choice` (int) and `choices` (int array) into
+/// the single `choices` vector (empty iff `cancel`), enforces single-select for uilist/query_popup, and
+/// allows the title assertions only for uilist/query_popup. Returns the ordered answers, or a bad_schema
+/// error. SEMANTIC matching (kind/title/range vs the REAL opened prompt, and ordering) happens at runtime in
+/// the script prompt sources -- this is purely the structural gate.
+auto parse_prompt_answers( JsonObject &e, const std::string &command, const std::string &at )
+-> std::expected<std::vector<arcopolis::script_prompt_answer>, arcopolis::command_error>
+{
+    using arcopolis::command_error;
+    using arcopolis::command_error_kind;
+    using arcopolis::script_prompt_answer;
+    const auto bad = []( const std::string & detail )
+    -> std::expected<std::vector<script_prompt_answer>, command_error> {
+        return std::unexpected( command_error{ .kind = command_error_kind::bad_schema, .detail = detail } );
+    };
+    std::vector<script_prompt_answer> answers;
+    if( !e.has_member( "prompt_answers" ) ) {
+        return answers;  // absent is fine (a non-prompted command, or a prompt the engine auto-resolves)
+    }
+    if( command != "pickup" && command != "examine" ) {
+        return bad( at + "'prompt_answers' is only valid on a 'pickup' or 'examine' command step" );
+    }
+    if( !e.has_array( "prompt_answers" ) ) {
+        return bad( at + "'prompt_answers' must be an array" );
+    }
+    auto pa = e.get_array( "prompt_answers" );
+    auto ai = 0;
+    while( pa.has_more() ) {
+        auto ao = pa.next_object();
+        ao.allow_omitted_members();
+        const auto pat = at + "prompt_answers[" + std::to_string( ai ) + "]: ";
+        if( !ao.has_string( "kind" ) ) {
+            return bad( pat + "missing or non-string 'kind'" );
+        }
+        const auto kind = ao.get_string( "kind" );
+        if( kind != "menu" && kind != "uilist" && kind != "query_popup" ) {
+            return bad( pat + "unsupported kind '" + kind +
+                        "' (expected 'menu', 'uilist' or 'query_popup')" );
+        }
+        auto ans = script_prompt_answer{ .kind = kind };
+        ans.cancel = ao.has_bool( "cancel" ) && ao.get_bool( "cancel" );
+        const bool has_choice = ao.has_int( "choice" );
+        const bool has_choices = ao.has_array( "choices" );
+        if( ans.cancel ) {
+            if( has_choice || has_choices ) {
+                return bad( pat + "'cancel' must not be combined with 'choice'/'choices'" );
+            }
+        } else {
+            if( has_choice && has_choices ) {
+                return bad( pat + "use either 'choice' or 'choices', not both" );
+            }
+            if( !has_choice && !has_choices ) {
+                return bad( pat + "requires 'choice', 'choices', or 'cancel'" );
+            }
+            auto picks = has_choice ? std::vector<int> { ao.get_int( "choice" ) }
+                         :
+                         ao.get_int_array( "choices" );
+            if( picks.empty() ) {
+                return bad( pat + "'choices' must be non-empty" );
+            }
+            if( ( kind == "uilist" || kind == "query_popup" ) && picks.size() != 1 ) {
+                return bad( pat + "kind '" + kind + "' is single-select; declare exactly one choice" );
+            }
+            ans.choices = std::move( picks );
+        }
+        const bool has_tc = ao.has_string( "title_contains" );
+        const bool has_te = ao.has_string( "title_exact" );
+        if( ( has_tc || has_te ) && kind == "menu" ) {
+            return bad( pat + "'title_contains'/'title_exact' are not valid for kind 'menu' "
+                        "(the menu prompt exposes no title)" );
+        }
+        if( has_tc && has_te ) {
+            return bad( pat + "use either 'title_contains' or 'title_exact', not both" );
+        }
+        if( has_tc ) {
+            ans.title_contains = ao.get_string( "title_contains" );
+        }
+        if( has_te ) {
+            ans.title_exact = ao.get_string( "title_exact" );
+        }
+        answers.push_back( std::move( ans ) );
+        ++ai;
+    }
+    return answers;
+}
+
 } // namespace
 
 auto arcopolis::parse_script( std::istream &stream ) ->
@@ -110,8 +197,29 @@ std::expected<std::vector<script_step>, command_error>
                                                                .detail = at + "unsupported examine direction '" + direction +
                                                                        "' (expected " + expected_target_directions + ")" } );
                     }
+                } else if( command == "pickup" ) {
+                    // Spike 16: pickup shares examine's allow_vertical=false adjacent chooser, so it accepts
+                    // the same planar-plus-"here" target set for "Pickup where?"; its in-action menu(s) are
+                    // answered by the step's prompt_answers (non-live script mode), or by the live channel.
+                    if( !e.has_string( "direction" ) ) {
+                        return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                               .detail = at + "command 'pickup' requires a string 'direction'" } );
+                    }
+                    direction = e.get_string( "direction" );
+                    if( !is_supported_target_direction( direction ) ) {
+                        return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                               .detail = at + "unsupported pickup direction '" + direction +
+                                                                       "' (expected " + expected_target_directions + ")" } );
+                    }
                 }
-                steps.push_back( script_step{ .op = op, .command = command, .direction = direction } );
+                // Spike 16: optional prompt answers (pickup/examine only) -- structurally validated +
+                // canonicalized here; semantically matched against the real opened prompt at runtime.
+                auto answers = parse_prompt_answers( e, command, at );
+                if( !answers ) {
+                    return std::unexpected( answers.error() );
+                }
+                steps.push_back( script_step{ .op = op, .command = command, .direction = direction,
+                                              .prompt_answers = std::move( *answers ) } );
             } else {
                 return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
                                                        .detail = at + "unknown op '" + op + "' (expected 'export' or 'command')" } );
@@ -172,14 +280,18 @@ auto arcopolis::run_script( const run_script_options &opts ) -> int
         if( step.op != "command" ) {
             continue;
         }
-        // Non-live FAIL LOUD for promptful commands: a live-only command (e.g. pickup) needs a prompt
-        // answer channel the script provider does not have, so in non-live mode it would only ever
-        // auto-cancel and falsely report success. Reject it here, before the world load, rather than
-        // silently no-op it (docs/arcopolis/31). The script runner is never live (no prompt_source).
-        if( is_live_only_command( step.command ) ) {
+        // FAIL LOUD for a promptful command with no answer channel: a command whose CORE action needs a
+        // prompt answer (e.g. pickup) has a channel only when the step DECLARES prompt_answers (Spike 16) --
+        // run_script then installs the script prompt sources below. Without declared answers there is no
+        // channel, so the menu would only ever auto-cancel and falsely report success; reject it here,
+        // before the world load (docs/arcopolis/31 superseded for the with-answers case by docs/arcopolis/36).
+        // (A pickup WITH answers passes; runtime then matches each answer to the prompt the engine opens, or
+        // fails loud. examine is not live-only -- a furniture examine that opens query_yn without an answer
+        // fails loud at the open prompt, not here.)
+        if( is_live_only_command( step.command ) && step.prompt_answers.empty() ) {
             std::cerr << "arcopolis: command '" << step.command <<
-                      "' requires --arcopolis-live (its in-action menu needs a live prompt answer channel; "
-                      "it is not supported in script/one-shot mode)\n";
+                      "' requires --arcopolis-live or a 'prompt_answers' declaration on this step (its "
+                      "in-action menu needs a prompt answer channel; neither is present in script mode)\n";
             return exit_code_for( command_error_kind::unsupported_command );
         }
         const auto resolved = command_to_action( { .schema_version = arcopolis_script_schema_version,
@@ -225,7 +337,16 @@ auto arcopolis::run_script( const run_script_options &opts ) -> int
     // (AFTER the turn's top half) and performs `export` steps inline at that faithful point; the world
     // ticks only when an action exhausts the turn. The script-exhausted clean-stop parks the final turn
     // before its bottom half. This replaces the Spike 3 `command -> do_turn` inversion entirely.
-    begin_backend_session( { .steps = *script, .export_dir = opts.export_dir } );
+    //
+    // Spike 16: install the SCRIPT prompt sources so a scripted prompted command (pickup / a deployed-
+    // furniture examine) drives the SAME backend_resolve_* machinery + registered-action queues +
+    // input_context loops + prompt_* transcript events as live mode -- consuming the step's declared
+    // prompt_answers instead of blocking on stdin. A missing/wrong/unused answer fails loud
+    // (script_prompt_failed, exit 13). (docs/arcopolis/36.)
+    begin_backend_session( { .steps = *script, .export_dir = opts.export_dir,
+                             .prompt_source = script_pickup_prompt,
+                             .uilist_prompt_source = script_uilist_prompt,
+                             .query_popup_source = script_query_popup_prompt } );
 
     // Spike 3.1C: open the JSON Lines session transcript beside the snapshots and record session_start.
     // The transcript is a default deliverable for a script run, so a failure to OPEN it is surfaced as a

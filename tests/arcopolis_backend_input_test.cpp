@@ -941,3 +941,286 @@ TEST_CASE( "arcopolis cata_test query_popup still aborts without a backend sessi
     REQUIRE_FALSE( arcopolis::backend_query_popup_mode_active() );
     CHECK_FALSE( query_yn( "Take down the mattress?" ) );
 }
+
+// --- Spike 16: non-live SCRIPT prompt sources. These prove that a scripted answer, consumed by the script
+// source installed in --arcopolis-run-script, produces the SAME registered-action queue a live source would
+// (feeding the SAME backend_resolve_* machinery), and that a missing / wrong-kind / title-mismatch /
+// out-of-range / cancel-on-noncancelable / unused answer FAILS LOUD (command_error_kind::script_prompt_failed)
+// rather than silently auto-cancelling. Each case seeds the per-command answer queue via
+// backend_load_scripted_prompt_answers() instead of running the steps walk (world-independent). ---
+
+TEST_CASE( "arcopolis script pickup source drives a multi-select like the live source",
+           "[arcopolis]" )
+{
+    const std::vector<std::string> pickup_actions = {
+        "UP", "DOWN", "LEFT", "RIGHT", "CONFIRM", "SELECT_ALL", "QUIT",
+    };
+    arcopolis::begin_backend_session( { .steps = {}, .prompt_source = arcopolis::script_pickup_prompt } );
+    arcopolis::backend_arm_pickup_transaction( 7 );
+    arcopolis::backend_load_scripted_prompt_answers( { { .kind = "menu", .choices = { 0, 2 } } }, 7 );
+    const std::vector<arcopolis::pickup_prompt_choice> choices = {
+        { .index = 0, .text = "a rock", .enabled = true },
+        { .index = 1, .text = "a rag", .enabled = true },
+        { .index = 2, .text = "a string", .enabled = true },
+    };
+    arcopolis::backend_resolve_pickup_choice( choices );
+    // The SAME sequence the live multi-select test asserts: RIGHT (mark 0), DOWN DOWN (to 2), RIGHT, CONFIRM.
+    for( const std::string &expected : {
+             "RIGHT", "DOWN", "DOWN", "RIGHT", "CONFIRM"
+         } ) {
+        const std::string *served = arcopolis::backend_nested_input_action( "PICKUP", pickup_actions, -1 );
+        REQUIRE( served != nullptr );
+        CHECK( *served == expected );
+    }
+    CHECK_FALSE( arcopolis::backend_session_failure().has_value() );
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis script uilist source drives a single-select like the live source",
+           "[arcopolis]" )
+{
+    const std::vector<std::string> uilist_actions = { "UP", "DOWN", "CONFIRM", "QUIT" };
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .uilist_prompt_source = arcopolis::script_uilist_prompt } );
+    arcopolis::backend_arm_pickup_transaction(
+        0 );   // the uilist transaction is gated on a pickup transaction
+    arcopolis::backend_begin_uilist_transaction();
+    arcopolis::backend_load_scripted_prompt_answers( { { .kind = "uilist", .choices = { 1 } } }, 0 );
+    arcopolis::backend_resolve_uilist_choice( { .kind = "uilist", .title = "Get items from where?",
+    .choices = { { .index = 0, .text = "vehicle", .enabled = true },
+        { .index = 1, .text = "ground", .enabled = true }
+    },
+    .cancelable = true } );
+    for( const std::string &expected : {
+             "DOWN", "CONFIRM"
+         } ) {
+        const std::string *served = arcopolis::backend_nested_input_action( "UILIST", uilist_actions, -1 );
+        REQUIRE( served != nullptr );
+        CHECK( *served == expected );
+    }
+    CHECK_FALSE( arcopolis::backend_session_failure().has_value() );
+    arcopolis::backend_end_uilist_transaction();
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis script query_popup source drives YES/NO like the live source", "[arcopolis]" )
+{
+    const std::vector<std::string> yesno_actions = { "LEFT", "RIGHT", "CONFIRM" };
+    const auto drive = [&]( const int choice, const std::vector<std::string> &expected ) {
+        arcopolis::begin_backend_session( { .steps = {},
+                                            .query_popup_source = arcopolis::script_query_popup_prompt } );
+        arcopolis::backend_arm_examine_query_popup_command( 0 );
+        arcopolis::backend_begin_query_popup_transaction( "examine_deployed_furniture_take_down" );
+        arcopolis::backend_load_scripted_prompt_answers( { { .kind = "query_popup", .choices = { choice } } },
+        0 );
+        arcopolis::backend_resolve_query_popup_choice( { .title = "Take down the mattress?",
+        .choices = { { .index = 0, .text = "YES", .enabled = true },
+            { .index = 1, .text = "NO", .enabled = true }
+        },
+        .cursor_start = 1, .cancelable = false } );
+        for( const std::string &want : expected ) {
+            const std::string *served = arcopolis::backend_nested_input_action( "YESNO", yesno_actions, -1 );
+            REQUIRE( served != nullptr );
+            CHECK( *served == want );
+        }
+        CHECK_FALSE( arcopolis::backend_session_failure().has_value() );
+        arcopolis::backend_end_query_popup_transaction();
+        arcopolis::end_backend_session();
+    };
+    drive( 0, { "LEFT", "CONFIRM" } );  // YES: cursor NO(1) -> YES(0), then confirm
+    drive( 1, { "CONFIRM" } );          // NO: cursor already on NO(1), confirm
+}
+
+TEST_CASE( "arcopolis script sources consume sequential prompt answers in order", "[arcopolis]" )
+{
+    // One pickup command opens a vehicle uilist THEN the old PICKUP menu; the two declared answers are
+    // consumed in that order from the single per-command queue.
+    const std::vector<std::string> pickup_actions = { "UP", "DOWN", "LEFT", "RIGHT", "CONFIRM", "QUIT" };
+    const std::vector<std::string> uilist_actions = { "UP", "DOWN", "CONFIRM", "QUIT" };
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .prompt_source = arcopolis::script_pickup_prompt,
+                                        .uilist_prompt_source = arcopolis::script_uilist_prompt } );
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    arcopolis::backend_load_scripted_prompt_answers(
+    { { .kind = "uilist", .choices = { 1 } }, { .kind = "menu", .choices = { 0 } } }, 0 );
+    arcopolis::backend_begin_uilist_transaction();
+    arcopolis::backend_resolve_uilist_choice( { .kind = "uilist", .title = "Get items from where?",
+    .choices = { { .index = 0, .text = "vehicle", .enabled = true },
+        { .index = 1, .text = "ground", .enabled = true }
+    },
+    .cancelable = true } );
+    for( const std::string &expected : {
+             "DOWN", "CONFIRM"
+         } ) {
+        const std::string *served = arcopolis::backend_nested_input_action( "UILIST", uilist_actions, -1 );
+        REQUIRE( served != nullptr );
+        CHECK( *served == expected );
+    }
+    arcopolis::backend_end_uilist_transaction();
+    arcopolis::backend_resolve_pickup_choice( { { .index = 0, .text = "x", .enabled = true } } );
+    const std::string *menu = arcopolis::backend_nested_input_action( "PICKUP", pickup_actions, -1 );
+    REQUIRE( menu != nullptr );
+    CHECK( *menu == "RIGHT" );  // choice 0: RIGHT then CONFIRM
+    CHECK_FALSE( arcopolis::backend_session_failure().has_value() );
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis script pickup source fails loud when no answer is declared", "[arcopolis]" )
+{
+    const std::vector<std::string> pickup_actions = { "DOWN", "RIGHT", "CONFIRM", "QUIT" };
+    arcopolis::begin_backend_session( { .steps = {}, .prompt_source = arcopolis::script_pickup_prompt } );
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    // No backend_load_scripted_prompt_answers -> the queue is empty when the menu opens.
+    arcopolis::backend_resolve_pickup_choice( { { .index = 0, .text = "x", .enabled = true } } );
+    const std::string *served = arcopolis::backend_nested_input_action( "PICKUP", pickup_actions, -1 );
+    REQUIRE( served != nullptr );
+    CHECK( *served == "QUIT" );  // the loop-exit escape hatch, NOT a user cancel
+    REQUIRE( arcopolis::backend_session_failure().has_value() );
+    CHECK( arcopolis::backend_session_failure()->kind ==
+           arcopolis::command_error_kind::script_prompt_failed );
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis script pickup source fails loud on a wrong-kind answer", "[arcopolis]" )
+{
+    arcopolis::begin_backend_session( { .steps = {}, .prompt_source = arcopolis::script_pickup_prompt } );
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    arcopolis::backend_load_scripted_prompt_answers( { { .kind = "uilist", .choices = { 0 } } }, 0 );
+    arcopolis::backend_resolve_pickup_choice( { { .index = 0, .text = "x", .enabled = true } } );
+    REQUIRE( arcopolis::backend_session_failure().has_value() );
+    CHECK( arcopolis::backend_session_failure()->kind ==
+           arcopolis::command_error_kind::script_prompt_failed );
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis script pickup source fails loud on an out-of-range choice", "[arcopolis]" )
+{
+    arcopolis::begin_backend_session( { .steps = {}, .prompt_source = arcopolis::script_pickup_prompt } );
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    arcopolis::backend_load_scripted_prompt_answers( { { .kind = "menu", .choices = { 5 } } }, 0 );
+    arcopolis::backend_resolve_pickup_choice( { { .index = 0, .text = "x", .enabled = true } } );  // 1 entry only
+    REQUIRE( arcopolis::backend_session_failure().has_value() );
+    CHECK( arcopolis::backend_session_failure()->kind ==
+           arcopolis::command_error_kind::script_prompt_failed );
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis script uilist source fails loud on a title mismatch", "[arcopolis]" )
+{
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .uilist_prompt_source = arcopolis::script_uilist_prompt } );
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    arcopolis::backend_begin_uilist_transaction();
+    arcopolis::backend_load_scripted_prompt_answers(
+    { { .kind = "uilist", .choices = { 0 }, .title_contains = "no such title" } }, 0 );
+    arcopolis::backend_resolve_uilist_choice( { .kind = "uilist", .title = "Get items from where?",
+    .choices = { { .index = 0, .text = "vehicle", .enabled = true },
+        { .index = 1, .text = "ground", .enabled = true }
+    },
+    .cancelable = true } );
+    REQUIRE( arcopolis::backend_session_failure().has_value() );
+    CHECK( arcopolis::backend_session_failure()->kind ==
+           arcopolis::command_error_kind::script_prompt_failed );
+    arcopolis::backend_end_uilist_transaction();
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis script uilist source accepts a legitimate cancel without failing",
+           "[arcopolis]" )
+{
+    const std::vector<std::string> uilist_actions = { "UP", "DOWN", "CONFIRM", "QUIT" };
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .uilist_prompt_source = arcopolis::script_uilist_prompt } );
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    arcopolis::backend_begin_uilist_transaction();
+    arcopolis::backend_load_scripted_prompt_answers( { { .kind = "uilist", .cancel = true } }, 0 );
+    arcopolis::backend_resolve_uilist_choice( { .kind = "uilist", .title = "Get items from where?",
+    .choices = { { .index = 0, .text = "vehicle", .enabled = true },
+        { .index = 1, .text = "ground", .enabled = true }
+    },
+    .cancelable = true } );
+    const std::string *served = arcopolis::backend_nested_input_action( "UILIST", uilist_actions, -1 );
+    REQUIRE( served != nullptr );
+    CHECK( *served == "QUIT" );  // a real cancel, served as the loop-exit QUIT
+    CHECK_FALSE(
+        arcopolis::backend_session_failure().has_value() );  // a legitimate cancel is NOT a failure
+    arcopolis::backend_end_uilist_transaction();
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis script query_popup source fails loud on a cancel of a non-cancelable prompt",
+           "[arcopolis]" )
+{
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .query_popup_source = arcopolis::script_query_popup_prompt } );
+    arcopolis::backend_arm_examine_query_popup_command( 0 );
+    arcopolis::backend_begin_query_popup_transaction( "examine_deployed_furniture_take_down" );
+    arcopolis::backend_load_scripted_prompt_answers( { { .kind = "query_popup", .cancel = true } }, 0 );
+    arcopolis::backend_resolve_query_popup_choice( { .title = "Take down the mattress?",
+    .choices = { { .index = 0, .text = "YES", .enabled = true },
+        { .index = 1, .text = "NO", .enabled = true }
+    },
+    .cursor_start = 1, .cancelable = false } );
+    REQUIRE( arcopolis::backend_session_failure().has_value() );
+    CHECK( arcopolis::backend_session_failure()->kind ==
+           arcopolis::command_error_kind::script_prompt_failed );
+    arcopolis::backend_end_query_popup_transaction();
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis script sources fail loud on an unused prompt answer", "[arcopolis]" )
+{
+    arcopolis::begin_backend_session( { .steps = {}, .prompt_source = arcopolis::script_pickup_prompt } );
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    // Two answers declared, but only the menu prompt will open -> the second is never consumed.
+    arcopolis::backend_load_scripted_prompt_answers(
+    { { .kind = "menu", .choices = { 0 } }, { .kind = "uilist", .choices = { 0 } } }, 0 );
+    arcopolis::backend_resolve_pickup_choice( { { .index = 0, .text = "x", .enabled = true } } );
+    CHECK_FALSE( arcopolis::backend_session_failure().has_value() );  // the first answer matched fine
+    // Returning to the top-level seam runs the unused-answer check on the leftover uilist answer.
+    arcopolis::next_backend_action();
+    REQUIRE( arcopolis::backend_session_failure().has_value() );
+    CHECK( arcopolis::backend_session_failure()->kind ==
+           arcopolis::command_error_kind::script_prompt_failed );
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis script pickup fails loud on an unsupported forced-cancel secondary",
+           "[arcopolis]" )
+{
+    // A disabled-entry secondary capacity uilist (or any unsupported in-activity sub-prompt) force-cancels via
+    // backend_report_pickup_secondary_forced_cancel, which sets pickup_outcome but NO session.failure. In LIVE
+    // mode the response writer consumes that outcome and marks the response partial. In non-live SCRIPT mode
+    // there is no such writer, so the seam-return cleanup must surface a non-ok outcome as a fail-loud
+    // script_prompt_failed (exit 13) -- never a silent exit-0 "ok" with the item left behind (AGENTS.md).
+    arcopolis::begin_backend_session( { .steps = {}, .prompt_source = arcopolis::script_pickup_prompt } );
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    arcopolis::backend_load_scripted_prompt_answers( { { .kind = "menu", .choices = { 0 } } }, 0 );
+    arcopolis::backend_resolve_pickup_choice( { { .index = 0, .text = "x", .enabled = true } } );  // menu answer consumed
+    CHECK_FALSE( arcopolis::backend_session_failure().has_value() );
+    // The activity hits a disabled-entry secondary -> the engine call site (src/pickup.cpp) reports it.
+    arcopolis::backend_report_pickup_secondary_forced_cancel();
+    // Returning to the top-level seam surfaces the unsupported forced-cancel as a fail-loud script failure.
+    arcopolis::next_backend_action();
+    REQUIRE( arcopolis::backend_session_failure().has_value() );
+    CHECK( arcopolis::backend_session_failure()->kind ==
+           arcopolis::command_error_kind::script_prompt_failed );
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis script pickup forced-cancel outcome is NOT surfaced in live mode",
+           "[arcopolis]" )
+{
+    // The mirror of the above: with a live_source installed, clear_stale_scripted_prompt_answers must NOT
+    // consume/fail on the pickup outcome -- the live response writer owns it. backend_take_pickup_outcome()
+    // therefore still returns the live outcome on the live side.
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .live_source = []() -> action_id { arcopolis::backend_mark_input_done(); return ACTION_NULL; } } );
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    arcopolis::backend_report_pickup_secondary_forced_cancel();
+    arcopolis::next_backend_action();  // live_source path: clear_stale_scripted must NOT touch the outcome
+    CHECK_FALSE( arcopolis::backend_session_failure().has_value() );
+    CHECK( arcopolis::backend_take_pickup_outcome() ==
+           arcopolis::pickup_command_outcome::secondary_forced_cancel );  // still available to the live writer
+    arcopolis::end_backend_session();
+}
