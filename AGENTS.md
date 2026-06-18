@@ -235,6 +235,14 @@ serves the visible default, marked `noncancelable_closed`). Built reproducibly b
 `docs/arcopolis/query_popup_regression.ps1` (six gates: accept/reject/state-change/recovery/EOF). See
 `docs/arcopolis/35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md`.
 
+**Spike 16 reuses all four prompt fixtures (`ArcopolisTest`, `ArcopolisVehicleCargoTest`,
+`ArcopolisCapacityTest`, `ArcopolisDeployedFurnitureTest`) in NON-LIVE `--arcopolis-run-script` mode** via a
+command step's declared `prompt_answers` (the script prompt sources feed the same `backend_resolve_*`
+machinery as live), gated by `docs/arcopolis/script_prompt_regression.ps1` (a pure run-script regression — no
+live driver/python). A run-script `pickup` with NO `prompt_answers`, and every one-shot `--arcopolis-command`
+pickup, still fail loud (exit 6); a missing/wrong/unused scripted answer fails loud (`script_prompt_failed`,
+exit 13). See `docs/arcopolis/36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md`.
+
 **Run these regressions with `pwsh` (PowerShell 7), not `powershell` (5.1)** — 5.1 misreads BOM-less UTF-8
 snapshots and writes an options.json BOM, causing spurious gate failures on unchanged code.
 

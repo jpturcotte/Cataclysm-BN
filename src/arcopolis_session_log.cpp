@@ -60,6 +60,8 @@ auto error_kind_name( arcopolis::command_error_kind kind ) -> std::string
             return "game_over";
         case kind_t::nested_input_failed:
             return "nested_input_failed";
+        case kind_t::script_prompt_failed:
+            return "script_prompt_failed";
     }
     return "unknown";
 }

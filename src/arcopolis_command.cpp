@@ -266,6 +266,8 @@ auto arcopolis::exit_code_for( command_error_kind kind ) -> int
             return 11;
         case command_error_kind::nested_input_failed:
             return 12;
+        case command_error_kind::script_prompt_failed:
+            return 13;
     }
     return 1;  // unreachable; defensive default
 }
