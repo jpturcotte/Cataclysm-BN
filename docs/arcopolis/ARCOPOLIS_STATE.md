@@ -325,8 +325,8 @@ never visual/pixel equivalence.**
 
 The per-transaction gates keep all of this **witness-scoped, never session/command-wide**:
 `backend_ui_mode_active() = session.active && session.uilist_transaction`
-(`src/arcopolis_backend_input.cpp` ~`:758`); `backend_query_popup_mode_active() = session.active &&
-session.query_popup_transaction` (~`:880`). Both are RAII-armed and -cleared per witnessed prompt, so an
+(`src/arcopolis_backend_input.cpp` ~~`:758`); `backend_query_popup_mode_active() = session.active &&
+session.query_popup_transaction` (~~ `:880`). Both are RAII-armed and -cleared per witnessed prompt, so an
 un-abort cannot leak into the next command. (Spike 17 audit: [37_SPIKE17_CLAIM_AUDIT.md](37_SPIKE17_CLAIM_AUDIT.md).)
 
 ## Capabilities by spike
@@ -560,25 +560,25 @@ stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROT
 ## Known-unsupported / fail-loud (single source)
 
 Every unsupported path is **fail-loud** (typed error + nonzero exit) or an **honest marked partial** —
-never a silent *fake success*. **Caveat (doc 38):** that guarantee covers fabricated success, NOT every
+never a silent _fake success_. **Caveat (doc 38):** that guarantee covers fabricated success, NOT every
 prompt — an unguarded `query_yn` reached through the **supported** `examine` verb silently defaults to NO
 (unmarked, exit 0; row below). Line numbers are current-tree (Spike 17) and may drift; confirm by symbol.
 Centralized here by the Spike 17 audit ([37_SPIKE17_CLAIM_AUDIT.md](37_SPIKE17_CLAIM_AUDIT.md)); the level-4
 truth pass is [38_LEVEL4_TRUTH_AUDIT.md](38_LEVEL4_TRUTH_AUDIT.md).
 
-| Trigger | Behavior | Exit | Where |
-| ------- | -------- | ---- | ----- |
-| `pickup` under `NEW_PICKUP_MENU=true` (live) | reject pre-flight, `unsupported_command` | 6 | `src/arcopolis_live.cpp` |
-| `pickup` under `NEW_PICKUP_MENU=true` (run-script) | post-load reject | 6 | `src/arcopolis_script.cpp` |
-| one-shot `--arcopolis-command pickup` (no answer channel) | reject pre-flight | 6 | `src/arcopolis_export.cpp`; `is_live_only_command` `src/arcopolis_command.cpp:95-101` |
-| `--arcopolis-run-script pickup` with NO `prompt_answers` | reject | 6 | `src/arcopolis_script.cpp` |
-| vehicle/secondary uilist with a transaction but NO uilist channel | marked partial, CANCEL | 13 (run-script) | `src/pickup.cpp:195-198` |
-| secondary capacity uilist with ANY disabled entry | refuse (`scrollby` would mis-navigate); marked partial; backstop `disabled_entry_unsupported` | 13 (run-script) | `src/pickup.cpp:285-288`; `src/arcopolis_backend_input.cpp:817` |
-| multi-tick resumed orphaned secondary | report marks, sets NO outcome, CANCEL | — (marked) | `src/pickup.cpp:208-211` |
-| scripted answer missing/wrong-kind/title-mismatch/out-of-range/cancel-of-noncancelable/unused | `script_prompt_failed` (first-failure-wins) | 13 | `src/arcopolis_backend_input.cpp`; `src/arcopolis_command.cpp:269-270` |
-| generic `popup()`/`popup_getkey()`/`PF_GET_KEY`→`ANY_INPUT` (never arms a transaction) | `query_once` test_mode abort `{false,"ERROR",{}}` | — (aborted) | `src/output.cpp`; `src/popup.cpp:277-279` |
-| any `query_yn` ≠ the deployed-furniture witness (incl. via the supported `examine` verb) | test_mode abort → **silent NO, unmarked** | 0 (silent) | `src/popup.cpp:277-279` → `src/output.cpp:748` |
-| any other `uilist` (cata_test, `inventory_selector`, computer, NPC dialogue) | test_mode abort → `UILIST_ERROR` | — | `src/ui.cpp:933-937` (gated on per-transaction `backend_ui_mode_active()`) |
+| Trigger                                                                                       | Behavior                                                                                      | Exit            | Where                                                                                 |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------- |
+| `pickup` under `NEW_PICKUP_MENU=true` (live)                                                  | reject pre-flight, `unsupported_command`                                                      | 6               | `src/arcopolis_live.cpp`                                                              |
+| `pickup` under `NEW_PICKUP_MENU=true` (run-script)                                            | post-load reject                                                                              | 6               | `src/arcopolis_script.cpp`                                                            |
+| one-shot `--arcopolis-command pickup` (no answer channel)                                     | reject pre-flight                                                                             | 6               | `src/arcopolis_export.cpp`; `is_live_only_command` `src/arcopolis_command.cpp:95-101` |
+| `--arcopolis-run-script pickup` with NO `prompt_answers`                                      | reject                                                                                        | 6               | `src/arcopolis_script.cpp`                                                            |
+| vehicle/secondary uilist with a transaction but NO uilist channel                             | marked partial, CANCEL                                                                        | 13 (run-script) | `src/pickup.cpp:195-198`                                                              |
+| secondary capacity uilist with ANY disabled entry                                             | refuse (`scrollby` would mis-navigate); marked partial; backstop `disabled_entry_unsupported` | 13 (run-script) | `src/pickup.cpp:285-288`; `src/arcopolis_backend_input.cpp:817`                       |
+| multi-tick resumed orphaned secondary                                                         | report marks, sets NO outcome, CANCEL                                                         | — (marked)      | `src/pickup.cpp:208-211`                                                              |
+| scripted answer missing/wrong-kind/title-mismatch/out-of-range/cancel-of-noncancelable/unused | `script_prompt_failed` (first-failure-wins)                                                   | 13              | `src/arcopolis_backend_input.cpp`; `src/arcopolis_command.cpp:269-270`                |
+| generic `popup()`/`popup_getkey()`/`PF_GET_KEY`→`ANY_INPUT` (never arms a transaction)        | `query_once` test_mode abort `{false,"ERROR",{}}`                                             | — (aborted)     | `src/output.cpp`; `src/popup.cpp:277-279`                                             |
+| any `query_yn` ≠ the deployed-furniture witness (incl. via the supported `examine` verb)      | test_mode abort → **silent NO, unmarked**                                                     | 0 (silent)      | `src/popup.cpp:277-279` → `src/output.cpp:748`                                        |
+| any other `uilist` (cata_test, `inventory_selector`, computer, NPC dialogue)                  | test_mode abort → `UILIST_ERROR`                                                              | —               | `src/ui.cpp:933-937` (gated on per-transaction `backend_ui_mode_active()`)            |
 
 **Still backlog (no driving claim):** vertical `move` (`<`/`>`); explicit `open`/`close`/`smash`; per-unit
 pickup quantity (whole-stack only); nested-container parent/child mark propagation (exposed but
