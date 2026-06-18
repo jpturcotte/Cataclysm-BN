@@ -19,7 +19,8 @@
     2. Vehicle-source uilist   (ArcopolisVehicleCargoTest)    -- kind=uilist then kind=menu
     3. Secondary capacity uilist (ArcopolisCapacityTest)      -- kind=menu then kind=uilist (WIELD)
     4. query_popup YES/NO      (ArcopolisDeployedFurnitureTest) -- kind=query_popup (YES takes down; NO keeps)
-  Failure gates: pickup with no prompt_answers -> exit 6; wrong-kind answer -> exit 13; unused answer -> 13.
+  Failure gates: pickup with no prompt_answers -> exit 6; wrong-kind answer -> exit 13; unused answer -> 13;
+    NEW_PICKUP_MENU=true -> exit 6 (symmetric with live mode; the new inventory_selector is not driven).
 
   Equivalence proved: LEVEL 4 (for the supported scripted prompted paths) -- the script answer becomes
   registered actions (DOWN/RIGHT/CONFIRM / DOWN,CONFIRM / LEFT,CONFIRM) consumed by the engine's own
@@ -91,6 +92,9 @@ function Set-SandboxOption {
 # =false so the master auto-pickup never silently grabs the witness pile during the move_s approach.
 Set-SandboxOption -Name "AUTOSELECT_SINGLE_VALID_TARGET" -Value $false
 Set-SandboxOption -Name "AUTO_PICKUP" -Value $false
+# NEW_PICKUP_MENU=false so pickup uses the old "PICKUP" menu the script sources drive (the new
+# inventory_selector is unsupported; F5 below witnesses that =true fails loud, symmetric with live mode).
+Set-SandboxOption -Name "NEW_PICKUP_MENU" -Value $false
 
 # Run one script and return { ExitCode, Transcript[], Stderr, Dir }. The GUI/windows-subsystem exe needs
 # Start-Process -Wait -PassThru to capture the real exit code (a bare `& $exe` does not wait).
@@ -437,6 +441,22 @@ $f4failed = @(Of-Type $f4.Transcript "prompt_failed")
 Gate ($f4.ExitCode -eq 13 -and @($f4failed | Where-Object { $_.reason -eq "choice_out_of_range" }).Count -ge 1) `
     "out-of-range choice fails loud (exit 13, prompt_failed reason=choice_out_of_range)" `
     "out-of-range exit=$($f4.ExitCode) failed=$(@($f4failed | ForEach-Object { $_.reason }) -join ',')"
+
+# F5: NEW_PICKUP_MENU=true -> a scripted pickup is rejected loud and early (exit 6), symmetric with live mode
+# (src/arcopolis_live.cpp:213); the new inventory_selector menu is NOT driven by the script prompt sources. The
+# reject fires after the world load but before the session log opens, so (like F1) assert on exit + stderr.
+Set-SandboxOption -Name "NEW_PICKUP_MENU" -Value $true
+$f5Json = @'
+{ "schema_version": 1, "steps": [
+  { "op": "command", "command": "move", "direction": "move_s" },
+  { "op": "command", "command": "pickup", "direction": "move_s", "prompt_answers": [ { "kind": "menu", "choice": 6 } ] }
+] }
+'@
+$f5 = Invoke-ScriptScenario -Name "f5_new_pickup_menu" -ScenarioWorld $World -ScriptJson $f5Json
+Gate ($f5.ExitCode -eq 6 -and $f5.Stderr -like '*NEW_PICKUP_MENU=false*') `
+    "NEW_PICKUP_MENU=true fails loud and early (exit 6, clear 'requires NEW_PICKUP_MENU=false' message)" `
+    "new-pickup-menu exit=$($f5.ExitCode) stderr='$($f5.Stderr)' (expected 6)"
+Set-SandboxOption -Name "NEW_PICKUP_MENU" -Value $false  # reset for hygiene
 
 if( $fail -gt 0 ) { Write-Host "SCRIPT PROMPT REGRESSION: $fail gate(s) failed." -ForegroundColor Red; exit 1 }
 Write-Host "SCRIPT PROMPT REGRESSION: ok." -ForegroundColor Green

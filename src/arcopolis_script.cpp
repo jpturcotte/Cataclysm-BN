@@ -1,5 +1,6 @@
 #include "arcopolis_script.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <iostream>
 #include <optional>
@@ -330,6 +331,23 @@ auto arcopolis::run_script( const run_script_options &opts ) -> int
         std::cerr << "arcopolis: TURN_DURATION must be <= 0.005 for headless runs (real-time moves would "
                   "drain the avatar by wall-clock); set it to 0 in the world's options\n";
         return exit_code_for( command_error_kind::apply_failed );
+    }
+
+    // Symmetry with --arcopolis-live (src/arcopolis_live.cpp): the script pickup prompt sources drive ONLY the
+    // old "PICKUP" menu. Under NEW_PICKUP_MENU=true game::pickup routes to the inventory_selector (a different,
+    // unsupported menu mechanism, src/game.cpp), which no script source drives -- a scripted pickup would reach
+    // the undriven selector and abort with a MISLEADING nested-input error instead of a clean unsupported one.
+    // Reject it loud and early, exactly as live mode does (docs/arcopolis/30, docs/arcopolis/36). Checked HERE,
+    // after g->load, because the option value is only available once the world's options are loaded (the
+    // pre-flight loop above runs before the load).
+    const auto is_pickup_command = []( const auto & step ) {
+        return step.op == "command" && step.command == "pickup";
+    };
+    if( get_option<bool>( "NEW_PICKUP_MENU" ) && std::ranges::any_of( *script, is_pickup_command ) ) {
+        std::cerr <<
+                  "arcopolis: pickup requires NEW_PICKUP_MENU=false (the new inventory_selector menu is not "
+                  "supported); set it to false in the world's options\n";
+        return exit_code_for( command_error_kind::unsupported_command );
     }
 
     // Drive the engine's OWN turn loop with the backend as the per-iteration input source (mechanism M1).

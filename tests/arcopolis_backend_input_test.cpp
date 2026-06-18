@@ -1224,3 +1224,42 @@ TEST_CASE( "arcopolis script pickup forced-cancel outcome is NOT surfaced in liv
            arcopolis::pickup_command_outcome::secondary_forced_cancel );  // still available to the live writer
     arcopolis::end_backend_session();
 }
+
+TEST_CASE( "arcopolis script source drives no prompt once a fatal failure is already recorded",
+           "[arcopolis]" )
+{
+    // gemini PR#44 review: after a fatal script-prompt failure, a LATER prompt opened during the same engine
+    // unwind must not be driven or log a second prompt_failed (match_scripted_answer short-circuits on
+    // session.failure). The realistic trigger is a multi-secondary unwind, which no fixture provides; this is
+    // the minimal in-memory witness. (1) open a uilist with an EMPTY queue -> fatal failure. (2) load a VALID
+    // answer and re-open the prompt -> the guard must still serve the loop-exit QUIT (not the answer's DOWN)
+    // and keep the FIRST failure detail. Without the guard the reloaded answer would be served here.
+    const std::vector<std::string> uilist_actions = { "UP", "DOWN", "CONFIRM", "QUIT" };
+    const arcopolis::backend_uilist_prompt_request request = { .kind = "uilist",
+                                                               .title = "Get items from where?",
+    .choices = { { .index = 0, .text = "vehicle", .enabled = true },
+        { .index = 1, .text = "ground", .enabled = true }
+    },
+    .cancelable = true
+                                                             };
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .uilist_prompt_source = arcopolis::script_uilist_prompt } );
+    arcopolis::backend_arm_pickup_transaction( 0 );
+    arcopolis::backend_begin_uilist_transaction();
+    arcopolis::backend_resolve_uilist_choice( request );  // (1) empty queue -> no_scripted_answer
+    REQUIRE( arcopolis::backend_session_failure().has_value() );
+    const auto first_detail = arcopolis::backend_session_failure()->detail;
+    CHECK( *arcopolis::backend_nested_input_action( "UILIST", uilist_actions, -1 ) == "QUIT" );
+    // (2) a valid answer is now declared, but the run has already failed -> the guard refuses to drive it.
+    arcopolis::backend_load_scripted_prompt_answers( { { .kind = "uilist", .choices = { 1 } } }, 0 );
+    arcopolis::backend_resolve_uilist_choice( request );
+    const std::string *served = arcopolis::backend_nested_input_action( "UILIST", uilist_actions, -1 );
+    REQUIRE( served != nullptr );
+    CHECK( *served ==
+           "QUIT" );  // loop-exit, NOT the answer's "DOWN" -- the prompt was not driven post-failure
+    REQUIRE( arcopolis::backend_session_failure().has_value() );
+    CHECK( arcopolis::backend_session_failure()->detail ==
+           first_detail );  // first-failure-wins preserved
+    arcopolis::backend_end_uilist_transaction();
+    arcopolis::end_backend_session();
+}

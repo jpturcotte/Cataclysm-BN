@@ -228,8 +228,10 @@ forced-cancelled unsupported sub-prompt) **fails loud** (`script_prompt_failed` 
 never misread as a user cancel. Scope is the single command turn; a multi-tick resumed secondary prompt stays
 orphaned-marked / undriven (doc 34). **Still fail-loud:** a `--arcopolis-run-script` `pickup` with NO declared
 answers, and **every one-shot `--arcopolis-command` pickup** (no answer channel) — both reject at pre-flight
-with `unsupported_command` (exit 6) before the world load. Witnessed by `script_prompt_regression.ps1` (4
-witnesses + 3 fail-loud gates). See [36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md](36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md).
+with `unsupported_command` (exit 6) before the world load; and a scripted `pickup` under **`NEW_PICKUP_MENU=true`**
+rejects with `unsupported_command` (exit 6) right after the load (symmetric with live mode — the new
+`inventory_selector` is undriven). Witnessed by `script_prompt_regression.ps1` (5 witnesses + 5 fail-loud
+gates). See [36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md](36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md).
 
 **The secondary capacity/wield/spill `uilist` is now DRIVEN at level 4 too (Spike 14, doc 34).** When
 `pickup_activity_actor` raises `handle_problematic_pickup`'s `uilist` for an item that does not fit, a live

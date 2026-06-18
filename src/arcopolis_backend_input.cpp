@@ -328,6 +328,15 @@ auto match_scripted_answer( const std::string &expected_kind, const std::string 
                             const std::optional<int> &step_index )
 -> const arcopolis::script_prompt_answer * // *NOPAD*
 {
+    // First-failure-wins, extended to the transcript (gemini PR#44 review): once a fatal script-prompt
+    // failure is recorded, a LATER prompt opened during the same engine unwind (e.g. a second secondary-
+    // capacity uilist while picking up multiple over-capacity items) must not be answered or log a second
+    // prompt_failed. record_script_prompt_failure is already first-failure-wins, but session_log_prompt_failed
+    // is not -- so guard here, the single point every script source funnels through. All callers treat a
+    // nullptr return as "serve the loop-exit", so the in-flight prompt closes cleanly without being driven.
+    if( session.failure ) {
+        return nullptr;
+    }
     if( session.script_prompt_cursor >= session.script_prompt_answers.size() ) {
         const auto detail = string_format(
                                 "a '%s' prompt opened but the script declares no answer for it", expected_kind.c_str() );

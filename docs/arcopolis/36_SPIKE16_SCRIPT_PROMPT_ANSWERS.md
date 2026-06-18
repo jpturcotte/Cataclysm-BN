@@ -81,16 +81,17 @@ shared transcript events and (on failure) `prompt_failed` are recorded.
 A non-live script aborts honestly (`command_error_kind::script_prompt_failed` → **exit 13**, `session_end`
 status `"error"`, no final snapshot) when:
 
-| Case                                                                                           | Reason                                                         | Where                   |
-| ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ----------------------- |
-| a prompted command has no declared answers                                                     | `requires --arcopolis-live or a 'prompt_answers' declaration`  | pre-flight (exit **6**) |
-| a prompt opens but the queue is empty                                                          | `no_scripted_answer`                                           | source (exit 13)        |
-| the next answer has the wrong `kind`                                                           | `kind_mismatch`                                                | source (exit 13)        |
-| a title assertion does not match                                                               | `title_mismatch`                                               | source (exit 13)        |
-| the choice is out of range                                                                     | `choice_out_of_range`                                          | source (exit 13)        |
-| `cancel` on a non-cancelable prompt                                                            | `noncancelable`                                                | source (exit 13)        |
-| answers remain unused at command end                                                           | (an `error` record)                                            | seam return (exit 13)   |
-| a pickup hits an unsupported in-activity sub-prompt (disabled-entry secondary capacity uilist) | (`error` record; transcript also has `prompt_force_cancelled`) | seam return (exit 13)   |
+| Case                                                                                           | Reason                                                                                           | Where                         |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------- |
+| a prompted command has no declared answers                                                     | `requires --arcopolis-live or a 'prompt_answers' declaration`                                    | pre-flight (exit **6**)       |
+| a scripted `pickup` under `NEW_PICKUP_MENU=true`                                               | `requires NEW_PICKUP_MENU=false` (the new `inventory_selector` is undriven, symmetric with live) | post-load reject (exit **6**) |
+| a prompt opens but the queue is empty                                                          | `no_scripted_answer`                                                                             | source (exit 13)              |
+| the next answer has the wrong `kind`                                                           | `kind_mismatch`                                                                                  | source (exit 13)              |
+| a title assertion does not match                                                               | `title_mismatch`                                                                                 | source (exit 13)              |
+| the choice is out of range                                                                     | `choice_out_of_range`                                                                            | source (exit 13)              |
+| `cancel` on a non-cancelable prompt                                                            | `noncancelable`                                                                                  | source (exit 13)              |
+| answers remain unused at command end                                                           | (an `error` record)                                                                              | seam return (exit 13)         |
+| a pickup hits an unsupported in-activity sub-prompt (disabled-entry secondary capacity uilist) | (`error` record; transcript also has `prompt_force_cancelled`)                                   | seam return (exit 13)         |
 
 **The fatal fallback is not a user cancel.** On a fatal failure the source emits `prompt_failed` (with the
 reason + detail) **before** returning `nullopt`. The resolve then serves the engine loop-exit action
@@ -126,7 +127,9 @@ resumes remains backlog (doc 34).
   the over-capacity item is left behind and the run aborts honestly, never a silent exit-0 "ok". (Live mode
   marks the same case a partial; script mode has no per-command marker channel, so it fails loud instead.)
 - **Still fail-loud / unsupported:** one-shot `--arcopolis-command` pickup (no answer channel — deliberately
-  kept fail-loud; a prompted command belongs in a script); `NEW_PICKUP_MENU=true`; a deployed-furniture
+  kept fail-loud; a prompted command belongs in a script); `NEW_PICKUP_MENU=true` (rejected loud and early —
+  exit 6, symmetric with live mode `src/arcopolis_live.cpp`; the new `inventory_selector` is not a script-driven
+  menu); a deployed-furniture
   examine with no declared answer; a **disabled-entry** secondary capacity `uilist` (fails loud per above);
   multi-tick resumed secondary prompts (orphaned-marked).
 - **Still backlog (no change):** generic `uilist`/`query_popup`, the `popup()`/`popup_getkey()` family
@@ -193,8 +196,12 @@ existing fixtures, run with **`pwsh`**, `AUTOSELECT_SINGLE_VALID_TARGET=false` +
 - **W4 query_popup** (`ArcopolisDeployedFurnitureTest`): `examine move_e` answering `{query_popup, choice 0}`
   (YES) → `[LEFT, CONFIRM]`, furniture gone + a mattress dropped; the NO variant (`choice 1` → `[CONFIRM]`)
   leaves it.
-- **Failure gates:** pickup with no answers → exit 6; a wrong-kind answer → exit 13 (`prompt_failed
-  kind_mismatch`); an unused answer → exit 13 (`error kind=script_prompt_failed`).
+- **W5 legitimate cancel** (`ArcopolisTest`): `pickup` answering `{menu, cancel}` → `prompt_cancelled` with NO
+  preceding `prompt_failed`, a clean exit 0, the pile unchanged (distinct from a fatal fallback).
+- **Failure gates:** pickup with no answers → exit 6; a scripted pickup under `NEW_PICKUP_MENU=true` → exit 6
+  (`requires NEW_PICKUP_MENU=false`); a wrong-kind answer → exit 13 (`prompt_failed kind_mismatch`, with the
+  Amendment-1 ordering check); an unused answer → exit 13 (`error kind=script_prompt_failed`); an out-of-range
+  choice → exit 13 (`prompt_failed choice_out_of_range`).
 
 ## Validation
 
