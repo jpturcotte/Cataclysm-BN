@@ -5,6 +5,21 @@ command/interaction surface against the project's non-negotiable rule — _the G
 engine behavior is the behavior_ (AGENTS.md). Produced by an adversarial multi-agent sweep after a
 fidelity-subset gap (directed examine shipped 4 of 8 directions) was caught in review.
 
+> **Superseded in part (Spikes 13B/14/15, 2026-06-15/16; audited Spike 17 2026-06-18 —
+> [37_SPIKE17_CLAIM_AUDIT.md](37_SPIKE17_CLAIM_AUDIT.md)).** Three surfaces the rows below mark
+> undriven are now DRIVEN at level 4 (backend-input + engine sense): the **vehicle-source `"Get items
+> from where?"` uilist** (doc 33), the **all-enabled secondary capacity/wield/spill uilist** (doc 34),
+> and the **deployed-furniture `query_yn`** (doc 35). So the pickup-row clause `:33` "After CONFIRM the
+> activity's secondary capacity/wield/spill `uilist` is **not driven** … the guard force-cancels it",
+> the `:51` "driving the in-activity capacity/wield/spill prompts" deferred item, and the `:29`
+> menu-targets "auto-cancels … never claimed drivable" verdict are **historical** for those three.
+> **Force-cancel / fail-loud is RETAINED** (not superseded) for: disabled-entry secondary uilists
+> (`src/pickup.cpp:285-288`), no-channel sessions (`:195-198`), and multi-tick orphaned secondaries
+> (`:208-211`); and examine menu targets still NOT driven remain NPC talk/attack, monster menus,
+> computer use, and the examine auto-pickup tail. The audit **standard** in this doc still stands, and
+> the `NEW_PICKUP_MENU`/`inventory_selector` rows are unchanged (still fail-loud). See
+> [ARCOPOLIS_STATE.md](ARCOPOLIS_STATE.md) for current truth.
+
 ## The standard
 
 A surface **passes** (earns a "faithful" verdict) only when it reproduces the GUI behavior for what
