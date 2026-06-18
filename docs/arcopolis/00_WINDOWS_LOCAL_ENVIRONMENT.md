@@ -26,10 +26,15 @@ Key points:
   OBJECT library shared by both `cataclysm-bn-tiles` and `cata_test-tiles`, so building the test target in
   the same dir reuses the game's compiled objects — only the ~169 test sources recompile + link. To add
   tests to an existing game build dir, re-configure it with `-DTESTS=True` (and `-DJSON_FORMAT=ON`), then
-  `cmake --build .\out\build\win-rel-deb --target cata_test-tiles`. A _separate_ `out/build/win-tests` dir
-  (used in the older attempts logged below) duplicates the whole ~10 GB object tree and has exhausted the
-  disk in this worktree (`fatal error C1085: Cannot write compiler generated file: ... No space left on
-  device`) — prefer the shared dir unless you specifically need an isolated test configuration.
+  `cmake --build .\out\build\win-rel-deb --target cata_test-tiles`. **Footprint (measured 2026-06-18, not
+  estimated):** this one shared dir holding both targets is **~7.6 GB** (`src` ~4.8 GB + `tests` ~2.1 GB +
+  `vcpkg_installed` ~0.8 GB; the exes are ~66 MB / ~74 MB). That is the one-time **cold**-build cost; a
+  routine **incremental** rebuild after an edit only recompiles the touched TUs and relinks the ~70 MB exe,
+  so it adds **~a couple hundred MB, not GB** — day-to-day rebuilds are cheap. A _separate_
+  `out/build/win-tests` dir (used in the older attempts logged below) needlessly re-duplicates the whole
+  ~7–8 GB object tree and **has exhausted the disk in this worktree** (`fatal error C1085: Cannot write
+  compiler generated file: ... No space left on device`) — **do NOT create one; build both targets in the
+  shared `win-rel-deb` dir.**
 - **ccache stale-object gotcha (hit on Spike 9B, 2026-06-10):** after changing a header that defines a
   **struct layout shared across TUs**, ccache (MSVC, default direct mode) served a STALE `.obj` for an
   _unchanged_ `.cpp` that includes it — even in a brand-new build dir (a ninja "Building CXX" line does
@@ -91,6 +96,11 @@ cmake --build .\out\build\win-rel-deb --target cataclysm-bn-tiles -- -j2
 The plain `windows-tiles-sounds-x64-msvc` preset is still repository-supported, but in this deep Codex worktree it failed without short vcpkg roots because `sdl3-mixer` generated a 260-character object path. If using that preset, pass the same `VCPKG_INSTALL_OPTIONS` short-root override. The Visual Studio solution generator configured successfully with the short-root override, but the generated `.vcxproj` files did not prove ccache use; Ninja did.
 
 ## Repo context
+
+> **Superseded (branch model).** The detached-`HEAD` snapshot below is the 2026-05-29 discovery state. The
+> repo now uses a **mirror + rebased dev branch** layout: `main` mirrors `upstream/main`; **`arcopolis` is
+> the dev branch and the GitHub default — branch and PR off `arcopolis`** (see AGENTS.md "Repository
+> layout"). Do not develop on a detached `HEAD`.
 
 - Repo root detected with `Get-Location`: `<repo-root>`
 - Initial `git status`, before creating this Arcopolis documentation: `Not currently on any branch.` and `nothing to commit, working tree clean`
@@ -382,7 +392,8 @@ cmake --build --preset windows-msvc-relwithdebinfo
 
 For the ccache-backed Ninja route verified in this worktree, build the game and the tests in the **same**
 `win-rel-deb` dir (they share the `cataclysm-bn-tiles-common` OBJECT library — see "Current
-recommendation" above; a separate `win-tests` dir duplicates ~10 GB and has exhausted the disk here).
+recommendation" above; the shared dir is ~7.6 GB, and a separate `win-tests` dir needlessly re-duplicates
+~7–8 GB and has exhausted the disk here — do not create one).
 Re-configure the dir with `-DTESTS=True` before building the test target:
 
 ```powershell
@@ -426,6 +437,15 @@ Get-ChildItem ".\out\build\windows-tiles-sounds-x64-msvc\tests\RelWithDebInfo\ca
 ```
 
 ## Configure attempts on 2026-05-29
+
+> **Superseded in part (build-dir policy).** These attempts pre-date the one-dir lesson. **Attempt 5's
+> separate `out/build/win-tests` dir is superseded** — building `cata_test-tiles` in its own dir
+> needlessly re-duplicates ~7–8 GB and later exhausted the disk; build **both** targets in the shared
+> `out/build/win-rel-deb` dir (see "Current recommendation"). The Attempt-5 "ready for … `win-tests`
+> configurations" and "Next validation" lines that reference `out\build\win-tests\…` are retained as the
+> historical record but should read `out\build\win-rel-deb\tests\cata_test-tiles.exe`. The attempts also
+> pre-date the mirror+`arcopolis` branch model (see "Repo context" note below). Footprint figures in the
+> attempts (the "~10 GB" fears) are the wrong separate-dir path, not the shared dir.
 
 ### Attempt 1: Visual Studio preset without short vcpkg roots
 
@@ -690,9 +710,9 @@ Next validation commands:
 
 ## Next Codex task
 
-Concrete next step: run the test executable, or run an Arcopolis-relevant test filter, then validate mod loading.
+Concrete next step: run the test executable, or run an Arcopolis-relevant test filter, then validate mod loading. (Both targets live in the shared `win-rel-deb` dir — do not use a separate `win-tests` dir.)
 
 ```powershell
-& ".\out\build\win-tests\tests\cata_test-tiles.exe"
+& ".\out\build\win-rel-deb\tests\cata_test-tiles.exe"
 & ".\out\build\win-rel-deb\src\cataclysm-bn-tiles.exe" --check-mods
 ```

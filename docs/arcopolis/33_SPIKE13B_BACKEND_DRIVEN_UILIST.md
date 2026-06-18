@@ -20,6 +20,14 @@ post-`move_s` avatar). That tile has **both** vehicle cargo and ground items, so
 
 ## Source audit (read at the implementing line, current tree)
 
+> **Line-number caveat (Spike 17 audit, 2026-06-18).** The `src/ui.cpp` numbers in this block were
+> accurate when written but **pre-date PR #40's own newwin-skip insertion** (`src/ui.cpp:638-643`), which
+> shifted the `query()` body down. In the current tree the gated `UILIST_ERROR` abort is at
+> **`src/ui.cpp:933-937`** (not `:918-922`), `create_main_input_context` at `:945`, the redraw at `:961`,
+> the do-loop at `:971-1028`, the CONFIRM branch at `:1001-1007`, and QUIT→`UILIST_CANCEL` at `:1008-1009`.
+> doc 34:66 already cites the corrected `:933-937`. The behavior described below is unchanged; only the
+> numbers drifted. See [37_SPIKE17_CLAIM_AUDIT.md](37_SPIKE17_CLAIM_AUDIT.md).
+
 ```
 pickup::pick_up( p, min=0, get_items_from=prompt )      src/pickup.cpp:1267
   veh_has_items && map_has_items                        src/pickup.cpp:1278-1280
