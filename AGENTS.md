@@ -149,10 +149,12 @@ New-Item -ItemType Directory -Force .\docs\arcopolis
 For this Windows/Codex worktree, the known-good build-backed exploration route is Visual Studio 2022 DevShell + MSVC + Ninja + vcpkg, with ccache from `C:\dev\ccache`.
 
 - Activate the Visual Studio 2022 x64 DevShell before configure/build commands.
-- Append `C:\dev\ccache` to `PATH` after DevShell activation; do not prepend it, because the real MSVC `cl.exe` should stay first.
+- Append `C:\dev\ccache` to `PATH` after DevShell activation; do not prepend it, because the real MSVC `cl.exe` should stay first. (`C:\dev\ccache` only holds the wrapper exe (~10 MB); the actual ccache object store is `%LOCALAPPDATA%\ccache`, so a near-empty `C:\dev\ccache` does **not** mean a cold cache.)
+- Append `C:\dev\astyle\bin` to `PATH` the same way and format touched C++ before committing: `& C:\dev\astyle\bin\AStyle.exe --options=.astylerc -n <touched .cpp/.h>` (AStyle 3.1, CI-compatible). CMake's `Artistic style executable was not found` warning is just this PATH gotcha (astyle isn't on `PATH`), **not** unavailability — don't fall back to the CI autofix bot.
 - Use short vcpkg temporary roots under `C:\tmp` to avoid Windows `MAX_PATH` failures in dependency builds.
 - Prefer the repo-supported Ninja shape from `CMakeSettings.json` for ccache-backed command-line builds; this route has built `cataclysm-bn-tiles` and `cata_test-tiles`. The Visual Studio solution preset can configure with short vcpkg roots, but it is not the proven ccache route.
-- Build the game and tests in **one** build dir. `cataclysm-bn-tiles-common` is a CMake OBJECT library shared by `cataclysm-bn-tiles` and `cata_test-tiles`, so build `cata_test-tiles` in the SAME `out/build/win-rel-deb` dir (re-configure with `-DTESTS=True`, then `--target cata_test-tiles`) to reuse the game's compiled objects — only the test sources recompile. A SEPARATE `out/build/win-tests` dir duplicates the entire ~10 GB object tree and has exhausted the disk here (`fatal error C1085: ... No space left on device`).
+- Build the game and tests in **one** build dir. `cataclysm-bn-tiles-common` is a CMake OBJECT library shared by `cataclysm-bn-tiles` and `cata_test-tiles`, so build `cata_test-tiles` in the SAME `out/build/win-rel-deb` dir (re-configure with `-DTESTS=True`, then `--target cata_test-tiles`) to reuse the game's compiled objects — only the test sources recompile. A SEPARATE `out/build/win-tests` dir re-duplicates the whole object tree and has exhausted the disk here (`fatal error C1085: ... No space left on device`).
+- **Footprint (measured 2026-06-18, not estimated):** one shared `win-rel-deb` holding **both** targets is **~7.6 GB** (`src` ~4.8 GB + `tests` ~2.1 GB + `vcpkg_installed` ~0.8 GB; the two exes are ~66 MB / ~74 MB). The expensive, one-time part is the **cold** build (vcpkg deps + the full object tree); a routine **incremental** rebuild after an edit recompiles only the touched TUs and relinks the exe, so its disk delta is **~a couple hundred MB, not GB** — day-to-day rebuilds are cheap. A second `win-tests` dir would re-pay the whole ~7–8 GB needlessly.
 - See `docs/arcopolis/00_WINDOWS_LOCAL_ENVIRONMENT.md` for the exact current PowerShell commands and the historical failure analysis.
 
 ### Arcopolis test world fixture
@@ -186,12 +188,17 @@ monster witness with `docs/arcopolis/make_monster_fixture.py` (save-edit, no GUI
 
 A third world, `ArcopolisBackpackTest`, lives in the same userdir as the **multi-item-pickup carry-both
 witness** (Spike 12A): a clone of `ArcopolisTest` whose avatar additionally wears a `backpack`, giving real
-carrying capacity. The default `ArcopolisTest` avatar has room for ~one small item, so it witnesses
-**rejected-items** pickup (an over-capacity selected item is left on the ground, never logged as picked up;
-driving the in-activity capacity prompt is a tracked defect, so the guard force-cancels it);
-`ArcopolisBackpackTest` lets a multi-select deposit two items, witnessing carry-both at the state level. Both are gated by `docs/arcopolis/prompt_menu_regression.ps1`; `ArcopolisTest`'s state is
-unchanged (its `.sav` is content-identical to the pre-spike save). See
-`docs/arcopolis/30_SPIKE12A_PROMPT_MENU_TRANSACTION.md`.
+carrying capacity. The default `ArcopolisTest` avatar has room for ~one small item, so an over-capacity
+multi-select there raises the in-activity capacity prompt — **now (Spike 14) the DRIVEN single-entry WIELD
+secondary-capacity witness** (the blanket is wielded through the real `input_context("UILIST")` loop,
+south pile 7→5, response carries NO `forced_cancel`/`partial` markers — `prompt_menu_regression.ps1`
+Scenario E). The earlier marked-partial **force-cancel survives only as the no-channel / disabled-entry /
+multi-tick-orphaned fallback**, not as the default-avatar behavior. `ArcopolisBackpackTest` lets a
+multi-select deposit two items, witnessing carry-both at the state level (Scenario F). Both are gated by
+`docs/arcopolis/prompt_menu_regression.ps1`; `ArcopolisTest`'s state is unchanged (its `.sav` is
+content-identical to the pre-spike save). See
+`docs/arcopolis/30_SPIKE12A_PROMPT_MENU_TRANSACTION.md` and
+`docs/arcopolis/34_SPIKE14_SECONDARY_PICKUP_UILIST.md`.
 
 A fourth world, `ArcopolisVehicleCargoTest`, lives in the same userdir as the **backend-driven
 vehicle-source `uilist` witness** (Spike 13B; was the Spike 12A-follow-up fail-loud witness): a clone of

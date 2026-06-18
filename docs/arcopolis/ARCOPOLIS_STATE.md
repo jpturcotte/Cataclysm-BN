@@ -5,6 +5,21 @@ reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are 
 record (including a **failed** Spike 3); **this page is the current truth.** When they disagree, this
 page wins — or fix it.
 
+> **Current-truth pointer (audited Spike 17, 2026-06-18 — see
+> [37_SPIKE17_CLAIM_AUDIT.md](37_SPIKE17_CLAIM_AUDIT.md), and the level-4 truth pass
+> [38_LEVEL4_TRUTH_AUDIT.md](38_LEVEL4_TRUTH_AUDIT.md)).** Four prompt classes are driven at **level 4
+> = backend-input + engine equivalence** (NOT visual/frontend equivalence): the old `"PICKUP"` menu, the
+> vehicle-source uilist, the **all-enabled** secondary capacity uilist, and the deployed-furniture
+> `query_yn` — live and (Spike 16) non-live `--arcopolis-run-script`. Each is witness-scoped to **one
+> hardcoded call site / one fixture** and per-transaction gated; the mechanism generalizes by **reuse** at
+> new sites, not a general UI abstraction — "one witnessed path is level 4" ≠ "the prompt class is
+> supported" (doc 38). **`move` itself is NOT level 4** (its `action_id` never enters `handle_input` — it
+> is engine/frontend-equivalent only); only the examine direction-chooser sub-prompt is. Everything else
+> fails loud or is honest backlog (see the **Known-unsupported / fail-loud** table below — which now notes
+> the one silent prompt-default: an unguarded `query_yn` via `examine`). The backend creates **no curses
+> window and calls no render primitive in any build**. When an older `NN_SPIKE*.md` disagrees with this
+> page, this page wins.
+
 ## Purpose
 
 Run Cataclysm-BN **headless as a simulation backend** for a separate "Arcopolis" frontend: load a
@@ -293,6 +308,27 @@ _choose_ an NPC interaction. **Spike 7A now exports NPCs** (`entities.npcs[]`), 
 in the snapshot itself — the `before` snapshot carries a neutral NPC at the move_n destination
 (`is_enemy=false`, `is_player_ally=false`); see [18_SPIKE7A_NPC_EXPORT.md](18_SPIKE7A_NPC_EXPORT.md).
 
+## Terminology (backend-input vs engine vs frontend equivalence)
+
+Anchored by `AGENTS.md:83-120`. **"GUI-equivalent" / "level 4" on this page mean the BACKEND-INPUT sense,
+never visual/pixel equivalence.**
+
+- **Backend-input-equivalent** — the backend serves registered actions that BN's real
+  `input_context`/menu/UI loop consumes (e.g. `input_context("UILIST")::handle_input`,
+  `input_context("YESNO")` via `query_popup::query_once`).
+- **Engine-equivalent** — the real engine caller receives the UI result and mutates
+  world/inventory/activity state (e.g. `pickup_activity_actor` does the transfer; the engine sets
+  `amenu.ret` / `result.action`). The backend **never** mutates menu/selection state directly.
+- **Frontend-equivalent** — an external frontend exposes the same meaningful choices/consequences,
+  possibly with different visuals. **Proven today ONLY for the planar move + examine surface** (Spike
+  11B, doc 29); every prompt-class "level 4" claim is backend-input + engine, **not** frontend.
+
+The per-transaction gates keep all of this **witness-scoped, never session/command-wide**:
+`backend_ui_mode_active() = session.active && session.uilist_transaction`
+(`src/arcopolis_backend_input.cpp` ~`:758`); `backend_query_popup_mode_active() = session.active &&
+session.query_popup_transaction` (~`:880`). Both are RAII-armed and -cleared per witnessed prompt, so an
+un-abort cannot leak into the next command. (Spike 17 audit: [37_SPIKE17_CLAIM_AUDIT.md](37_SPIKE17_CLAIM_AUDIT.md).)
+
 ## Capabilities by spike
 
 | Spike | What                                                                                                                                                                                                                                                                                                   | State                                   |
@@ -521,6 +557,35 @@ stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROT
 [24_SPIKE10C_FRONTEND_TILESET_RENDERING.md](24_SPIKE10C_FRONTEND_TILESET_RENDERING.md) and
 [29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md](29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md).
 
+## Known-unsupported / fail-loud (single source)
+
+Every unsupported path is **fail-loud** (typed error + nonzero exit) or an **honest marked partial** —
+never a silent *fake success*. **Caveat (doc 38):** that guarantee covers fabricated success, NOT every
+prompt — an unguarded `query_yn` reached through the **supported** `examine` verb silently defaults to NO
+(unmarked, exit 0; row below). Line numbers are current-tree (Spike 17) and may drift; confirm by symbol.
+Centralized here by the Spike 17 audit ([37_SPIKE17_CLAIM_AUDIT.md](37_SPIKE17_CLAIM_AUDIT.md)); the level-4
+truth pass is [38_LEVEL4_TRUTH_AUDIT.md](38_LEVEL4_TRUTH_AUDIT.md).
+
+| Trigger | Behavior | Exit | Where |
+| ------- | -------- | ---- | ----- |
+| `pickup` under `NEW_PICKUP_MENU=true` (live) | reject pre-flight, `unsupported_command` | 6 | `src/arcopolis_live.cpp` |
+| `pickup` under `NEW_PICKUP_MENU=true` (run-script) | post-load reject | 6 | `src/arcopolis_script.cpp` |
+| one-shot `--arcopolis-command pickup` (no answer channel) | reject pre-flight | 6 | `src/arcopolis_export.cpp`; `is_live_only_command` `src/arcopolis_command.cpp:95-101` |
+| `--arcopolis-run-script pickup` with NO `prompt_answers` | reject | 6 | `src/arcopolis_script.cpp` |
+| vehicle/secondary uilist with a transaction but NO uilist channel | marked partial, CANCEL | 13 (run-script) | `src/pickup.cpp:195-198` |
+| secondary capacity uilist with ANY disabled entry | refuse (`scrollby` would mis-navigate); marked partial; backstop `disabled_entry_unsupported` | 13 (run-script) | `src/pickup.cpp:285-288`; `src/arcopolis_backend_input.cpp:817` |
+| multi-tick resumed orphaned secondary | report marks, sets NO outcome, CANCEL | — (marked) | `src/pickup.cpp:208-211` |
+| scripted answer missing/wrong-kind/title-mismatch/out-of-range/cancel-of-noncancelable/unused | `script_prompt_failed` (first-failure-wins) | 13 | `src/arcopolis_backend_input.cpp`; `src/arcopolis_command.cpp:269-270` |
+| generic `popup()`/`popup_getkey()`/`PF_GET_KEY`→`ANY_INPUT` (never arms a transaction) | `query_once` test_mode abort `{false,"ERROR",{}}` | — (aborted) | `src/output.cpp`; `src/popup.cpp:277-279` |
+| any `query_yn` ≠ the deployed-furniture witness (incl. via the supported `examine` verb) | test_mode abort → **silent NO, unmarked** | 0 (silent) | `src/popup.cpp:277-279` → `src/output.cpp:748` |
+| any other `uilist` (cata_test, `inventory_selector`, computer, NPC dialogue) | test_mode abort → `UILIST_ERROR` | — | `src/ui.cpp:933-937` (gated on per-transaction `backend_ui_mode_active()`) |
+
+**Still backlog (no driving claim):** vertical `move` (`<`/`>`); explicit `open`/`close`/`smash`; per-unit
+pickup quantity (whole-stack only); nested-container parent/child mark propagation (exposed but
+**unexercised**, `src/pickup.cpp:1107-1123`); NPC talk/attack/swap; monster menus; computer use; the
+examine auto-pickup tail (still ESC-cancels); the `inventory_selector` (`NEW_PICKUP_MENU=true`); multi-tick
+resumed-activity secondary prompts; generic `popup()`/`query_popup` families.
+
 ## Deferred backlog
 
 - **Richer read-only export:** dynamic entities — **monsters done (Spike 6A, `entities.monsters[]`), NPCs
@@ -570,8 +635,8 @@ stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROT
   support is blocked: **`test_mode` conflates two jobs** — suppressing rendering/real keyboard
   (Arcopolis needs this) **and** aborting some UI loops before their real input runs (Arcopolis does
   not), most notably **`uilist::query` short-circuiting to `UILIST_ERROR` before its `input_context`
-  is even built** (`src/ui.cpp:918`), so the Spike 11A guard never sees it (`query_popup::query_once`
-  is the same, `src/popup.cpp:269`). A distinct **backend UI mode** — one that keeps the
+  is even built** (`src/ui.cpp:933-937`), so the Spike 11A guard never sees it (`query_popup::query_once`
+  is the same, `src/popup.cpp:277-279`). A distinct **backend UI mode** — one that keeps the
   render/keyboard suppression but lets the real `input_context` loops run and be served registered
   actions, failing loud on any class it cannot yet drive — is now a named backlog item **before**
   broader prompt/menu support (the new inventory_selector, computer menus, NPC dialogue) and
@@ -604,5 +669,9 @@ stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROT
 Activate the VS DevShell, append `C:\dev\ccache` to PATH, configure with `-G Ninja
 -DCMAKE_BUILD_TYPE=RelWithDebInfo` into **one** `out/build/win-rel-deb` dir (game + tests share the
 `cataclysm-bn-tiles-common` OBJECT lib; a second dir exhausts the disk), then `cmake --build
-.\out\build\win-rel-deb --target cataclysm-bn-tiles cata_test-tiles`. Exact commands +
-disk/ccache notes: [00_WINDOWS_LOCAL_ENVIRONMENT.md](00_WINDOWS_LOCAL_ENVIRONMENT.md).
+.\out\build\win-rel-deb --target cataclysm-bn-tiles cata_test-tiles`. Format touched C++ first with
+`C:\dev\astyle\bin\AStyle.exe --options=.astylerc -n <files>` (the CMake "astyle not found" warning is a
+PATH gotcha, not unavailability). **Footprint (measured 2026-06-18):** the shared `win-rel-deb` dir is
+**~7.6 GB** (one-time cold build); a routine **incremental** rebuild only recompiles the touched TUs and
+relinks the exe — **~a couple hundred MB**, not GB. Exact commands + disk/ccache notes:
+[00_WINDOWS_LOCAL_ENVIRONMENT.md](00_WINDOWS_LOCAL_ENVIRONMENT.md).
