@@ -1,5 +1,14 @@
 # Arcopolis Spike 12A — GUI-equivalent prompt/menu transaction (pickup witness)
 
+> **Superseded in part (Spike 16, 2026-06-18,
+> [36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md](36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md)):** the "live mode only" /
+> "script/one-shot modes have no answer channel" claims below now hold only for **one-shot
+> `--arcopolis-command`**. A **`--arcopolis-run-script`** command step may declare `prompt_answers`, which the
+> script prompt sources feed into the SAME `backend_resolve_*` machinery this spike built — so the old
+> `"PICKUP"` menu is now drivable non-live at level 4 too (a missing/wrong/unused answer fails loud,
+> `script_prompt_failed`/exit 13). A run-script pickup with NO declared answers, and every one-shot pickup,
+> still fail loud (exit 6). This historical record is otherwise accurate as of its date.
+
 **Status: implementation + decision record (2026-06-14).** This spike answers, end-to-end, whether
 Bright Nights can enter a _real_ in-action prompt/menu flow, expose that prompt to an external client,
 accept the client's answer, continue the _same_ engine action, and return a truthful final
