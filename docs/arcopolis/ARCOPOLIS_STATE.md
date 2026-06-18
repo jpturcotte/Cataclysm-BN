@@ -7,8 +7,8 @@ page wins — or fix it.
 
 > **Current-truth pointer (audited Spike 17, 2026-06-18 — see
 > [37_SPIKE17_CLAIM_AUDIT.md](37_SPIKE17_CLAIM_AUDIT.md), and the level-4 truth pass
-> [38_LEVEL4_TRUTH_AUDIT.md](38_LEVEL4_TRUTH_AUDIT.md)).** Four prompt classes are driven at **level 4
-> = backend-input + engine equivalence** (NOT visual/frontend equivalence): the old `"PICKUP"` menu, the
+> [38_LEVEL4_TRUTH_AUDIT.md](38_LEVEL4_TRUTH_AUDIT.md)).** Four witnessed prompt paths are driven at **level 4
+> = backend-input + engine equivalence** — the **proof mechanism** for the project's GUI-equivalence goal, not visual/frontend parity itself (see Terminology): the old `"PICKUP"` menu, the
 > vehicle-source uilist, the **all-enabled** secondary capacity uilist, and the deployed-furniture
 > `query_yn` — live and (Spike 16) non-live `--arcopolis-run-script`. Each is witness-scoped to **one
 > hardcoded call site / one fixture** and per-transaction gated; the mechanism generalizes by **reuse** at
@@ -206,13 +206,13 @@ and unwitnessed** by the fixture — no entry has child sub-entries, so the loop
 **(2) per-unit quantity — unfixed defect**,
 selecting an entry takes its WHOLE stack because the digit/count keystrokes are not driven (`RIGHT` with no
 preceding digit, src/pickup.cpp:1204-1228); **(3) multi-entry selection — fixed**, witnessed by the carry-
-both gate. After `CONFIRM`, the activity may raise a **secondary** capacity/wield/spill prompt
-(`handle_problematic_pickup` `uilist`); **driving it is not implemented (a tracked defect)**, but the
-**follow-up (doc 31) makes it MARKED, not silent**: a gated `src/pickup.cpp` call reports it, so the command
-response carries `{ forced_cancel, partial, unsupported_prompt:"secondary_capacity" }` and the transcript a
-`prompt_force_cancelled` event — a truthful PARTIAL pickup (the over-capacity item is left behind, never
-logged), not full success. The regression witnesses both halves: **rejected items** (the marked partial) on
-the default `ArcopolisTest` avatar, and **carry-both** (both selected items leave) on the **3rd fixture
+both gate. After `CONFIRM`, the activity may raise a **secondary** capacity/wield/spill `uilist`
+(`handle_problematic_pickup`). **Spike 14 now DRIVES the witnessed all-enabled WEAR/WIELD branches at level
+4** (on the default `ArcopolisTest` avatar — the blanket is wielded through the real
+`input_context("UILIST")` loop, south pile 7→5, the response carrying NO `forced_cancel`/`partial` markers;
+doc 34). The earlier marked-partial **force-cancel is retained only as the no-channel / disabled-entry /
+orphaned-multi-tick fallback** (in script mode it **fails loud**, `script_prompt_failed`/exit 13, never a
+silent exit-0 partial). Carry-both (both selected items leave) is witnessed on the **3rd fixture
 `ArcopolisBackpackTest`** whose avatar wears a backpack. `NEW_PICKUP_MENU=true` **fails loud**
 (`unsupported_command`).
 
@@ -310,8 +310,17 @@ in the snapshot itself — the `before` snapshot carries a neutral NPC at the mo
 
 ## Terminology (backend-input vs engine vs frontend equivalence)
 
-Anchored by `AGENTS.md:83-120`. **"GUI-equivalent" / "level 4" on this page mean the BACKEND-INPUT sense,
-never visual/pixel equivalence.**
+Anchored by `AGENTS.md:83-120`.
+
+**The project goal is GUI equivalence: a separate, mouse-first Arcopolis frontend that exposes the SAME
+meaningful choices and consequences a BN player has, while BN remains authoritative for all simulation.**
+"Backend-input level 4" is the **proof mechanism** for that goal, **not** a replacement for it: it proves the
+player's choices and consequences flow through BN's OWN real prompt/input loop and mutate real engine state,
+so a frontend built on the exposed choices is provably driving the real engine — not a mock. Proving the
+mechanism on a witnessed path is **necessary but not sufficient**: it does not mean the external frontend has
+been built/validated for that path, nor that a whole prompt _class_ is supported. So on this page
+**"GUI-equivalent" / "level 4" mean the BACKEND-INPUT sense** (the proof), never visual/pixel equivalence and
+never a finished frontend.
 
 - **Backend-input-equivalent** — the backend serves registered actions that BN's real
   `input_context`/menu/UI loop consumes (e.g. `input_context("UILIST")::handle_input`,
@@ -319,9 +328,10 @@ never visual/pixel equivalence.**
 - **Engine-equivalent** — the real engine caller receives the UI result and mutates
   world/inventory/activity state (e.g. `pickup_activity_actor` does the transfer; the engine sets
   `amenu.ret` / `result.action`). The backend **never** mutates menu/selection state directly.
-- **Frontend-equivalent** — an external frontend exposes the same meaningful choices/consequences,
-  possibly with different visuals. **Proven today ONLY for the planar move + examine surface** (Spike
-  11B, doc 29); every prompt-class "level 4" claim is backend-input + engine, **not** frontend.
+- **Frontend-equivalent (the project goal)** — an external, mouse-first frontend exposes the same
+  meaningful choices/consequences **while BN stays authoritative**, possibly with different visuals.
+  **Proven today ONLY for the planar move + examine surface** (Spike 11B, doc 29); every prompt-path "level
+  4" claim is the backend-input + engine _proof_ for that goal, **not** a validated frontend.
 
 The per-transaction gates keep all of this **witness-scoped, never session/command-wide**:
 `backend_ui_mode_active() = session.active && session.uilist_transaction`

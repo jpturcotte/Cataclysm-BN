@@ -36,6 +36,14 @@ test_mode-abort. The fail-loud boundary is leaf-comprehensive against silent _fa
 **not** "no silent prompt at all": an unguarded `query_yn` reached through the supported `examine` verb
 silently defaults to NO, unmarked, exit 0.
 
+**How this relates to the goal.** The project goal is external **GUI equivalence** — a mouse-first frontend
+that exposes the same meaningful choices/consequences while BN stays authoritative. Backend-input level 4 is
+the **proof mechanism** for that goal, not a competing claim and not a replacement: where it holds, it proves
+the player's choices and consequences run through BN's own real loop and mutate real state, so a frontend
+built on the exposed choices is driving the real engine. It is **necessary but not sufficient** — it does not
+validate the external frontend for a path, and one witnessed path is not generic UI support. This doc
+deflates _over_-claims (instances vs classes, `move`, the silent `query_yn`); it does **not** demote the goal.
+
 ## Leaf re-verifications (the load-bearing downgrades, checked by hand)
 
 These five were re-read at the implementing line this session — the three the adversarial pass used to

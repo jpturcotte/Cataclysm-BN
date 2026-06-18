@@ -327,11 +327,11 @@ auto print_button( const catacurses::window &w, const button_options &opts ) -> 
 
 ## Privacy and Environment Documentation
 
-- **MUST NOT** publish machine-specific absolute paths, local usernames, auth tokens, private environment values, or raw auth/credential command output in docs, PR descriptions, comments, final responses, or committed scripts.
-- **MUST** use placeholders for local paths, for example `<repo-root>`, `<user-profile>`, `<vs-install-root>`, and `<path-to-ccache-dir>`.
+- **MUST NOT** publish _identifying or sensitive_ local values — local usernames, home-directory paths (anything under `C:\Users\<name>` or `~`), auth tokens, private environment values, or raw auth/credential command output — in docs, PR descriptions, comments, final responses, or committed scripts. Use placeholders such as `<user-profile>`, `<repo-root>`, and `<vs-install-root>`.
+- **Approved tool/fixture roots (narrow exception).** A short, fixed allowlist of _non-sensitive_ shared paths MAY appear verbatim, because they contain no username, secret, or credential and are this project's standard local layout: `C:\dev\ccache`, `C:\dev\astyle\bin`, `C:\dev\arcopolis-fixtures\`, and short vcpkg roots under `C:\tmp`. Treat them as one workstation's layout — adapt to your own. Do **not** extend this allowlist without applying the same test: no username, no home directory, no secret.
 - **MUST** redact local paths from diagnostic script output by default. If exact paths are useful, require an explicit opt-in flag such as `-RevealPaths`.
 - **MUST** summarize credential/auth checks as pass/fail only. Never paste token-like values, full credential helper output, or authenticated account details unless the user explicitly asks.
-- When environment discovery needs exact local paths, keep them in transient local notes or command output only, not in committed documentation or PR text.
+- When environment discovery needs exact local paths beyond the approved allowlist above, keep them in transient local notes or command output only, not in committed documentation or PR text.
 
 ### WHEN given a link to an issue
 

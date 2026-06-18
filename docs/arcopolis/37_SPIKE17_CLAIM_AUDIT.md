@@ -19,8 +19,8 @@ what the audit found and the minimal doc/comment corrections it triggered.
 
 ## Scope and why this spike exists
 
-Spikes 13B–16 widened the backend from "drive the old `"PICKUP"` menu" to "drive **four** prompt classes
-at level 4, live and (Spike 16) non-live, with fail-loud fallbacks." That widening is real and witnessed
+Spikes 13B–16 widened the backend from "drive the old `"PICKUP"` menu" to "drive **four** witnessed prompt
+paths at level 4, live and (Spike 16) non-live, with fail-loud fallbacks." That widening is real and witnessed
 — but generic-sounding labels ("GUI-equivalent", "backend-driven uilist", "query_popup", "level 4")
 accumulate ambiguity, and line-number citations drift as the gated call sites move. Before **any** further prompt-class
 exploration, this audit pins exactly what is supported, exactly what is witness-scoped, and exactly what
@@ -47,8 +47,10 @@ Three distinct senses, anchored by `AGENTS.md:83-120`:
 2. **Engine-equivalent** — the real engine caller receives the UI result and mutates
    world/inventory/activity state (e.g. `pickup_activity_actor` performs the transfer; the engine sets
    `amenu.ret` / `result.action`). The backend NEVER mutates menu/selection state directly.
-3. **Frontend-equivalent** — an external frontend exposes the same meaningful choices/consequences,
-   possibly with different visuals.
+3. **Frontend-equivalent (the project goal)** — an external, mouse-first frontend exposes the same
+   meaningful choices/consequences **while BN stays authoritative**, possibly with different visuals.
+   Backend-input level 4 (sense 1) is the **proof mechanism** for this goal — it shows the player's choices
+   flow through BN's own real loop and mutate real state — **not** a replacement for it.
 
 **Spikes 13B–16 prove backend-input + engine equivalence for SPECIFIC WITNESSED paths. They do NOT prove
 frontend/visual equivalence.** By design the backend creates **no curses window and calls no render
