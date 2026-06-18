@@ -103,6 +103,15 @@ auto parse_prompt_answers( JsonObject &e, const std::string &command, const std:
             if( ( kind == "uilist" || kind == "query_popup" ) && picks.size() != 1 ) {
                 return bad( pat + "kind '" + kind + "' is single-select; declare exactly one choice" );
             }
+            // Reject duplicate indices, mirroring the live wire parser (src/arcopolis_live.cpp): a repeated
+            // index acks as N picks but drives only one RIGHT mark, so the backend resolver silently
+            // sorts+uniques it -- normalizing a MALFORMED answer into a success. Spike 16's contract is that a
+            // bad scripted answer ABORTS rather than being normalized, and that a script answer matches live's
+            // semantics (which rejects duplicates). Sort first so the stored order agrees with the resolver.
+            std::ranges::sort( picks );
+            if( std::ranges::adjacent_find( picks ) != picks.end() ) {
+                return bad( pat + "'choices' must not contain duplicate indices" );
+            }
             ans.choices = std::move( picks );
         }
         const bool has_tc = ao.has_string( "title_contains" );

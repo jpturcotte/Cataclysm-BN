@@ -301,6 +301,20 @@ TEST_CASE( "arcopolis parse_script rejects a multi-choice uilist answer", "[arco
     CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
 }
 
+TEST_CASE( "arcopolis parse_script rejects a menu answer with duplicate choices", "[arcopolis]" )
+{
+    // codex PR#44 review: a duplicate index would ack as N picks but the resolver silently sorts+uniques it
+    // (driving one selection), normalizing a malformed answer into a success. Live mode rejects duplicates
+    // (src/arcopolis_live.cpp); the script parser must too, before the resolver ever sees it.
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "pickup", "direction": "move_s",
+          "prompt_answers": [ { "kind": "menu", "choices": [0, 0] } ] }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
 TEST_CASE( "arcopolis parse_script rejects a title assertion on a menu answer", "[arcopolis]" )
 {
     std::istringstream is( R"({ "schema_version": 1, "steps": [
