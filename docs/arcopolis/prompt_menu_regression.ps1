@@ -1,4 +1,4 @@
-# Arcopolis Spike 12A regression: GUI-equivalent pickup prompt/menu transaction.
+# Arcopolis Spike 12A regression: level-4 (backend-input) pickup prompt/menu transaction.
 #
 # Proves, against ONE persistent --arcopolis-live backend per scenario, that a `pickup` command enters
 # the REAL engine ACTION_PICKUP path, reaches the REAL old "PICKUP" menu, exposes its REAL choices to the

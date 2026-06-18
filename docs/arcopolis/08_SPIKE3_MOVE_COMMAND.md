@@ -247,8 +247,9 @@ snapshot is unchanged; `schema_version` stays 1.
 `cataclysm-bn-tiles-common` is a CMake **OBJECT** library shared by `cataclysm-bn-tiles` and
 `cata_test-tiles`, so build both in the **same** `out/build/win-rel-deb` dir — the test target reuses the
 game's compiled objects and only the ~169 test sources recompile + link. Do **not** create a separate
-`out/build/win-tests` dir: it duplicates the whole ~10 GB object tree and has exhausted the disk here
-(`fatal error C1085: ... No space left on device`). After the game build, re-configure the same dir with
+`out/build/win-tests` dir: it re-duplicates the whole object tree (~7–8 GB) and has exhausted the disk here
+(`fatal error C1085: ... No space left on device`). The shared dir holding both targets is ~7.6 GB cold
+(measured 2026-06-18); a routine incremental rebuild adds only ~a couple hundred MB. After the game build, re-configure the same dir with
 `-DTESTS=True` and build the test target (see AGENTS.md "Arcopolis Windows build route" and
 `docs/arcopolis/00_WINDOWS_LOCAL_ENVIRONMENT.md`):
 
