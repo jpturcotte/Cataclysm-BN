@@ -178,3 +178,173 @@ TEST_CASE( "arcopolis exit_code_for maps export_failed to 9", "[arcopolis]" )
 {
     CHECK( arcopolis::exit_code_for( arcopolis::command_error_kind::export_failed ) == 9 );
 }
+
+TEST_CASE( "arcopolis exit_code_for maps script_prompt_failed to 13", "[arcopolis]" )
+{
+    CHECK( arcopolis::exit_code_for( arcopolis::command_error_kind::script_prompt_failed ) == 13 );
+}
+
+// --- Spike 16: prompt_answers parsing (the smallest additive script format -- Option A). Structural
+// validation only; semantic matching against the real opened prompt happens at runtime. ---
+
+TEST_CASE( "arcopolis parse_script accepts pickup with a direction and a menu answer",
+           "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "pickup", "direction": "move_s",
+          "prompt_answers": [ { "kind": "menu", "choice": 6 } ] }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE( result.has_value() );
+    REQUIRE( result->size() == 1 );
+    CHECK( ( *result )[0].command == "pickup" );
+    CHECK( ( *result )[0].direction == "move_s" );
+    REQUIRE( ( *result )[0].prompt_answers.size() == 1 );
+    CHECK( ( *result )[0].prompt_answers[0].kind == "menu" );
+    CHECK_FALSE( ( *result )[0].prompt_answers[0].cancel );
+    CHECK( ( *result )[0].prompt_answers[0].choices == std::vector<int> { 6 } );  // `choice` canonicalized
+}
+
+TEST_CASE( "arcopolis parse_script rejects a pickup step without a direction", "[arcopolis]" )
+{
+    std::istringstream is(
+        R"({ "schema_version": 1, "steps": [ { "op": "command", "command": "pickup" } ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
+TEST_CASE( "arcopolis parse_script canonicalizes a menu choices array and a multi-prompt sequence",
+           "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "pickup", "direction": "move_s",
+          "prompt_answers": [
+            { "kind": "uilist", "choice": 1, "title_contains": "Get items from where" },
+            { "kind": "menu", "choices": [5, 6] }
+          ] }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE( result.has_value() );
+    const auto &pa = ( *result )[0].prompt_answers;
+    REQUIRE( pa.size() == 2 );
+    CHECK( pa[0].kind == "uilist" );
+    CHECK( pa[0].choices == std::vector<int> { 1 } );
+    REQUIRE( pa[0].title_contains.has_value() );
+    CHECK( *pa[0].title_contains == "Get items from where" );
+    CHECK( pa[1].kind == "menu" );
+    CHECK( pa[1].choices == std::vector<int> { 5, 6 } );  // multi-select preserved for a menu
+}
+
+TEST_CASE( "arcopolis parse_script accepts a query_popup answer and a cancel answer",
+           "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "examine", "direction": "move_e",
+          "prompt_answers": [ { "kind": "query_popup", "choice": 0, "title_exact": "Take down the mattress?" } ] },
+        { "op": "command", "command": "pickup", "direction": "move_s",
+          "prompt_answers": [ { "kind": "menu", "cancel": true } ] }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE( result.has_value() );
+    REQUIRE( result->size() == 2 );
+    CHECK( ( *result )[0].prompt_answers[0].kind == "query_popup" );
+    REQUIRE( ( *result )[0].prompt_answers[0].title_exact.has_value() );
+    CHECK( *( *result )[0].prompt_answers[0].title_exact == "Take down the mattress?" );
+    CHECK( ( *result )[1].prompt_answers[0].cancel );
+    CHECK( ( *result )[1].prompt_answers[0].choices.empty() );  // cancel carries no choice
+}
+
+TEST_CASE( "arcopolis parse_script rejects a prompt answer with an unknown kind", "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "pickup", "direction": "move_s",
+          "prompt_answers": [ { "kind": "popup", "choice": 0 } ] }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
+TEST_CASE( "arcopolis parse_script rejects a prompt answer with both choice and cancel",
+           "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "pickup", "direction": "move_s",
+          "prompt_answers": [ { "kind": "menu", "choice": 0, "cancel": true } ] }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
+TEST_CASE( "arcopolis parse_script rejects a prompt answer with neither choice nor cancel",
+           "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "pickup", "direction": "move_s",
+          "prompt_answers": [ { "kind": "menu" } ] }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
+TEST_CASE( "arcopolis parse_script rejects a multi-choice uilist answer", "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "pickup", "direction": "move_s",
+          "prompt_answers": [ { "kind": "uilist", "choices": [0, 1] } ] }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
+TEST_CASE( "arcopolis parse_script rejects a menu answer with duplicate choices", "[arcopolis]" )
+{
+    // codex PR#44 review: a duplicate index would ack as N picks but the resolver silently sorts+uniques it
+    // (driving one selection), normalizing a malformed answer into a success. Live mode rejects duplicates
+    // (src/arcopolis_live.cpp); the script parser must too, before the resolver ever sees it.
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "pickup", "direction": "move_s",
+          "prompt_answers": [ { "kind": "menu", "choices": [0, 0] } ] }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
+TEST_CASE( "arcopolis parse_script rejects a title assertion on a menu answer", "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "pickup", "direction": "move_s",
+          "prompt_answers": [ { "kind": "menu", "choice": 0, "title_contains": "x" } ] }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
+TEST_CASE( "arcopolis parse_script rejects both title_contains and title_exact", "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "examine", "direction": "move_e",
+          "prompt_answers": [ { "kind": "query_popup", "choice": 0, "title_contains": "a", "title_exact": "b" } ] }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
+TEST_CASE( "arcopolis parse_script rejects prompt_answers on a non-prompted command",
+           "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "move", "direction": "move_s",
+          "prompt_answers": [ { "kind": "menu", "choice": 0 } ] }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}

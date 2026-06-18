@@ -50,6 +50,9 @@ enum class command_error_kind {
     nested_input_failed,  ///< a nested input read had no servable answer and no registered cancel action
     ///< (or the auto-cancel guard exceeded its fire limit) -- fatal, the session
     ///< hard-exits rather than hang (Spike 11A)
+    script_prompt_failed,  ///< a non-live script's declared prompt answer did not match the open prompt
+    ///< (missing / wrong kind / title / out-of-range / cancel-on-noncancelable /
+    ///< unused) -- fatal, the run aborts honestly rather than silently succeed (Spike 16)
 };
 
 /// A command failure: a machine-readable kind plus a human-readable detail for stderr.
@@ -108,15 +111,18 @@ auto is_supported_target_direction( std::string_view ident ) -> bool;
 /// 11A; shared with pickup, Spike 12A.)
 auto target_direction_nested_answer( std::string_view direction ) -> std::optional<std::string>;
 
-/// True iff a command's CORE action requires a live prompt/menu answer channel to complete -- i.e. it
-/// only works in `--arcopolis-live` mode, because driving its in-action menu needs the live provider's
-/// prompt_source. Today only `pickup` qualifies (its whole purpose is selecting items from a menu, and
-/// the script/one-shot modes have no answer channel, so a pickup there would silently auto-cancel and
-/// falsely report success). `examine` is deliberately NOT live-only: it still faithfully examines in
-/// non-live mode; its auto-pickup tail's force-cancel is the engine's own "Never mind.", not the command
-/// failing its purpose. The non-live entry points (run_script / one-shot pre-flight) reject a live-only
-/// command with unsupported_command before driving any turn -- non-live modes FAIL LOUD for promptful
-/// commands rather than no-op them as success. This is the extension point for future promptful verbs.
+/// True iff a command's CORE action requires a prompt/menu answer CHANNEL to complete -- driving its
+/// in-action menu needs a `prompt_source`. Today only `pickup` qualifies (its whole purpose is selecting
+/// items from a menu). LIVE mode always supplies the channel (stdin/stdout prompts). SCRIPT mode supplies
+/// it only when the command step declares `prompt_answers` (Spike 16) -- a `pickup` WITH declared answers
+/// runs in `--arcopolis-run-script`; a `pickup` WITHOUT them (and any one-shot `--arcopolis-command` pickup)
+/// has no channel and is rejected with unsupported_command BEFORE driving any turn (FAIL LOUD, never a
+/// silent auto-cancel-as-success). `examine` is deliberately NOT in this list: it faithfully examines in
+/// non-live mode (its auto-pickup tail's force-cancel is the engine's own "Never mind."); a scripted
+/// examine that opens the deployed-furniture query_popup must also declare a `prompt_answer` or it fails
+/// loud at runtime (Spike 16), but that is enforced at the open prompt, not here. This is the extension
+/// point for future promptful verbs. The two non-live pre-flight call sites combine this with the step's
+/// `prompt_answers` (run_script: reject only when empty; one-shot: always reject, no answer channel there).
 auto is_live_only_command( std::string_view command ) -> bool;
 
 } // namespace arcopolis
