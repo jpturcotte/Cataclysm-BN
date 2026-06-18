@@ -273,7 +273,12 @@ logs `prompt_cancelled` (reason `noncancelable_closed`).
   `query_yn`, which is not cancelable; a cancelable shape is a separate, narrow follow-up.
 - **The rejected move→deep-water `query_yn`** candidate (swim-popup side effects).
 - **Non-live prompt-answer support** (`--arcopolis-run-script`, one-shot): no answer channel, so the witness
-  guard never arms and the query_yn aborts (NO) — examine stays usable, just undriven there.
+  guard never arms and the query_yn aborts (NO) — examine stays usable, just undriven there. **Superseded for
+  `--arcopolis-run-script` (Spike 16, [36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md](36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md)):**
+  a scripted `examine` step may declare a `{ "kind":"query_popup", ... }` answer, which the script query_popup
+  source feeds into this spike's `backend_resolve_query_popup_choice` — so the deployed-furniture take-down
+  query_yn is now driven at level 4 in run-script too (a furniture examine with no declared answer fails loud,
+  `script_prompt_failed`/exit 13). One-shot `--arcopolis-command` still has no channel.
 - `inventory_selector`, `string_input`, computer UI, NPC dialogue, ranged `TARGET`, per-unit quantities, and
   pipes as a robust boundary — all still backlog (doc 32's audit).
 

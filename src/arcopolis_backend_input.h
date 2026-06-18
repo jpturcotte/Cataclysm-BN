@@ -420,6 +420,42 @@ struct query_popup_witness_guard {
     auto operator=( query_popup_witness_guard && ) -> query_popup_witness_guard & = delete;
 };
 
+// --- Spike 16: non-live SCRIPT prompt-answer support. A `--arcopolis-run-script` command step may declare
+// ordered `prompt_answers` (arcopolis_script.h). run_script installs the three script sources below as the
+// session's prompt_source / uilist_prompt_source / query_popup_source, so a scripted prompted command feeds
+// the SAME backend_resolve_* machinery + registered-action queues + input_context loops + prompt_* transcript
+// events as live mode (only the answer's TRANSPORT differs: a declared field, not a stdin line). The sources
+// consume the per-command answer queue (loaded at dispatch by next_backend_action) in order. A missing /
+// wrong-kind / title-mismatch / out-of-range / cancel-on-noncancelable / unused answer FAILS LOUD
+// (command_error_kind::script_prompt_failed -> exit 13) via session.failure, never a silent auto-cancel. On a
+// fatal failure the source logs `prompt_failed` BEFORE returning nullopt (so the resolve's loop-exit QUIT /
+// default-CONFIRM is an engine escape hatch, never read as a user cancel). Scope is the single command turn
+// being driven; a multi-tick resumed pickup secondary prompt remains orphaned-marked / unsupported (doc 34).
+// The sources write NO stdout (transcript events only). ---
+
+/// Loads the active command's declared prompt answers for the script sources to consume, resetting the
+/// consume cursor and the per-command step index. Called by next_backend_action() at each command dispatch;
+/// also exposed so unit tests can seed the queue without the steps walk. Inert outside a session.
+auto backend_load_scripted_prompt_answers( const std::vector<script_prompt_answer> &answers,
+        const std::optional<int> &step_index ) -> void;
+
+/// The script-mode pickup menu answer source (signature backend_prompt_source). Matches the next declared
+/// answer (kind must be "menu") against the open menu and returns its chosen index/indices, or nullopt for a
+/// legitimate cancel; a missing / wrong-kind / out-of-range answer logs prompt_failed, records a fatal
+/// script_prompt_failed, and returns nullopt. Installed only in --arcopolis-run-script.
+auto script_pickup_prompt( const std::vector<pickup_prompt_choice> &choices )
+-> std::optional<std::vector<int>>;
+
+/// The script-mode uilist answer source (signature backend_uilist_prompt_source). As script_pickup_prompt
+/// but for kind "uilist": single-select, optional title assertion, cancel accepted only when the prompt is
+/// cancelable (else fail loud).
+auto script_uilist_prompt( const backend_uilist_prompt_request &request ) -> std::optional<int>;
+
+/// The script-mode query_popup answer source (signature backend_query_popup_source). As script_uilist_prompt
+/// but for kind "query_popup": single-select, optional title assertion; query_yn is not cancelable, so a
+/// scripted cancel fails loud.
+auto script_query_popup_prompt( const backend_query_popup_request &request ) -> std::optional<int>;
+
 /// What backend_write_step_snapshot() wrote, for a live-protocol response: the snapshot's relative
 /// filename plus the scalars the response echoes (turn read at the same instant as the snapshot).
 struct backend_step_snapshot {

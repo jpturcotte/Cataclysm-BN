@@ -161,18 +161,23 @@ struct prompt_answered_event {
     std::string kind;  ///< Spike 13B: prompt class; field omitted from the record when empty
 };
 
-/// `prompt_cancelled`: the client cancelled (or disconnected); the backend armed the menu's cancel action
-/// (== the GUI player pressing ESC). `reason` is "client_cancel" (live cancel or EOF mid-prompt) or
-/// "no_channel" (script/one-shot mode, where there is no answer channel to ask on). `kind` (Spike 13B) as
-/// in prompt_answered: emitted only when non-empty.
+/// `prompt_cancelled`: the menu's cancel action was served (== the GUI player pressing ESC). `reason` is
+/// "client_cancel" whenever an answer channel IS installed -- a live cancel/EOF, a non-live SCRIPT
+/// legitimate cancel (Spike 16), OR a non-live SCRIPT fatal escape hatch (the latter is distinguished from a
+/// real cancel by a PRECEDING prompt_failed + session_end status="error", Spike 16 / Amendment 1) -- or
+/// "no_channel" when no answer source is installed at all. (Spike 15 also uses "noncancelable_closed" for an
+/// EOF on a non-cancelable query_popup.) `kind` (Spike 13B) as in prompt_answered: emitted only when non-empty.
 struct prompt_cancelled_event {
     std::optional<int> step_index;
     std::string reason;
     std::string kind;  ///< Spike 13B: prompt class; field omitted from the record when empty
 };
 
-/// `prompt_failed`: an invalid/malformed prompt answer was rejected; the prompt stays open for a retry and
-/// NO engine state was touched. `detail` is human-readable.
+/// `prompt_failed`: a prompt answer was rejected; NO engine state was touched. In LIVE mode this is
+/// RECOVERABLE -- the prompt stays open for a retry. In non-live SCRIPT mode (Spike 16) the SAME event
+/// accompanies a FATAL failure: the script source also records script_prompt_failed (exit 13), which sets
+/// done and aborts the run -- the prompt does NOT reopen; it is closed via a one-shot escape QUIT/CONFIRM.
+/// `detail` is human-readable.
 struct prompt_failed_event {
     std::optional<int> step_index;
     std::string reason;
