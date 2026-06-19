@@ -101,6 +101,10 @@
 - **Where:** `AGENTS.md:46` — `src/main.cpp` (CLI arg array), `src/handle_action.cpp` (the backend
   input branch — guard at `src/handle_action.cpp:1778`, call at `:1779`), `src/input.cpp`
   (nested-input hook); the `do_turn`
-  clean-park in `src/game.cpp`.
+  clean-park in `src/game.cpp`. The Spike 13B/14/15 hooks add more: the Spike 15
+  `query_popup_witness_guard` in `iexamine::deployed_furniture` (`src/iexamine.cpp`) and the gated
+  pickup blocks in `src/pickup.cpp` — both collide when upstream's absolute-coordinate / map migrations
+  touch those files (the 2026-06-19 sync, `docs/arcopolis/41_UPSTREAM_SYNC_MAP_AUDIT.md`, auto-merged
+  all of these because the hooks and the migrations sat in different functions).
 - **Before editing/merging:** follow the `AGENTS.md:46` sync workflow; after any sync that adds a CLI
   arg, fix the `<arg_handler, N>` count by hand.

@@ -62,6 +62,19 @@ tip: set N = upstream's count + the Arcopolis flags (17 + 5 = 22 as of 2026-06-1
 array entries — git auto-merges the literal silently and incorrectly, including inside commits that
 replay **without** conflict markers.
 
+**Latest sync (2026-06-19, onto `upstream/main` `20e4cb2d24`; 112 commits absorbed) —
+[41_UPSTREAM_SYNC_MAP_AUDIT.md](41_UPSTREAM_SYNC_MAP_AUDIT.md).** Upstream's absolute-coordinate /
+map-function / mapbuffer migration wave (#9398/#9506/#9519/#9543/#9559) made `src/game.cpp`,
+`src/iexamine.cpp`, and `src/pickup.cpp` collision surfaces too (all **auto-merged** this round —
+the Arcopolis hooks and the migration lived in different functions); only `deno.jsonc` needed a hand
+resolution. `main.cpp` was untouched upstream so the `arg_handler` literal stayed **22** (still
+17 + 5). **One `arcopolis_*` adaptation was required**: `map::get_abs_sub()` became a 2-D
+`point_abs_sm`, so `arcopolis_export.cpp`'s `write_map_bounds` now takes the `origin_abs_sm` z from
+`ctx.levz` (`g->get_levz()`) — the same z it already reports, so the snapshot value is unchanged. No
+protected seam, fail-loud guard, or per-transaction gate changed. (The break was first **masked by a
+stale cross-worktree ccache hit**; a clean compile after `ccache -C` is the only valid post-sync
+check — doc 41 §4.)
+
 ## How to run
 
 | Mode              | Flags                                                                                              | Output                                                                            |
