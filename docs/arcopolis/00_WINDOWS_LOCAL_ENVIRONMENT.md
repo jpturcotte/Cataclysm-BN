@@ -417,6 +417,48 @@ For the ccache-backed Ninja test build (shared `win-rel-deb` dir):
 & ".\out\build\win-rel-deb\tests\cata_test-tiles.exe"
 ```
 
+### Running the test exe from a `.claude/worktrees/*` session — pass the path, do NOT move the shell
+
+`cata_test-tiles.exe` is a Catch2 binary and takes **no `--basepath`** (only the BN main exe does). It locates
+`./data/shaders/test_compute.dxil` (the SDL_GPU compute probe) and `./build-data/mesa/x64/lvp_icd.x86_64.json`
+(the Lavapipe ICD pinned by `src/compute/gpu_platform.cpp`) **from its child-process CWD**. Without `data/`
+at cwd, SDL_GPU dies with `shader blob not found: data/shaders/test_compute.dxil` →
+`Terminated: SDL_GPU test initialization failed`.
+
+From a worktree session, do **NOT** `Set-Location` the shell into the main repo (then relative `Edit`/`Read`/
+`git status` start hitting the main checkout, and you lose the worktree edit anchor), and do **NOT** copy
+worktree sources into the main repo to build there (it leaves the main checkout DIRTY in those files). Run the
+root-built test exe with the **child's** cwd at the root repo, leaving the **shell's** cwd in the worktree:
+
+```powershell
+$p = Start-Process -FilePath "C:\dev\Cataclysm-BN\out\build\win-rel-deb\tests\cata_test-tiles.exe" `
+     -ArgumentList "[arcopolis]" -WorkingDirectory "C:\dev\Cataclysm-BN" `
+     -NoNewWindow -Wait -PassThru `
+     -RedirectStandardOutput "C:\tmp\test.out" -RedirectStandardError "C:\tmp\test.err"
+Write-Output "TEST_EXIT=$($p.ExitCode)"
+Get-Content "C:\tmp\test.out" -Tail 10
+```
+
+The shell cwd remains the worktree (verify with `Get-Location` before and after), `SDL_GPU` finds its data, and
+the suite runs. If you copied files into the main repo by mistake, restore IMMEDIATELY in the same turn:
+
+```powershell
+git -C C:\dev\Cataclysm-BN checkout -- <list of files>
+```
+
+### Cosmetic post-link packaging tail
+
+A successful incremental build can still end `BUILD_EXIT=1` because the link command's `&&` tail
+(`applocal.ps1` + mesa-copy + `deno docs:gen`) fails under a background DevShell with `The system cannot find
+the path specified.` The `link.exe` itself succeeded if `cata_test-tiles.exe` / `cataclysm-bn-tiles.exe` have a
+fresh `LastWriteTime`. Verify by timestamp before treating ninja's `FAILED:` as a real link error:
+
+```powershell
+Get-ChildItem ".\out\build\win-rel-deb\src\cataclysm-bn-tiles.exe",`
+              ".\out\build\win-rel-deb\tests\cata_test-tiles.exe" |
+  Select-Object Name, LastWriteTime
+```
+
 Then validate mod loading:
 
 ```powershell

@@ -170,7 +170,7 @@ static pickup_answer handle_problematic_pickup( const item &it, bool &offered_sw
 
     // Spike 14 (docs/arcopolis/34): a live pickup transaction with a uilist channel DRIVES this secondary
     // capacity/wield/spill uilist at level 4 via the Spike 13B mechanism -- arm a uilist transaction so
-    // backend_ui_mode_active() is true (un-aborting uilist::init/query for exactly this menu, src/ui.cpp),
+    // backend_uilist_transaction_active() is true (un-aborting uilist::init/query for exactly this menu, src/ui.cpp),
     // expose the REAL amenu.entries as a prompt, and serve registered UILIST actions [DOWN x choice,
     // CONFIRM] (or [QUIT] for cancel) through the engine's own input_context("UILIST")::handle_input loop,
     // which sets amenu.ret. The backend NEVER mutates amenu.ret/selected/fentries.
@@ -210,7 +210,7 @@ static pickup_answer handle_problematic_pickup( const item &it, bool &offered_sw
     }
     if( drive ) {
         // MUST arm BEFORE the uilist is constructed -- the default ctor's init() reads
-        // backend_ui_mode_active() to decide the test_mode abort (src/ui.cpp:159-162).
+        // backend_uilist_transaction_active() to decide the test_mode abort (src/ui.cpp:159-162).
         arcopolis::backend_begin_uilist_transaction();
     }
     // RAII guard: closes the transaction on EVERY return path so the un-abort gate never leaks into the

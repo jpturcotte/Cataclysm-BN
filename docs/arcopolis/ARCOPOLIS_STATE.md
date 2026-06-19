@@ -218,7 +218,7 @@ silent exit-0 partial). Carry-both (both selected items leave) is witnessed on t
 
 **Vehicle-source submenu is now DRIVEN at level 4 (Spike 13B, doc 33).** A live `pickup` on a tile with BOTH
 vehicle cargo and ground items reaches the `"Get items from where?"` `uilist`. Spike 12A's follow-up made this
-**fail loud**; **Spike 13B drives it** — a backend/session-gated `backend_ui_mode_active()` bypasses the
+**fail loud**; **Spike 13B drives it** — a backend/session-gated `backend_uilist_transaction_active()` bypasses the
 `uilist::init`/`query` `test_mode` abort for exactly that one armed menu, runs its `setup()` headlessly (no
 draw), exposes the **real** `amenu.entries` as a `prompt` (`kind:"uilist"`), and serves the registered
 `UILIST` actions (`[DOWN, CONFIRM]` for "ground", `["QUIT"]` for cancel) through the **real**
@@ -250,7 +250,7 @@ gates). See [36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md](36_SPIKE16_SCRIPT_PROMPT_ANSWE
 
 **The secondary capacity/wield/spill `uilist` is now DRIVEN at level 4 too (Spike 14, doc 34).** When
 `pickup_activity_actor` raises `handle_problematic_pickup`'s `uilist` for an item that does not fit, a live
-session with the same Spike 13B mechanism (per-transaction `backend_ui_mode_active()` gate + the unchanged
+session with the same Spike 13B mechanism (per-transaction `backend_uilist_transaction_active()` gate + the unchanged
 `backend_resolve_uilist_choice`/`"UILIST"` serve branch) arms a fresh uilist transaction around the
 construction, exposes the real `amenu.entries` (`Wear X` / `Wield X` / `Empty X` / `Spill X`, each with the
 engine's own `enabled` flag) as `kind:"uilist"`, and the real `input_context("UILIST")::handle_input` loop
@@ -265,8 +265,9 @@ all-enabled uilist entries (`scrollby` skips disabled entries, so a `[DOWN×K, C
 overshoot past disabled entries — unresolved). The doc-31 marked-partial behavior (`forced_cancel` /
 `partial` / `unsupported_prompt:"secondary_capacity"` + `prompt_force_cancelled kind=secondary_capacity`)
 is **retained as the no-channel fallback** for misconfigured live sessions (unit-tested). Generic
-`uilist`, the new inventory_selector, per-unit quantities, multi-tick pickup activities (the
-`pickup_transaction` is not threaded across activity resumes), and every other menu class stay backlog.
+`uilist`, the new inventory_selector, per-unit quantities, multi-tick pickup activities (the pickup
+transaction `session.pickup.armed` is not threaded across activity resumes), and every other menu class stay
+backlog.
 See [30_SPIKE12A_PROMPT_MENU_TRANSACTION.md](30_SPIKE12A_PROMPT_MENU_TRANSACTION.md),
 [31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md](31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md),
 [33_SPIKE13B_BACKEND_DRIVEN_UILIST.md](33_SPIKE13B_BACKEND_DRIVEN_UILIST.md), and
@@ -276,8 +277,8 @@ See [30_SPIKE12A_PROMPT_MENU_TRANSACTION.md](30_SPIKE12A_PROMPT_MENU_TRANSACTION
 mechanism than `uilist`.** A live **`examine`** of a deployed furniture reaches
 `iexamine::deployed_furniture`'s `query_yn("Take down the %s?")` (`input_context("YESNO")`). The un-abort is
 **witness-scoped, never command/session-wide**: a `query_popup_witness_guard` at THAT one call site (gated on
-a live `examine` precondition) arms a per-prompt `query_popup_transaction`, and a new
-`backend_query_popup_mode_active()` gate un-aborts `query_popup::query_once`'s `test_mode` short-circuit
+a live `examine` precondition) arms a per-prompt query_popup transaction (`session.query_popup.armed`), and a new
+`backend_query_popup_transaction_active()` gate un-aborts `query_popup::query_once`'s `test_mode` short-circuit
 (`src/popup.cpp`) for **only** that one query_yn — every other `query_yn` an examine can reach (e.g. "Slip
 through the %s?") still aborts (returns NO). The client's YES/NO choice is served as registered horizontal-
 button-row actions (**YES → `[LEFT, CONFIRM]`**, **NO → `[CONFIRM]`** from the NO-default cursor) through the
@@ -334,42 +335,49 @@ never a finished frontend.
   4" claim is the backend-input + engine _proof_ for that goal, **not** a validated frontend.
 
 The per-transaction gates keep all of this **witness-scoped, never session/command-wide**:
-`backend_ui_mode_active() = session.active && session.uilist_transaction`
-(`src/arcopolis_backend_input.cpp` ~~`:758`); `backend_query_popup_mode_active() = session.active &&
-session.query_popup_transaction` (~~ `:880`). Both are RAII-armed and -cleared per witnessed prompt, so an
-un-abort cannot leak into the next command. (Spike 17 audit: [37_SPIKE17_CLAIM_AUDIT.md](37_SPIKE17_CLAIM_AUDIT.md).)
+`backend_uilist_transaction_active() = session.active && session.uilist.armed`
+(`src/arcopolis_backend_input.cpp` ~~`:796`); `backend_query_popup_transaction_active() = session.active &&
+session.query_popup.armed` (~~ `:918`). The `pickup`/`uilist`/`query_popup` members are `prompt_transaction`
+state structs grouped on the TU-local `backend_session` (Spike 19, doc 40). Both gates are RAII-armed and
+-cleared per witnessed prompt, so an
+un-abort cannot leak into the next command. The gate names + the served-category boundary (and **why
+`inventory_selector` stays fail-loud**) are documented at the top of `src/arcopolis_backend_input.h` and in
+[40_SPIKE19_BACKEND_UI_BOUNDARY.md](40_SPIKE19_BACKEND_UI_BOUNDARY.md) (Spike 19 — gate names only, no
+behavior change; doc 40 carries the old→new name map).
+(Spike 17 audit: [37_SPIKE17_CLAIM_AUDIT.md](37_SPIKE17_CLAIM_AUDIT.md).)
 
 ## Capabilities by spike
 
-| Spike | What                                                                                                                                                                                                                                                                                                   | State                                   |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------- |
-| 0     | headless load + one-shot snapshot                                                                                                                                                                                                                                                                      | ✅                                      |
-| 1     | `wait` command (bootstrap turn)                                                                                                                                                                                                                                                                        | ✅                                      |
-| 2     | persistent `--arcopolis-run-script` + `--arcopolis-export-dir` (T→T→T+1)                                                                                                                                                                                                                               | ✅                                      |
-| 3     | movement via `command → do_turn`                                                                                                                                                                                                                                                                       | ❌ failed (turn inversion) — superseded |
-| 3.1A  | input-seam architecture (the fix)                                                                                                                                                                                                                                                                      | ✅                                      |
-| 3.1B  | clean-park hardening + final-on-exit snapshot                                                                                                                                                                                                                                                          | ✅                                      |
-| 3.1C  | `session.jsonl` transcript                                                                                                                                                                                                                                                                             | ✅                                      |
-| 4     | offline viewer / contract consumer (Python → HTML)                                                                                                                                                                                                                                                     | ✅                                      |
-| 5     | `is_avatar` marker + `seed` in `session_start`                                                                                                                                                                                                                                                         | ✅                                      |
-| 6A    | nearby monster export (`entities.monsters[]`)                                                                                                                                                                                                                                                          | ✅                                      |
-| 6B    | monster witness fixture (`ArcopolisNearMonsterTest`) + monster regression                                                                                                                                                                                                                              | ✅ validated (vs 6A build)              |
-| 7A    | nearby NPC export (`entities.npcs[]`) + NPC blocker regression                                                                                                                                                                                                                                         | ✅                                      |
-| 8A    | nearby ground-item export (`entities.items[]`) + item regression                                                                                                                                                                                                                                       | ✅                                      |
-| 9A    | external player-loop harness (cell bundles, HTML view/inspect, outcome explain, one-shot run; `tools/arcopolis_client`)                                                                                                                                                                                | ✅                                      |
-| 9B    | minimal persistent live protocol over stdin/stdout JSONL (`--arcopolis-live`, one request at a time, same seam)                                                                                                                                                                                        | ✅                                      |
-| 10A   | browser frontend prototype: stdlib HTTP bridge + plain HTML/JS driving `--arcopolis-live` (`tools/arcopolis_frontend/`)                                                                                                                                                                                | ✅                                      |
-| 10B   | frontend-side snapshot diff: changed-tile highlights, before→after inspector, change summary, open/closed door glyphs                                                                                                                                                                                  | ✅                                      |
-| 10C   | optional frontend tileset rendering: bridge re-serves `gfx/UltimateCataclysm`, browser paints sprites, glyph fallback                                                                                                                                                                                  | ✅                                      |
-| 11A   | directed `examine` via a one-shot nested-input answer + auto-cancel guard at `input_context::handle_input`                                                                                                                                                                                             | ✅                                      |
-| 11B   | 8-way planar move + 8-way-plus-`here` examine in the **browser frontend + bridge** (backend was already 8-way: #34 move, #31 examine)                                                                                                                                                                  | ✅                                      |
-| 12A   | GUI-equivalent `pickup` prompt/menu transaction (live mode): the real `"PICKUP"` menu exposed as a `prompt` + selected by registered actions through the engine's own loop (level 4); doc 30                                                                                                           | ✅                                      |
-| 12A+  | follow-up: the pickup transaction fails loud (vehicle submenu → `unsupported_command`; non-live pickup → `unsupported_command`) or marks the secondary capacity prompt partial — never silent auto-cancel-as-success; doc 31                                                                           | ✅                                      |
-| 13A   | backend-UI-mode audit: `test_mode` conflates render/keyboard suppression (wanted) with aborting UI loops before their real input (not wanted); classifies every mechanism; designs (not builds) the mode; doc 32                                                                                       | ✅ audit only                           |
-| 13B   | one backend-driven `uilist` at level 4: the vehicle-source `"Get items from where?"` submenu un-aborted + setup-headless + driven via `input_context("UILIST")` (was fail-loud); doc 33                                                                                                                | ✅                                      |
-| 14    | second backend-driven `uilist` at level 4: the in-activity secondary capacity/wield/spill `uilist` (`handle_problematic_pickup`) reuses the 13B mechanism unchanged at a second site (was marked-partial); doc 34                                                                                      | ✅                                      |
-| 15    | one backend-driven `query_popup` at level 4: the deployed-furniture take-down `query_yn` (`input_context("YESNO")`), driven via served `LEFT`/`CONFIRM` through the real `query_once` loop, witness-scoped to that one call site (a different Class 2 mechanism than `uilist`); doc 35                 | ✅                                      |
-| 16    | non-live `--arcopolis-run-script` prompt answers: a command step's declared `prompt_answers` feed the SAME `backend_resolve_*` machinery as live mode (all four classes at level 4); missing/wrong/unused answers fail loud (`script_prompt_failed`, exit 13); one-shot pickup stays fail-loud; doc 36 | ✅                                      |
+| Spike | What                                                                                                                                                                                                                                                                                                                                                                       | State                                   |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| 0     | headless load + one-shot snapshot                                                                                                                                                                                                                                                                                                                                          | ✅                                      |
+| 1     | `wait` command (bootstrap turn)                                                                                                                                                                                                                                                                                                                                            | ✅                                      |
+| 2     | persistent `--arcopolis-run-script` + `--arcopolis-export-dir` (T→T→T+1)                                                                                                                                                                                                                                                                                                   | ✅                                      |
+| 3     | movement via `command → do_turn`                                                                                                                                                                                                                                                                                                                                           | ❌ failed (turn inversion) — superseded |
+| 3.1A  | input-seam architecture (the fix)                                                                                                                                                                                                                                                                                                                                          | ✅                                      |
+| 3.1B  | clean-park hardening + final-on-exit snapshot                                                                                                                                                                                                                                                                                                                              | ✅                                      |
+| 3.1C  | `session.jsonl` transcript                                                                                                                                                                                                                                                                                                                                                 | ✅                                      |
+| 4     | offline viewer / contract consumer (Python → HTML)                                                                                                                                                                                                                                                                                                                         | ✅                                      |
+| 5     | `is_avatar` marker + `seed` in `session_start`                                                                                                                                                                                                                                                                                                                             | ✅                                      |
+| 6A    | nearby monster export (`entities.monsters[]`)                                                                                                                                                                                                                                                                                                                              | ✅                                      |
+| 6B    | monster witness fixture (`ArcopolisNearMonsterTest`) + monster regression                                                                                                                                                                                                                                                                                                  | ✅ validated (vs 6A build)              |
+| 7A    | nearby NPC export (`entities.npcs[]`) + NPC blocker regression                                                                                                                                                                                                                                                                                                             | ✅                                      |
+| 8A    | nearby ground-item export (`entities.items[]`) + item regression                                                                                                                                                                                                                                                                                                           | ✅                                      |
+| 9A    | external player-loop harness (cell bundles, HTML view/inspect, outcome explain, one-shot run; `tools/arcopolis_client`)                                                                                                                                                                                                                                                    | ✅                                      |
+| 9B    | minimal persistent live protocol over stdin/stdout JSONL (`--arcopolis-live`, one request at a time, same seam)                                                                                                                                                                                                                                                            | ✅                                      |
+| 10A   | browser frontend prototype: stdlib HTTP bridge + plain HTML/JS driving `--arcopolis-live` (`tools/arcopolis_frontend/`)                                                                                                                                                                                                                                                    | ✅                                      |
+| 10B   | frontend-side snapshot diff: changed-tile highlights, before→after inspector, change summary, open/closed door glyphs                                                                                                                                                                                                                                                      | ✅                                      |
+| 10C   | optional frontend tileset rendering: bridge re-serves `gfx/UltimateCataclysm`, browser paints sprites, glyph fallback                                                                                                                                                                                                                                                      | ✅                                      |
+| 11A   | directed `examine` via a one-shot nested-input answer + auto-cancel guard at `input_context::handle_input`                                                                                                                                                                                                                                                                 | ✅                                      |
+| 11B   | 8-way planar move + 8-way-plus-`here` examine in the **browser frontend + bridge** (backend was already 8-way: #34 move, #31 examine)                                                                                                                                                                                                                                      | ✅                                      |
+| 12A   | GUI-equivalent `pickup` prompt/menu transaction (live mode): the real `"PICKUP"` menu exposed as a `prompt` + selected by registered actions through the engine's own loop (level 4); doc 30                                                                                                                                                                               | ✅                                      |
+| 12A+  | follow-up: the pickup transaction fails loud (vehicle submenu → `unsupported_command`; non-live pickup → `unsupported_command`) or marks the secondary capacity prompt partial — never silent auto-cancel-as-success; doc 31                                                                                                                                               | ✅                                      |
+| 13A   | backend-UI-mode audit: `test_mode` conflates render/keyboard suppression (wanted) with aborting UI loops before their real input (not wanted); classifies every mechanism; designs (not builds) the mode; doc 32                                                                                                                                                           | ✅ audit only                           |
+| 13B   | one backend-driven `uilist` at level 4: the vehicle-source `"Get items from where?"` submenu un-aborted + setup-headless + driven via `input_context("UILIST")` (was fail-loud); doc 33                                                                                                                                                                                    | ✅                                      |
+| 14    | second backend-driven `uilist` at level 4: the in-activity secondary capacity/wield/spill `uilist` (`handle_problematic_pickup`) reuses the 13B mechanism unchanged at a second site (was marked-partial); doc 34                                                                                                                                                          | ✅                                      |
+| 15    | one backend-driven `query_popup` at level 4: the deployed-furniture take-down `query_yn` (`input_context("YESNO")`), driven via served `LEFT`/`CONFIRM` through the real `query_once` loop, witness-scoped to that one call site (a different Class 2 mechanism than `uilist`); doc 35                                                                                     | ✅                                      |
+| 16    | non-live `--arcopolis-run-script` prompt answers: a command step's declared `prompt_answers` feed the SAME `backend_resolve_*` machinery as live mode (all four classes at level 4); missing/wrong/unused answers fail loud (`script_prompt_failed`, exit 13); one-shot pickup stays fail-loud; doc 36                                                                     | ✅                                      |
+| 19    | backend UI/prompt **boundary cleanup** (NO behavior change): un-abort gates renamed to the per-transaction family `backend_uilist_transaction_active` / `backend_query_popup_transaction_active`; a central served-category + invariant block added to `arcopolis_backend_input.h`; the `test_mode` un-abort-witness vs renderer-neutral-UI-mode boundary recorded; doc 40 | ✅ refactor/docs only                   |
 
 ## Source & tests
 
@@ -384,7 +392,7 @@ clean-park, final snapshot; Spike 9B adds the pluggable `live_source` pull hook 
 step-snapshot writer; Spike 11A adds the one-shot nested-input slot, the pure guard decision and
 the hard-fail; Spike 12A adds the DISTINCT pickup-transaction flag + registered-action queue + its serve
 branch, the pluggable `prompt_source` hook and `backend_resolve_pickup_choice`; **Spike 13B adds
-`backend_ui_mode_active()` (the per-transaction uilist un-abort gate), the `"UILIST"` serve branch +
+`backend_uilist_transaction_active()` (the per-transaction uilist un-abort gate), the `"UILIST"` serve branch +
 single-select queue, `backend_begin/resolve/end_uilist_transaction`, the `uilist_transaction_guard` RAII
 type, and the `uilist_prompt_source` hook**) ·
 `arcopolis_live.{h,cpp}` (Spike 9B: the JSONL protocol parser/formatters +
@@ -400,20 +408,21 @@ adds a fourth gated engine touch:** a session-gated pre-loop block in `pick_up_f
 (`src/pickup.cpp`) that exposes the real menu choices and arms the registered-action queue, leaving the
 `"PICKUP"` menu loop itself UNMODIFIED. **Spike 13B adds a fifth gated engine touch (a new
 upstream-rebase collision surface):** `uilist::init`/`query` in `src/ui.cpp` take the `test_mode` abort
-only when `!backend_ui_mode_active()`, and `query()` runs `setup()` directly under the gate (a non-render
+only when `!backend_uilist_transaction_active()`, and `query()` runs `setup()` directly under the gate (a non-render
 init path); the vehicle-source block in `src/pickup.cpp` drives that uilist, leaving the `uilist::query`
 loop itself UNMODIFIED. **Spike 14 reuses those touches verbatim at a second `src/pickup.cpp` site
 (`handle_problematic_pickup`)** — no new gated engine touch, no new public Arcopolis symbol; the only
 seam-layer change is the `live_vehicle_source_prompt` → `live_uilist_prompt` rename in
 `src/arcopolis_live.cpp` (the body is unchanged), making the channel's now-general use across both
 backend-driven uilists explicit in the name. **Spike 15 adds the parallel `query_popup` machinery**:
-`arcopolis_backend_input.{h,cpp}` gain `backend_query_popup_mode_active()`, the
-`examine_query_popup_command`/`query_popup_transaction` flags,
+`arcopolis_backend_input.{h,cpp}` gain `backend_query_popup_transaction_active()`, the
+`examine_query_popup_command` flag + the `query_popup.armed` per-prompt flag (a member of the Spike 19
+`prompt_transaction` regroup),
 `backend_arm_examine_query_popup_command`/`backend_begin/resolve/end_query_popup_transaction`, the
 `query_popup_witness_guard` RAII type, the `backend_query_popup_request` struct + `query_popup_source` hook,
 and a `"YESNO"` serve branch; `arcopolis_live.{h,cpp}` add `live_query_popup_prompt` (single-select,
 non-cancelable) + arm the examine precondition; and **two new gated engine touches** — `query_popup::query_once`
-in `src/popup.cpp` takes its `test_mode` abort only when `!backend_query_popup_mode_active()` (plus two
+in `src/popup.cpp` takes its `test_mode` abort only when `!backend_query_popup_transaction_active()` (plus two
 additive const accessors `current_index()`/`has_window()`), and `query_yn` in `src/output.cpp` drives the
 real loop under the gate — with the witness guard (the discriminator) in `iexamine::deployed_furniture`
 (`src/iexamine.cpp`). The `prompt_*` transcript events + the prompt/answer wire are reused with
@@ -576,19 +585,20 @@ prompt — an unguarded `query_yn` reached through the **supported** `examine` v
 Centralized here by the Spike 17 audit ([37_SPIKE17_CLAIM_AUDIT.md](37_SPIKE17_CLAIM_AUDIT.md)); the level-4
 truth pass is [38_LEVEL4_TRUTH_AUDIT.md](38_LEVEL4_TRUTH_AUDIT.md).
 
-| Trigger                                                                                       | Behavior                                                                                      | Exit            | Where                                                                                 |
-| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------- |
-| `pickup` under `NEW_PICKUP_MENU=true` (live)                                                  | reject pre-flight, `unsupported_command`                                                      | 6               | `src/arcopolis_live.cpp`                                                              |
-| `pickup` under `NEW_PICKUP_MENU=true` (run-script)                                            | post-load reject                                                                              | 6               | `src/arcopolis_script.cpp`                                                            |
-| one-shot `--arcopolis-command pickup` (no answer channel)                                     | reject pre-flight                                                                             | 6               | `src/arcopolis_export.cpp`; `is_live_only_command` `src/arcopolis_command.cpp:95-101` |
-| `--arcopolis-run-script pickup` with NO `prompt_answers`                                      | reject                                                                                        | 6               | `src/arcopolis_script.cpp`                                                            |
-| vehicle/secondary uilist with a transaction but NO uilist channel                             | marked partial, CANCEL                                                                        | 13 (run-script) | `src/pickup.cpp:195-198`                                                              |
-| secondary capacity uilist with ANY disabled entry                                             | refuse (`scrollby` would mis-navigate); marked partial; backstop `disabled_entry_unsupported` | 13 (run-script) | `src/pickup.cpp:285-288`; `src/arcopolis_backend_input.cpp:817`                       |
-| multi-tick resumed orphaned secondary                                                         | report marks, sets NO outcome, CANCEL                                                         | — (marked)      | `src/pickup.cpp:208-211`                                                              |
-| scripted answer missing/wrong-kind/title-mismatch/out-of-range/cancel-of-noncancelable/unused | `script_prompt_failed` (first-failure-wins)                                                   | 13              | `src/arcopolis_backend_input.cpp`; `src/arcopolis_command.cpp:269-270`                |
-| generic `popup()`/`popup_getkey()`/`PF_GET_KEY`→`ANY_INPUT` (never arms a transaction)        | `query_once` test_mode abort `{false,"ERROR",{}}`                                             | — (aborted)     | `src/output.cpp`; `src/popup.cpp:277-279`                                             |
-| any `query_yn` ≠ the deployed-furniture witness (incl. via the supported `examine` verb)      | test_mode abort → **silent NO, unmarked**                                                     | 0 (silent)      | `src/popup.cpp:277-279` → `src/output.cpp:748`                                        |
-| any other `uilist` (cata_test, `inventory_selector`, computer, NPC dialogue)                  | test_mode abort → `UILIST_ERROR`                                                              | —               | `src/ui.cpp:933-937` (gated on per-transaction `backend_ui_mode_active()`)            |
+| Trigger                                                                                                                          | Behavior                                                                                      | Exit            | Where                                                                                    |
+| -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------- |
+| `pickup` under `NEW_PICKUP_MENU=true` (live)                                                                                     | reject pre-flight, `unsupported_command`                                                      | 6               | `src/arcopolis_live.cpp`                                                                 |
+| `pickup` under `NEW_PICKUP_MENU=true` (run-script)                                                                               | post-load reject                                                                              | 6               | `src/arcopolis_script.cpp`                                                               |
+| one-shot `--arcopolis-command pickup` (no answer channel)                                                                        | reject pre-flight                                                                             | 6               | `src/arcopolis_export.cpp`; `is_live_only_command` `src/arcopolis_command.cpp:95-101`    |
+| `--arcopolis-run-script pickup` with NO `prompt_answers`                                                                         | reject                                                                                        | 6               | `src/arcopolis_script.cpp`                                                               |
+| vehicle/secondary uilist with a transaction but NO uilist channel                                                                | marked partial, CANCEL                                                                        | 13 (run-script) | `src/pickup.cpp:195-198`                                                                 |
+| secondary capacity uilist with ANY disabled entry                                                                                | refuse (`scrollby` would mis-navigate); marked partial; backstop `disabled_entry_unsupported` | 13 (run-script) | `src/pickup.cpp:285-288`; `src/arcopolis_backend_input.cpp:817`                          |
+| multi-tick resumed orphaned secondary                                                                                            | report marks, sets NO outcome, CANCEL                                                         | — (marked)      | `src/pickup.cpp:208-211`                                                                 |
+| scripted answer missing/wrong-kind/title-mismatch/out-of-range/cancel-of-noncancelable/unused                                    | `script_prompt_failed` (first-failure-wins)                                                   | 13              | `src/arcopolis_backend_input.cpp`; `src/arcopolis_command.cpp:269-270`                   |
+| generic `popup()`/`popup_getkey()`/`PF_GET_KEY`→`ANY_INPUT` (never arms a transaction)                                           | `query_once` test_mode abort `{false,"ERROR",{}}`                                             | — (aborted)     | `src/output.cpp`; `src/popup.cpp:277-279`                                                |
+| any `query_yn` ≠ the deployed-furniture witness (incl. via the supported `examine` verb)                                         | test_mode abort → **silent NO, unmarked**                                                     | 0 (silent)      | `src/popup.cpp:277-279` → `src/output.cpp:748`                                           |
+| any other `uilist` (cata_test, computer, NPC dialogue)                                                                           | test_mode abort → `UILIST_ERROR`                                                              | —               | `src/ui.cpp:933-937` (gated on per-transaction `backend_uilist_transaction_active()`)    |
+| `pickup` under `NEW_PICKUP_MENU=true` / `inventory_selector` (NOT a `uilist`; no narrow `test_mode` abort to pierce — doc 39 §4) | reject pre-flight, `unsupported_command`                                                      | 6               | `src/arcopolis_live.cpp:213-218` (live); `src/arcopolis_script.cpp:357-365` (run-script) |
 
 **Still backlog (no driving claim):** vertical `move` (`<`/`>`); explicit `open`/`close`/`smash`; per-unit
 pickup quantity (whole-stack only); nested-container parent/child mark propagation (exposed but
@@ -655,14 +665,15 @@ resumed-activity secondary prompts; generic `popup()`/`query_popup` families.
   vehicle-source pickup submenu) runs headlessly to its real `input_context("UILIST")::handle_input`
   loop, with `setup()` populating `fentries`/retvals on a non-render path, consuming registered
   `DOWN`/`CONFIRM` Arcopolis supplies through the seam, at equivalence level 4 — gated on a
-  per-transaction `backend_ui_mode_active()` so cata_test and every other `uilist` still abort. **Spike 14
-  ([34_SPIKE14_SECONDARY_PICKUP_UILIST.md](34_SPIKE14_SECONDARY_PICKUP_UILIST.md)) generalizes the mode by
-  reusing the same machinery unchanged at a second site:** the in-activity secondary capacity/wield/spill
-  `uilist` (`handle_problematic_pickup`) is now driven too. **Spike 15
-  ([35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md](35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md)) extends the mode to a
-  DIFFERENT Class 2 mechanism — `query_popup`:** the deployed-furniture take-down `query_yn`
+  per-transaction `backend_uilist_transaction_active()` so cata_test and every other `uilist` still abort. **Spike 14
+  ([34_SPIKE14_SECONDARY_PICKUP_UILIST.md](34_SPIKE14_SECONDARY_PICKUP_UILIST.md)) reuses the same UILIST
+  machinery unchanged at a second hardcoded call site under the same per-transaction gate:** the in-activity
+  secondary capacity/wield/spill `uilist` (`handle_problematic_pickup`) is now driven too — same `"UILIST"`
+  serve branch, same `backend_uilist_transaction_active()` gate, witness-scoped per arming. **Spike 15
+  ([35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md](35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md)) adds a SEPARATE
+  per-transaction family for a DIFFERENT Class 2 mechanism — `query_popup`:** the deployed-furniture take-down `query_yn`
   (`input_context("YESNO")`) is now driven at level 4 via served `LEFT`/`CONFIRM`, with its OWN per-prompt
-  gate `backend_query_popup_mode_active()` un-aborting `query_popup::query_once` (`src/popup.cpp:277`),
+  gate `backend_query_popup_transaction_active()` un-aborting `query_popup::query_once` (`src/popup.cpp:277`),
   witness-scoped to that one call site. **Spike 16
   ([36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md](36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md)) makes all four driven classes
   replayable in non-live `--arcopolis-run-script`:** a command step's declared `prompt_answers` feed the SAME
@@ -671,8 +682,13 @@ resumed-activity secondary prompts; generic `popup()`/`query_popup` families.
   `popup()`/`popup_getkey()` family (`"POPUP_WAIT"`
   - the `PF_GET_KEY` `ANY_INPUT` caveat from doc 32), generic `query_popup` / any other `query_yn`, the new
     inventory_selector, computer menus, NPC dialogue, **one-shot `--arcopolis-command` prompts**, and
-    **multi-tick resumed-activity secondary prompts** — all can build on the proven mode; none are
-    implemented yet.
+    **multi-tick resumed-activity secondary prompts** — each is a candidate for its OWN new per-family
+    per-transaction gate + serve branch reusing the existing seam machinery (the per-family witness pattern of
+    13B/14/15, NOT a shared "mode"); none are implemented yet. **Spike 19 ([40_SPIKE19_BACKEND_UI_BOUNDARY.md](40_SPIKE19_BACKEND_UI_BOUNDARY.md))
+    renamed the un-abort gates to the per-transaction `*_transaction_active` family and centralized the
+    served-category + invariant boundary in `src/arcopolis_backend_input.h` (no behavior change), so the
+    distinction these per-transaction witnesses embody — a `test_mode` un-abort witness is NOT a
+    renderer-neutral backend UI mode (doc 39 §5.1) — is now explicit in the code; it adds no capability.**
 
 ## Build (Windows)
 

@@ -29,9 +29,27 @@ struct nested_input_slot {
     bool consumed = false;          ///< the answer was served (one-shot)
 };
 
+/// Per-class STATE for ONE backend-driven prompt transaction (the PICKUP / UILIST / QUERY_POPUP families).
+/// Grouping the previously-scattered `<class>_transaction` / `<class>_opened` / `<class>_queue` /
+/// `<class>_cursor` / `<class>_served` booleans here makes each family visible in ONE place. This is STATE
+/// ONLY -- it has no methods and does NOT genericize behavior: every family keeps its OWN DISTINCT serve
+/// branch (backend_nested_input_action), resolve function, gate predicate, and RAII guard. The class-specific
+/// extras (answer source, outcome, witness id, examine precondition) stay as named fields on the owning
+/// family below. See the backend UI / prompt boundary block at the top of arcopolis_backend_input.h.
+struct prompt_transaction {
+    bool armed = false;             ///< the per-transaction un-abort gate is on (a drive is in flight)
+    bool opened = false;            ///< a real prompt was exposed (set by the family's resolve step)
+    std::optional<int> step_index;  ///< the arming command's step index (transcript correlation)
+    std::vector<std::string> queue; ///< registered actions to serve to the engine's own loop, in order
+    std::size_t cursor = 0;         ///< next queue index to serve
+    int served = 0;                 ///< actions served so far (the prompt_completed count)
+};
+
 /// Translation-unit-local backend session. A single instance; begin/end toggle `active`. While `active`,
 /// game::handle_action() pulls its per-iteration action from next_backend_action() (the seam in
-/// handle_action.cpp), so the engine's do_turn runs verbatim with the backend as its input source.
+/// handle_action.cpp), so the engine's do_turn runs verbatim with the backend as its input source. The
+/// served prompt families are grouped below, one prompt_transaction each (+ their class-specific extras),
+/// so the transaction state is no longer a flat scattering of booleans.
 struct backend_session {
     bool active = false;
     std::vector<arcopolis::script_step> steps;
@@ -41,49 +59,42 @@ struct backend_session {
     bool done = false;
     std::optional<arcopolis::command_error> failure;
     arcopolis::backend_action_source live_source;  ///< Spike 9B: replaces the steps walk when set
-    std::optional<nested_input_slot> nested;       ///< Spike 11A: the one-shot nested-input answer
-    int nested_guard_fires = 0;                    ///< Spike 11A: guard fires for the current command
-    arcopolis::backend_prompt_source prompt_source;  ///< Spike 12A: live pickup menu-answer channel
-    bool pickup_transaction = false;                 ///< Spike 12A: a top-level pickup command armed it
-    bool prompt_opened =
-        false;                      ///< Spike 12A: a real menu prompt was actually exposed
-    std::optional<int> pickup_step_index;            ///< the arming pickup command's step index
-    std::vector<std::string> pickup_queue;           ///< Spike 12A: registered PICKUP actions, in order
-    std::size_t pickup_cursor = 0;                   ///< next pickup_queue index to serve
-    int pickup_served =
-        0;                           ///< pickup actions served (the prompt_completed count)
+
+    // --- One-shot nested direction answer (Spike 11A). NOT a queue: a single armed answer to the
+    //     examine/pickup "where?" chooser, kept (consumed) until the seam return. Its own slot type. ---
+    std::optional<nested_input_slot> nested;       ///< the one-shot nested-input answer
+    int nested_guard_fires = 0;                    ///< guard fires for the current command
+
+    // --- PICKUP family (Spike 12A): the OLD "PICKUP" item menu. The WITNESSED old-pickup path, NOT generic
+    //     pickup UI. `pickup.armed` is set ONLY by a top-level pickup command (backend_arm_pickup_transaction). ---
+    prompt_transaction pickup;
+    arcopolis::backend_prompt_source
+    prompt_source;  ///< live pickup menu-answer channel (null in script/one-shot)
     arcopolis::pickup_command_outcome pickup_outcome =
         arcopolis::pickup_command_outcome::ok;       ///< Spike 12A follow-up: unsupported sub-prompt outcome;
-    ///< survives clear_stale, consumed by the live response writer
+    ///< survives clear_stale (it is the command's result, consumed + reset by the response writer / script
+    ///< seam-return check), so it is deliberately NOT part of the cleared prompt_transaction above
+
+    // --- UILIST family (Spike 13B vehicle-source; Spike 14 secondary capacity): two WITNESSED uilists, NOT
+    //     generic uilist. backend_uilist_transaction_active() == active && uilist.armed. ---
+    prompt_transaction uilist;
     arcopolis::backend_uilist_prompt_source
-    uilist_prompt_source;  ///< Spike 13B: live uilist answer channel
-    bool uilist_transaction =
-        false;                 ///< Spike 13B: a uilist drive is armed (the un-abort gate)
-    bool uilist_opened = false;                      ///< Spike 13B: a real uilist prompt was exposed
-    std::optional<int>
-    uilist_step_index;            ///< the arming pickup command's step index (correlation)
-    std::vector<std::string> uilist_queue;           ///< Spike 13B: registered UILIST actions, in order
-    std::size_t uilist_cursor = 0;                   ///< next uilist_queue index to serve
-    int uilist_served =
-        0;                           ///< uilist actions served (the prompt_completed count)
+    uilist_prompt_source;                            ///< live uilist answer channel (null elsewhere)
+
+    // --- QUERY_POPUP family (Spike 15): ONE witnessed deployed-furniture take-down query_yn, NOT generic
+    //     query_popup. backend_query_popup_transaction_active() == active && query_popup.armed. ---
+    prompt_transaction query_popup;
     arcopolis::backend_query_popup_source
-    query_popup_source;  ///< Spike 15: live query_popup (query_yn) answer channel
-    bool examine_query_popup_command =
-        false;  ///< Spike 15: a live examine command armed the precondition
-    bool query_popup_transaction =
-        false;  ///< Spike 15: a query_popup drive is armed (the un-abort gate)
-    bool query_popup_opened =
-        false;                 ///< Spike 15: a real query_popup prompt was exposed
+    query_popup_source;                              ///< live query_yn answer channel (null elsewhere)
     std::string
-    query_popup_witness;                 ///< Spike 15: which call site armed it (emitted in prompt_opened)
-    std::optional<int> query_popup_step_index;       ///< the arming examine command's step index
-    std::vector<std::string> query_popup_queue;      ///< Spike 15: registered YESNO actions, in order
-    std::size_t query_popup_cursor = 0;              ///< next query_popup_queue index to serve
-    int query_popup_served =
-        0;                       ///< query_popup actions served (the prompt_completed count)
-    // Spike 16: non-live script prompt answers -- the active command's declared answers + consume cursor.
-    // Loaded at each command dispatch (next_backend_action); consumed in order by the script prompt sources;
-    // leftover entries at the seam return FAIL LOUD (clear_stale_scripted_prompt_answers). Empty in live mode.
+    query_popup_witness;                 ///< which call site armed it (emitted in prompt_opened)
+    bool examine_query_popup_command =
+        false;                                       ///< a live examine armed the precondition the guard checks
+
+    // --- Spike 16 non-live SCRIPT prompt answers: the active command's declared answers + consume cursor.
+    //     Loaded at each command dispatch (next_backend_action); consumed in order by the script prompt
+    //     sources; leftover entries at the seam return FAIL LOUD (clear_stale_scripted_prompt_answers).
+    //     Empty in live mode. ---
     std::vector<arcopolis::script_prompt_answer> script_prompt_answers;
     std::size_t script_prompt_cursor = 0;            ///< next script_prompt_answers index to consume
     std::optional<int>
@@ -152,18 +163,18 @@ auto clear_stale_nested_input() -> void
 /// with no matching prompt_opened would be a transcript lie.
 auto clear_stale_pickup_transaction() -> void
 {
-    if( session.pickup_transaction && session.prompt_opened ) {
+    if( session.pickup.armed && session.pickup.opened ) {
         arcopolis::session_log_prompt_completed( {
-            .step_index = session.pickup_step_index,
-            .actions_served = session.pickup_served,
+            .step_index = session.pickup.step_index,
+            .actions_served = session.pickup.served,
         } );
     }
-    session.pickup_transaction = false;
-    session.prompt_opened = false;
-    session.pickup_step_index.reset();
-    session.pickup_queue.clear();
-    session.pickup_cursor = 0;
-    session.pickup_served = 0;
+    session.pickup.armed = false;
+    session.pickup.opened = false;
+    session.pickup.step_index.reset();
+    session.pickup.queue.clear();
+    session.pickup.cursor = 0;
+    session.pickup.served = 0;
 }
 
 /// Spike 13B: defensively close out any uilist transaction at the seam return. The normal path clears it
@@ -173,19 +184,19 @@ auto clear_stale_pickup_transaction() -> void
 /// command's prompts.
 auto clear_stale_uilist_transaction() -> void
 {
-    if( session.uilist_transaction && session.uilist_opened ) {
+    if( session.uilist.armed && session.uilist.opened ) {
         arcopolis::session_log_prompt_completed( {
-            .step_index = session.uilist_step_index,
-            .actions_served = session.uilist_served,
+            .step_index = session.uilist.step_index,
+            .actions_served = session.uilist.served,
             .kind = "uilist",
         } );
     }
-    session.uilist_transaction = false;
-    session.uilist_opened = false;
-    session.uilist_step_index.reset();
-    session.uilist_queue.clear();
-    session.uilist_cursor = 0;
-    session.uilist_served = 0;
+    session.uilist.armed = false;
+    session.uilist.opened = false;
+    session.uilist.step_index.reset();
+    session.uilist.queue.clear();
+    session.uilist.cursor = 0;
+    session.uilist.served = 0;
 }
 
 /// Spike 15: defensively close any leaked query_popup transaction at the seam return. The normal path
@@ -195,22 +206,22 @@ auto clear_stale_uilist_transaction() -> void
 /// precondition (the gate the witness guard checks).
 auto clear_stale_query_popup_transaction() -> void
 {
-    if( session.query_popup_transaction && session.query_popup_opened ) {
+    if( session.query_popup.armed && session.query_popup.opened ) {
         arcopolis::session_log_prompt_completed( {
-            .step_index = session.query_popup_step_index,
-            .actions_served = session.query_popup_served,
+            .step_index = session.query_popup.step_index,
+            .actions_served = session.query_popup.served,
             .kind = "query_popup",
         } );
     }
-    session.query_popup_transaction = false;
-    session.query_popup_opened = false;
+    session.query_popup.armed = false;
+    session.query_popup.opened = false;
     session.query_popup_witness.clear();
-    session.query_popup_queue.clear();
-    session.query_popup_cursor = 0;
-    session.query_popup_served = 0;
+    session.query_popup.queue.clear();
+    session.query_popup.cursor = 0;
+    session.query_popup.served = 0;
     // Spike 15: clear the per-command examine query_popup precondition (the gate the witness guard checks).
     session.examine_query_popup_command = false;
-    session.query_popup_step_index.reset();
+    session.query_popup.step_index.reset();
 }
 
 /// Force-clears ALL stale backend prompt state at a return to the top-level seam, by delegating to the
@@ -648,7 +659,7 @@ auto arcopolis::backend_nested_input_armed() -> bool
 
 auto arcopolis::backend_pickup_transaction_active() -> bool
 {
-    return session.active && session.pickup_transaction;
+    return session.active && session.pickup.armed;
 }
 
 auto arcopolis::backend_arm_pickup_transaction( const std::optional<int> &step_index ) -> void
@@ -657,13 +668,13 @@ auto arcopolis::backend_arm_pickup_transaction( const std::optional<int> &step_i
     if( !session.active ) {
         return;
     }
-    session.pickup_transaction = true;
-    session.prompt_opened =
+    session.pickup.armed = true;
+    session.pickup.opened =
         false;  // set true only once a real menu is exposed (backend_resolve_pickup_choice)
-    session.pickup_step_index = step_index;
-    session.pickup_queue.clear();
-    session.pickup_cursor = 0;
-    session.pickup_served = 0;
+    session.pickup.step_index = step_index;
+    session.pickup.queue.clear();
+    session.pickup.cursor = 0;
+    session.pickup.served = 0;
     session.pickup_outcome = pickup_command_outcome::ok;  // fresh per pickup command
 }
 
@@ -672,12 +683,12 @@ auto arcopolis::backend_report_pickup_unsupported_submenu() -> void
     // Inert unless a pickup transaction is armed (defense in depth: the engine call site already gates on
     // backend_pickup_transaction_active()). The vehicle submenu fires BEFORE the menu opens, so no
     // prompt_completed will bookend this command -- the force-cancel event is the whole record.
-    if( !session.active || !session.pickup_transaction ) {
+    if( !session.active || !session.pickup.armed ) {
         return;
     }
     session.pickup_outcome = pickup_command_outcome::unsupported_submenu;
     session_log_prompt_force_cancelled( {
-        .step_index = session.pickup_step_index,
+        .step_index = session.pickup.step_index,
         .kind = "vehicle_submenu",
         .reason = "the 'Get items from where?' vehicle-cargo submenu is not driven by the pickup "
         "transaction; failed loud (no items taken)",
@@ -686,12 +697,12 @@ auto arcopolis::backend_report_pickup_unsupported_submenu() -> void
 
 auto arcopolis::backend_report_pickup_secondary_forced_cancel() -> void
 {
-    if( !session.active || !session.pickup_transaction ) {
+    if( !session.active || !session.pickup.armed ) {
         return;
     }
     session.pickup_outcome = pickup_command_outcome::secondary_forced_cancel;
     session_log_prompt_force_cancelled( {
-        .step_index = session.pickup_step_index,
+        .step_index = session.pickup.step_index,
         .kind = "secondary_capacity",
         .reason = "a secondary capacity/wield/spill prompt is not driven by the pickup transaction; "
         "the item that does not fit is left behind (truthful partial pickup)",
@@ -707,7 +718,7 @@ auto arcopolis::backend_report_pickup_orphaned_secondary() -> void
     // transcript prompt_force_cancelled so the engine's own test_mode CANCEL is MARKED, never silent. Sets
     // NO pickup_outcome: there is no owed command response for this resumed-activity prompt to mark, and
     // mutating the outcome could leak a partial marker into an unrelated later response.
-    if( !session.active || session.pickup_transaction ) {
+    if( !session.active || session.pickup.armed ) {
         return;
     }
     session_log_prompt_force_cancelled( {
@@ -732,23 +743,23 @@ void
 {
     // Inert unless a pickup transaction is armed (defense in depth: the engine call site already gates on
     // backend_pickup_transaction_active()).
-    if( !session.active || !session.pickup_transaction ) {
+    if( !session.active || !session.pickup.armed ) {
         return;
     }
     namespace ranges = std::ranges;
     // Record the opened prompt with the engine's REAL choices (the transcript's survey data).
-    auto opened = arcopolis::prompt_opened_event{ .step_index = session.pickup_step_index, .kind = "menu" };
+    auto opened = arcopolis::prompt_opened_event{ .step_index = session.pickup.step_index, .kind = "menu" };
     for( const pickup_prompt_choice &c : choices ) {
         opened.choices.push_back( { .index = c.index, .text = c.text, .enabled = c.enabled } );
     }
     arcopolis::session_log_prompt_opened( opened );
-    session.prompt_opened =
+    session.pickup.opened =
         true;  // a real menu was exposed; clear_stale may now bookend it with prompt_completed
     // Ask the live client. A null channel (script/one-shot) yields cancel, so the menu auto-cancels there.
     const auto answer = session.prompt_source
                         ? session.prompt_source( choices )
                         : std::optional<std::vector<int>> {};
-    session.pickup_cursor = 0;
+    session.pickup.cursor = 0;
     auto picks = answer.value_or( std::vector<int> {} );
     ranges::sort( picks );
     const auto stale = ranges::unique( picks );
@@ -762,29 +773,29 @@ void
         // CONFIRM to finalize. Forward DOWN only -- UP/PREV_TAB divide by the headless maxitems==0
         // (src/pickup.cpp:972 and :956). The engine's own loop performs every getitem mutation, including a
         // parent entry auto-marking its children (src/pickup.cpp:1107-1123).
-        session.pickup_queue.clear();
+        session.pickup.queue.clear();
         int cursor = 0;
         for( const int idx : picks ) {
-            session.pickup_queue.insert( session.pickup_queue.end(),
+            session.pickup.queue.insert( session.pickup.queue.end(),
                                          static_cast<std::size_t>( idx - cursor ), "DOWN" );
-            session.pickup_queue.emplace_back( "RIGHT" );
+            session.pickup.queue.emplace_back( "RIGHT" );
             cursor = idx;
         }
-        session.pickup_queue.emplace_back( "CONFIRM" );
-        arcopolis::session_log_prompt_answered( { .step_index = session.pickup_step_index,
+        session.pickup.queue.emplace_back( "CONFIRM" );
+        arcopolis::session_log_prompt_answered( { .step_index = session.pickup.step_index,
                                                 .choices = picks,
-                                                .actions = session.pickup_queue } );
+                                                .actions = session.pickup.queue } );
     } else {
         // Cancel / EOF / absent channel: ESC-equivalent. QUIT is the loop-exit action.
-        session.pickup_queue = { nested_cancel_quit };
-        arcopolis::session_log_prompt_cancelled( { .step_index = session.pickup_step_index,
+        session.pickup.queue = { nested_cancel_quit };
+        arcopolis::session_log_prompt_cancelled( { .step_index = session.pickup.step_index,
                 .reason = session.prompt_source ? "client_cancel" : "no_channel" } );
     }
 }
 
-auto arcopolis::backend_ui_mode_active() -> bool
+auto arcopolis::backend_uilist_transaction_active() -> bool
 {
-    return session.active && session.uilist_transaction;
+    return session.active && session.uilist.armed;
 }
 
 auto arcopolis::backend_uilist_prompt_available() -> bool
@@ -796,16 +807,16 @@ auto arcopolis::backend_begin_uilist_transaction() -> void
 {
     // Gated on an armed pickup transaction (the only backend-driven uilist arises inside a live pickup).
     // Inert otherwise. MUST run before the uilist is constructed: the default ctor's init() reads
-    // backend_ui_mode_active() to decide the test_mode abort.
-    if( !session.active || !session.pickup_transaction ) {
+    // backend_uilist_transaction_active() to decide the test_mode abort.
+    if( !session.active || !session.pickup.armed ) {
         return;
     }
-    session.uilist_transaction = true;
-    session.uilist_opened = false;  // set true only once a real uilist prompt is exposed (resolve)
-    session.uilist_step_index = session.pickup_step_index;
-    session.uilist_queue.clear();
-    session.uilist_cursor = 0;
-    session.uilist_served = 0;
+    session.uilist.armed = true;
+    session.uilist.opened = false;  // set true only once a real uilist prompt is exposed (resolve)
+    session.uilist.step_index = session.pickup.step_index;
+    session.uilist.queue.clear();
+    session.uilist.cursor = 0;
+    session.uilist.served = 0;
 }
 
 auto arcopolis::backend_resolve_uilist_choice( const backend_uilist_prompt_request &request ) ->
@@ -813,17 +824,17 @@ void
 {
     // Inert unless a uilist transaction is armed (backend_begin_uilist_transaction set it). Defense in
     // depth: the engine call site already gates on it.
-    if( !session.active || !session.uilist_transaction ) {
+    if( !session.active || !session.uilist.armed ) {
         return;
     }
     // Record the opened prompt with the engine's REAL uilist choices (read from amenu.entries by the caller).
-    auto opened = arcopolis::prompt_opened_event{ .step_index = session.uilist_step_index,
+    auto opened = arcopolis::prompt_opened_event{ .step_index = session.uilist.step_index,
             .kind = request.kind };
     for( const pickup_prompt_choice &c : request.choices ) {
         opened.choices.push_back( { .index = c.index, .text = c.text, .enabled = c.enabled } );
     }
     arcopolis::session_log_prompt_opened( opened );
-    session.uilist_opened = true;
+    session.uilist.opened = true;
     // PR #42 review (Codex P2) defense-in-depth: the single-select DOWN x choice -> CONFIRM translation
     // assumes EVERY entry is enabled. uilist::filterlist() lands the initial highlight on the first ENABLED
     // entry and uilist::scrollby() skips disabled entries (src/ui.cpp), so a raw position index would
@@ -837,10 +848,10 @@ void
         return !c.enabled;
     } );
     if( any_disabled ) {
-        session.uilist_cursor = 0;
-        session.uilist_served = 0;
-        session.uilist_queue = { nested_cancel_quit };
-        arcopolis::session_log_prompt_cancelled( { .step_index = session.uilist_step_index,
+        session.uilist.cursor = 0;
+        session.uilist.served = 0;
+        session.uilist.queue = { nested_cancel_quit };
+        arcopolis::session_log_prompt_cancelled( { .step_index = session.uilist.step_index,
                 .reason = "disabled_entry_unsupported",
                 .kind = request.kind } );
         return;
@@ -850,27 +861,27 @@ void
     const auto answer = session.uilist_prompt_source
                         ? session.uilist_prompt_source( request )
                         : std::optional<int> {};
-    session.uilist_cursor = 0;
-    session.uilist_served = 0;
+    session.uilist.cursor = 0;
+    session.uilist.served = 0;
     const auto valid = answer && *answer >= 0 && *answer < static_cast<int>( request.choices.size() );
     if( valid ) {
         // Translate the chosen entry index into the registered keystrokes a GUI player would press: from the
         // menu's start at entry 0, DOWN once per step down to the chosen entry, then CONFIRM. The real uilist
         // loop (src/ui.cpp uilist::query) consumes these through input_context::handle_input and sets
         // amenu.ret = entries[selected].retval -- the backend never touches ret/selected.
-        session.uilist_queue.clear();
-        session.uilist_queue.insert( session.uilist_queue.end(),
+        session.uilist.queue.clear();
+        session.uilist.queue.insert( session.uilist.queue.end(),
                                      static_cast<std::size_t>( *answer ), "DOWN" );
-        session.uilist_queue.emplace_back( "CONFIRM" );
-        arcopolis::session_log_prompt_answered( { .step_index = session.uilist_step_index,
+        session.uilist.queue.emplace_back( "CONFIRM" );
+        arcopolis::session_log_prompt_answered( { .step_index = session.uilist.step_index,
                                                 .choices = std::vector<int> { *answer },
-                                                .actions = session.uilist_queue,
+                                                .actions = session.uilist.queue,
                                                 .kind = request.kind } );
     } else {
         // Cancel / EOF / out-of-range / absent channel: serve the registered QUIT (the GUI ESC), which the
         // real loop turns into amenu.ret = UILIST_CANCEL (allow_cancel registers QUIT, src/ui.cpp:224).
-        session.uilist_queue = { nested_cancel_quit };
-        arcopolis::session_log_prompt_cancelled( { .step_index = session.uilist_step_index,
+        session.uilist.queue = { nested_cancel_quit };
+        arcopolis::session_log_prompt_cancelled( { .step_index = session.uilist.step_index,
                 .reason = session.uilist_prompt_source ? "client_cancel" : "no_channel",
                 .kind = request.kind } );
     }
@@ -879,24 +890,24 @@ void
 auto arcopolis::backend_end_uilist_transaction() -> void
 {
     // Inert when not armed (safe to call from a scope guard on the GUI path, or twice). Idempotent.
-    if( !session.uilist_transaction ) {
+    if( !session.uilist.armed ) {
         return;
     }
     // Bookend the transaction with how many registered actions the uilist loop consumed -- only if a real
-    // prompt opened (resolve sets uilist_opened; a path that armed but never reached the menu opened nothing).
-    if( session.uilist_opened ) {
+    // prompt opened (resolve sets uilist.opened; a path that armed but never reached the menu opened nothing).
+    if( session.uilist.opened ) {
         arcopolis::session_log_prompt_completed( {
-            .step_index = session.uilist_step_index,
-            .actions_served = session.uilist_served,
+            .step_index = session.uilist.step_index,
+            .actions_served = session.uilist.served,
             .kind = "uilist",
         } );
     }
-    session.uilist_transaction = false;
-    session.uilist_opened = false;
-    session.uilist_step_index.reset();
-    session.uilist_queue.clear();
-    session.uilist_cursor = 0;
-    session.uilist_served = 0;
+    session.uilist.armed = false;
+    session.uilist.opened = false;
+    session.uilist.step_index.reset();
+    session.uilist.queue.clear();
+    session.uilist.cursor = 0;
+    session.uilist.served = 0;
 }
 
 arcopolis::uilist_transaction_guard::~uilist_transaction_guard()
@@ -904,9 +915,9 @@ arcopolis::uilist_transaction_guard::~uilist_transaction_guard()
     arcopolis::backend_end_uilist_transaction();
 }
 
-auto arcopolis::backend_query_popup_mode_active() -> bool
+auto arcopolis::backend_query_popup_transaction_active() -> bool
 {
-    return session.active && session.query_popup_transaction;
+    return session.active && session.query_popup.armed;
 }
 
 auto arcopolis::backend_examine_query_popup_command_active() -> bool
@@ -927,7 +938,7 @@ void
         return;
     }
     session.examine_query_popup_command = true;
-    session.query_popup_step_index = step_index;
+    session.query_popup.step_index = step_index;
 }
 
 auto arcopolis::backend_begin_query_popup_transaction( const std::string &witness_id ) -> void
@@ -940,42 +951,42 @@ auto arcopolis::backend_begin_query_popup_transaction( const std::string &witnes
     // Spike 13B/14 uilist call site, which checks backend_uilist_prompt_available() before driving). Inert
     // otherwise -- so the witness guard at iexamine::deployed_furniture is a no-op in normal play, non-live,
     // and any examine that did not arm the precondition. MUST run before query_yn's query_popup reaches
-    // query_once (which reads backend_query_popup_mode_active()).
+    // query_once (which reads backend_query_popup_transaction_active()).
     if( !backend_examine_query_popup_command_active() || !backend_query_popup_prompt_available() ) {
         return;
     }
-    session.query_popup_transaction = true;
-    session.query_popup_opened = false;  // set true only once a real prompt is exposed (resolve)
+    session.query_popup.armed = true;
+    session.query_popup.opened = false;  // set true only once a real prompt is exposed (resolve)
     session.query_popup_witness = witness_id;
-    session.query_popup_queue.clear();
-    session.query_popup_cursor = 0;
-    session.query_popup_served = 0;
+    session.query_popup.queue.clear();
+    session.query_popup.cursor = 0;
+    session.query_popup.served = 0;
 }
 
 auto arcopolis::backend_resolve_query_popup_choice( const backend_query_popup_request &request ) ->
 void
 {
     // Inert unless a query_popup transaction is armed (the witness guard set it). Defense in depth: the
-    // query_yn drive-block already gates on backend_query_popup_mode_active().
-    if( !session.active || !session.query_popup_transaction ) {
+    // query_yn drive-block already gates on backend_query_popup_transaction_active().
+    if( !session.active || !session.query_popup.armed ) {
         return;
     }
     // Record the opened prompt with the engine's REAL query_popup options (read from the constructed popup).
-    auto opened = arcopolis::prompt_opened_event{ .step_index = session.query_popup_step_index,
+    auto opened = arcopolis::prompt_opened_event{ .step_index = session.query_popup.step_index,
             .kind = request.kind, .witness = session.query_popup_witness };
     for( const pickup_prompt_choice &c : request.choices ) {
         opened.choices.push_back( { .index = c.index, .text = c.text, .enabled = c.enabled } );
     }
     arcopolis::session_log_prompt_opened( opened );
-    session.query_popup_opened = true;
+    session.query_popup.opened = true;
     // Ask the live client for a SINGLE choice. The answer channel is an invariant here:
     // backend_begin_query_popup_transaction refuses to arm the transaction without a registered
     // query_popup_source (its backend_query_popup_prompt_available() gate), and the source is never cleared
     // mid-session, so it is non-null whenever this gated resolve runs. A null RETURN (EOF / closed client)
     // takes the closed-default branch below.
     const auto answer = session.query_popup_source( request );
-    session.query_popup_cursor = 0;
-    session.query_popup_served = 0;
+    session.query_popup.cursor = 0;
+    session.query_popup.served = 0;
     const auto valid = answer && *answer >= 0 && *answer < static_cast<int>( request.choices.size() );
     if( valid ) {
         // Translate the chosen option index into the registered keystrokes a GUI player would press: from the
@@ -984,20 +995,20 @@ void
         // options[cur].action without consulting the per-option key filter (src/popup.cpp:325-329), so this
         // is robust regardless of FORCE_CAPITAL_YN and the synthetic input event. The real query_once loop
         // moves the cursor and sets the result -- the backend never sets it.
-        session.query_popup_queue.clear();
+        session.query_popup.queue.clear();
         const int start = static_cast<int>( request.cursor_start );
         const int target = *answer;
         if( target < start ) {
-            session.query_popup_queue.insert( session.query_popup_queue.end(),
+            session.query_popup.queue.insert( session.query_popup.queue.end(),
                                               static_cast<std::size_t>( start - target ), "LEFT" );
         } else if( target > start ) {
-            session.query_popup_queue.insert( session.query_popup_queue.end(),
+            session.query_popup.queue.insert( session.query_popup.queue.end(),
                                               static_cast<std::size_t>( target - start ), "RIGHT" );
         }
-        session.query_popup_queue.emplace_back( "CONFIRM" );
-        arcopolis::session_log_prompt_answered( { .step_index = session.query_popup_step_index,
+        session.query_popup.queue.emplace_back( "CONFIRM" );
+        arcopolis::session_log_prompt_answered( { .step_index = session.query_popup.step_index,
                                                 .choices = std::vector<int> { target },
-                                                .actions = session.query_popup_queue,
+                                                .actions = session.query_popup.queue,
                                                 .kind = request.kind } );
     } else {
         // EOF / closed client: the source returned no choice. query_yn is NOT cancelable -- no QUIT is
@@ -1006,8 +1017,8 @@ void
         // prompt, NOT prompt_answered: the client did not intentionally choose the default; the engine fell to
         // its own visible default because the channel closed. (An out-of-range answer lands here too -- same
         // safe default, same closed record.)
-        session.query_popup_queue = { "CONFIRM" };
-        arcopolis::session_log_prompt_cancelled( { .step_index = session.query_popup_step_index,
+        session.query_popup.queue = { "CONFIRM" };
+        arcopolis::session_log_prompt_cancelled( { .step_index = session.query_popup.step_index,
                 .reason = "noncancelable_closed",
                 .kind = request.kind } );
     }
@@ -1016,25 +1027,25 @@ void
 auto arcopolis::backend_end_query_popup_transaction() -> void
 {
     // Inert when not armed (safe to call from the witness guard on the GUI path, or twice). Idempotent.
-    if( !session.query_popup_transaction ) {
+    if( !session.query_popup.armed ) {
         return;
     }
     // Bookend the transaction with how many registered actions the query_popup loop consumed -- only if a
-    // real prompt opened (resolve sets query_popup_opened; a guard that armed but whose query_yn never
+    // real prompt opened (resolve sets query_popup.opened; a guard that armed but whose query_yn never
     // reached query_once opened nothing).
-    if( session.query_popup_opened ) {
+    if( session.query_popup.opened ) {
         arcopolis::session_log_prompt_completed( {
-            .step_index = session.query_popup_step_index,
-            .actions_served = session.query_popup_served,
+            .step_index = session.query_popup.step_index,
+            .actions_served = session.query_popup.served,
             .kind = "query_popup",
         } );
     }
-    session.query_popup_transaction = false;
-    session.query_popup_opened = false;
+    session.query_popup.armed = false;
+    session.query_popup.opened = false;
     session.query_popup_witness.clear();
-    session.query_popup_queue.clear();
-    session.query_popup_cursor = 0;
-    session.query_popup_served = 0;
+    session.query_popup.queue.clear();
+    session.query_popup.cursor = 0;
+    session.query_popup.served = 0;
 }
 
 arcopolis::query_popup_witness_guard::query_popup_witness_guard( const std::string &witness_id )
@@ -1069,7 +1080,7 @@ std::optional<std::vector<int>>
     if( !session.active ) {
         return std::nullopt;
     }
-    const auto step_index = session.pickup_step_index;
+    const auto step_index = session.pickup.step_index;
     const script_prompt_answer *ans = match_scripted_answer( "menu", nullptr, step_index );
     if( !ans ) {
         return std::nullopt;  // mismatch/missing recorded a fatal failure
@@ -1101,7 +1112,7 @@ std::optional<int>
         return std::nullopt;
     }
     return match_single_select_scripted( "uilist", request.title, request.choices.size(),
-                                         request.cancelable, session.uilist_step_index );
+                                         request.cancelable, session.uilist.step_index );
 }
 
 auto arcopolis::script_query_popup_prompt( const backend_query_popup_request &request ) ->
@@ -1111,7 +1122,7 @@ std::optional<int>
         return std::nullopt;
     }
     return match_single_select_scripted( "query_popup", request.title, request.choices.size(),
-                                         request.cancelable, session.query_popup_step_index );
+                                         request.cancelable, session.query_popup.step_index );
 }
 
 auto arcopolis::decide_nested_input( const nested_input_observation &obs ) -> nested_input_decision
@@ -1152,6 +1163,10 @@ auto arcopolis::backend_nested_input_action( const std::string &category,
     if( !session.active ) {
         return nullptr;
     }
+    // The three serve branches below are the WITNESSED served prompt categories documented at the top of
+    // arcopolis_backend_input.h (the backend UI / prompt boundary): the "PICKUP" / "UILIST" / "YESNO"
+    // queues, each gated on its OWN per-transaction flag. There is deliberately NO generic / "INVENTORY"
+    // serve branch -- read that boundary block (and docs/arcopolis/40) before adding a category.
     // Spike 12A: serve the next queued registered PICKUP action to the engine's pickup menu loop. This is a
     // DISTINCT mechanism from the one-shot slot below (whose serve gate is hard-coded to DEFAULTMODE): the
     // queue feeds the SAME unmodified input_context("PICKUP") loop the keystrokes a player would press, in
@@ -1159,12 +1174,12 @@ auto arcopolis::backend_nested_input_action( const std::string &category,
     // passes through. DOWN/RIGHT/CONFIRM/QUIT are all registered in "PICKUP" (src/pickup.cpp:722-735); if a
     // queued action somehow is not, fall through to the guard (defensive).
     if( timeout < 0 && category == pickup_menu_category
-        && session.pickup_cursor < session.pickup_queue.size() ) {
-        const auto &front = session.pickup_queue[session.pickup_cursor];
+        && session.pickup.cursor < session.pickup.queue.size() ) {
+        const auto &front = session.pickup.queue[session.pickup.cursor];
         if( ranges::contains( registered_actions, front ) ) {
             pickup_served_action = front;
-            ++session.pickup_cursor;
-            ++session.pickup_served;
+            ++session.pickup.cursor;
+            ++session.pickup.served;
             return &pickup_served_action;
         }
     }
@@ -1176,12 +1191,12 @@ auto arcopolis::backend_nested_input_action( const std::string &category,
     // loop never hangs. Only ever non-empty while a uilist transaction is armed (the secondary capacity
     // uilist, raised after the transaction is cleared, sees an empty queue and its own test_mode abort).
     if( timeout < 0 && category == uilist_menu_category
-        && session.uilist_cursor < session.uilist_queue.size() ) {
-        const auto &front = session.uilist_queue[session.uilist_cursor];
+        && session.uilist.cursor < session.uilist.queue.size() ) {
+        const auto &front = session.uilist.queue[session.uilist.cursor];
         if( ranges::contains( registered_actions, front ) ) {
             uilist_served_action = front;
-            ++session.uilist_cursor;
-            ++session.uilist_served;
+            ++session.uilist.cursor;
+            ++session.uilist.served;
             return &uilist_served_action;
         }
     }
@@ -1193,12 +1208,12 @@ auto arcopolis::backend_nested_input_action( const std::string &category,
     // (the backend never sets the result). Only ever non-empty while a query_popup transaction is armed (the
     // witnessed deployed-furniture take-down query_yn); a drained queue falls through to the guard below.
     if( timeout < 0 && category == query_popup_category
-        && session.query_popup_cursor < session.query_popup_queue.size() ) {
-        const auto &front = session.query_popup_queue[session.query_popup_cursor];
+        && session.query_popup.cursor < session.query_popup.queue.size() ) {
+        const auto &front = session.query_popup.queue[session.query_popup.cursor];
         if( ranges::contains( registered_actions, front ) ) {
             query_popup_served_action = front;
-            ++session.query_popup_cursor;
-            ++session.query_popup_served;
+            ++session.query_popup.cursor;
+            ++session.query_popup.served;
             return &query_popup_served_action;
         }
     }

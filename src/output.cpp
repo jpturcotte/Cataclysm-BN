@@ -20,7 +20,7 @@
 #include <type_traits>
 #include <cmath>
 
-#include "arcopolis_backend_input.h"  // arcopolis::backend_query_popup_mode_active (Spike 15 query_yn drive-block)
+#include "arcopolis_backend_input.h"  // arcopolis::backend_query_popup_transaction_active (Spike 15 query_yn drive-block)
 #include "cached_options.h"
 #include "cata_utility.h"
 #include "catacharset.h"
@@ -732,7 +732,7 @@ bool query_yn( const std::string &text )
     // client, and arm the registered LEFT/RIGHT/CONFIRM queue the real query_once("YESNO") loop below
     // consumes -- it sets result.action; the backend never sets it. Inert (no transaction armed) for normal
     // play, cata_test, non-live, and every non-witnessed query_yn, where query_once still test_mode-aborts.
-    if( arcopolis::backend_query_popup_mode_active() ) {
+    if( arcopolis::backend_query_popup_transaction_active() ) {
         arcopolis::backend_resolve_query_popup_choice( {
             // string_format substitutes `text` as the %s argument (never as a format string), so a furniture
             // name containing '%' cannot double-format; the title is byte-identical to popup.message()'s text.

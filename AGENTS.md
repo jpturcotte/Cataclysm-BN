@@ -53,7 +53,7 @@ Sync upstream by fast-forwarding `main` to `upstream/main` and pushing it, then 
 - Do not bridge existing UI screens one by one.
 - Do not add third-party dependencies.
 - Default to small, additive, well-tested changes scoped to `src/arcopolis_*` and `docs/arcopolis/`; modify shared engine files (the turn loop, `messages`, `map`, …) only when a spike justifies it and the change is gated behind the `--arcopolis-*` modes.
-- **Backend headless UI: create NO curses window and call NO render primitive, in ANY build.** The `--arcopolis-*` modes run in `test_mode` with `initscr()`/`init_interface()` skipped (`src/main.cpp`). When un-aborting a `test_mode`-gated UI loop to drive it headlessly (e.g. the Spike 13B `uilist`), run its data-population (`setup()`/`filterlist()`) but SKIP window creation — `catacurses::newwin` is the **real ncurses `::newwin`** in the curses build (`src/ncurses_def.cpp`, `#if !(TILES||_WIN32)`) and is fatal before `initscr`, while the tiles regression (tiles-only) can never witness that. Every future un-abort site (popup, query_popup, inventory_selector) must uphold this, gated strictly on `arcopolis::backend_ui_mode_active()`.
+- **Backend headless UI: create NO curses window and call NO render primitive, in ANY build.** The `--arcopolis-*` modes run in `test_mode` with `initscr()`/`init_interface()` skipped (`src/main.cpp`). When un-aborting a `test_mode`-gated UI loop to drive it headlessly (e.g. the Spike 13B `uilist`), run its data-population (`setup()`/`filterlist()`) but SKIP window creation — `catacurses::newwin` is the **real ncurses `::newwin`** in the curses build (`src/ncurses_def.cpp`, `#if !(TILES||_WIN32)`) and is fatal before `initscr`, while the tiles regression (tiles-only) can never witness that. Every future un-abort site (popup, query_popup, inventory_selector) must uphold this, gated strictly on **its own per-transaction predicate** — never on a sibling family's gate. Today: `arcopolis::backend_uilist_transaction_active()` gates ONLY the UILIST un-abort (`src/ui.cpp`); `arcopolis::backend_query_popup_transaction_active()` gates ONLY the YESNO/query_popup un-abort (`src/popup.cpp`); a new served category (e.g. `inventory_selector`'s `"INVENTORY"`) requires its OWN new per-transaction gate + begin/resolve/end + RAII guard. See the served-category + invariant block at the top of `src/arcopolis_backend_input.h` and [40_SPIKE19_BACKEND_UI_BOUNDARY.md](docs/arcopolis/40_SPIKE19_BACKEND_UI_BOUNDARY.md).
 - When exploring code, record exact file paths, functions, classes, and call paths.
 - If uncertain, state uncertainty and list what to inspect next.
 - Use PowerShell commands for Windows-local instructions.
@@ -156,6 +156,15 @@ For this Windows/Codex worktree, the known-good build-backed exploration route i
 - Build the game and tests in **one** build dir. `cataclysm-bn-tiles-common` is a CMake OBJECT library shared by `cataclysm-bn-tiles` and `cata_test-tiles`, so build `cata_test-tiles` in the SAME `out/build/win-rel-deb` dir (re-configure with `-DTESTS=True`, then `--target cata_test-tiles`) to reuse the game's compiled objects — only the test sources recompile. A SEPARATE `out/build/win-tests` dir re-duplicates the whole object tree and has exhausted the disk here (`fatal error C1085: ... No space left on device`).
 - **Footprint (measured 2026-06-18, not estimated):** one shared `win-rel-deb` holding **both** targets is **~7.6 GB** (`src` ~4.8 GB + `tests` ~2.1 GB + `vcpkg_installed` ~0.8 GB; the two exes are ~66 MB / ~74 MB). The expensive, one-time part is the **cold** build (vcpkg deps + the full object tree); a routine **incremental** rebuild after an edit recompiles only the touched TUs and relinks the exe, so its disk delta is **~a couple hundred MB, not GB** — day-to-day rebuilds are cheap. A second `win-tests` dir would re-pay the whole ~7–8 GB needlessly.
 - See `docs/arcopolis/00_WINDOWS_LOCAL_ENVIRONMENT.md` for the exact current PowerShell commands and the historical failure analysis.
+- **Running the test exe FROM A WORKTREE SESSION: pass the path, do NOT move the shell into the main repo.** The Catch2 `cata_test-tiles.exe` takes no `--basepath` (only the BN main exe does); it locates `./data/shaders/...` (the SDL_GPU compute probe) and `./build-data/mesa/x64/lvp_icd.x86_64.json` (the Lavapipe ICD pinned by `src/compute/gpu_platform.cpp`) **from its child-process CWD**. Without `data/` at cwd, SDL_GPU dies: `shader blob not found: data/shaders/test_compute.dxil` → `Terminated: SDL_GPU test initialization failed`. From a worktree session, set the **child's** cwd to the main repo root with `Start-Process -WorkingDirectory`, leaving the shell's cwd in the worktree:
+  ```powershell
+  $p = Start-Process -FilePath "C:\dev\Cataclysm-BN\out\build\win-rel-deb\tests\cata_test-tiles.exe" `
+       -ArgumentList "[arcopolis]" -WorkingDirectory "C:\dev\Cataclysm-BN" `
+       -NoNewWindow -Wait -PassThru `
+       -RedirectStandardOutput "C:\tmp\test.out" -RedirectStandardError "C:\tmp\test.err"
+  ```
+  **Do NOT** `Set-Location` the shell into `C:\dev\Cataclysm-BN` (relative `Edit`/`Read`/`git status` then start hitting the main repo), and **do NOT** copy worktree sources into the main repo to build there (it leaves the main checkout DIRTY in those files — restore with `git -C C:\dev\Cataclysm-BN checkout -- <files>` immediately in the same turn, never later).
+- **Cosmetic post-link packaging tail.** A successful incremental build can still end `BUILD_EXIT=1` because the link command's `&&` tail (`applocal.ps1` + mesa-copy + `deno docs:gen`) fails under a background DevShell with "The system cannot find the path specified." The `link.exe` itself succeeded if `cata_test-tiles.exe` / `cataclysm-bn-tiles.exe` have a fresh `LastWriteTime`. Verify by timestamp before treating ninja's `FAILED:` as a real link error.
 
 ### Arcopolis test world fixture
 
@@ -206,7 +215,7 @@ vehicle-source `uilist` witness** (Spike 13B; was the Spike 12A-follow-up fail-l
 `folding_frame`+`wheel_caster`+`basketlg_folding` CARGO cart) injected ONTO the ground-item pile one south
 of the post-`move_s` avatar, so that tile has BOTH vehicle cargo and ground items. A live `pickup` there
 hits the `"Get items from where?"` `uilist`; **Spike 13B now DRIVES it at level 4** (un-aborts the uilist
-under a per-transaction `backend_ui_mode_active()` gate, runs `setup()` headlessly, and serves registered
+under a per-transaction `backend_uilist_transaction_active()` gate, runs `setup()` headlessly, and serves registered
 `UILIST` actions through the real `input_context("UILIST")` loop), then continues into the old `"PICKUP"`
 item menu. The earlier fail-loud is retained only as the no-channel fallback (non-live / misconfigured).
 Built reproducibly by `docs/arcopolis/make_vehicle_fixture.py` (save-edit, no GUI/build), gated by
@@ -220,7 +229,7 @@ witness): a clone of `ArcopolisTest` with ONE bulky `jacket_leather` (ARMOR/OUTE
 no children) injected onto the same south ground pile. Picking the jacket exceeds the unarmed avatar's
 volume capacity, so `pickup_activity_actor::handle_problematic_pickup` raises a `uilist` with WEAR + WIELD
 = 2 enabled entries; **Spike 14 DRIVES it at level 4 by REUSING the Spike 13B machinery unchanged** at a
-second site (per-transaction `backend_ui_mode_active()` gate around the in-activity `uilist`, the same
+second site (per-transaction `backend_uilist_transaction_active()` gate around the in-activity `uilist`, the same
 `"UILIST"` serve branch and `live_uilist_prompt` channel — renamed from `live_vehicle_source_prompt`).
 The marked-partial behavior is retained as the no-channel fallback (unit-tested). Built reproducibly by
 `docs/arcopolis/make_capacity_fixture.py` (save-edit, no GUI/build), gated by `prompt_menu_regression.ps1`
@@ -232,8 +241,9 @@ A sixth world, `ArcopolisDeployedFurnitureTest`, lives in the same userdir as th
 (`examine_action: "deployed_furniture"`, `deployed_item: "mattress"`) placed on the clean `t_floor` tile one
 tile EAST of the avatar. A live `examine direction=move_e` reaches `iexamine::deployed_furniture`'s
 `query_yn("Take down the %s?")` (`input_context("YESNO")`); **Spike 15 DRIVES it at level 4** — a
-`query_popup_witness_guard` at that one call site arms a per-prompt `query_popup_transaction`, the new
-`backend_query_popup_mode_active()` gate un-aborts `query_popup::query_once`'s `test_mode` abort
+`query_popup_witness_guard` at that one call site arms a per-prompt query_popup transaction (the
+`session.query_popup.armed` flag, Spike 19's `prompt_transaction` regroup), the new
+`backend_query_popup_transaction_active()` gate un-aborts `query_popup::query_once`'s `test_mode` abort
 (`src/popup.cpp`) for ONLY that one query_yn, and the client's YES/NO is served as registered `LEFT`/`CONFIRM`
 through the real `input_context("YESNO")` loop (YES takes down the furniture via the engine's own
 `take_down_deployed_furniture`; NO is a no-op). `query_yn` is **not cancelable** (no fabricated cancel; EOF

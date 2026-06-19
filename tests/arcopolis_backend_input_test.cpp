@@ -484,27 +484,28 @@ TEST_CASE( "arcopolis Spike 14 orphaned secondary report marks but sets no outco
 
 // --- Spike 13B: backend-driven uilist transaction (the "Get items from where?" vehicle-source submenu). ---
 
-TEST_CASE( "arcopolis backend_ui_mode_active gates on an armed uilist transaction only",
+TEST_CASE( "arcopolis backend_uilist_transaction_active gates on an armed uilist transaction only",
            "[arcopolis]" )
 {
     // The uilist test_mode-abort bypass (src/ui.cpp) keys on this gate and NOTHING weaker. It must be false
     // outside a session, false inside a session with no uilist transaction (even with a pickup transaction
     // armed), true only between begin/end of a uilist transaction.
-    CHECK_FALSE( arcopolis::backend_ui_mode_active() );           // no session
+    CHECK_FALSE( arcopolis::backend_uilist_transaction_active() );           // no session
     arcopolis::begin_backend_session( { .steps = {} } );
-    CHECK_FALSE( arcopolis::backend_ui_mode_active() );           // session, nothing armed
+    CHECK_FALSE( arcopolis::backend_uilist_transaction_active() );           // session, nothing armed
     arcopolis::backend_begin_uilist_transaction();                // inert without a pickup transaction
-    CHECK_FALSE( arcopolis::backend_ui_mode_active() );
+    CHECK_FALSE( arcopolis::backend_uilist_transaction_active() );
     arcopolis::backend_arm_pickup_transaction( 1 );
-    CHECK_FALSE( arcopolis::backend_ui_mode_active() );           // pickup transaction is not enough
+    CHECK_FALSE(
+        arcopolis::backend_uilist_transaction_active() );           // pickup transaction is not enough
     arcopolis::backend_begin_uilist_transaction();
-    CHECK( arcopolis::backend_ui_mode_active() );                 // armed
+    CHECK( arcopolis::backend_uilist_transaction_active() );                 // armed
     arcopolis::backend_end_uilist_transaction();
-    CHECK_FALSE( arcopolis::backend_ui_mode_active() );           // cleared
+    CHECK_FALSE( arcopolis::backend_uilist_transaction_active() );           // cleared
     arcopolis::backend_end_uilist_transaction();                  // idempotent
-    CHECK_FALSE( arcopolis::backend_ui_mode_active() );
+    CHECK_FALSE( arcopolis::backend_uilist_transaction_active() );
     arcopolis::end_backend_session();
-    CHECK_FALSE( arcopolis::backend_ui_mode_active() );
+    CHECK_FALSE( arcopolis::backend_uilist_transaction_active() );
 }
 
 TEST_CASE( "arcopolis backend-driven uilist serves DOWN+CONFIRM for the ground choice",
@@ -634,9 +635,9 @@ TEST_CASE( "arcopolis cata_test uilist still aborts to UILIST_ERROR without a ba
            "[arcopolis]" )
 {
     // The invariant the Spike 13B un-abort must NOT break: ordinary test_mode (cata_test, no backend
-    // session) still short-circuits every uilist to UILIST_ERROR. backend_ui_mode_active() is false here, so
+    // session) still short-circuits every uilist to UILIST_ERROR. backend_uilist_transaction_active() is false here, so
     // both init() and query() take the abort (each emits its debugmsg, captured so the test does not abort).
-    REQUIRE_FALSE( arcopolis::backend_ui_mode_active() );
+    REQUIRE_FALSE( arcopolis::backend_uilist_transaction_active() );
     const std::string msgs = capture_debugmsg_during( []() {
         uilist menu( "Get items from where?", { "Get items from vehicle cargo", "Get items on the ground" } );
         CHECK( menu.ret == UILIST_ERROR );
@@ -649,7 +650,7 @@ TEST_CASE( "arcopolis backend uilist setup populates state but creates NO curses
 {
     // INVARIANT (build-independent): the Arcopolis backend headless path must create no curses window and
     // call no render primitive in ANY build. The driven uilist loop reads only entries/retvals/fentries, so
-    // setup() under backend_ui_mode_active() runs its data-population pass but SKIPS catacurses::newwin --
+    // setup() under backend_uilist_transaction_active() runs its data-population pass but SKIPS catacurses::newwin --
     // which in a curses build is the real ncurses ::newwin (src/ncurses_def.cpp), fatal before initscr (which
     // --arcopolis-live skips under test_mode). This pins that here in the tiles cata_test: the tiles
     // pseudo-curses newwin would return a NON-null window, so `!menu.window` FAILS the instant a regression
@@ -660,9 +661,9 @@ TEST_CASE( "arcopolis backend uilist setup populates state but creates NO curses
                                                 -> std::optional<int> { return 1; } } );
     arcopolis::backend_arm_pickup_transaction( 0 );
     arcopolis::backend_begin_uilist_transaction();
-    REQUIRE( arcopolis::backend_ui_mode_active() );
+    REQUIRE( arcopolis::backend_uilist_transaction_active() );
 
-    uilist menu;  // default ctor's init() does NOT abort here (backend_ui_mode_active() is true)
+    uilist menu;  // default ctor's init() does NOT abort here (backend_uilist_transaction_active() is true)
     menu.text = "Get items from where?";
     menu.addentry( "Get items from vehicle cargo" );  // entry 0
     menu.addentry( "Get items on the ground" );        // entry 1
@@ -722,7 +723,7 @@ TEST_CASE( "arcopolis Spike 14 secondary capacity uilist serves WEAR/WIELD via t
 TEST_CASE( "arcopolis Spike 14 secondary capacity setup leaves NO curses window", "[arcopolis]" )
 {
     // The no-window invariant binds EVERY un-abort site, not just the vehicle submenu. Pin it for the
-    // secondary capacity uilist's shape too: setup() under backend_ui_mode_active() populates the entry
+    // secondary capacity uilist's shape too: setup() under backend_uilist_transaction_active() populates the entry
     // retvals/fentries without ever calling catacurses::newwin -- so the curses build (where ::newwin is
     // the real ncurses one, fatal before initscr) never crashes here. The tiles cata_test we CAN run
     // witnesses this because the tiles pseudo-curses newwin returns a non-null window, so a regression
@@ -732,7 +733,7 @@ TEST_CASE( "arcopolis Spike 14 secondary capacity setup leaves NO curses window"
                                                 -> std::optional<int> { return 1; } } );
     arcopolis::backend_arm_pickup_transaction( 0 );
     arcopolis::backend_begin_uilist_transaction();
-    REQUIRE( arcopolis::backend_ui_mode_active() );
+    REQUIRE( arcopolis::backend_uilist_transaction_active() );
 
     uilist menu;
     menu.text = "Not enough capacity to stash leather jacket";
@@ -771,7 +772,7 @@ TEST_CASE( "arcopolis wait_for_any_key does not block during a backend session",
 // translates a YES/NO choice into the registered LEFT/RIGHT/CONFIRM a player would press on the horizontal
 // button row, consumed by the real input_context("YESNO") loop in query_popup::query_once. ---
 
-TEST_CASE( "arcopolis backend_query_popup_mode_active gates on an armed witness transaction only",
+TEST_CASE( "arcopolis backend_query_popup_transaction_active gates on an armed witness transaction only",
            "[arcopolis]" )
 {
     // The query_popup test_mode-abort bypass (src/popup.cpp) and the query_yn drive-block (src/output.cpp)
@@ -782,26 +783,26 @@ TEST_CASE( "arcopolis backend_query_popup_mode_active gates on an armed witness 
     // not itself construct a second query_yn. (Amendment 1: witness-scoping.) A channel IS present throughout
     // so this isolates the command/transaction dimension; the separate no-channel test below covers that
     // backend_begin refuses to arm without a channel.
-    CHECK_FALSE( arcopolis::backend_query_popup_mode_active() );            // no session
+    CHECK_FALSE( arcopolis::backend_query_popup_transaction_active() );            // no session
     arcopolis::begin_backend_session( { .steps = {},
                                         .query_popup_source = []( const arcopolis::backend_query_popup_request & )
                                                 -> std::optional<int> { return 0; } } );
     CHECK_FALSE(
-        arcopolis::backend_query_popup_mode_active() );            // session + channel, nothing armed
+        arcopolis::backend_query_popup_transaction_active() );            // session + channel, nothing armed
     arcopolis::backend_begin_query_popup_transaction( "w" );               // inert without the examine command
-    CHECK_FALSE( arcopolis::backend_query_popup_mode_active() );
+    CHECK_FALSE( arcopolis::backend_query_popup_transaction_active() );
     arcopolis::backend_arm_examine_query_popup_command( 1 );
     CHECK( arcopolis::backend_examine_query_popup_command_active() );
     CHECK_FALSE(
-        arcopolis::backend_query_popup_mode_active() );            // the command precondition is NOT enough
+        arcopolis::backend_query_popup_transaction_active() );            // the command precondition is NOT enough
     arcopolis::backend_begin_query_popup_transaction( "w" );
-    CHECK( arcopolis::backend_query_popup_mode_active() );                  // command + channel + begin -> armed
+    CHECK( arcopolis::backend_query_popup_transaction_active() );                  // command + channel + begin -> armed
     arcopolis::backend_end_query_popup_transaction();
-    CHECK_FALSE( arcopolis::backend_query_popup_mode_active() );            // cleared
+    CHECK_FALSE( arcopolis::backend_query_popup_transaction_active() );            // cleared
     arcopolis::backend_end_query_popup_transaction();                      // idempotent
-    CHECK_FALSE( arcopolis::backend_query_popup_mode_active() );
+    CHECK_FALSE( arcopolis::backend_query_popup_transaction_active() );
     arcopolis::end_backend_session();
-    CHECK_FALSE( arcopolis::backend_query_popup_mode_active() );
+    CHECK_FALSE( arcopolis::backend_query_popup_transaction_active() );
 }
 
 TEST_CASE( "arcopolis query_popup answer channel availability GATES arming", "[arcopolis]" )
@@ -816,7 +817,7 @@ TEST_CASE( "arcopolis query_popup answer channel availability GATES arming", "[a
     arcopolis::backend_arm_examine_query_popup_command( 0 );
     arcopolis::backend_begin_query_popup_transaction( "examine_deployed_furniture_take_down" );
     CHECK_FALSE(
-        arcopolis::backend_query_popup_mode_active() );  // NO channel -> NOT armed (the gating itself)
+        arcopolis::backend_query_popup_transaction_active() );  // NO channel -> NOT armed (the gating itself)
     arcopolis::backend_end_query_popup_transaction();
     arcopolis::end_backend_session();
 
@@ -827,7 +828,7 @@ TEST_CASE( "arcopolis query_popup answer channel availability GATES arming", "[a
     CHECK( arcopolis::backend_query_popup_prompt_available() );
     arcopolis::backend_arm_examine_query_popup_command( 0 );
     arcopolis::backend_begin_query_popup_transaction( "examine_deployed_furniture_take_down" );
-    CHECK( arcopolis::backend_query_popup_mode_active() );  // channel present -> armed
+    CHECK( arcopolis::backend_query_popup_transaction_active() );  // channel present -> armed
     arcopolis::backend_end_query_popup_transaction();
     arcopolis::end_backend_session();
 }
@@ -914,7 +915,7 @@ TEST_CASE( "arcopolis backend-driven query_popup runs query() headless with NO w
         std::string action;
         {
             arcopolis::query_popup_witness_guard guard( "examine_deployed_furniture_take_down" );
-            REQUIRE( arcopolis::backend_query_popup_mode_active() );
+            REQUIRE( arcopolis::backend_query_popup_transaction_active() );
             arcopolis::backend_resolve_query_popup_choice( {
                 .title = "Take down the mattress?",
                 .choices = { { .index = 0, .text = "YES", .enabled = true },
@@ -936,9 +937,9 @@ TEST_CASE( "arcopolis cata_test query_popup still aborts without a backend sessi
 {
     // The invariant the Spike 15 un-abort must NOT break: ordinary test_mode (cata_test, no backend session)
     // still short-circuits query_popup to {false,"ERROR",{}} at the top of query_once -- so query_yn returns
-    // false (action "ERROR" != "YES"), exactly as before this spike. backend_query_popup_mode_active() is
+    // false (action "ERROR" != "YES"), exactly as before this spike. backend_query_popup_transaction_active() is
     // false here, so the abort is taken and no input_context loop runs.
-    REQUIRE_FALSE( arcopolis::backend_query_popup_mode_active() );
+    REQUIRE_FALSE( arcopolis::backend_query_popup_transaction_active() );
     CHECK_FALSE( query_yn( "Take down the mattress?" ) );
 }
 
