@@ -146,122 +146,35 @@ New-Item -ItemType Directory -Force .\docs\arcopolis
 
 ### Arcopolis Windows build route
 
-For this Windows/Codex worktree, the known-good build-backed exploration route is Visual Studio 2022 DevShell + MSVC + Ninja + vcpkg, with ccache from `C:\dev\ccache`.
+The known-good build-backed route here is Visual Studio 2022 DevShell + MSVC + Ninja + vcpkg, with ccache
+from `C:\dev\ccache`. **`docs/arcopolis/00_WINDOWS_LOCAL_ENVIRONMENT.md` holds the exact PowerShell
+setup/configure/build/validate commands** and the load-bearing gotchas: DevShell activation, ccache PATH
+(append, don't prepend; store is `%LOCALAPPDATA%\ccache`), short `C:\tmp` vcpkg roots for `MAX_PATH`, the
+**one shared `out/build/win-rel-deb` dir** for game + tests (never a separate `win-tests` dir; ~7.6 GB),
+running the test exe from a worktree session (pass the path — do not `Set-Location` into the main repo),
+and the cosmetic post-link packaging tail.
 
-- Activate the Visual Studio 2022 x64 DevShell before configure/build commands.
-- Append `C:\dev\ccache` to `PATH` after DevShell activation; do not prepend it, because the real MSVC `cl.exe` should stay first. (`C:\dev\ccache` only holds the wrapper exe (~10 MB); the actual ccache object store is `%LOCALAPPDATA%\ccache`, so a near-empty `C:\dev\ccache` does **not** mean a cold cache.)
-- Append `C:\dev\astyle\bin` to `PATH` the same way and format touched C++ before committing: `& C:\dev\astyle\bin\AStyle.exe --options=.astylerc -n <touched .cpp/.h>` (AStyle 3.1, CI-compatible). CMake's `Artistic style executable was not found` warning is just this PATH gotcha (astyle isn't on `PATH`), **not** unavailability — don't fall back to the CI autofix bot.
-- Use short vcpkg temporary roots under `C:\tmp` to avoid Windows `MAX_PATH` failures in dependency builds.
-- Prefer the repo-supported Ninja shape from `CMakeSettings.json` for ccache-backed command-line builds; this route has built `cataclysm-bn-tiles` and `cata_test-tiles`. The Visual Studio solution preset can configure with short vcpkg roots, but it is not the proven ccache route.
-- Build the game and tests in **one** build dir. `cataclysm-bn-tiles-common` is a CMake OBJECT library shared by `cataclysm-bn-tiles` and `cata_test-tiles`, so build `cata_test-tiles` in the SAME `out/build/win-rel-deb` dir (re-configure with `-DTESTS=True`, then `--target cata_test-tiles`) to reuse the game's compiled objects — only the test sources recompile. A SEPARATE `out/build/win-tests` dir re-duplicates the whole object tree and has exhausted the disk here (`fatal error C1085: ... No space left on device`).
-- **Footprint (measured 2026-06-18, not estimated):** one shared `win-rel-deb` holding **both** targets is **~7.6 GB** (`src` ~4.8 GB + `tests` ~2.1 GB + `vcpkg_installed` ~0.8 GB; the two exes are ~66 MB / ~74 MB). The expensive, one-time part is the **cold** build (vcpkg deps + the full object tree); a routine **incremental** rebuild after an edit recompiles only the touched TUs and relinks the exe, so its disk delta is **~a couple hundred MB, not GB** — day-to-day rebuilds are cheap. A second `win-tests` dir would re-pay the whole ~7–8 GB needlessly.
-- See `docs/arcopolis/00_WINDOWS_LOCAL_ENVIRONMENT.md` for the exact current PowerShell commands and the historical failure analysis.
-- **Running the test exe FROM A WORKTREE SESSION: pass the path, do NOT move the shell into the main repo.** The Catch2 `cata_test-tiles.exe` takes no `--basepath` (only the BN main exe does); it locates `./data/shaders/...` (the SDL_GPU compute probe) and `./build-data/mesa/x64/lvp_icd.x86_64.json` (the Lavapipe ICD pinned by `src/compute/gpu_platform.cpp`) **from its child-process CWD**. Without `data/` at cwd, SDL_GPU dies: `shader blob not found: data/shaders/test_compute.dxil` → `Terminated: SDL_GPU test initialization failed`. From a worktree session, set the **child's** cwd to the main repo root with `Start-Process -WorkingDirectory`, leaving the shell's cwd in the worktree:
-  ```powershell
-  $p = Start-Process -FilePath "C:\dev\Cataclysm-BN\out\build\win-rel-deb\tests\cata_test-tiles.exe" `
-       -ArgumentList "[arcopolis]" -WorkingDirectory "C:\dev\Cataclysm-BN" `
-       -NoNewWindow -Wait -PassThru `
-       -RedirectStandardOutput "C:\tmp\test.out" -RedirectStandardError "C:\tmp\test.err"
-  ```
-  **Do NOT** `Set-Location` the shell into `C:\dev\Cataclysm-BN` (relative `Edit`/`Read`/`git status` then start hitting the main repo), and **do NOT** copy worktree sources into the main repo to build there (it leaves the main checkout DIRTY in those files — restore with `git -C C:\dev\Cataclysm-BN checkout -- <files>` immediately in the same turn, never later).
-- **Cosmetic post-link packaging tail.** A successful incremental build can still end `BUILD_EXIT=1` because the link command's `&&` tail (`applocal.ps1` + mesa-copy + `deno docs:gen`) fails under a background DevShell with "The system cannot find the path specified." The `link.exe` itself succeeded if `cata_test-tiles.exe` / `cataclysm-bn-tiles.exe` have a fresh `LastWriteTime`. Verify by timestamp before treating ninja's `FAILED:` as a real link error.
+- Append `C:\dev\astyle\bin` to `PATH` and format touched C++ before committing:
+  `& C:\dev\astyle\bin\AStyle.exe --options=.astylerc -n <touched .cpp/.h>` (AStyle 3.1, CI-compatible).
+  CMake's `Artistic style executable was not found` warning is just this PATH gotcha (astyle isn't on
+  `PATH`), **not** unavailability — don't fall back to the CI autofix bot.
 
 ### Arcopolis test world fixture
 
 The headless `--arcopolis-*` modes load a prepared world, and this repo ships none (saves are gitignored).
-The canonical `ArcopolisTest` world (avatar in an evac shelter, ~14 nearby monsters, calendar turn
-~1,324,801) lives **outside the repo** at `C:\dev\arcopolis-fixtures\` so it survives worktree pruning and
-`git clean -fdx`. Copy it into the working tree (the `/arcopolis_user/` sandbox is gitignored) before
-running validation:
+The fixture worlds live **outside the repo** at `C:\dev\arcopolis-fixtures\` (so they survive worktree
+pruning and `git clean -fdx`); copy the userdir into the working tree (the `/arcopolis_user/` sandbox is
+gitignored) before validation:
 
 ```powershell
 Copy-Item C:\dev\arcopolis-fixtures\arcopolis_user .\arcopolis_user -Recurse -Force
 ```
 
-`C:\dev\arcopolis-fixtures\README.md` documents the world, how to refresh it, and how to recreate it from
-scratch (graphical New Game → one step → Save & Quit). It is a point-in-time snapshot, not auto-synced.
+**Run the regression scripts with `pwsh` (PowerShell 7), not `powershell` (5.1)** — 5.1 misreads BOM-less
+UTF-8 snapshots and writes an options.json BOM, causing spurious gate failures on unchanged code.
 
-A second world, `ArcopolisNearMonsterTest`, lives in the **same** userdir as the **monster-export witness**:
-a clone of `ArcopolisTest` with one `mon_fungal_wall` inside the radius-12 export window, so
-`entities.monsters[]` is non-empty (`ArcopolisTest`'s monsters are all ≥31 tiles away, hence present-but-empty
-at r12). `ArcopolisTest` remains the movement/NPC fixture and is also the **NPC-export witness** (its stock
-shelter NPC sits one tile north of the avatar, inside the r12 window), gated by
-`docs/arcopolis/npc_export_regression.ps1` (Spike 7A; see `docs/arcopolis/18_SPIKE7A_NPC_EXPORT.md`).
-`ArcopolisTest` is **also** the **ground-item-export witness** — its saved evac shelter already holds
-deterministic in-window loot (no save edit) — gated by `docs/arcopolis/item_export_regression.ps1` (Spike 8A;
-see `docs/arcopolis/19_SPIKE8A_ITEM_EXPORT.md`), and the **live-protocol fixture** — the Spike 9B
-`--arcopolis-live` stdin/stdout JSONL mode is gated end-to-end by
-`docs/arcopolis/live_protocol_regression.ps1` (see `docs/arcopolis/21_SPIKE9B_LIVE_PROTOCOL.md`). Build the
-monster witness with `docs/arcopolis/make_monster_fixture.py` (save-edit, no GUI/build) and gate it with
-`docs/arcopolis/monster_export_regression.ps1`; see `docs/arcopolis/16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md`.
-
-A third world, `ArcopolisBackpackTest`, lives in the same userdir as the **multi-item-pickup carry-both
-witness** (Spike 12A): a clone of `ArcopolisTest` whose avatar additionally wears a `backpack`, giving real
-carrying capacity. The default `ArcopolisTest` avatar has room for ~one small item, so an over-capacity
-multi-select there raises the in-activity capacity prompt — **now (Spike 14) the DRIVEN single-entry WIELD
-secondary-capacity witness** (the blanket is wielded through the real `input_context("UILIST")` loop,
-south pile 7→5, response carries NO `forced_cancel`/`partial` markers — `prompt_menu_regression.ps1`
-Scenario E). The earlier marked-partial **force-cancel survives only as the no-channel / disabled-entry /
-multi-tick-orphaned fallback**, not as the default-avatar behavior. `ArcopolisBackpackTest` lets a
-multi-select deposit two items, witnessing carry-both at the state level (Scenario F). Both are gated by
-`docs/arcopolis/prompt_menu_regression.ps1`; `ArcopolisTest`'s state is unchanged (its `.sav` is
-content-identical to the pre-spike save). See
-`docs/arcopolis/30_SPIKE12A_PROMPT_MENU_TRANSACTION.md` and
-`docs/arcopolis/34_SPIKE14_SECONDARY_PICKUP_UILIST.md`.
-
-A fourth world, `ArcopolisVehicleCargoTest`, lives in the same userdir as the **backend-driven
-vehicle-source `uilist` witness** (Spike 13B; was the Spike 12A-follow-up fail-loud witness): a clone of
-`ArcopolisTest` with an exact `folding_wagon` replica (a single-tile
-`folding_frame`+`wheel_caster`+`basketlg_folding` CARGO cart) injected ONTO the ground-item pile one south
-of the post-`move_s` avatar, so that tile has BOTH vehicle cargo and ground items. A live `pickup` there
-hits the `"Get items from where?"` `uilist`; **Spike 13B now DRIVES it at level 4** (un-aborts the uilist
-under a per-transaction `backend_uilist_transaction_active()` gate, runs `setup()` headlessly, and serves registered
-`UILIST` actions through the real `input_context("UILIST")` loop), then continues into the old `"PICKUP"`
-item menu. The earlier fail-loud is retained only as the no-channel fallback (non-live / misconfigured).
-Built reproducibly by `docs/arcopolis/make_vehicle_fixture.py` (save-edit, no GUI/build), gated by
-`docs/arcopolis/prompt_menu_regression.ps1` (gate H, four sub-scenarios). See
-`docs/arcopolis/33_SPIKE13B_BACKEND_DRIVEN_UILIST.md` (and the historical
-`docs/arcopolis/31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md`).
-
-A fifth world, `ArcopolisCapacityTest`, lives in the same userdir as the **backend-driven secondary
-capacity/wield/spill `uilist` multi-entry witness** (Spike 14; was the Spike 12A-follow-up marked-partial
-witness): a clone of `ArcopolisTest` with ONE bulky `jacket_leather` (ARMOR/OUTER, 4500 ml, not a bucket,
-no children) injected onto the same south ground pile. Picking the jacket exceeds the unarmed avatar's
-volume capacity, so `pickup_activity_actor::handle_problematic_pickup` raises a `uilist` with WEAR + WIELD
-= 2 enabled entries; **Spike 14 DRIVES it at level 4 by REUSING the Spike 13B machinery unchanged** at a
-second site (per-transaction `backend_uilist_transaction_active()` gate around the in-activity `uilist`, the same
-`"UILIST"` serve branch and `live_uilist_prompt` channel — renamed from `live_vehicle_source_prompt`).
-The marked-partial behavior is retained as the no-channel fallback (unit-tested). Built reproducibly by
-`docs/arcopolis/make_capacity_fixture.py` (save-edit, no GUI/build), gated by `prompt_menu_regression.ps1`
-(gate E converted to driven WIELD on `ArcopolisTest`'s blanket + gate J on `ArcopolisCapacityTest` with
-five sub-scenarios). See `docs/arcopolis/34_SPIKE14_SECONDARY_PICKUP_UILIST.md`.
-
-A sixth world, `ArcopolisDeployedFurnitureTest`, lives in the same userdir as the **backend-driven
-`query_popup` (`query_yn`) witness** (Spike 15): a clone of `ArcopolisTest` with ONE `f_floor_mattress`
-(`examine_action: "deployed_furniture"`, `deployed_item: "mattress"`) placed on the clean `t_floor` tile one
-tile EAST of the avatar. A live `examine direction=move_e` reaches `iexamine::deployed_furniture`'s
-`query_yn("Take down the %s?")` (`input_context("YESNO")`); **Spike 15 DRIVES it at level 4** — a
-`query_popup_witness_guard` at that one call site arms a per-prompt query_popup transaction (the
-`session.query_popup.armed` flag, Spike 19's `prompt_transaction` regroup), the new
-`backend_query_popup_transaction_active()` gate un-aborts `query_popup::query_once`'s `test_mode` abort
-(`src/popup.cpp`) for ONLY that one query_yn, and the client's YES/NO is served as registered `LEFT`/`CONFIRM`
-through the real `input_context("YESNO")` loop (YES takes down the furniture via the engine's own
-`take_down_deployed_furniture`; NO is a no-op). `query_yn` is **not cancelable** (no fabricated cancel; EOF
-serves the visible default, marked `noncancelable_closed`). Built reproducibly by
-`docs/arcopolis/make_furniture_fixture.py` (save-edit, no GUI/build), gated by
-`docs/arcopolis/query_popup_regression.ps1` (six gates: accept/reject/state-change/recovery/EOF). See
-`docs/arcopolis/35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md`.
-
-**Spike 16 reuses all four prompt fixtures (`ArcopolisTest`, `ArcopolisVehicleCargoTest`,
-`ArcopolisCapacityTest`, `ArcopolisDeployedFurnitureTest`) in NON-LIVE `--arcopolis-run-script` mode** via a
-command step's declared `prompt_answers` (the script prompt sources feed the same `backend_resolve_*`
-machinery as live), gated by `docs/arcopolis/script_prompt_regression.ps1` (a pure run-script regression — no
-live driver/python). A run-script `pickup` with NO `prompt_answers`, and every one-shot `--arcopolis-command`
-pickup, still fail loud (exit 6); a missing/wrong/unused scripted answer fails loud (`script_prompt_failed`,
-exit 13). See `docs/arcopolis/36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md`.
-
-**Run these regressions with `pwsh` (PowerShell 7), not `powershell` (5.1)** — 5.1 misreads BOM-less UTF-8
-snapshots and writes an options.json BOM, causing spurious gate failures on unchanged code.
+Full catalog of the six fixture worlds (`ArcopolisTest` + five clones) — their witness roles, fixture
+generators, regression scripts, and spike docs — is in `docs/arcopolis/TEST_FIXTURES.md`.
 
 ## HARD CONSTRAINTS (NEVER VIOLATE)
 
