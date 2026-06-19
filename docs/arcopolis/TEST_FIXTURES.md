@@ -1,0 +1,113 @@
+# Arcopolis test world fixtures
+
+The headless `--arcopolis-*` modes load a prepared world, and this repo ships none (saves are
+gitignored). The fixture worlds live **outside the repo** at `C:\dev\arcopolis-fixtures\` so they survive
+worktree pruning and `git clean -fdx`. Copy the userdir into the working tree (the `/arcopolis_user/`
+sandbox is gitignored) before running validation:
+
+```powershell
+Copy-Item C:\dev\arcopolis-fixtures\arcopolis_user .\arcopolis_user -Recurse -Force
+```
+
+`C:\dev\arcopolis-fixtures\README.md` documents each world, how to refresh it, and how to recreate it
+from scratch (graphical New Game → one step → Save & Quit). These are point-in-time snapshots, not
+auto-synced.
+
+**Run these regressions with `pwsh` (PowerShell 7), not `powershell` (5.1)** — 5.1 misreads BOM-less UTF-8
+snapshots and writes an options.json BOM, causing spurious gate failures on unchanged code.
+
+All six worlds below are clones of `ArcopolisTest` and live in the same userdir; each adds one
+deterministic element so it can act as a specific export/prompt witness.
+
+## `ArcopolisTest` — base world; movement / NPC / item / live-protocol witness
+
+The canonical base world: avatar in an evac shelter, ~14 nearby monsters, calendar turn ~1,324,801. Its
+`.sav` is content-identical to the pre-spike save and is unchanged by later spikes.
+
+- **Movement / NPC fixture** and **NPC-export witness** — its stock shelter NPC sits one tile north of the
+  avatar, inside the r12 export window. Gated by `docs/arcopolis/npc_export_regression.ps1` (Spike 7A; see
+  `docs/arcopolis/18_SPIKE7A_NPC_EXPORT.md`).
+- **Ground-item-export witness** — its saved evac shelter already holds deterministic in-window loot (no
+  save edit). Gated by `docs/arcopolis/item_export_regression.ps1` (Spike 8A; see
+  `docs/arcopolis/19_SPIKE8A_ITEM_EXPORT.md`).
+- **Live-protocol fixture** — the Spike 9B `--arcopolis-live` stdin/stdout JSONL mode is gated end-to-end
+  by `docs/arcopolis/live_protocol_regression.ps1` (see `docs/arcopolis/21_SPIKE9B_LIVE_PROTOCOL.md`).
+- **Driven single-entry WIELD secondary-capacity witness (Spike 14)** — the default `ArcopolisTest` avatar
+  has room for ~one small item, so an over-capacity multi-select raises the in-activity capacity prompt.
+  The blanket is wielded through the real `input_context("UILIST")` loop, south pile 7→5, response carries
+  NO `forced_cancel`/`partial` markers (`prompt_menu_regression.ps1` Scenario E). The earlier marked-partial
+  force-cancel survives only as the no-channel / disabled-entry / multi-tick-orphaned fallback, not as the
+  default-avatar behavior.
+- `ArcopolisTest`'s own monsters are all ≥31 tiles away, hence present-but-empty at r12 — which is why the
+  monster-export witness needs a separate clone (below).
+
+## `ArcopolisNearMonsterTest` — monster-export witness
+
+A clone of `ArcopolisTest` with one `mon_fungal_wall` inside the radius-12 export window, so
+`entities.monsters[]` is non-empty. Build the witness with `docs/arcopolis/make_monster_fixture.py`
+(save-edit, no GUI/build) and gate it with `docs/arcopolis/monster_export_regression.ps1`; see
+`docs/arcopolis/16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md` (Spike 6B).
+
+## `ArcopolisBackpackTest` — multi-item-pickup carry-both witness (Spike 12A)
+
+A clone of `ArcopolisTest` whose avatar additionally wears a `backpack`, giving real carrying capacity.
+`ArcopolisBackpackTest` lets a multi-select deposit two items, witnessing carry-both at the state level
+(`prompt_menu_regression.ps1` Scenario F). Gated by `docs/arcopolis/prompt_menu_regression.ps1`. See
+`docs/arcopolis/30_SPIKE12A_PROMPT_MENU_TRANSACTION.md` and
+`docs/arcopolis/34_SPIKE14_SECONDARY_PICKUP_UILIST.md`.
+
+## `ArcopolisVehicleCargoTest` — backend-driven vehicle-source `uilist` witness (Spike 13B)
+
+(Was the Spike 12A-follow-up fail-loud witness.) A clone of `ArcopolisTest` with an exact `folding_wagon`
+replica (a single-tile `folding_frame`+`wheel_caster`+`basketlg_folding` CARGO cart) injected ONTO the
+ground-item pile one south of the post-`move_s` avatar, so that tile has BOTH vehicle cargo and ground
+items. A live `pickup` there hits the `"Get items from where?"` `uilist`; **Spike 13B DRIVES it at level
+4** (un-aborts the uilist under a per-transaction `backend_uilist_transaction_active()` gate, runs
+`setup()` headlessly, and serves registered `UILIST` actions through the real `input_context("UILIST")`
+loop), then continues into the old `"PICKUP"` item menu. The earlier fail-loud is retained only as the
+no-channel fallback (non-live / misconfigured). Built reproducibly by
+`docs/arcopolis/make_vehicle_fixture.py` (save-edit, no GUI/build), gated by
+`docs/arcopolis/prompt_menu_regression.ps1` (gate H, four sub-scenarios). See
+`docs/arcopolis/33_SPIKE13B_BACKEND_DRIVEN_UILIST.md` (and the historical
+`docs/arcopolis/31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md`).
+
+## `ArcopolisCapacityTest` — backend-driven secondary capacity/wield/spill `uilist` multi-entry witness (Spike 14)
+
+(Was the Spike 12A-follow-up marked-partial witness.) A clone of `ArcopolisTest` with ONE bulky
+`jacket_leather` (ARMOR/OUTER, 4500 ml, not a bucket, no children) injected onto the same south ground
+pile. Picking the jacket exceeds the unarmed avatar's volume capacity, so
+`pickup_activity_actor::handle_problematic_pickup` raises a `uilist` with WEAR + WIELD = 2 enabled
+entries; **Spike 14 DRIVES it at level 4 by REUSING the Spike 13B machinery unchanged** at a second site
+(per-transaction `backend_uilist_transaction_active()` gate around the in-activity `uilist`, the same
+`"UILIST"` serve branch and `live_uilist_prompt` channel — renamed from `live_vehicle_source_prompt`).
+The marked-partial behavior is retained as the no-channel fallback (unit-tested). Built reproducibly by
+`docs/arcopolis/make_capacity_fixture.py` (save-edit, no GUI/build), gated by
+`docs/arcopolis/prompt_menu_regression.ps1` (gate E converted to driven WIELD on `ArcopolisTest`'s
+blanket, plus gate J on `ArcopolisCapacityTest` with five sub-scenarios). See
+`docs/arcopolis/34_SPIKE14_SECONDARY_PICKUP_UILIST.md`.
+
+## `ArcopolisDeployedFurnitureTest` — backend-driven `query_popup` (`query_yn`) witness (Spike 15)
+
+A clone of `ArcopolisTest` with ONE `f_floor_mattress` (`examine_action: "deployed_furniture"`,
+`deployed_item: "mattress"`) placed on the clean `t_floor` tile one tile EAST of the avatar. A live
+`examine direction=move_e` reaches `iexamine::deployed_furniture`'s `query_yn("Take down the %s?")`
+(`input_context("YESNO")`); **Spike 15 DRIVES it at level 4** — a `query_popup_witness_guard` at that one
+call site arms a per-prompt query_popup transaction (the `session.query_popup.armed` flag, Spike 19's
+`prompt_transaction` regroup), the new `backend_query_popup_transaction_active()` gate un-aborts
+`query_popup::query_once`'s `test_mode` abort (`src/popup.cpp`) for ONLY that one query_yn, and the
+client's YES/NO is served as registered `LEFT`/`CONFIRM` through the real `input_context("YESNO")` loop
+(YES takes down the furniture via the engine's own `take_down_deployed_furniture`; NO is a no-op).
+`query_yn` is **not cancelable** (no fabricated cancel; EOF serves the visible default, marked
+`noncancelable_closed`). Built reproducibly by `docs/arcopolis/make_furniture_fixture.py` (save-edit, no
+GUI/build), gated by `docs/arcopolis/query_popup_regression.ps1` (six gates:
+accept/reject/state-change/recovery/EOF). See `docs/arcopolis/35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md`.
+
+## Spike 16 — non-live run-script reuse of the prompt fixtures
+
+**Spike 16 reuses all four prompt fixtures (`ArcopolisTest`, `ArcopolisVehicleCargoTest`,
+`ArcopolisCapacityTest`, `ArcopolisDeployedFurnitureTest`) in NON-LIVE `--arcopolis-run-script` mode** via
+a command step's declared `prompt_answers` (the script prompt sources feed the same `backend_resolve_*`
+machinery as live), gated by `docs/arcopolis/script_prompt_regression.ps1` (a pure run-script regression —
+no live driver/python). A run-script `pickup` with NO `prompt_answers`, and every one-shot
+`--arcopolis-command` pickup, still fail loud (exit 6); a missing/wrong/unused scripted answer fails loud
+(`script_prompt_failed`, exit 13). See `docs/arcopolis/36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md`.
