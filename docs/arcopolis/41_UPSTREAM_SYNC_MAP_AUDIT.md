@@ -125,21 +125,46 @@ longer hard-aborts the process. Arcopolis validates verbs -> action_ids up front
 for a headless run (a stray unknown action degrades to a no-op instead of killing the process). It
 does **not** alter any Arcopolis fail-loud (those are explicit typed errors, not `abort()`).
 
-## 6. Remaining uncertainties
+## 6. Dedicated map-seam audit (post-sync, before resuming backend work)
 
-- **Runtime validation** — see §7; until the build + `[arcopolis]` tests + fixture regressions pass,
-  the "no behavior change" claim is **static** (textual/semantic merge review + a clean compile),
-  not runtime-proven.
-- **#9543 Z-Level Option Removal** — if the removed game option was persisted in the fixture worlds'
-  `options.json`, loading them may emit a benign "unknown option" warning. Forward-compatible (unknown
-  options are ignored), but confirm the fixture regressions still load and gate green; if a fixture
-  carries a now-invalid option, note it rather than silently rewriting saved fixtures.
-- **`pickup.cpp` interleave** — RESOLVED. The Spike 12A/13B/14 gated blocks auto-merged adjacent to
-  upstream's `pick_one_up`/`do_pickup` absolute-coordinate migration; the clean compile confirms no
-  migrated type/var leaked into a gated block (§7).
-- **`origin_abs_sm[z]` faithfulness** — the `get_abs_sub()` 2-D adaptation uses `ctx.levz`. Argued
-  faithful (it equals the value already reported as `map_bounds "z"`), but the snapshot/movement
-  fixture regressions are the runtime confirmation that the exported bounds are sane.
+A focused 5-dimension audit re-verified that every Arcopolis map/coordinate usage is correct against the
+post-migration APIs — specifically hunting for assumptions that COMPILE and pass the (single-z, z=0,
+small-positive-coord) fixtures yet are wrong at z!=0 / negative-or-large abs coords / across a bubble
+shift / off-bubble. **Result: no real issues, nothing left uncertain.**
+
+- **Snapshot export** — all 14 coordinate sites correct. `avatar/monster/npc` use true 3-D
+  `bub_pos()`/`abs_pos()`; items use `bub_to_abs(tile)` (the same conversion `Creature::abs_pos` uses).
+  The window (`points_in_radius` + `inbounds`) is a single avatar-z slice and is correct for **z!=0**
+  (not merely untested): post-migration `inbounds_z` accepts any level in `[-OVERMAP_DEPTH,
+  OVERMAP_HEIGHT]` and the slice is pinned to the avatar's z. Load-bearing fact: **z is
+  frame-invariant** — `bub_to_abs`/`project_to` scale only x/y, so the same integer z is valid across
+  ms/sm/omt and bub/abs (this validates the `levz`-as-origin-z write and the item z).
+- **Movement seam** — coordinate-free end to end: Arcopolis maps verb+direction to an `action_id`
+  string→enum and hands it to the engine's own `handle_action` switch, which computes a **relative**
+  `point_rel_ms` delta (origin/z-independent) — correct at any coordinate or z. The clean-park hook is a
+  pure boolean.
+- **Examine / terrain / query_popup** — `iexamine::deployed_furniture`'s tile is `tripoint_bub_ms` (3-D,
+  real z), built as `bub_pos() + relative delta`; `take_down_deployed_furniture(pos,pos)` resolves to the
+  2-arg in-bubble overload; the nested-input / un-abort gates are coordinate-free.
+- **Pickup item reads** — coordinate-free: the gated blocks read item pointers/iterators and uilist
+  entry text, never a coordinate; `pick_up`'s `p` is `tripoint_bub_ms` (3-D) threaded intact, and the
+  pickup-target tile uses the **same** `i_at(bub_ms)` convention as the export item tile.
+- **`origin_abs_sm[2]` semantic clarification** — the one flagged-then-cleared item: pre-migration this
+  was the bubble-corner submap's z (`abs_sub.z()`, which tracked the avatar); post-migration `abs_sub`
+  has no z, so the export emits `ctx.levz` (avatar z). For Arcopolis the **value is identical** because
+  vertical move is unsupported (the avatar's z is invariant within a session = load z = old
+  `abs_sub.z()`), and no consumer diffs this field across a z-change. It is a documentation-level
+  meaning shift ("origin's z" → "exported slice's z"), not a behavior change.
+
+> Provenance note: the audit ran from a worktree still on the pre-sync commit, so some upstream
+> citations reflected the old tree (e.g. a stale "`get_abs_sub` is still 3-D" claim). Every load-bearing
+> fact was re-confirmed on the synced `arcopolis` tree: `get_abs_sub()->point_abs_sm` (map.h:1979),
+> `pick_up(const tripoint_bub_ms&)` (pickup.cpp:1347), and a clean compile of all 9 Arcopolis-touched TUs
+> against the synced headers (the definitive proof the map calls resolve correctly).
+
+### Residual (non-blocking)
+- **#9543 Z-Level Option Removal** — fixtures loaded green; if any `options.json` carries the removed
+  option it is silently ignored (forward-compatible). A fixture refresh is optional, not required.
 
 ## 7. Validation
 
