@@ -467,7 +467,8 @@ neighbors and a Move/Examine mode selector that sends `examine` in any of the ei
 plus `here`, with the bridge classifying diagonal moves and a non-misleading `examined` outcome; see
 [29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md](29_SPIKE11B_GUI_EQUIVALENT_PLANAR_MOVE_EXAMINE.md)).
 Fixture-driven
-regressions (need a loaded world, so not in CI):
+regressions (need a loaded world, so not in CI; the fixture worlds themselves are cataloged in
+[TEST_FIXTURES.md](TEST_FIXTURES.md)):
 [`docs/arcopolis/movement_regression.ps1`](movement_regression.ps1) gates movement/NPC on **`ArcopolisTest`**,
 [`docs/arcopolis/npc_export_regression.ps1`](npc_export_regression.ps1) gates the **NPC export** on the same
 **`ArcopolisTest`** (the stock shelter NPC Edwardo is already in the radius-12 window, so it needs no save
