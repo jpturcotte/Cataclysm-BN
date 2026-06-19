@@ -25,13 +25,15 @@ The canonical base world: avatar in an evac shelter, ~14 nearby monsters, calend
 `.sav` is content-identical to the pre-spike save and is unchanged by later spikes.
 
 - **Movement / NPC fixture** and **NPC-export witness** — its stock shelter NPC sits one tile north of the
-  avatar, inside the r12 export window. Gated by `docs/arcopolis/npc_export_regression.ps1` (Spike 7A; see
-  `docs/arcopolis/18_SPIKE7A_NPC_EXPORT.md`).
+  avatar, inside the r12 export window. Gated by
+  [`docs/arcopolis/npc_export_regression.ps1`](npc_export_regression.ps1) (Spike 7A; see
+  [18_SPIKE7A_NPC_EXPORT.md](18_SPIKE7A_NPC_EXPORT.md)).
 - **Ground-item-export witness** — its saved evac shelter already holds deterministic in-window loot (no
-  save edit). Gated by `docs/arcopolis/item_export_regression.ps1` (Spike 8A; see
-  `docs/arcopolis/19_SPIKE8A_ITEM_EXPORT.md`).
+  save edit). Gated by [`docs/arcopolis/item_export_regression.ps1`](item_export_regression.ps1) (Spike 8A;
+  see [19_SPIKE8A_ITEM_EXPORT.md](19_SPIKE8A_ITEM_EXPORT.md)).
 - **Live-protocol fixture** — the Spike 9B `--arcopolis-live` stdin/stdout JSONL mode is gated end-to-end
-  by `docs/arcopolis/live_protocol_regression.ps1` (see `docs/arcopolis/21_SPIKE9B_LIVE_PROTOCOL.md`).
+  by [`docs/arcopolis/live_protocol_regression.ps1`](live_protocol_regression.ps1) (see
+  [21_SPIKE9B_LIVE_PROTOCOL.md](21_SPIKE9B_LIVE_PROTOCOL.md)).
 - **Driven single-entry WIELD secondary-capacity witness (Spike 14)** — the default `ArcopolisTest` avatar
   has room for ~one small item, so an over-capacity multi-select raises the in-activity capacity prompt.
   The blanket is wielded through the real `input_context("UILIST")` loop, south pile 7→5, response carries
@@ -44,17 +46,19 @@ The canonical base world: avatar in an evac shelter, ~14 nearby monsters, calend
 ## `ArcopolisNearMonsterTest` — monster-export witness
 
 A clone of `ArcopolisTest` with one `mon_fungal_wall` inside the radius-12 export window, so
-`entities.monsters[]` is non-empty. Build the witness with `docs/arcopolis/make_monster_fixture.py`
-(save-edit, no GUI/build) and gate it with `docs/arcopolis/monster_export_regression.ps1`; see
-`docs/arcopolis/16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md` (Spike 6B).
+`entities.monsters[]` is non-empty. Build the witness with
+[`docs/arcopolis/make_monster_fixture.py`](make_monster_fixture.py) (save-edit, no GUI/build) and gate it
+with [`docs/arcopolis/monster_export_regression.ps1`](monster_export_regression.ps1); see
+[16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md](16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md) (Spike 6B).
 
 ## `ArcopolisBackpackTest` — multi-item-pickup carry-both witness (Spike 12A)
 
 A clone of `ArcopolisTest` whose avatar additionally wears a `backpack`, giving real carrying capacity.
 `ArcopolisBackpackTest` lets a multi-select deposit two items, witnessing carry-both at the state level
-(`prompt_menu_regression.ps1` Scenario F). Gated by `docs/arcopolis/prompt_menu_regression.ps1`. See
-`docs/arcopolis/30_SPIKE12A_PROMPT_MENU_TRANSACTION.md` and
-`docs/arcopolis/34_SPIKE14_SECONDARY_PICKUP_UILIST.md`.
+(`prompt_menu_regression.ps1` Scenario F). Gated by
+[`docs/arcopolis/prompt_menu_regression.ps1`](prompt_menu_regression.ps1). See
+[30_SPIKE12A_PROMPT_MENU_TRANSACTION.md](30_SPIKE12A_PROMPT_MENU_TRANSACTION.md) and
+[34_SPIKE14_SECONDARY_PICKUP_UILIST.md](34_SPIKE14_SECONDARY_PICKUP_UILIST.md).
 
 ## `ArcopolisVehicleCargoTest` — backend-driven vehicle-source `uilist` witness (Spike 13B)
 
@@ -66,10 +70,10 @@ items. A live `pickup` there hits the `"Get items from where?"` `uilist`; **Spik
 `setup()` headlessly, and serves registered `UILIST` actions through the real `input_context("UILIST")`
 loop), then continues into the old `"PICKUP"` item menu. The earlier fail-loud is retained only as the
 no-channel fallback (non-live / misconfigured). Built reproducibly by
-`docs/arcopolis/make_vehicle_fixture.py` (save-edit, no GUI/build), gated by
-`docs/arcopolis/prompt_menu_regression.ps1` (gate H, four sub-scenarios). See
-`docs/arcopolis/33_SPIKE13B_BACKEND_DRIVEN_UILIST.md` (and the historical
-`docs/arcopolis/31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md`).
+[`docs/arcopolis/make_vehicle_fixture.py`](make_vehicle_fixture.py) (save-edit, no GUI/build), gated by
+[`docs/arcopolis/prompt_menu_regression.ps1`](prompt_menu_regression.ps1) (gate H, four sub-scenarios). See
+[33_SPIKE13B_BACKEND_DRIVEN_UILIST.md](33_SPIKE13B_BACKEND_DRIVEN_UILIST.md) (and the historical
+[31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md](31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md)).
 
 ## `ArcopolisCapacityTest` — backend-driven secondary capacity/wield/spill `uilist` multi-entry witness (Spike 14)
 
@@ -81,10 +85,10 @@ entries; **Spike 14 DRIVES it at level 4 by REUSING the Spike 13B machinery unch
 (per-transaction `backend_uilist_transaction_active()` gate around the in-activity `uilist`, the same
 `"UILIST"` serve branch and `live_uilist_prompt` channel — renamed from `live_vehicle_source_prompt`).
 The marked-partial behavior is retained as the no-channel fallback (unit-tested). Built reproducibly by
-`docs/arcopolis/make_capacity_fixture.py` (save-edit, no GUI/build), gated by
-`docs/arcopolis/prompt_menu_regression.ps1` (gate E converted to driven WIELD on `ArcopolisTest`'s
-blanket, plus gate J on `ArcopolisCapacityTest` with five sub-scenarios). See
-`docs/arcopolis/34_SPIKE14_SECONDARY_PICKUP_UILIST.md`.
+[`docs/arcopolis/make_capacity_fixture.py`](make_capacity_fixture.py) (save-edit, no GUI/build), gated by
+[`docs/arcopolis/prompt_menu_regression.ps1`](prompt_menu_regression.ps1) (gate E converted to driven WIELD
+on `ArcopolisTest`'s blanket, plus gate J on `ArcopolisCapacityTest` with five sub-scenarios). See
+[34_SPIKE14_SECONDARY_PICKUP_UILIST.md](34_SPIKE14_SECONDARY_PICKUP_UILIST.md).
 
 ## `ArcopolisDeployedFurnitureTest` — backend-driven `query_popup` (`query_yn`) witness (Spike 15)
 
@@ -98,16 +102,19 @@ call site arms a per-prompt query_popup transaction (the `session.query_popup.ar
 client's YES/NO is served as registered `LEFT`/`CONFIRM` through the real `input_context("YESNO")` loop
 (YES takes down the furniture via the engine's own `take_down_deployed_furniture`; NO is a no-op).
 `query_yn` is **not cancelable** (no fabricated cancel; EOF serves the visible default, marked
-`noncancelable_closed`). Built reproducibly by `docs/arcopolis/make_furniture_fixture.py` (save-edit, no
-GUI/build), gated by `docs/arcopolis/query_popup_regression.ps1` (six gates:
-accept/reject/state-change/recovery/EOF). See `docs/arcopolis/35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md`.
+`noncancelable_closed`). Built reproducibly by
+[`docs/arcopolis/make_furniture_fixture.py`](make_furniture_fixture.py) (save-edit, no GUI/build), gated by
+[`docs/arcopolis/query_popup_regression.ps1`](query_popup_regression.ps1) (six gates:
+accept/reject/state-change/recovery/EOF). See
+[35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md](35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md).
 
 ## Spike 16 — non-live run-script reuse of the prompt fixtures
 
 **Spike 16 reuses all four prompt fixtures (`ArcopolisTest`, `ArcopolisVehicleCargoTest`,
 `ArcopolisCapacityTest`, `ArcopolisDeployedFurnitureTest`) in NON-LIVE `--arcopolis-run-script` mode** via
 a command step's declared `prompt_answers` (the script prompt sources feed the same `backend_resolve_*`
-machinery as live), gated by `docs/arcopolis/script_prompt_regression.ps1` (a pure run-script regression —
-no live driver/python). A run-script `pickup` with NO `prompt_answers`, and every one-shot
-`--arcopolis-command` pickup, still fail loud (exit 6); a missing/wrong/unused scripted answer fails loud
-(`script_prompt_failed`, exit 13). See `docs/arcopolis/36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md`.
+machinery as live), gated by [`docs/arcopolis/script_prompt_regression.ps1`](script_prompt_regression.ps1)
+(a pure run-script regression — no live driver/python). A run-script `pickup` with NO `prompt_answers`, and
+every one-shot `--arcopolis-command` pickup, still fail loud (exit 6); a missing/wrong/unused scripted
+answer fails loud (`script_prompt_failed`, exit 13). See
+[36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md](36_SPIKE16_SCRIPT_PROMPT_ANSWERS.md).
