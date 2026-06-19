@@ -61,13 +61,13 @@ Each family has its **own** per-transaction gate, serve branch, resolve function
 of this spike) under a named `prompt_transaction` member of the TU-local `backend_session`
 (`src/arcopolis_backend_input.cpp`), so the family state is no longer a flat scatter of booleans.
 
-| Family | Category | Gate predicate | Witness scope | Engine site (current tree) |
-| --- | --- | --- | --- | --- |
-| One-shot nested direction answer (11A) | `"DEFAULTMODE"` | armed `nested` slot + `decide_nested_input` | examine/pickup "where?" chooser | `input_context::handle_input` hook, `src/input.cpp` (~`:941-947`) |
-| **PICKUP** menu (12A) | `"PICKUP"` | `backend_pickup_transaction_active()` = `active && pickup.armed` | the **OLD** pickup item menu, **not** generic pickup UI | gated pre-loop block, `src/pickup.cpp` (~`:761`) |
-| **UILIST** (13B/14) | `"UILIST"` | `backend_uilist_transaction_active()` = `active && uilist.armed` | **two** witnessed sites (vehicle-source submenu; secondary capacity/wield/spill), all-enabled only, **not** generic uilist | `uilist::init`/`query`/`setup` gate, `src/ui.cpp` (`:159`/`:638`/`:933`/`:957`); drives `src/pickup.cpp` (~`:215`, ~`:1378`) |
-| **QUERY_POPUP** (15) | `"YESNO"` | `backend_query_popup_transaction_active()` = `active && query_popup.armed` | **one** witnessed `query_yn` (deployed-furniture take-down), **not** generic query_popup/query_yn | `query_once` gate `src/popup.cpp:277`; `query_yn` drive-block `src/output.cpp:735`; witness guard `src/iexamine.cpp:1427` |
-| Script replay of the above (16) | (same categories) | (same gates) | the SAME `backend_resolve_*` machinery; only the answer **transport** differs (declared field vs stdin line) — "level-4-replayed" (doc 38) | `run_script` installs `script_*_prompt`, `src/arcopolis_script.cpp` |
+| Family                                 | Category          | Gate predicate                                                             | Witness scope                                                                                                                              | Engine site (current tree)                                                                                                   |
+| -------------------------------------- | ----------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| One-shot nested direction answer (11A) | `"DEFAULTMODE"`   | armed `nested` slot + `decide_nested_input`                                | examine/pickup "where?" chooser                                                                                                            | `input_context::handle_input` hook, `src/input.cpp` (~`:941-947`)                                                            |
+| **PICKUP** menu (12A)                  | `"PICKUP"`        | `backend_pickup_transaction_active()` = `active && pickup.armed`           | the **OLD** pickup item menu, **not** generic pickup UI                                                                                    | gated pre-loop block, `src/pickup.cpp` (~`:761`)                                                                             |
+| **UILIST** (13B/14)                    | `"UILIST"`        | `backend_uilist_transaction_active()` = `active && uilist.armed`           | **two** witnessed sites (vehicle-source submenu; secondary capacity/wield/spill), all-enabled only, **not** generic uilist                 | `uilist::init`/`query`/`setup` gate, `src/ui.cpp` (`:159`/`:638`/`:933`/`:957`); drives `src/pickup.cpp` (~`:215`, ~`:1378`) |
+| **QUERY_POPUP** (15)                   | `"YESNO"`         | `backend_query_popup_transaction_active()` = `active && query_popup.armed` | **one** witnessed `query_yn` (deployed-furniture take-down), **not** generic query_popup/query_yn                                          | `query_once` gate `src/popup.cpp:277`; `query_yn` drive-block `src/output.cpp:735`; witness guard `src/iexamine.cpp:1427`    |
+| Script replay of the above (16)        | (same categories) | (same gates)                                                               | the SAME `backend_resolve_*` machinery; only the answer **transport** differs (declared field vs stdin line) — "level-4-replayed" (doc 38) | `run_script` installs `script_*_prompt`, `src/arcopolis_script.cpp`                                                          |
 
 All five create **no curses window and call no render primitive in any build** — pinned by the no-window unit
 assertions (`tests/arcopolis_backend_input_test.cpp`: `!menu.window`, `!popup.has_window()`).
@@ -105,9 +105,9 @@ ALL hold; otherwise it stays fail-loud:
 
 **Gate rename (pure token substitution; bodies byte-identical):**
 
-| Old (≤ Spike 18) | New (Spike 19) | Body (unchanged) |
-| --- | --- | --- |
-| `arcopolis::backend_ui_mode_active()` | `arcopolis::backend_uilist_transaction_active()` | `session.active && session.uilist.armed` |
+| Old (≤ Spike 18)                               | New (Spike 19)                                        | Body (unchanged)                              |
+| ---------------------------------------------- | ----------------------------------------------------- | --------------------------------------------- |
+| `arcopolis::backend_ui_mode_active()`          | `arcopolis::backend_uilist_transaction_active()`      | `session.active && session.uilist.armed`      |
 | `arcopolis::backend_query_popup_mode_active()` | `arcopolis::backend_query_popup_transaction_active()` | `session.active && session.query_popup.armed` |
 
 The three un-abort gates are now a parallel, self-describing family —
@@ -127,6 +127,7 @@ class-specific extras (`prompt_source`, `pickup_outcome`, `uilist_prompt_source`
 `query_popup_witness`, `examine_query_popup_command`) stay as named fields on the owning family.
 
 **Central documentation added:**
+
 - a **backend UI / prompt boundary** block at the top of `namespace arcopolis` in
   `src/arcopolis_backend_input.h` (served categories + the deliberate `INVENTORY` non-support + the §5
   invariant);
@@ -172,18 +173,18 @@ _Recorded after the build (PowerShell only); see the session summary for the run
 Per [[cite-the-implementing-line]]. Static/structural claims verified at the implementing line this session;
 the behavior-preservation claims rest on the unchanged statements + the build/test pass (§8).
 
-| Claim | Cite | Type | Verdict |
-| --- | --- | --- | --- |
-| `backend_uilist_transaction_active()` body is `active && uilist.armed` (UILIST-only, per-transaction) | `src/arcopolis_backend_input.cpp` `backend_uilist_transaction_active` | structural | ✅ verified |
-| `backend_query_popup_transaction_active()` body is `active && query_popup.armed` | `src/arcopolis_backend_input.cpp` `backend_query_popup_transaction_active` | structural | ✅ verified |
-| Rename is a pure token substitution (no overloads/macros/string-literal symbol uses/ABI) | grep both tokens across `src/`,`tests/` | behavioral/absence | ✅ verified |
-| `INVENTORY` is NOT a served category; `backend_nested_input_action` serves only PICKUP/UILIST/YESNO | `src/arcopolis_backend_input.cpp` serve branches | behavioral | ✅ verified |
-| `NEW_PICKUP_MENU=true` stays fail-loud at pre-flight (exit 6), live + script | `src/arcopolis_live.cpp:213-218`; `src/arcopolis_script.cpp:357-365` | behavioral | ✅ verified (untouched) |
-| `prompt_transaction` is state-only (no methods); each family keeps a distinct serve/resolve/gate | `src/arcopolis_backend_input.cpp` `struct prompt_transaction` + serve branches | structural | ✅ verified |
-| `begin_backend_session` designated initializers remain in declaration order (valid C++20) | `src/arcopolis_backend_input.cpp` `begin_backend_session` | structural | ✅ verified |
-| No new curses window / render primitive on the backend path | no new `newwin`/draw call added; no-window unit asserts unchanged | absence | ✅ verified (static) |
-| Wire/transcript/exit codes unchanged | no edit to formatters / `session_log_*` / `exit_code_for` | absence | ✅ verified (static) |
-| `[arcopolis]` suite passes; game + tests compile | §8 build run | behavioral | ⏳ see §8 / summary |
+| Claim                                                                                                 | Cite                                                                           | Type               | Verdict                 |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------ | ----------------------- |
+| `backend_uilist_transaction_active()` body is `active && uilist.armed` (UILIST-only, per-transaction) | `src/arcopolis_backend_input.cpp` `backend_uilist_transaction_active`          | structural         | ✅ verified             |
+| `backend_query_popup_transaction_active()` body is `active && query_popup.armed`                      | `src/arcopolis_backend_input.cpp` `backend_query_popup_transaction_active`     | structural         | ✅ verified             |
+| Rename is a pure token substitution (no overloads/macros/string-literal symbol uses/ABI)              | grep both tokens across `src/`,`tests/`                                        | behavioral/absence | ✅ verified             |
+| `INVENTORY` is NOT a served category; `backend_nested_input_action` serves only PICKUP/UILIST/YESNO   | `src/arcopolis_backend_input.cpp` serve branches                               | behavioral         | ✅ verified             |
+| `NEW_PICKUP_MENU=true` stays fail-loud at pre-flight (exit 6), live + script                          | `src/arcopolis_live.cpp:213-218`; `src/arcopolis_script.cpp:357-365`           | behavioral         | ✅ verified (untouched) |
+| `prompt_transaction` is state-only (no methods); each family keeps a distinct serve/resolve/gate      | `src/arcopolis_backend_input.cpp` `struct prompt_transaction` + serve branches | structural         | ✅ verified             |
+| `begin_backend_session` designated initializers remain in declaration order (valid C++20)             | `src/arcopolis_backend_input.cpp` `begin_backend_session`                      | structural         | ✅ verified             |
+| No new curses window / render primitive on the backend path                                           | no new `newwin`/draw call added; no-window unit asserts unchanged              | absence            | ✅ verified (static)    |
+| Wire/transcript/exit codes unchanged                                                                  | no edit to formatters / `session_log_*` / `exit_code_for`                      | absence            | ✅ verified (static)    |
+| `[arcopolis]` suite passes; game + tests compile                                                      | §8 build run                                                                   | behavioral         | ⏳ see §8 / summary     |
 
 **Residual uncertainties (kept):** (1) behavior-preservation of the rename + struct regroup is argued from
 unchanged statements + the build/`[arcopolis]` pass — it is not a separate runtime differential vs the
