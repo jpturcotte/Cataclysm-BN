@@ -225,10 +225,14 @@ std::expected<action_id, command_error>
     if( cmd.command == "pickup" ) {
         // Same defense in depth: validate the "Pickup where?" direction (the same allow_vertical=false
         // choose_adjacent_highlight chooser examine uses, src/game.cpp:8761-8765). The direction is the
-        // one-shot nested-input answer for THAT chooser; the item-selection MENU that follows is driven --
-        // in LIVE mode only -- by the Spike 12A pickup-prompt transaction (registered PICKUP actions fed
-        // through the real input_context("PICKUP") loop). Script/one-shot modes resolve the verb but arm
-        // no transaction, so the menu auto-cancels via the existing nested-input guard (no answer channel).
+        // one-shot nested-input answer for THAT chooser; the item-selection MENU that follows is driven by
+        // the Spike 12A pickup-prompt transaction (registered PICKUP actions fed through the real
+        // input_context("PICKUP") loop) wherever an answer channel exists: LIVE mode (the stdin client) and,
+        // since Spike 16, --arcopolis-run-script when the step DECLARES prompt_answers (next_backend_action
+        // arms the transaction + installs the script prompt sources). A one-shot --arcopolis-command pickup
+        // has no answer channel and is rejected pre-flight (is_live_only_command -> unsupported_command).
+        // NEW_PICKUP_MENU=true routes to the inventory_selector instead and is rejected too; see the
+        // inventory_selector audit, docs/arcopolis/39_SPIKE18_NEW_PICKUP_MENU_AUDIT.md.
         if( !is_supported_target_direction( cmd.direction ) ) {
             return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
                                                    .detail = "unsupported pickup direction '" + cmd.direction +
