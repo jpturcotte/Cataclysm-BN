@@ -12,7 +12,7 @@ window / graphical-interface abort in it, and decides. **Outcome: stop at audit 
 
 > **Headline finding (read before §8): a `test_mode` un-abort witness (Spikes 13B/14/15) is NOT equivalent to
 > a renderer-neutral backend UI mode.** Driving `inventory_selector` honestly is **qualitatively different**
-> from the prior prompt witnesses — it is the *start of a renderer-neutral selector architecture*, not "one
+> from the prior prompt witnesses — it is the _start of a renderer-neutral selector architecture_, not "one
 > more prompt path." §8's sketch is a **seam map, not authorization**: any implementation needs its own design
 > spike first.
 
@@ -20,15 +20,15 @@ window / graphical-interface abort in it, and decides. **Outcome: stop at audit 
 > (argue-feasible vs argue-audit-only) + a completeness critic, with the load-bearing leaves hand-verified
 > this session. **No build was run; no `--arcopolis-*` session was executed.** Every runtime claim about the
 > `NEW_PICKUP_MENU=true` selector path is reasoned from the cited source leaves — and that path is **rejected
-> pre-flight today**, so its "what would happen" behavior is the *counterfactual the fail-loud exists to
-> prevent*, not an observed run. Line numbers are current-tree at audit time; confirm by symbol (they drift).
+> pre-flight today**, so its "what would happen" behavior is the _counterfactual the fail-loud exists to
+> prevent_, not an observed run. Line numbers are current-tree at audit time; confirm by symbol (they drift).
 > Terminology (backend-input vs engine vs frontend equivalence) is the three senses pinned in
 > [37](37_SPIKE17_CLAIM_AUDIT.md) §Terminology and `AGENTS.md:83-120`.
 
 ## 1. Purpose
 
 Determine, at the implementing line, whether BN's `NEW_PICKUP_MENU=true` pickup path (the
-`inventory_selector`) can be driven by Arcopolis as **one witnessed path** that is *both*:
+`inventory_selector`) can be driven by Arcopolis as **one witnessed path** that is _both_:
 
 1. **backend-input level 4** — BN's real prompt/input/selector loop consumes backend-served registered
    actions, and the real engine caller consumes the result; and
@@ -42,10 +42,10 @@ next**. (It is "not yet.")
 
 PR #45 reframed the project: **external GUI equivalence is the goal; backend-input level 4 is the proof
 mechanism**, not a replacement for it; and **one witnessed path is not generic support** (doc 37/38). Spike
-18 is the first *new* prompt-class probe under that reframe. The discipline it tests: state the equivalence
+18 is the first _new_ prompt-class probe under that reframe. The discipline it tests: state the equivalence
 level honestly, refuse "equivalent-ish," and — per the standing amendment recorded for this spike — treat the
 `test_mode` / "missing graphical interface" abort as a **primary audit target**, not a test flake. The
-**forbidden** moves (each yields an "equivalent-ish" result that is *worse* than audit-only): fake graphics,
+**forbidden** moves (each yields an "equivalent-ish" result that is _worse_ than audit-only): fake graphics,
 pretend tiles/curses exists, weaken `test_mode` globally, route around the selector, set the selector result
 directly, or use the final item transfer as the proof of equivalence.
 
@@ -57,7 +57,7 @@ branch `pickup::pick_up( p, 0 )` (`src/game.cpp:8786`). That is the **legacy old
 pickup transaction (the gated pre-loop block `src/pickup.cpp:761-769` exposes the real `stacked_here` entries;
 the **unmodified** loop consumes the served `[DOWN×K, RIGHT, …, CONFIRM]`; the engine's `pickup_activity_actor`
 performs the transfer). It is live- and (Spike 16) script-drivable. **This audit changes none of it.** It is a
-*legacy* witness — BN's default and forward direction is the `inventory_selector` — exactly as doc 37 §"Why
+_legacy_ witness — BN's default and forward direction is the `inventory_selector` — exactly as doc 37 §"Why
 the old pickup menu is a legacy witness" states.
 
 ## 4. The `NEW_PICKUP_MENU=true` call path (traced at the implementing line)
@@ -90,7 +90,7 @@ ACTION_PICKUP                                            src/handle_action.cpp:2
 
 - The selector reaches **the real input loop** — `get_input()` calls `ctxt.handle_input()` on
   `input_context("INVENTORY")` (`src/inventory_ui.cpp:1837`, `:1887`) with **no `test_mode` abort anywhere in
-  `inventory_ui.cpp`** (grep: zero hits) — *unlike* `uilist::query` (`src/ui.cpp:933`) and
+  `inventory_ui.cpp`** (grep: zero hits) — _unlike_ `uilist::query` (`src/ui.cpp:933`) and
   `query_popup::query_once` (`src/popup.cpp:277`), which abort at the top under `test_mode`.
 - The selector's **navigable/sorted state and its window are produced by the SAME suppressed callback**:
   `create_or_get_ui_adaptor` wires `on_screen_resize -> prepare_layout()` (`src/inventory_ui.cpp:1471-1472`);
@@ -108,37 +108,37 @@ witnessed minimal path (one live ground item, `NEW_PICKUP_MENU=true`) is classif
 missing graphical-interface assumption · **U** = legitimate unsupported selector path · **N** =
 renderer-neutral input logic.
 
-| Site | What | Class | Fires on witness? | Renderer-neutrally drivable? |
-| --- | --- | --- | --- | --- |
-| `src/game.cpp:8776-8779` | `add_draw_callback( [drawsq w_terrain] )` | R | installed, body never executes (draw pass suppressed) | avoidable on witness (never fabricate `w_terrain`) |
-| `src/game.cpp:8781-8784` | `NEW_PICKUP_MENU` branch → `pickup_from_tile` + `assign_activity` | N | yes (the dispatch) | only with a new init path below |
-| `src/game_inventory.cpp:1698-1708` | build selector, `add_map_items`/`add_vehicle_items` | N | yes | **yes** — window-free data population |
-| `src/game_inventory.cpp:1710-1713` | empty-pile `popup(…, PF_GET_KEY)` | G | no (witness pile non-empty) | avoidable on witness |
-| `src/inventory_ui.cpp:2542` | `create_or_get_ui_adaptor()` (wires resize+redraw callbacks) | R | yes (object created) | only with a new init path |
-| `src/inventory_ui.cpp:2545` | `ui_manager::redraw()` each iteration | T | yes (pure no-op under `test_mode`) | **yes** — this is the *wanted* half of `test_mode` |
-| `src/inventory_ui.cpp:1471/1446-1463` | `on_screen_resize → prepare_layout()` (no-arg) | T+R | **never fires** under `test_mode` → layout AND window both skipped | only with a new init path |
-| `src/inventory_ui.cpp:1420-1444` | 2-arg `prepare_layout(w,h)` (sort/headers/snap/invlets/`refresh_active_column`) | N | does not fire (only via the suppressed no-arg) | **yes** — window-free, but needs explicit dims (height > 1) |
-| `src/inventory_ui.cpp:1628-1639` | `resize_window → catacurses::newwin` | R | never fires under `test_mode` **on the redraw path** (but see TOGGLE_FAVORITE below) | **no** — must never run; **ungated** here (contrast `uilist::setup` `src/ui.cpp:638`) |
-| `src/inventory_ui.cpp:1641-1653` | `refresh_window` (`assert(w_inv)` + `werase`/`draw_*`) | R | never fires under `test_mode` | **no** — pure drawing |
-| `src/inventory_ui.cpp:1908-1915` | `on_input` **TOGGLE_FAVORITE** → no-arg `prepare_layout()` | R | **NOT suppressed** — reachable via a served action, calls `newwin` | **no** — ungated `newwin` outside the redraw path |
-| `src/inventory_ui.cpp:1883-1896` | `get_input()` → `ctxt.handle_input()` ("INVENTORY") | N | yes (the real loop) | **yes** — renderer-neutral level-4 seam |
-| `src/arcopolis_backend_input.cpp:1090-1116` | guard for an "INVENTORY" read (no serve branch) | N | yes → `cancel_quit` serves `QUIT` | semantically WRONG for pickup (silent no-op) |
-| `src/inventory_ui.cpp:2549-2614` | digit/select/RIGHT/CONFIRM dispatch | N | per served action | only with a new init path (needs the layout pass) |
-| `src/inventory_ui.cpp:2615-2630` | QUIT / loop-tail empty returns | N | yes (QUIT served) | empty selection → silent no-op |
+| Site                                        | What                                                                            | Class | Fires on witness?                                                                    | Renderer-neutrally drivable?                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `src/game.cpp:8776-8779`                    | `add_draw_callback( [drawsq w_terrain] )`                                       | R     | installed, body never executes (draw pass suppressed)                                | avoidable on witness (never fabricate `w_terrain`)                                    |
+| `src/game.cpp:8781-8784`                    | `NEW_PICKUP_MENU` branch → `pickup_from_tile` + `assign_activity`               | N     | yes (the dispatch)                                                                   | only with a new init path below                                                       |
+| `src/game_inventory.cpp:1698-1708`          | build selector, `add_map_items`/`add_vehicle_items`                             | N     | yes                                                                                  | **yes** — window-free data population                                                 |
+| `src/game_inventory.cpp:1710-1713`          | empty-pile `popup(…, PF_GET_KEY)`                                               | G     | no (witness pile non-empty)                                                          | avoidable on witness                                                                  |
+| `src/inventory_ui.cpp:2542`                 | `create_or_get_ui_adaptor()` (wires resize+redraw callbacks)                    | R     | yes (object created)                                                                 | only with a new init path                                                             |
+| `src/inventory_ui.cpp:2545`                 | `ui_manager::redraw()` each iteration                                           | T     | yes (pure no-op under `test_mode`)                                                   | **yes** — this is the _wanted_ half of `test_mode`                                    |
+| `src/inventory_ui.cpp:1471/1446-1463`       | `on_screen_resize → prepare_layout()` (no-arg)                                  | T+R   | **never fires** under `test_mode` → layout AND window both skipped                   | only with a new init path                                                             |
+| `src/inventory_ui.cpp:1420-1444`            | 2-arg `prepare_layout(w,h)` (sort/headers/snap/invlets/`refresh_active_column`) | N     | does not fire (only via the suppressed no-arg)                                       | **yes** — window-free, but needs explicit dims (height > 1)                           |
+| `src/inventory_ui.cpp:1628-1639`            | `resize_window → catacurses::newwin`                                            | R     | never fires under `test_mode` **on the redraw path** (but see TOGGLE_FAVORITE below) | **no** — must never run; **ungated** here (contrast `uilist::setup` `src/ui.cpp:638`) |
+| `src/inventory_ui.cpp:1641-1653`            | `refresh_window` (`assert(w_inv)` + `werase`/`draw_*`)                          | R     | never fires under `test_mode`                                                        | **no** — pure drawing                                                                 |
+| `src/inventory_ui.cpp:1908-1915`            | `on_input` **TOGGLE_FAVORITE** → no-arg `prepare_layout()`                      | R     | **NOT suppressed** — reachable via a served action, calls `newwin`                   | **no** — ungated `newwin` outside the redraw path                                     |
+| `src/inventory_ui.cpp:1883-1896`            | `get_input()` → `ctxt.handle_input()` ("INVENTORY")                             | N     | yes (the real loop)                                                                  | **yes** — renderer-neutral level-4 seam                                               |
+| `src/arcopolis_backend_input.cpp:1090-1116` | guard for an "INVENTORY" read (no serve branch)                                 | N     | yes → `cancel_quit` serves `QUIT`                                                    | semantically WRONG for pickup (silent no-op)                                          |
+| `src/inventory_ui.cpp:2549-2614`            | digit/select/RIGHT/CONFIRM dispatch                                             | N     | per served action                                                                    | only with a new init path (needs the layout pass)                                     |
+| `src/inventory_ui.cpp:2615-2630`            | QUIT / loop-tail empty returns                                                  | N     | yes (QUIT served)                                                                    | empty selection → silent no-op                                                        |
 
 **Sub-prompt hazard surface (renderer dependencies the selector can raise).** None fires on the witnessed
 path (the seam serves the unserved "INVENTORY" context only `QUIT`, and `execute()` exits on the first read),
 but they bound what stays unsupported:
 
-| Sub-prompt | Site | Mechanism | Status |
-| --- | --- | --- | --- |
-| empty-pile popup | `src/game_inventory.cpp:1711` | `popup(…, PF_GET_KEY)` → `query_once` `test_mode`-abort (`src/popup.cpp:277`) | off-witness; defaulted |
-| per-unit `query_count` | `src/inventory_ui.cpp:2552` → `:2128` | `string_input_popup` on context `"STRING_INPUT"` (unserved) + a window | unsupported |
-| filter `INVENTORY_FILTER` | `src/inventory_ui.cpp:1907` → `:1657` | `string_input_popup` `"STRING_INPUT"` + `ime_sentry` | unsupported |
-| "No items selected" | `src/inventory_ui.cpp:2609` | `popup_getkey` → `query_once` `test_mode`-abort | off-witness; defaulted |
-| `EXAMINE` item info | `src/inventory_ui.cpp:756-759` | `draw_item_info` → `catacurses::newwin` + a `handle_input` loop on the default context (**no `test_mode` abort**, only its `newwin` is callback-suppressed) | unsupported |
-| `WIELD`/`WEAR` | `src/inventory_ui.cpp:1916-1921` → `:1714`/`:1733` | direct state mutation mid-selector (`u.wield`/`u.wear_item`), `popup_getkey` on failure | unsupported; **direct mutation** |
-| `TOGGLE_FAVORITE` | `src/inventory_ui.cpp:766-771` → `set_stack_favorite` `:692` | direct world mutation mid-selector; the selector-level branch also calls `newwin`-bearing `prepare_layout()` (`:1915`) | unsupported; **direct mutation + window** |
+| Sub-prompt                | Site                                                         | Mechanism                                                                                                                                                   | Status                                    |
+| ------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| empty-pile popup          | `src/game_inventory.cpp:1711`                                | `popup(…, PF_GET_KEY)` → `query_once` `test_mode`-abort (`src/popup.cpp:277`)                                                                               | off-witness; defaulted                    |
+| per-unit `query_count`    | `src/inventory_ui.cpp:2552` → `:2128`                        | `string_input_popup` on context `"STRING_INPUT"` (unserved) + a window                                                                                      | unsupported                               |
+| filter `INVENTORY_FILTER` | `src/inventory_ui.cpp:1907` → `:1657`                        | `string_input_popup` `"STRING_INPUT"` + `ime_sentry`                                                                                                        | unsupported                               |
+| "No items selected"       | `src/inventory_ui.cpp:2609`                                  | `popup_getkey` → `query_once` `test_mode`-abort                                                                                                             | off-witness; defaulted                    |
+| `EXAMINE` item info       | `src/inventory_ui.cpp:756-759`                               | `draw_item_info` → `catacurses::newwin` + a `handle_input` loop on the default context (**no `test_mode` abort**, only its `newwin` is callback-suppressed) | unsupported                               |
+| `WIELD`/`WEAR`            | `src/inventory_ui.cpp:1916-1921` → `:1714`/`:1733`           | direct state mutation mid-selector (`u.wield`/`u.wear_item`), `popup_getkey` on failure                                                                     | unsupported; **direct mutation**          |
+| `TOGGLE_FAVORITE`         | `src/inventory_ui.cpp:766-771` → `set_stack_favorite` `:692` | direct world mutation mid-selector; the selector-level branch also calls `newwin`-bearing `prepare_layout()` (`:1915`)                                      | unsupported; **direct mutation + window** |
 
 ### 5.1 The named distinction this spike establishes: **`test_mode` un-abort witness ≠ renderer-neutral backend UI mode**
 
@@ -151,7 +151,7 @@ UI mode**. The `inventory_selector` exposes the gap between the two precisely:
 - There is **no single `test_mode` abort to pierce** — the loop calls `handle_input()` directly. The thing
   that suppresses the selector's layout is the **global** render suppression
   (`ui_adaptor::redraw_invalidated` early-return, `src/ui_manager.cpp:328`), which un-aborting would mean
-  **weakening `test_mode` globally** (forbidden) and would *also* fire the window half.
+  **weakening `test_mode` globally** (forbidden) and would _also_ fire the window half.
 - Window creation is **entangled** with the renderer-neutral layout in one callback, and the selector's
   `newwin` is **not gated** anywhere (contrast `uilist::setup` `src/ui.cpp:638`). Worse, the no-arg
   `prepare_layout()` (which calls `newwin`) is reachable **outside** the suppressed redraw path, via
@@ -187,22 +187,22 @@ engine surgery**.
 
 ## 7. Equivalence analysis
 
-- **Backend-input level 4 possible (mechanically)?** *Yes in principle.* The selector consumes
+- **Backend-input level 4 possible (mechanically)?** _Yes in principle._ The selector consumes
   `input_context("INVENTORY")::handle_input()`, the real loop a player uses; the backend could synthesize
   `[DOWN×K, RIGHT, CONFIRM]` (the fourth instance of the `backend_resolve_*` keystroke mechanism) and let the
   loop compute its own selection. **But not as-is:** today "INVENTORY" is **not a served category**
   (`src/arcopolis_backend_input.cpp:1134-1177` serve only `PICKUP`/`UILIST`/`YESNO`), so the guard serves
   `QUIT` (`decide_nested_input` `:1110`) → empty selection → silent no-op. Driving it requires a **new served
-  "INVENTORY" category + queue + transaction**, *and* a **new window-free init path** to run the suppressed
+  "INVENTORY" category + queue + transaction**, _and_ a **new window-free init path** to run the suppressed
   layout pass (so the navigated/exposed entry order, the snapped highlight, and the active column match what a
   player sees), with explicit headless dimensions (TERMX/TERMY are 0 on the `--arcopolis-*` path —
   `init_ui` is bypassed by the `std::_Exit` branches in `src/main.cpp`).
-- **Engine equivalence possible?** *Yes, if the above were built* — `optimize_pickup` and
+- **Engine equivalence possible?** _Yes, if the above were built_ — `optimize_pickup` and
   `pickup_activity_actor` are shared with the old path; the engine would compute and mutate. The risk is the
   **three direct-mutation side channels** (`u.wield`/`u.wear_item`/`set_stack_favorite`,
   `src/inventory_ui.cpp:1714`/`1733`/`692`) that bypass the returned selection entirely — harmless only while
   "INVENTORY" is unserved; if it became served they would be unguarded.
-- **External GUI equivalence possible (for this witness)?** *Not demonstrable here.* A frontend would render
+- **External GUI equivalence possible (for this witness)?** _Not demonstrable here._ A frontend would render
   the `map_column` entries (display name + per-unit count) as a selectable list and surface the same
   consequence (items leave the ground → carried). But no external frontend was driven against this path; per
   doc 37/38, frontend equivalence is witnessed today **only** for the planar move/examine surface (Spike
@@ -211,7 +211,7 @@ engine surgery**.
 
 ## 8. What a witness would require — qualitatively, a new selector architecture (seam map, NOT authorization)
 
-This is **not** "one more prompt path." The selector *does* have a real `handle_input()` seam, but driving it
+This is **not** "one more prompt path." The selector _does_ have a real `handle_input()` seam, but driving it
 honestly is **qualitatively different** from the Spikes 13B/14/15 `test_mode` un-abort witnesses: there is no
 served `"INVENTORY"` branch today (the backend serves only the existing `PICKUP`/`UILIST`/`YESNO` nested
 categories, `src/arcopolis_backend_input.cpp:1134-1177`), and the layout/window entanglement means support
@@ -246,15 +246,15 @@ authorized by this audit and would need its own design spike before any implemen
 ## 9. Implementation decision — STOPPED AT AUDIT (Outcome A), and why
 
 **Decision: audit-only.** Against the spike's gate — proceed only if (a) the selector has a renderer-neutral
-input loop we can drive, or (b) the abort is a *narrow* `test_mode` shortcut over a window-free loop —
+input loop we can drive, or (b) the abort is a _narrow_ `test_mode` shortcut over a window-free loop —
 neither cleanly holds:
 
-- The input *loop* is renderer-neutral (a), but it is **not drivable without** a new served category **and** a
+- The input _loop_ is renderer-neutral (a), but it is **not drivable without** a new served category **and** a
   new window-free init path; the suppression is the **global** render gate, not a narrow abort, so (b) fails.
 - The selector's `newwin` is **ungated and reachable outside `test_mode` suppression**
   (`src/inventory_ui.cpp:1915`); layout and window are **entangled**; there are **no headless dimensions**;
   and there are **three direct-mutation side channels**. Making it "continue" by any shortcut is a forbidden
-  move; making it continue *faithfully* is a renderer-neutral selector **architecture** (§8) — **qualitatively
+  move; making it continue _faithfully_ is a renderer-neutral selector **architecture** (§8) — **qualitatively
   different from the prior `test_mode` un-abort witnesses, not "one more prompt path" and not "at most one
   minimal witness."**
 
@@ -281,20 +281,20 @@ fail-loud, document the seam gap, do not force implementation (design shape C).
 
 ## 11. The Phase-1 audit questions, answered
 
-| # | Question | Answer (cite) |
-| --- | --- | --- |
-| 1 | Where does `game::pickup` branch when `NEW_PICKUP_MENU=true`? | `src/game.cpp:8781` → `game_menus::inv::pickup_from_tile( g->u, p )` `:8782`, then `assign_activity(pickup_activity_actor)` `:8783-8784` |
-| 2 | Which selector/menu class? | `inventory_pickup_selector` (`inventory_multiselector`→`inventory_selector`), `src/game_inventory.cpp:1699`; `execute()` `src/inventory_ui.cpp:2540` |
-| 3 | Does it call `input_context::handle_input()`? | **Yes** — `get_input()` → `ctxt.handle_input()` `src/inventory_ui.cpp:1887`; **no `test_mode` abort** in `inventory_ui.cpp` |
-| 4 | Context / action ids? | `input_context("INVENTORY")` `:1837`; `DOWN/UP/PAGE_*/RIGHT/LEFT/CONFIRM/QUIT/CATEGORY_SELECTION/TOGGLE_FAVORITE/HOME/END/INVENTORY_FILTER/EXAMINE/WIELD/WEAR/ANY_INPUT` `:1844-1861` + `DROP_NON_FAVORITE` `:2104`. Pickup = `[DOWN×K, RIGHT, CONFIRM]` |
-| 5 | Can Arcopolis observe the choices without duplicating selector logic? | Partially — entries live in `map_column` (`add_map_items` `:1314`), but faithful order/headers/highlight require the **suppressed** `prepare_paging`/`refresh_active_column` (`src/inventory_ui.cpp:809`/`:1443`) |
-| 6 | Can Arcopolis serve registered actions into the real loop? | **Not as-is** — "INVENTORY" is unserved (`src/arcopolis_backend_input.cpp:1134-1177`); guard serves `QUIT` (`:1110`). Needs a new served category + the layout pass |
-| 7 | Where does the engine consume the result? | `pickup_from_tile` returns the selection → `game::pickup` assigns `pickup_activity_actor` `src/game.cpp:8783`; result built by **shared** `optimize_pickup` `src/inventory_ui.cpp:2607` |
-| 8 | Smallest safe witness? | **None that is minimal** — see §8 (≈5 new gated touches = a renderer-neutral backend UI mode, not a one-line un-abort) |
-| 9 | What would a frontend render? | The `map_column` entries (name + per-unit count) as a selectable list; consequence = items leave ground → carried. Not driven/observed (frontend equivalence proven only for planar move/examine, doc 38) |
-| 10 | What old PICKUP code must stay unchanged? | The whole `NEW_PICKUP_MENU=false` path (§10) — `src/game.cpp:8786`, `src/pickup.cpp` PICKUP loop + 12A/13B blocks + shared 14 tail |
-| 11 | What docs/fail-loud would change **if proven**? | live/script pre-flight rejects (`arcopolis_live.cpp:213`, `arcopolis_script.cpp:355`), STATE.md fail-loud table + capability rows, doc 37/38 "not yet" lists — **none changed** (no witness) |
-| 12 | What must remain unsupported? | Everything in §10 |
+| #  | Question                                                              | Answer (cite)                                                                                                                                                                                                                                            |
+| -- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1  | Where does `game::pickup` branch when `NEW_PICKUP_MENU=true`?         | `src/game.cpp:8781` → `game_menus::inv::pickup_from_tile( g->u, p )` `:8782`, then `assign_activity(pickup_activity_actor)` `:8783-8784`                                                                                                                 |
+| 2  | Which selector/menu class?                                            | `inventory_pickup_selector` (`inventory_multiselector`→`inventory_selector`), `src/game_inventory.cpp:1699`; `execute()` `src/inventory_ui.cpp:2540`                                                                                                     |
+| 3  | Does it call `input_context::handle_input()`?                         | **Yes** — `get_input()` → `ctxt.handle_input()` `src/inventory_ui.cpp:1887`; **no `test_mode` abort** in `inventory_ui.cpp`                                                                                                                              |
+| 4  | Context / action ids?                                                 | `input_context("INVENTORY")` `:1837`; `DOWN/UP/PAGE_*/RIGHT/LEFT/CONFIRM/QUIT/CATEGORY_SELECTION/TOGGLE_FAVORITE/HOME/END/INVENTORY_FILTER/EXAMINE/WIELD/WEAR/ANY_INPUT` `:1844-1861` + `DROP_NON_FAVORITE` `:2104`. Pickup = `[DOWN×K, RIGHT, CONFIRM]` |
+| 5  | Can Arcopolis observe the choices without duplicating selector logic? | Partially — entries live in `map_column` (`add_map_items` `:1314`), but faithful order/headers/highlight require the **suppressed** `prepare_paging`/`refresh_active_column` (`src/inventory_ui.cpp:809`/`:1443`)                                        |
+| 6  | Can Arcopolis serve registered actions into the real loop?            | **Not as-is** — "INVENTORY" is unserved (`src/arcopolis_backend_input.cpp:1134-1177`); guard serves `QUIT` (`:1110`). Needs a new served category + the layout pass                                                                                      |
+| 7  | Where does the engine consume the result?                             | `pickup_from_tile` returns the selection → `game::pickup` assigns `pickup_activity_actor` `src/game.cpp:8783`; result built by **shared** `optimize_pickup` `src/inventory_ui.cpp:2607`                                                                  |
+| 8  | Smallest safe witness?                                                | **None that is minimal** — see §8 (≈5 new gated touches = a renderer-neutral backend UI mode, not a one-line un-abort)                                                                                                                                   |
+| 9  | What would a frontend render?                                         | The `map_column` entries (name + per-unit count) as a selectable list; consequence = items leave ground → carried. Not driven/observed (frontend equivalence proven only for planar move/examine, doc 38)                                                |
+| 10 | What old PICKUP code must stay unchanged?                             | The whole `NEW_PICKUP_MENU=false` path (§10) — `src/game.cpp:8786`, `src/pickup.cpp` PICKUP loop + 12A/13B blocks + shared 14 tail                                                                                                                       |
+| 11 | What docs/fail-loud would change **if proven**?                       | live/script pre-flight rejects (`arcopolis_live.cpp:213`, `arcopolis_script.cpp:355`), STATE.md fail-loud table + capability rows, doc 37/38 "not yet" lists — **none changed** (no witness)                                                             |
+| 12 | What must remain unsupported?                                         | Everything in §10                                                                                                                                                                                                                                        |
 
 ## 12. Regression / validation
 
@@ -341,21 +341,21 @@ performed:
 Per [[cite-the-implementing-line]] — load-bearing claims, verified at the implementing line this session
 (static reads; **no build/run** — see the method caveat).
 
-| Claim | Cite | Type | Verdict |
-| --- | --- | --- | --- |
-| `game::pickup` branches on `NEW_PICKUP_MENU`; true → `pickup_from_tile` + `pickup_activity_actor` | `src/game.cpp:8781-8784` | behavioral | ✅ verified |
-| Selector is `inventory_pickup_selector`; `execute()` is the loop | `src/game_inventory.cpp:1699`; `src/inventory_ui.cpp:2540` | structural | ✅ verified |
-| Loop reaches `input_context("INVENTORY")::handle_input()`; **no `test_mode` abort** in `inventory_ui.cpp` | `src/inventory_ui.cpp:1837`,`:1887`; grep | behavioral/absence | ✅ verified |
-| Layout + window share one suppressed callback; no-arg `prepare_layout` does 2-arg layout **then** `newwin` | `src/inventory_ui.cpp:1471`,`:1446-1463`,`:1630` | behavioral | ✅ verified |
-| The resize/redraw callbacks never fire under `test_mode` | `src/ui_manager.cpp:328` | behavioral | ✅ verified |
-| 2-arg `prepare_layout(w,h)` is window-free; needs height > 1 (TERMX/TERMY = 0 headless) | `src/inventory_ui.cpp:1420-1444`,`:548`; `src/output.cpp:49` | behavioral | ✅ verified |
-| Selector `newwin` is **ungated**; reachable outside redraw via `TOGGLE_FAVORITE` `on_input` | `src/inventory_ui.cpp:1628-1631`,`:1915` | behavioral | ✅ verified (vs gated `uilist::setup` `src/ui.cpp:638`) |
-| "INVENTORY" is **not** a served category; guard serves `QUIT` → empty → silent no-op | `src/arcopolis_backend_input.cpp:1134-1177`,`:1110`; `src/inventory_ui.cpp:2615`; `src/game.cpp:8783` | behavioral | ✅ verified |
-| `add_vehicle_items` folds vehicle cargo into the **same** selector (no "Get items from where?" uilist) | `src/game_inventory.cpp:1708`; `src/inventory_ui.cpp:1334` | behavioral | ✅ verified |
-| Result via **shared** `optimize_pickup`; **same** `pickup_activity_actor` as old path | `src/inventory_ui.cpp:2607`; `src/pickup.cpp:1330-1333` | behavioral | ✅ verified |
-| Three direct-mutation side channels (wield/wear/favorite) bypass the returned selection | `src/inventory_ui.cpp:1714`,`:1733`,`:692` | behavioral | ✅ verified |
-| Fail-loud lives at the two pre-flight sites, exit 6 | `src/arcopolis_live.cpp:213-218`; `src/arcopolis_script.cpp:355-359` | behavioral | ✅ verified |
-| `inventory_selector` is a named future un-abort site that must uphold the no-window invariant | `AGENTS.md:56` | structural | ✅ verified |
+| Claim                                                                                                      | Cite                                                                                                  | Type               | Verdict                                                 |
+| ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------- |
+| `game::pickup` branches on `NEW_PICKUP_MENU`; true → `pickup_from_tile` + `pickup_activity_actor`          | `src/game.cpp:8781-8784`                                                                              | behavioral         | ✅ verified                                             |
+| Selector is `inventory_pickup_selector`; `execute()` is the loop                                           | `src/game_inventory.cpp:1699`; `src/inventory_ui.cpp:2540`                                            | structural         | ✅ verified                                             |
+| Loop reaches `input_context("INVENTORY")::handle_input()`; **no `test_mode` abort** in `inventory_ui.cpp`  | `src/inventory_ui.cpp:1837`,`:1887`; grep                                                             | behavioral/absence | ✅ verified                                             |
+| Layout + window share one suppressed callback; no-arg `prepare_layout` does 2-arg layout **then** `newwin` | `src/inventory_ui.cpp:1471`,`:1446-1463`,`:1630`                                                      | behavioral         | ✅ verified                                             |
+| The resize/redraw callbacks never fire under `test_mode`                                                   | `src/ui_manager.cpp:328`                                                                              | behavioral         | ✅ verified                                             |
+| 2-arg `prepare_layout(w,h)` is window-free; needs height > 1 (TERMX/TERMY = 0 headless)                    | `src/inventory_ui.cpp:1420-1444`,`:548`; `src/output.cpp:49`                                          | behavioral         | ✅ verified                                             |
+| Selector `newwin` is **ungated**; reachable outside redraw via `TOGGLE_FAVORITE` `on_input`                | `src/inventory_ui.cpp:1628-1631`,`:1915`                                                              | behavioral         | ✅ verified (vs gated `uilist::setup` `src/ui.cpp:638`) |
+| "INVENTORY" is **not** a served category; guard serves `QUIT` → empty → silent no-op                       | `src/arcopolis_backend_input.cpp:1134-1177`,`:1110`; `src/inventory_ui.cpp:2615`; `src/game.cpp:8783` | behavioral         | ✅ verified                                             |
+| `add_vehicle_items` folds vehicle cargo into the **same** selector (no "Get items from where?" uilist)     | `src/game_inventory.cpp:1708`; `src/inventory_ui.cpp:1334`                                            | behavioral         | ✅ verified                                             |
+| Result via **shared** `optimize_pickup`; **same** `pickup_activity_actor` as old path                      | `src/inventory_ui.cpp:2607`; `src/pickup.cpp:1330-1333`                                               | behavioral         | ✅ verified                                             |
+| Three direct-mutation side channels (wield/wear/favorite) bypass the returned selection                    | `src/inventory_ui.cpp:1714`,`:1733`,`:692`                                                            | behavioral         | ✅ verified                                             |
+| Fail-loud lives at the two pre-flight sites, exit 6                                                        | `src/arcopolis_live.cpp:213-218`; `src/arcopolis_script.cpp:355-359`                                  | behavioral         | ✅ verified                                             |
+| `inventory_selector` is a named future un-abort site that must uphold the no-window invariant              | `AGENTS.md:56`                                                                                        | structural         | ✅ verified                                             |
 
 **Residual uncertainties (kept, not polished away):** (1) the silent-no-op chain and the "would-need" witness
 behavior are reasoned from leaves, **not run** (the path is rejected pre-flight, so it cannot be exercised
@@ -366,14 +366,14 @@ remit).
 
 ## 15. Comment corrections made by this audit (code; no behavior change)
 
-1. **`src/arcopolis_command.cpp`** — the pickup comment that said *"Script/one-shot modes resolve the verb but
-   arm no transaction, so the menu auto-cancels"* was **stale** after Spike 16: `--arcopolis-run-script`
+1. **`src/arcopolis_command.cpp`** — the pickup comment that said _"Script/one-shot modes resolve the verb but
+   arm no transaction, so the menu auto-cancels"_ was **stale** after Spike 16: `--arcopolis-run-script`
    **does** arm the pickup transaction + install the script prompt sources when the step declares
    `prompt_answers` (`next_backend_action` `src/arcopolis_backend_input.cpp:578-584`). Rewritten to: live +
    run-script-with-`prompt_answers` drive; one-shot `--arcopolis-command` has no channel and is rejected;
    `NEW_PICKUP_MENU=true` → inventory_selector, rejected (pointer to this audit).
-2. **`src/arcopolis_script.cpp`** — the `parse_prompt_answers` comment *"absent is fine (…or a prompt the
-   engine auto-resolves)"* glossed a **silent default**: an unguarded examine `query_yn` `test_mode`-aborts to
+2. **`src/arcopolis_script.cpp`** — the `parse_prompt_answers` comment _"absent is fine (…or a prompt the
+   engine auto-resolves)"_ glossed a **silent default**: an unguarded examine `query_yn` `test_mode`-aborts to
    **NO** (`src/popup.cpp:277` → `src/output.cpp:748`; doc 38). Tightened to say a player-visible prompt with
    no declared answer must be witnessed as no-choice or fail loud, not glossed as "auto-resolved."
 
