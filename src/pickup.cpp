@@ -198,7 +198,7 @@ static pickup_answer handle_problematic_pickup( const item &it, bool &offered_sw
     }
     // PR #42 review fix: a backend session reached this secondary uilist with NO armed pickup transaction.
     // The only path here is a MULTI-TICK pickup activity that resumed on a later do_turn -- between ticks,
-    // next_backend_action's clear_stale_nested_input() cleared the transaction. Without an armed transaction
+    // next_backend_action's clear_stale_backend_prompt_state() cleared the transaction. Without an armed transaction
     // (and its channel) the uilist cannot be driven, and amenu.query() would test_mode-abort to a SILENT
     // CANCEL during a backend session. Mark it in the transcript so it is never silent, then take the
     // engine's own cancel outcome (the item is left behind). This upholds the AGENTS.md fail-loud/marked
