@@ -38,8 +38,11 @@ further prompt-class work, so the next reader starts from an honest baseline.
 The backend drives a **small, fixed set of WITNESSED prompt paths** headlessly at **level 4**: BN's real
 `input_context`/menu/query loop consumes backend-served **registered actions**, and the **real engine caller**
 consumes the result (the backend never sets the retval — the uilist loop sets `amenu.ret`, `query_once` sets
-`res.action`; doc 38). Each is a **per-transaction un-abort** at **one hardcoded call site**, where the data is
-already populated window-free.
+`res.action`; doc 38). Each is a **per-transaction un-abort** at one or a small number of **hardcoded call
+sites** (PICKUP: one — the old "PICKUP" menu; UILIST: **two** — the vehicle-source submenu (13B) + the
+secondary capacity/wield/spill uilist (14), both reusing the same UILIST machinery under the same
+`backend_uilist_transaction_active()` gate; QUERY_POPUP: one — the deployed-furniture take-down query_yn), where
+the data is already populated window-free.
 
 That is **not** a renderer-neutral backend UI **mode**. doc 39 §5.1 names the gap precisely on
 `inventory_selector`: there is no single narrow `test_mode` abort to pierce (its suppression is the **global**

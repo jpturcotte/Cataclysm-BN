@@ -666,11 +666,12 @@ resumed-activity secondary prompts; generic `popup()`/`query_popup` families.
   loop, with `setup()` populating `fentries`/retvals on a non-render path, consuming registered
   `DOWN`/`CONFIRM` Arcopolis supplies through the seam, at equivalence level 4 — gated on a
   per-transaction `backend_uilist_transaction_active()` so cata_test and every other `uilist` still abort. **Spike 14
-  ([34_SPIKE14_SECONDARY_PICKUP_UILIST.md](34_SPIKE14_SECONDARY_PICKUP_UILIST.md)) generalizes the mode by
-  reusing the same machinery unchanged at a second site:** the in-activity secondary capacity/wield/spill
-  `uilist` (`handle_problematic_pickup`) is now driven too. **Spike 15
-  ([35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md](35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md)) extends the mode to a
-  DIFFERENT Class 2 mechanism — `query_popup`:** the deployed-furniture take-down `query_yn`
+  ([34_SPIKE14_SECONDARY_PICKUP_UILIST.md](34_SPIKE14_SECONDARY_PICKUP_UILIST.md)) reuses the same UILIST
+  machinery unchanged at a second hardcoded call site under the same per-transaction gate:** the in-activity
+  secondary capacity/wield/spill `uilist` (`handle_problematic_pickup`) is now driven too — same `"UILIST"`
+  serve branch, same `backend_uilist_transaction_active()` gate, witness-scoped per arming. **Spike 15
+  ([35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md](35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md)) adds a SEPARATE
+  per-transaction family for a DIFFERENT Class 2 mechanism — `query_popup`:** the deployed-furniture take-down `query_yn`
   (`input_context("YESNO")`) is now driven at level 4 via served `LEFT`/`CONFIRM`, with its OWN per-prompt
   gate `backend_query_popup_transaction_active()` un-aborting `query_popup::query_once` (`src/popup.cpp:277`),
   witness-scoped to that one call site. **Spike 16
@@ -681,8 +682,9 @@ resumed-activity secondary prompts; generic `popup()`/`query_popup` families.
   `popup()`/`popup_getkey()` family (`"POPUP_WAIT"`
   - the `PF_GET_KEY` `ANY_INPUT` caveat from doc 32), generic `query_popup` / any other `query_yn`, the new
     inventory_selector, computer menus, NPC dialogue, **one-shot `--arcopolis-command` prompts**, and
-    **multi-tick resumed-activity secondary prompts** — all can build on the proven mode; none are
-    implemented yet. **Spike 19 ([40_SPIKE19_BACKEND_UI_BOUNDARY.md](40_SPIKE19_BACKEND_UI_BOUNDARY.md))
+    **multi-tick resumed-activity secondary prompts** — each is a candidate for its OWN new per-family
+    per-transaction gate + serve branch reusing the existing seam machinery (the per-family witness pattern of
+    13B/14/15, NOT a shared "mode"); none are implemented yet. **Spike 19 ([40_SPIKE19_BACKEND_UI_BOUNDARY.md](40_SPIKE19_BACKEND_UI_BOUNDARY.md))
     renamed the un-abort gates to the per-transaction `*_transaction_active` family and centralized the
     served-category + invariant boundary in `src/arcopolis_backend_input.h` (no behavior change), so the
     distinction these per-transaction witnesses embody — a `test_mode` un-abort witness is NOT a
