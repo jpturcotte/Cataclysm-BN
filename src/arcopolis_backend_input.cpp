@@ -142,12 +142,16 @@ auto clear_stale_nested_input() -> void
     }
     session.nested.reset();
     session.nested_guard_fires = 0;
-    // Spike 12A: close out a pickup transaction at the seam return -- the "PICKUP" menu loop has run to
-    // completion (or cancel), so record the bookend (how many registered actions the loop consumed) and
-    // clear the queue so nothing leaks into a later command. Only emit prompt_completed if a prompt was
-    // actually OPENED: a pickup that armed the transaction but never reached the menu (empty target / no
-    // items / cancelled "Pickup where?") opened nothing, and a phantom prompt_completed (actions_served:0)
-    // with no matching prompt_opened would be a transcript lie.
+}
+
+/// Spike 12A: close out a pickup transaction at the seam return -- the "PICKUP" menu loop has run to
+/// completion (or cancel), so record the bookend (how many registered actions the loop consumed) and
+/// clear the queue so nothing leaks into a later command. Only emit prompt_completed if a prompt was
+/// actually OPENED: a pickup that armed the transaction but never reached the menu (empty target / no
+/// items / cancelled "Pickup where?") opened nothing, and a phantom prompt_completed (actions_served:0)
+/// with no matching prompt_opened would be a transcript lie.
+auto clear_stale_pickup_transaction() -> void
+{
     if( session.pickup_transaction && session.prompt_opened ) {
         arcopolis::session_log_prompt_completed( {
             .step_index = session.pickup_step_index,
@@ -160,11 +164,15 @@ auto clear_stale_nested_input() -> void
     session.pickup_queue.clear();
     session.pickup_cursor = 0;
     session.pickup_served = 0;
-    // Spike 13B: defensively close out any uilist transaction at the seam return. The normal path clears it
-    // synchronously via backend_end_uilist_transaction() (a scope guard in src/pickup.cpp) the instant the
-    // submenu closes, so this almost never fires; it guards a leak (an early return that skipped the guard)
-    // by bookending the missing prompt_completed and clearing the state, so nothing leaks into the next
-    // command's prompts.
+}
+
+/// Spike 13B: defensively close out any uilist transaction at the seam return. The normal path clears it
+/// synchronously via backend_end_uilist_transaction() (a scope guard in src/pickup.cpp) the instant the
+/// submenu closes, so this almost never fires; it guards a leak (an early return that skipped the guard)
+/// by bookending the missing prompt_completed and clearing the state, so nothing leaks into the next
+/// command's prompts.
+auto clear_stale_uilist_transaction() -> void
+{
     if( session.uilist_transaction && session.uilist_opened ) {
         arcopolis::session_log_prompt_completed( {
             .step_index = session.uilist_step_index,
@@ -178,10 +186,15 @@ auto clear_stale_nested_input() -> void
     session.uilist_queue.clear();
     session.uilist_cursor = 0;
     session.uilist_served = 0;
-    // Spike 15: defensively close any leaked query_popup transaction at the seam return. The normal path
-    // clears it synchronously via the witness guard the instant the witnessed query_yn returns (well before
-    // here), so this almost never fires; it bookends a missing prompt_completed and clears the state so
-    // nothing leaks into the next command's prompts.
+}
+
+/// Spike 15: defensively close any leaked query_popup transaction at the seam return. The normal path
+/// clears it synchronously via the witness guard the instant the witnessed query_yn returns (well before
+/// here), so this almost never fires; it bookends a missing prompt_completed and clears the state so
+/// nothing leaks into the next command's prompts. Also clears the per-command examine query_popup
+/// precondition (the gate the witness guard checks).
+auto clear_stale_query_popup_transaction() -> void
+{
     if( session.query_popup_transaction && session.query_popup_opened ) {
         arcopolis::session_log_prompt_completed( {
             .step_index = session.query_popup_step_index,
@@ -198,6 +211,20 @@ auto clear_stale_nested_input() -> void
     // Spike 15: clear the per-command examine query_popup precondition (the gate the witness guard checks).
     session.examine_query_popup_command = false;
     session.query_popup_step_index.reset();
+}
+
+/// Force-clears ALL stale backend prompt state at a return to the top-level seam, by delegating to the
+/// per-concern helpers above IN TRANSCRIPT ORDER: the nested one-shot direction slot (Spike 11A), then the
+/// pickup (12A), uilist (13B/14), and query_popup (15) transactions. The nested helper runs FIRST so its
+/// nested_input_unconsumed event precedes any prompt bookends -- exactly as before this was split out of one
+/// monolithic clear_stale_nested_input(). The pickup_command_outcome is deliberately NOT cleared here: it is
+/// the command's result, consumed by the live response writer and reset by backend_arm_pickup_transaction().
+auto clear_stale_backend_prompt_state() -> void
+{
+    clear_stale_nested_input();
+    clear_stale_pickup_transaction();
+    clear_stale_uilist_transaction();
+    clear_stale_query_popup_transaction();
 }
 
 /// The machine-readable name a `nested_input_guard` event records for its reason.
@@ -510,10 +537,10 @@ auto arcopolis::backend_session_failure() -> std::optional<command_error>
 auto arcopolis::next_backend_action() -> action_id
 {
     // Spike 11A: control is back at the top-level seam, so the previous command's dispatch is complete
-    // and an armed-but-unconsumed nested answer is stale -- force-clear it (with its transcript event)
-    // BEFORE the live pull below, so the event precedes the pending live response written inside the
-    // pull and can never leak into the next command's prompts.
-    clear_stale_nested_input();
+    // and any armed-but-unconsumed nested answer / prompt transaction is stale -- force-clear ALL of it
+    // (with its transcript events) BEFORE the live pull below, so the events precede the pending live
+    // response written inside the pull and can never leak into the next command's prompts.
+    clear_stale_backend_prompt_state();
     // Spike 16: also force-clear the previous command's scripted prompt-answer queue before the next command
     // loads its own. Any answer the just-completed command did not consume is an authoring error and FAILS
     // LOUD here (a declared answer with no matching prompt).
@@ -674,8 +701,8 @@ auto arcopolis::backend_report_pickup_secondary_forced_cancel() -> void
 auto arcopolis::backend_report_pickup_orphaned_secondary() -> void
 {
     // Fires ONLY for the orphaned case: a backend session is active but NO pickup transaction is armed (a
-    // multi-tick pickup activity resumed on a later do_turn, after clear_stale_nested_input cleared the
-    // transaction at the seam return). Inert during normal play (no session) and inert while a transaction
+    // multi-tick pickup activity resumed on a later do_turn, after clear_stale_backend_prompt_state cleared
+    // the transaction at the seam return). Inert during normal play (no session) and inert while a transaction
     // IS armed (the drive / no-channel paths own that case -- this would double-report otherwise). Logs a
     // transcript prompt_force_cancelled so the engine's own test_mode CANCEL is MARKED, never silent. Sets
     // NO pickup_outcome: there is no owed command response for this resumed-activity prompt to mark, and
