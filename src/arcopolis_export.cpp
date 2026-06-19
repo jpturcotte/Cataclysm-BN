@@ -119,7 +119,10 @@ auto write_avatar( JsonOut &json, const snapshot_ctx &ctx ) -> void
 
 auto write_map_bounds( JsonOut &json, const snapshot_ctx &ctx ) -> void
 {
-    const auto origin = ctx.m.get_abs_sub();        // tripoint_abs_sm - absolute submap coords
+    const auto origin =
+        ctx.m.get_abs_sub();        // point_abs_sm - absolute submap origin (2D since the
+    // upstream absolute-coordinate / z-level migration; the bubble now always spans every z-level so abs_sub
+    // carries no single z).
     const auto size = ctx.m.getmapsize() * SEEX;    // loaded bubble width in ms tiles (square)
 
     json.member( "map_bounds" );
@@ -128,7 +131,10 @@ auto write_map_bounds( JsonOut &json, const snapshot_ctx &ctx ) -> void
     json.start_array();
     json.write( origin.x() );
     json.write( origin.y() );
-    json.write( origin.z() );
+    // The origin submap's z is the z-level being exported: this snapshot is a single z-slice at the avatar's
+    // level, so origin_abs_sm[z] == map_bounds "z" == every exported tile's z (all ctx.levz). Faithful
+    // replacement for the now-removed abs_sub.z() (which, for the main map at the avatar, was that same level).
+    json.write( ctx.levz );
     json.end_array();
     json.member( "size_x", size );
     json.member( "size_y", size );
