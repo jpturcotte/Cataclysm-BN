@@ -1,7 +1,9 @@
 # Arcopolis Spike 18 — `NEW_PICKUP_MENU` / `inventory_selector` feasibility audit (NO witness)
 
-**Status: audit-only decision record (2026-06-18). NO witness implemented, driven, or proven. NO behavior
-change; NO build/run.** A trial of the PR #45 equivalence reframe
+**Status: audit-only decision record (2026-06-18). NO witness implemented, driven, or proven; NO behavior
+change.** No `NEW_PICKUP_MENU` / `inventory_selector` runtime witness was executed and no `--arcopolis-*`
+session was run for that path; a build + the `[arcopolis]` unit suite were run **only** to validate the
+behavior-identical helper split (§12/§15). A trial of the PR #45 equivalence reframe
 ([37_SPIKE17_CLAIM_AUDIT.md](37_SPIKE17_CLAIM_AUDIT.md),
 [38_LEVEL4_TRUTH_AUDIT.md](38_LEVEL4_TRUTH_AUDIT.md)). It asks ONE question — can Arcopolis drive **one
 witnessed `NEW_PICKUP_MENU=true` path** at backend-input **level 4** that is **external GUI-equivalent enough
@@ -18,7 +20,9 @@ window / graphical-interface abort in it, and decides. **Outcome: stop at audit 
 
 > **Method + honesty caveats.** Multi-agent leaf trace → classification → two-sided adversarial feasibility
 > (argue-feasible vs argue-audit-only) + a completeness critic, with the load-bearing leaves hand-verified
-> this session. **No build was run; no `--arcopolis-*` session was executed.** Every runtime claim about the
+> this session. **No `inventory_selector` runtime witness was executed and no `--arcopolis-*` session was run
+> for the `NEW_PICKUP_MENU=true` path** (a build + the `[arcopolis]` unit suite were run only to validate the
+> behavior-identical helper split — §12/§15, not the selector path). Every runtime claim about the
 > `NEW_PICKUP_MENU=true` selector path is reasoned from the cited source leaves — and that path is **rejected
 > pre-flight today**, so its "what would happen" behavior is the _counterfactual the fail-loud exists to
 > prevent_, not an observed run. Line numbers are current-tree at audit time; confirm by symbol (they drift).
@@ -339,7 +343,9 @@ performed:
 ## 14. Claim → cite → verdict audit
 
 Per [[cite-the-implementing-line]] — load-bearing claims, verified at the implementing line this session
-(static reads; **no build/run** — see the method caveat).
+(**static reads**; the `NEW_PICKUP_MENU` / `inventory_selector` path was **not built or run** as a witness and
+no `--arcopolis-*` session exercised it — the build + `[arcopolis]` pass covered only the helper split, §12 —
+see the method caveat).
 
 | Claim                                                                                                      | Cite                                                                                                  | Type               | Verdict                                                 |
 | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------- |
