@@ -17,6 +17,45 @@ enum action_id : int;
 namespace arcopolis
 {
 
+// ===========================================================================================
+// THE ARCOPOLIS BACKEND UI / PROMPT BOUNDARY  (read before adding any prompt category)
+//
+// The backend drives a SMALL, FIXED set of WITNESSED prompt paths headlessly at "level 4": the real
+// BN input_context/menu/query loop consumes backend-served REGISTERED ACTIONS and the real engine
+// caller consumes the result. This is NOT a generic renderer-neutral backend UI mode -- it is a
+// handful of per-transaction un-abort WITNESSES. The gate names below are deliberately CLASS-specific
+// (no "ui_mode" umbrella) so a narrow witness is never mistaken for generic UI support
+// (docs/arcopolis/39 §5.1; docs/arcopolis/40).
+//
+// Served prompt categories today -- each behind its OWN per-transaction gate, never a session flag:
+//   * "DEFAULTMODE" -- one-shot direction answer to the examine/pickup "where?" chooser (Spike 11A).
+//   * "PICKUP"      -- registered-action queue for the OLD pickup item menu (Spike 12A): the WITNESSED
+//                      old-pickup path, NOT generic pickup UI.
+//   * "UILIST"      -- backend_uilist_transaction_active() gate; two WITNESSED sites (Spike 13B/14:
+//                      vehicle-source submenu; secondary capacity/wield/spill), NOT generic uilist.
+//   * "YESNO"       -- backend_query_popup_transaction_active() gate; ONE WITNESSED query_yn (Spike 15:
+//                      deployed-furniture take-down), NOT generic query_popup / query_yn.
+//   * Spike 16 SCRIPT replay of all of the above feeds the SAME backend_resolve_* machinery; only the
+//     answer TRANSPORT differs (a declared field vs a live stdin line).
+//
+// DELIBERATELY UNSUPPORTED -- stays FAIL-LOUD until a renderer-neutral selector design exists:
+//   * INVENTORY / inventory_selector (NEW_PICKUP_MENU=true) is rejected at Arcopolis PRE-FLIGHT
+//     (src/arcopolis_live.cpp / src/arcopolis_script.cpp -> unsupported_command, exit 6), NOT here.
+//     Unlike uilist/query_popup it has NO single narrow test_mode abort to pierce: its real
+//     input_context("INVENTORY") loop exists, but its layout/window setup is NOT renderer-neutral, so a
+//     faithful witness is the START of a renderer-neutral selector architecture, not a one-line un-abort
+//     (docs/arcopolis/39 §4/§5.1/§8). Do NOT add an "INVENTORY" serve branch or gate in this design.
+//
+// INVARIANT for adding a NEW served category (ALL must hold, else keep it fail-loud):
+//   1. a REAL BN input_context/menu/query loop (no parallel or mock loop);
+//   2. REAL registered actions served through it (never a forced retval / direct result injection);
+//   3. the REAL engine caller consumes the result and mutates real state;
+//   4. NO curses window and NO render primitive, in ANY build (AGENTS.md no-window invariant);
+//   5. its OWN per-transaction begin/resolve/end (+ RAII guard) and gate predicate -- NEVER a widened
+//      session-wide flag;
+//   6. no equivalence claim from final state alone -- the witness is scoped to its proven shape.
+// ===========================================================================================
+
 /// A pull-based action source for a LIVE backend session (Spike 9B): called by next_backend_action()
 /// each time the engine's input loop asks for input, exactly where the GUI would block on a keypress.
 /// The source may block (e.g. reading stdin), perform inline exports at this faithful instant, and
@@ -287,7 +326,7 @@ auto backend_take_pickup_outcome() -> pickup_command_outcome;
 
 // --- Spike 13B: ONE backend-driven uilist transaction (live mode only). The "Get items from where?"
 // vehicle-source submenu (src/pickup.cpp) is a real `uilist`. Under a backend session that opts in
-// (backend_ui_mode_active), the uilist's test_mode abort in init()/query() is bypassed so its real
+// (backend_uilist_transaction_active), the uilist's test_mode abort in init()/query() is bypassed so its real
 // input_context("UILIST") loop runs, and the backend drives its selection at LEVEL 4 -- the SAME
 // registered actions a player presses (DOWN/CONFIRM/QUIT), consumed by that loop, which sets amenu.ret.
 // The backend NEVER mutates amenu.ret/selected/fentries as a substitute for input; it only runs the
@@ -300,14 +339,14 @@ auto backend_take_pickup_outcome() -> pickup_command_outcome;
 /// uilist::init/query/setup test_mode-abort bypass keys off, so the un-abort fires for EXACTLY the
 /// witnessed menu and no other uilist. It MUST NOT be replaced by backend_pickup_transaction_active() or
 /// backend_session_active() at any un-abort site. Inert (false) outside a session.
-auto backend_ui_mode_active() -> bool;
+auto backend_uilist_transaction_active() -> bool;
 
 /// True when the session has a live uilist answer channel (set only in live mode). The engine call site
 /// checks this and FAILS LOUD (unsupported_submenu) when false, rather than driving a uilist with no
 /// channel -- preserving the doc-31 fail-loud for non-live / misconfigured sessions.
 auto backend_uilist_prompt_available() -> bool;
 
-/// Arms a uilist transaction (makes backend_ui_mode_active() true) so the `uilist` about to be CONSTRUCTED
+/// Arms a uilist transaction (makes backend_uilist_transaction_active() true) so the `uilist` about to be CONSTRUCTED
 /// does not take the test_mode abort in init()/query(). MUST be called BEFORE the uilist object is
 /// constructed (the default ctor's init() reads the gate). Records the arming pickup command's step index
 /// for transcript correlation and clears any prior queue. Gated on an armed pickup transaction (the only
@@ -324,7 +363,7 @@ auto backend_begin_uilist_transaction() -> void;
 auto backend_resolve_uilist_choice( const backend_uilist_prompt_request &request ) -> void;
 
 /// Closes the uilist transaction: logs `prompt_completed` (kind="uilist", actions_served) if a prompt was
-/// opened, then clears all uilist transaction state -- so backend_ui_mode_active() becomes false again
+/// opened, then clears all uilist transaction state -- so backend_uilist_transaction_active() becomes false again
 /// BEFORE pick_up continues into the ground item menu / activity (whose own uilists must stay aborted /
 /// fail-loud). Inert (no-op) when not armed, so it is safe to call unconditionally / from a scope guard on
 /// the GUI path. Idempotent.
@@ -358,7 +397,7 @@ struct uilist_transaction_guard {
 /// backend_session_active()) -- is the gate src/popup.cpp's query_once test_mode-abort bypass and
 /// src/output.cpp's query_yn drive-block key off, so the un-abort fires for EXACTLY the witnessed
 /// query_yn and no other query_popup. Inert (false) outside a session.
-auto backend_query_popup_mode_active() -> bool;
+auto backend_query_popup_transaction_active() -> bool;
 
 /// True while an `examine` command's query_popup precondition is armed -- the gate the witness guard
 /// checks before arming the per-prompt transaction. Armed ONLY for the live `examine` command (never
@@ -377,7 +416,7 @@ auto backend_query_popup_prompt_available() -> bool;
 /// next top-level seam return (alongside the one-shot slot / pickup transaction).
 auto backend_arm_examine_query_popup_command( const std::optional<int> &step_index ) -> void;
 
-/// Arms a query_popup transaction (makes backend_query_popup_mode_active() true) so the query_yn about to
+/// Arms a query_popup transaction (makes backend_query_popup_transaction_active() true) so the query_yn about to
 /// run does not take its test_mode abort. MUST run BEFORE query_yn's query_popup reaches query_once (the
 /// witness guard's constructor calls this, immediately before the query_yn). `witness_id` names WHICH
 /// audited call site armed it (e.g. "examine_deployed_furniture_take_down") and is emitted in the
@@ -401,7 +440,7 @@ auto backend_begin_query_popup_transaction( const std::string &witness_id ) -> v
 auto backend_resolve_query_popup_choice( const backend_query_popup_request &request ) -> void;
 
 /// Closes the query_popup transaction: logs `prompt_completed` (kind="query_popup", actions_served) if a
-/// prompt was opened, then clears all query_popup transaction state -- so backend_query_popup_mode_active()
+/// prompt was opened, then clears all query_popup transaction state -- so backend_query_popup_transaction_active()
 /// becomes false again BEFORE control returns past the witnessed query_yn (the examine pickup tail's own
 /// prompts must stay aborted / guard-handled). Inert (no-op) when not armed, so a scope guard on the GUI
 /// path is harmless. Idempotent.

@@ -4,7 +4,7 @@
 #include <array>
 #include <memory>
 
-#include "arcopolis_backend_input.h"  // arcopolis::backend_query_popup_mode_active (Spike 15 query_popup un-abort gate)
+#include "arcopolis_backend_input.h"  // arcopolis::backend_query_popup_transaction_active (Spike 15 query_popup un-abort gate)
 #include "cached_options.h"
 #include "catacharset.h"
 #include "ime.h"
@@ -274,7 +274,7 @@ query_popup::result query_popup::query_once()
     // The selection state (options/cur) is set by the builder before query(), and the redraw/resize
     // callbacks (init()->newwin / show()) are test_mode no-ops in ui_manager::redraw_invalidated(), so this
     // path creates NO curses window and calls NO render primitive in any build (mirrors the uilist invariant).
-    if( test_mode && !arcopolis::backend_query_popup_mode_active() ) {
+    if( test_mode && !arcopolis::backend_query_popup_transaction_active() ) {
         return { false, "ERROR", {} };
     }
 
