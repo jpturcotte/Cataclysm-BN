@@ -246,7 +246,7 @@ auto backend_resolve_pickup_choice( const std::vector<pickup_prompt_choice> &cho
 /// UILIST_ERROR at the top of uilist::query (src/ui.cpp:918) -- so the nested-input guard cannot see it.
 /// The engine call site therefore reports the outcome directly (gated on backend_pickup_transaction_active),
 /// and the live response writer reads it to fail loud / mark partial. The value outlives
-/// clear_stale_nested_input() (it is the command's result, consumed by the response writer at the next seam
+/// clear_stale_backend_prompt_state() (it is the command's result, consumed by the response writer at the next seam
 /// entry), is reset by backend_arm_pickup_transaction(), and is read-and-reset by backend_take_pickup_outcome().
 enum class pickup_command_outcome {
     ok,                  ///< no unsupported sub-prompt was encountered (clean pickup / cancel)

@@ -57,7 +57,12 @@ auto parse_prompt_answers( JsonObject &e, const std::string &command, const std:
     };
     std::vector<script_prompt_answer> answers;
     if( !e.has_member( "prompt_answers" ) ) {
-        return answers;  // absent is fine (a non-prompted command, or a prompt the engine auto-resolves)
+        // Absent is fine for a non-prompted command. It does NOT make every prompt safe: a player-visible
+        // prompt opened with no declared answer is either engine-owned/no-choice or takes its headless
+        // default -- which can be a SILENT default (e.g. an unguarded examine query_yn test_mode-aborts to
+        // NO; docs/arcopolis/38). Such a prompt must be witnessed as no-choice or fail loud, not glossed as
+        // "auto-resolved".
+        return answers;
     }
     if( command != "pickup" && command != "examine" ) {
         return bad( at + "'prompt_answers' is only valid on a 'pickup' or 'examine' command step" );
