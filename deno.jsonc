@@ -31,7 +31,7 @@
   },
   "unstable": ["raw-imports", "fmt-component", "temporal"],
   "fmt": {
-    "exclude": ["doc", "**/*.svg", "build-scripts/problem-matchers", ".claude/worktrees"],
+    "exclude": ["doc", "**/*.svg", "build-scripts/problem-matchers", ".claude/worktrees", "docs/arcopolis/fixtures"],
     "include": ["scripts", "build-scripts", ".agents", "doc", "docs", "*.md", ".github", ".claude"],
     "semiColons": false,
     "json.trailingCommas": "jsonc",

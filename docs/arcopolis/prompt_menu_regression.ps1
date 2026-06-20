@@ -82,7 +82,7 @@
 [CmdletBinding()]
 param(
     [string]$Exe        = ".\out\build\win-rel-deb\src\cataclysm-bn-tiles.exe",
-    [string]$FixtureSrc = "C:\dev\arcopolis-fixtures\arcopolis_user",
+    [string]$FixtureSrc = "",
     [string]$UserDir    = ".\arcopolis_user",
     [string]$World      = "ArcopolisTest",
     [string]$BackpackWorld = "ArcopolisBackpackTest",
@@ -95,6 +95,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# Resolve the fixture root: explicit -FixtureSrc > $env:ARCO_FIXTURE_ROOT > repo-local committed pack
+# (docs/arcopolis/fixtures/arcopolis_user) > optional external dev fallback. See docs/arcopolis/fixtures/README.md.
+. "$PSScriptRoot/arco_fixture_root.ps1"
+if( -not $FixtureSrc ) { $FixtureSrc = Resolve-ArcoFixtureRoot -ScriptDir $PSScriptRoot }
 
 function Stop-WithCode {
     param([string]$Message, [int]$Code)
@@ -106,7 +110,7 @@ function Stop-WithCode {
 if( -not (Test-Path $Exe) ) {
     Stop-WithCode "Binary not found: $Exe  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
-if( -not (Test-Path $FixtureSrc) ) { Stop-WithCode "Fixture source directory not found: $FixtureSrc" 4 }
+if( -not (Test-Path $FixtureSrc) ) { Stop-WithCode "Fixture source directory not found: $FixtureSrc  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4 }
 $fixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $World)
 if( -not (Test-Path $fixtureWorld) ) {
     Stop-WithCode "Fixture world '$World' not found at $fixtureWorld -- copy the canonical ArcopolisTest fixture (AGENTS.md, Arcopolis test world fixture)." 5
