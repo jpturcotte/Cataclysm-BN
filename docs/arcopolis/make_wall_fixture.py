@@ -134,8 +134,8 @@ def decode_terrain(arr):
     """Decode the submap ``terrain`` RLE into a flat list of 144 ids. The flat order is ROW-MAJOR
     (y outer, x inner): index = y*SEEX + x -- verified empirically against the loaded snapshot (a tile
     written at index wy*SEEX+wx appears at within-submap (wx,wy)). Each element is a string (one tile) or a
-    ``[id, count]`` run. NOTE: make_furniture_fixture.py's copy of this docstring claims x-major; that is a
-    latent error there, harmless only because its terrain CHECK lands on another t_floor tile."""
+    ``[id, count]`` run. (make_furniture_fixture.py's decode_terrain uses this same row-major convention; its
+    former x-major copy of this docstring + terrain CHECK was corrected to match on 2026-06-20.)"""
     flat = []
     for e in arr:
         if isinstance(e, list):
