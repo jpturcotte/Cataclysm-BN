@@ -931,6 +931,16 @@ void uilist::query( bool loop, int timeout )
     // Spike 13B: same gate as init() -- a backend uilist transaction (and ONLY that) drives one real uilist
     // headlessly; every other test_mode uilist still aborts (cata_test unchanged).
     if( test_mode && !arcopolis::backend_uilist_transaction_active() ) {
+        // Arcopolis Spike 21: if this abort is reached during an ACTIVE backend session WITHOUT an armed
+        // uilist transaction, it is an UNARMED player-visible menu (e.g. game::npc_menu reached by moving
+        // or examining INTO an NPC) Arcopolis has not witnessed. Silently returning UILIST_ERROR below would
+        // auto-cancel the menu and let the command look successful while hiding a lost interaction. Record a
+        // fail-loud unexpected_prompt (non-live: fatal exit 14; live: a recoverable ok=false) BEFORE the
+        // safe fallback, reusing the Spike 20 query_popup channel (NO new error kind). Reported at query()
+        // ONLY (the single chokepoint every player-visible uilist reaches) -- init()'s own abort keeps its
+        // plain debugmsg, so exactly one report fires per uilist. Inert outside a session, so cata_test /
+        // normal play keep the plain abort (mirrors src/popup.cpp query_once).
+        arcopolis::backend_report_unexpected_prompt( "uilist", "uilist::query" );
         debugmsg( "Tried to open UI in test mode" );
         ret = UILIST_ERROR;
         return;
