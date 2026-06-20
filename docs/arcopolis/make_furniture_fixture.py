@@ -123,10 +123,10 @@ def write_submap_file(db, path, obj, compressed):
 
 def decode_terrain(arr):
     """Decode the submap ``terrain`` RLE into a flat list of 144 ids, indexed row-major: index = y*SEEX + x
-    (y outer, x inner; src/coordinates.h submap_tiles() / src/map_iterator.h increment x fastest, so RLE
-    element N is the tile at x = N % SEEX, y = N // SEEX, matching the engine loader in
-    src/savegame_json.cpp which writes ter[sm_ms.x()][sm_ms.y()] over submap_tiles()). Each element is a
-    string (one tile) or a ``[id, count]`` run."""
+    (y outer, x inner). The engine loader (src/savegame_json.cpp) writes ter[sm_ms.x()][sm_ms.y()] while
+    iterating submap_tiles() (src/coordinates.h), which spans the submap with a point_range whose operator++
+    (src/map_iterator.h) advances x first (inner), y on wrap (outer) -- so RLE element N is the tile at
+    x = N % SEEX, y = N // SEEX. Each element is a string (one tile) or a ``[id, count]`` run."""
     flat = []
     for e in arr:
         if isinstance(e, list):
