@@ -534,8 +534,13 @@ shelter NPC, the pickup-tail `"PICKUP"` guard-cancel on the adjacent item pile w
 a **diagonal** `examine move_sw` serving `"LEFTDOWN"` to the engine chooser (the full eight-direction
 vocabulary, not a cardinal subset), the engine message stream as an independent second witness chain,
 the recoverable bad-direction rejections and the unchanged move/wait baseline; `true` witnesses the
-engine auto-select skip + the `nested_input_unconsumed` force-clear); see
-[26_SPIKE11A_DIRECTED_EXAMINE.md](26_SPIKE11A_DIRECTED_EXAMINE.md).
+engine auto-select skip + the `nested_input_unconsumed` force-clear). A third **scenario C** (Spike 21, +2
+→ **15** gates total) examines the **`ArcopolisVehicleCargoTest`** cart (`examine move_s`): the unarmed
+vehicle `interact_with` "Select an action" `uilist` FAILS LOUD — non-live run-script exit 14, live
+recoverable `ok=false`/`unexpected_prompt` (the `DOWN` chooser answer still served, NO pickup guard — the
+vehicle branch returns before the pickup tail). See
+[26_SPIKE11A_DIRECTED_EXAMINE.md](26_SPIKE11A_DIRECTED_EXAMINE.md) and
+[43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md](43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md) §2/§10.
 [`docs/arcopolis/prompt_menu_regression.ps1`](prompt_menu_regression.ps1) gates the **Spike 12A pickup
 prompt/menu transaction** on **`ArcopolisTest`** + **`ArcopolisBackpackTest`** (prompt-aware driver
 [`docs/arcopolis/prompt_menu_live_driver.py`](prompt_menu_live_driver.py), strict per-response timeout —
