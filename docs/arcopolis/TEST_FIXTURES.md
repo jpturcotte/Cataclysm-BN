@@ -1,17 +1,17 @@
 # Arcopolis test world fixtures
 
-The headless `--arcopolis-*` modes load a prepared world, and this repo ships none (saves are
-gitignored). The fixture worlds live **outside the repo** at `C:\dev\arcopolis-fixtures\` so they survive
-worktree pruning and `git clean -fdx`. Copy the userdir into the working tree (the `/arcopolis_user/`
-sandbox is gitignored) before running validation:
+The headless `--arcopolis-*` modes load a prepared world. The canonical fixture worlds are now **committed
+in the repo** under [`docs/arcopolis/fixtures/arcopolis_user/`](fixtures/arcopolis_user) (curated to
+`save/<World>/` + `config/options.json`; see [`fixtures/README.md`](fixtures/README.md)). The regression
+scripts copy that userdir into the gitignored `.\arcopolis_user` sandbox automatically — **no external
+setup required.**
 
-```powershell
-Copy-Item C:\dev\arcopolis-fixtures\arcopolis_user .\arcopolis_user -Recurse -Force
-```
-
-`C:\dev\arcopolis-fixtures\README.md` documents each world, how to refresh it, and how to recreate it
-from scratch (graphical New Game → one step → Save & Quit). These are point-in-time snapshots, not
-auto-synced.
+The fixture root resolves in this order (first match wins): an explicit `-FixtureSrc` (or a generator's
+`--fixture-root`); then `$env:ARCO_FIXTURE_ROOT`; then the repo-local pack above; then an optional external
+dev fallback at `C:\dev\arcopolis-fixtures\arcopolis_user`. The external root is now **optional developer
+scratch space**, not a prerequisite; set `ARCO_FIXTURE_ROOT` to point the suite at one for a one-off. These worlds are
+point-in-time snapshots; regenerate the generated ones with the `make_*_fixture.py` script that owns each
+(see per-world sections below and `fixtures/README.md`).
 
 **Run these regressions with `pwsh` (PowerShell 7), not `powershell` (5.1)** — 5.1 misreads BOM-less UTF-8
 snapshots and writes an options.json BOM, causing spurious gate failures on unchanged code.

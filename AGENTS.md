@@ -161,20 +161,20 @@ and the cosmetic post-link packaging tail.
 
 ### Arcopolis test world fixture
 
-The headless `--arcopolis-*` modes load a prepared world, and this repo ships none (saves are gitignored).
-The fixture worlds live **outside the repo** at `C:\dev\arcopolis-fixtures\` (so they survive worktree
-pruning and `git clean -fdx`); copy the userdir into the working tree (the `/arcopolis_user/` sandbox is
-gitignored) before validation:
-
-```powershell
-Copy-Item C:\dev\arcopolis-fixtures\arcopolis_user .\arcopolis_user -Recurse -Force
-```
+The headless `--arcopolis-*` modes load a prepared world. The canonical fixtures are now **committed in the
+repo** under `docs/arcopolis/fixtures/arcopolis_user/` (curated to `save/<World>/` + `config/options.json`);
+the regression scripts copy them into the gitignored `.\arcopolis_user` sandbox automatically — **no
+external setup required.** The fixture root resolves: `-FixtureSrc` (or a generator's `--fixture-root`) >
+`$env:ARCO_FIXTURE_ROOT` > the committed repo-local pack > an **optional** external fallback at
+`C:\dev\arcopolis-fixtures\arcopolis_user` (developer scratch only, no longer a prerequisite). Shared
+resolver: `docs/arcopolis/arco_fixture_root.ps1`.
 
 **Run the regression scripts with `pwsh` (PowerShell 7), not `powershell` (5.1)** — 5.1 misreads BOM-less
 UTF-8 snapshots and writes an options.json BOM, causing spurious gate failures on unchanged code.
 
-Full catalog of the six fixture worlds (`ArcopolisTest` + five clones) — their witness roles, fixture
-generators, regression scripts, and spike docs — is in `docs/arcopolis/TEST_FIXTURES.md`.
+Full catalog of the seven fixture worlds (`ArcopolisTest` + six clones) — their witness roles, fixture
+generators, regression scripts, and spike docs — is in `docs/arcopolis/TEST_FIXTURES.md`, with refresh and
+override details in `docs/arcopolis/fixtures/README.md`.
 
 ## HARD CONSTRAINTS (NEVER VIOLATE)
 
