@@ -51,9 +51,11 @@ tile routes to `vehicle::interact_with` (`src/game.cpp` `game::examine` → `vp-
 which `return`s before the pickup tail), and that opens its OWN unarmed `uilist selectmenu` ("Select an
 action", `src/vehicle_use.cpp` — EXAMINE + TRACK are unconditional so it is always ≥2 entries and calls
 `query()`). `examine` arms only the query_popup transaction, so this uilist is unarmed and now **also fails
-loud** — the intended honesty behavior (it was a silent auto-cancel before), but it is **not** exercised by
-any current gate (no fixture examines a vehicle tile; the `ArcopolisVehicleCargoTest` gates use the armed
-`pickup` path). See §10.
+loud** — the intended honesty behavior (it was a silent auto-cancel before). This is now **witnessed** by
+scenario C of [`examine_regression.ps1`](examine_regression.ps1): an `examine move_s` of the
+`ArcopolisVehicleCargoTest` cart asserts the fail-loud in BOTH modes (non-live run-script exit 14; live
+recoverable `ok=false`). The `pickup`-path vehicle gates (`prompt_menu_regression.ps1`) still use the ARMED
+uilist; scenario C is the distinct, unarmed `examine` path. See §10.
 
 ## 3. What changed (one site, reusing Spike 20)
 
@@ -189,9 +191,10 @@ linked exes retain the change as a build artifact; the main repo tree is clean.)
   `move_se`; viewer; monster fixture.
 - **`live_protocol_regression.ps1`** — exit 0: 6 responses, `move_n` recoverable `ok=false/unexpected_prompt`,
   4-pair sequence `unexpected_prompt,moved,waited,no_command`, NPC-aware explanation, negative probe.
-- **`examine_regression.ps1`** — exit 0 (13 gates): `examine move_n` (A: served chooser then fail-loud;
-  B: auto-select force-clear then fail-loud), both recoverable; item-examine / diagonal / message-stream /
-  recoverability all green.
+- **`examine_regression.ps1`** — exit 0 (13 gates as recorded; the §10-item-3 follow-up later added
+  **scenario C** for the vehicle "Select an action" uilist, +2 gates → 15, also exit 0): `examine move_n`
+  (A: served chooser then fail-loud; B: auto-select force-clear then fail-loud), both recoverable;
+  item-examine / diagonal / message-stream / recoverability all green.
 - **`prompt_menu_regression.ps1`** — exit 0: the **armed** uilist witnesses (vehicle-source 13B,
   secondary-capacity 14 WIELD/WEAR) still DRIVEN at level 4, **no spurious `unexpected_prompt`**.
 - **`script_prompt_regression.ps1`** — exit 0: W1–W5 + fail-loud gates; armed uilist via script unbroken.
@@ -223,13 +226,17 @@ Per [[cite-the-implementing-line]].
    tick). This is argued from `avatar_action::move` and confirmed by the self-checking terrain gate; if a
    future BN sync makes a wall bump prompt or bash, swap `WALL_TER` in `make_wall_fixture.py` for an inert
    impassable id (the gate catches it).
-3. The other unarmed uilist families are made fail-loud-by-guard but are **unwitnessed** in the current
-   fixtures; only `npc_menu` (move/examine into the NPC) is exercised by a gate. Computer and monster
-   pet/bot/friend menus are not reachable by the supported command surface in these fixtures. The vehicle
-   `interact_with` "Select an action" `uilist` (§2) IS reachable — an `examine` of a vehicle tile (e.g. the
-   `ArcopolisVehicleCargoTest` cart) would fail loud — but no gate examines a vehicle tile, so it is
-   fail-loud-by-guard yet ungated; adding that gate (an `examine` of the cart asserting `unexpected_prompt`)
-   is a cheap follow-up.
+3. Two reachable unarmed-uilist sites are now WITNESSED by gates: `npc_menu` (move/examine into the NPC) and
+   the vehicle `interact_with` "Select an action" `uilist` (§2). The vehicle case is exercised by **scenario
+   C** of [`examine_regression.ps1`](examine_regression.ps1): an `examine move_s` of the
+   `ArcopolisVehicleCargoTest` cart (the `folding_wagon` one tile south of the post-`move_s` avatar) asserts
+   the fail-loud in BOTH surfacings — non-live run-script (exit 14, `before` written, NO `after_examine`
+   snapshot, exactly one `unexpected_prompt` error event) and live (recoverable `ok=false` / `unexpected_prompt`
+   with a `prompt_failed` marker, the DEFAULTMODE chooser answer still served, and NO pickup guard — proving
+   the vehicle branch returns before the pickup tail). Recorded green 2026-06-20 (the full
+   `examine_regression.ps1` passes 15 gates, exit 0, against the same exe as §8a). The OTHER unarmed uilist
+   families remain fail-loud-by-guard but **unwitnessed** in the current fixtures — computer menus and monster
+   pet/bot/friend menus are not reachable by the supported command surface here.
 4. The harness's `blocked_by=terrain` attribution is **not** witnessed end-to-end: it needs `dest.seen=true`,
    but a headless run never populates LOS/map-memory so every exported tile is `seen=false`. The terrain
    witness therefore proves the `blocked_no_op` classification + the `t_wall` destination read, not the
