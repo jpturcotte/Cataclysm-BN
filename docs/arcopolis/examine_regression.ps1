@@ -19,6 +19,14 @@
 #     stays hang-free: the engine auto-selects the NPC tile (chooser skipped, armed answer force-cleared
 #     as `nested_input_unconsumed`) and then the unarmed npc_menu uilist FAILS LOUD recoverably (Spike 21);
 #     the session keeps serving and quits cleanly.
+#   - SPIKE 21 (vehicle, scenario C, ArcopolisVehicleCargoTest): `examine move_s` of a VEHICLE tile routes
+#     via game::examine -> vehicle::interact_with (which RETURNS before the pickup tail) -> its OWN unarmed
+#     "Select an action" uilist selectmenu (EXAMINE + TRACK are unconditional, so it is always >=2 entries
+#     and calls query()). examine arms only the query_popup transaction, so this uilist is UNARMED and now
+#     FAILS LOUD -- witnessed in BOTH modes: non-live run-script EXIT 14 (before written, no after_examine,
+#     exactly one unexpected_prompt error event) and live RECOVERABLE ok=false/unexpected_prompt (the
+#     chooser answer DOWN is still served, and there is NO pickup guard -- proving the vehicle branch, not
+#     the item-pickup tail; the session keeps serving). Closes the doc 43 §10 ungated gap.
 #
 # The AUTOSELECT_SINGLE_VALID_TARGET option is PINNED IN THE SANDBOX COPY's options.json per
 # scenario (false for A, true for B) so the gates stay deterministic regardless of fixture drift;
@@ -37,6 +45,7 @@ param(
     [string]$FixtureSrc = "C:\dev\arcopolis-fixtures\arcopolis_user",
     [string]$UserDir    = ".\arcopolis_user",
     [string]$World      = "ArcopolisTest",
+    [string]$VehicleWorld = "ArcopolisVehicleCargoTest",
     [string]$OutRoot    = ".\out\arco_examine_regress",
     [string]$Driver     = "docs\arcopolis\examine_live_driver.py",
     [string]$HarnessDir = "tools\arcopolis_client",
@@ -65,6 +74,10 @@ if( -not (Test-Path $FixtureSrc) ) {
 $fixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $World)
 if( -not (Test-Path $fixtureWorld) ) {
     Stop-WithCode "Fixture world '$World' not found at $fixtureWorld -- copy the canonical ArcopolisTest fixture. See AGENTS.md (Arcopolis test world fixture)." 5
+}
+$fixtureVehicleWorld = Join-Path $FixtureSrc (Join-Path "save" $VehicleWorld)
+if( -not (Test-Path $fixtureVehicleWorld) ) {
+    Stop-WithCode "Fixture world '$VehicleWorld' not found at $fixtureVehicleWorld -- the vehicle-examine fail-loud witness (scenario C) needs the cargo-vehicle fixture (a copy of $World with a folding_wagon injected onto the south ground-item pile; build it with docs/arcopolis/make_vehicle_fixture.py)." 5
 }
 if( -not (Get-Command python -ErrorAction SilentlyContinue) ) {
     Stop-WithCode "python not found on PATH (needed to run the live driver). See 00_WINDOWS_LOCAL_ENVIRONMENT.md." 6
@@ -99,8 +112,9 @@ function Set-SandboxAutoselect {
 }
 
 # Run the raw-request driver for one scenario; returns the parsed result JSON (or fails the run).
+# ScenarioWorld defaults to $World; scenario C overrides it to the vehicle-cargo fixture.
 function Invoke-LiveScenario {
-    param([string]$Name, [string[]]$RequestLines)
+    param([string]$Name, [string[]]$RequestLines, [string]$ScenarioWorld = $World)
     $dir = Join-Path $OutRoot $Name
     if( Test-Path $dir ) { Remove-Item $dir -Recurse -Force }
     New-Item -ItemType Directory -Force $dir | Out-Null
@@ -109,7 +123,7 @@ function Invoke-LiveScenario {
     $resultPath = Join-Path $OutRoot "$Name.result.json"
     $stdout = Join-Path $OutRoot "$Name.driver_stdout.txt"
     $stderr = Join-Path $OutRoot "$Name.driver_stderr.txt"
-    $p = Start-Process -FilePath "python" -ArgumentList @($Driver, '--exe', $Exe, '--world', $World,
+    $p = Start-Process -FilePath "python" -ArgumentList @($Driver, '--exe', $Exe, '--world', $ScenarioWorld,
         '--userdir', $UserDir, '--out', $dir, '--requests', $reqPath, '--timeout', $TimeoutSec,
         '--result', $resultPath) -NoNewWindow -Wait -PassThru `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr
@@ -119,6 +133,38 @@ function Invoke-LiveScenario {
         Name = $Name; Dir = $dir; ExitCode = $p.ExitCode; Result = $result
         Stderr = (Get-Content $stderr -Raw -ErrorAction SilentlyContinue)
     }
+}
+
+# Drive a NON-LIVE run-script against ONE world; returns its exit code + exported snapshots + transcript
+# events. Mirrors npc_export_regression's runner. cataclysm-bn-tiles is a WINDOWS-subsystem exe, so a bare
+# `& $exe` does NOT wait for it and leaves $LASTEXITCODE empty -- Start-Process -Wait -PassThru waits and
+# captures the real exit code. A nonzero exit is NOT thrown: scenario C's fail-loud run is EXPECTED to exit
+# 14, and the caller asserts the exit code itself.
+function Invoke-ExamineRunScript {
+    param([string]$Name, [string]$ScriptBody, [string]$ScenarioWorld = $World)
+    $dir = Join-Path $OutRoot $Name
+    if( Test-Path $dir ) { Remove-Item $dir -Recurse -Force }
+    New-Item -ItemType Directory -Force $dir | Out-Null
+    $scriptPath = Join-Path $dir "script.json"
+    $ScriptBody | Set-Content -Encoding ascii $scriptPath
+    $p = Start-Process -FilePath $Exe -ArgumentList @(
+        '--world', $ScenarioWorld,
+        '--arcopolis-run-script', $scriptPath,
+        '--arcopolis-export-dir', $dir,
+        '--userdir', $UserDir
+    ) -NoNewWindow -Wait -PassThru `
+        -RedirectStandardOutput (Join-Path $dir "stdout.txt") -RedirectStandardError (Join-Path $dir "stderr.txt")
+    # Select snapshots by the NNN_ prefix so we pick only NNN_<name>.json (excludes script.json).
+    $snapFiles = Get-ChildItem $dir -Filter "*.json" | Where-Object { $_.Name -match '^\d+_' } | Sort-Object Name
+    $snaps = foreach( $f in $snapFiles ) {
+        [pscustomobject]@{ File = $f.Name; Snap = (Get-Content $f.FullName -Raw | ConvertFrom-Json) }
+    }
+    $logPath = Join-Path $dir "session.jsonl"
+    $events = @()
+    if( Test-Path $logPath ) {
+        $events = @(Get-Content $logPath | Where-Object { $_.Trim() } | ForEach-Object { $_ | ConvertFrom-Json })
+    }
+    return [pscustomobject]@{ Name = $Name; Dir = $dir; Snaps = $snaps; ExitCode = $p.ExitCode; Events = $events }
 }
 
 # Parse the session transcript into an ordered event list (index = line order).
@@ -496,6 +542,87 @@ if( $g12 ) {
     Write-Host "  PASS: autoselect fail-loud is recoverable -- the follow-up wait succeeded and the session quit cleanly (session_end ok)." -ForegroundColor Green
 } else {
     Write-Host "  FAIL: autoselect recoverability -- wait(id3)=$($respB3 | ConvertTo-Json -Compress) quit=$($quitB | ConvertTo-Json -Compress) end=$($endB | ConvertTo-Json -Compress)." -ForegroundColor Red
+    $fail++
+}
+
+# =============================================================================
+# Scenario C (SPIKE 21 -- vehicle "Select an action" uilist fails loud): `examine move_s` of the
+# ArcopolisVehicleCargoTest cart tile (the folding_wagon one tile south of the post-move_s avatar; built by
+# docs/arcopolis/make_vehicle_fixture.py). game::examine routes a vehicle tile to vehicle::interact_with,
+# which RETURNS before the pickup tail and opens its OWN unarmed uilist selectmenu ("Select an action" --
+# EXAMINE + TRACK are unconditional so it is always >=2 entries and calls query()). examine arms only the
+# query_popup transaction, so this uilist is UNARMED and now FAILS LOUD (Spike 21). Witnessed in BOTH modes.
+# Closes the doc 43 §10 "fail-loud-by-guard yet ungated" gap. AUTOSELECT=false so the live chooser is asked
+# and the armed move_s answer (DOWN) is served (matching scenario A's served-chooser shape).
+# =============================================================================
+Set-SandboxAutoselect -Value $false
+
+# --- Gate 13 (NON-LIVE, exit 14): a run-script `export before -> move_s -> examine move_s -> export
+# after_examine` aborts AT the examine (the vehicle uilist fails loud): EXIT 14, `before` written, NO
+# `after_examine` snapshot (the failed command writes none), and EXACTLY ONE transcript error event
+# (kind=unexpected_prompt) -- one report from query(), none from init(). ---
+$vehScript = @'
+{ "schema_version": 1, "steps": [
+  { "op": "export",  "name": "before" },
+  { "op": "command", "command": "move",    "direction": "move_s" },
+  { "op": "command", "command": "examine", "direction": "move_s" },
+  { "op": "export",  "name": "after_examine" }
+] }
+'@
+$vc = Invoke-ExamineRunScript -Name "vehicle_examine_failloud" -ScriptBody $vehScript -ScenarioWorld $VehicleWorld
+$vcBefore = ($vc.Snaps | Where-Object { $_.File -like '*_before.json' }        | Select-Object -First 1)
+$vcAfter  = ($vc.Snaps | Where-Object { $_.File -like '*_after_examine.json' } | Select-Object -First 1)
+$vcErr    = @($vc.Events | Where-Object { $_.event -eq 'error' })
+$vcUnexp  = @($vcErr | Where-Object { $_.kind -eq 'unexpected_prompt' })
+$g13 = ($vc.ExitCode -eq 14) -and $vcBefore -and (-not $vcAfter) -and
+       ($vcErr.Count -eq 1) -and ($vcUnexp.Count -eq 1)
+if( $g13 ) {
+    Write-Host "  PASS: vehicle examine non-live fail-loud -- examine move_s on the cart tile exited 14, 'before' written, NO 'after_examine' snapshot, exactly one unexpected_prompt error event. See doc 43 §2/§10." -ForegroundColor Green
+} else {
+    if( $vc.ExitCode -ne 14 ) { Write-Host "  FAIL: vehicle examine run exited $($vc.ExitCode) (expected 14 / unexpected_prompt). stderr: $(Get-Content (Join-Path $vc.Dir 'stderr.txt') -Raw -ErrorAction SilentlyContinue)" -ForegroundColor Red }
+    if( -not $vcBefore )       { Write-Host "  FAIL: no 'before' snapshot in the vehicle fail-loud run (it should be written before examine fails)." -ForegroundColor Red }
+    if( $vcAfter )             { Write-Host "  FAIL: an 'after_examine' snapshot exists (the failed examine must not produce a success snapshot)." -ForegroundColor Red }
+    if( $vcErr.Count -ne 1 -or $vcUnexp.Count -ne 1 ) { Write-Host "  FAIL: expected exactly ONE error event (kind=unexpected_prompt); got $($vcErr.Count) error event(s), $($vcUnexp.Count) unexpected_prompt." -ForegroundColor Red }
+    $fail++
+}
+
+# --- Gate 14 (LIVE, recoverable ok=false): the SAME examine in a persistent --arcopolis-live session is a
+# RECOVERABLE failure. The chooser answer (DOWN) is STILL served to the DEFAULTMODE chooser, then the
+# vehicle uilist fails loud (ok=false / unexpected_prompt + prompt_failed) and NO snapshot is written;
+# unlike the item-pile examine (gate 7) there is NO PICKUP guard (the vehicle branch returns before the
+# pickup tail). The session keeps serving: the follow-up wait succeeds and the session quits cleanly. The
+# failed examine writes no export, so its window is found by Get-CommandSpan (bounded by the next command). ---
+$reqC = @(
+    '{"id":1,"op":"export","name":"start"}',
+    '{"id":2,"op":"command","command":"move","direction":"move_s","name":"approach"}',
+    '{"id":3,"op":"command","command":"examine","direction":"move_s","name":"examine_vehicle"}',
+    '{"id":4,"op":"command","command":"wait","name":"still_usable"}',
+    '{"id":5,"op":"quit"}'
+)
+$C = Invoke-LiveScenario -Name "vehicle_examine_live" -RequestLines $reqC -ScenarioWorld $VehicleWorld
+$evC = Read-Transcript -Dir $C.Dir
+$respC = @{}
+foreach( $r in @($C.Result.responses) ) { if( $null -ne $r.id ) { $respC[[int]$r.id] = $r } }
+# step_index 2 = the examine (accepted-request counter: start=0, move_s=1, examine=2).
+$wC = Get-CommandSpan -Events $evC -StepIndex 2
+$ansC = @($wC.Between | Where-Object { $_.event -eq 'nested_input_answer' })
+$guardC = @($wC.Between | Where-Object { $_.event -eq 'nested_input_guard' })
+$unconC = @($wC.Between | Where-Object { $_.event -eq 'nested_input_unconsumed' })
+$pfC = @($wC.Between | Where-Object { $_.event -eq 'prompt_failed' -and $_.reason -eq 'unexpected_prompt' })
+$endC = $evC | Where-Object { $_.event -eq 'session_end' } | Select-Object -First 1
+$quitC = if( $C.Result ) { @($C.Result.responses)[-1] } else { $null }
+$g14 = ($C.ExitCode -eq 0) -and $C.Result -and $C.Result.ok -and ($C.Result.exit_code -eq 0) -and
+       ($respC[3].ok -eq $false) -and ($respC[3].error.code -eq 'unexpected_prompt') -and
+       $wC -and ($wC.Command.command -eq 'examine') -and ($wC.Command.direction -eq 'move_s') -and
+       ($wC.Command.action_id -eq 'examine') -and ($ansC.Count -eq 1) -and
+       ($ansC[0].context -eq 'DEFAULTMODE') -and ($ansC[0].direction -eq 'move_s') -and
+       ($ansC[0].action -eq 'DOWN') -and ($guardC.Count -eq 0) -and ($unconC.Count -eq 0) -and
+       ($pfC.Count -eq 1) -and ($respC[4].ok -eq $true) -and ($quitC.op -eq 'quit') -and
+       ($endC.status -eq 'ok')
+if( $g14 ) {
+    Write-Host "  PASS: vehicle examine live fail-loud -- examine move_s served DOWN to the DEFAULTMODE chooser, then the unarmed vehicle uilist failed loud (ok=false / unexpected_prompt + prompt_failed), NO pickup guard (vehicle branch returns before the pickup tail); recoverable -- the follow-up wait succeeded and the session quit cleanly. See doc 43 §2/§10." -ForegroundColor Green
+} else {
+    Write-Host "  FAIL: vehicle examine live -- exit=$($C.ExitCode) examineResp=$($respC[3] | ConvertTo-Json -Compress) answers=$($ansC | ConvertTo-Json -Compress) guards=$($guardC.Count) unconsumed=$($unconC.Count) prompt_failed=$($pfC.Count) wait=$($respC[4].ok) quit=$($quitC | ConvertTo-Json -Compress) end=$($endC | ConvertTo-Json -Compress)" -ForegroundColor Red
     $fail++
 }
 
