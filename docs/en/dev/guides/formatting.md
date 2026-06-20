@@ -97,8 +97,9 @@ deno fmt
 > `deno.jsonc` sets the `json.trailingCommas` fmt option, which requires **Deno 2.8.3 or newer**
 > (added in [denoland/deno#33383](https://github.com/denoland/deno/pull/33383)). Older Deno aborts
 > with `error: Failed to parse "fmt" configuration ... unknown field 'json.trailingCommas'` and
-> cannot format locally at all. The target version is pinned in
-> [`.dvmrc`](https://github.com/justjavac/dvm); CI installs the latest stable, which satisfies it.
+> cannot format locally at all. The target version is pinned in `.dvmrc` (the
+> [dvm](https://github.com/justjavac/dvm) version file); CI installs the latest stable, which
+> satisfies it.
 
 ### Frozen and generated data
 
