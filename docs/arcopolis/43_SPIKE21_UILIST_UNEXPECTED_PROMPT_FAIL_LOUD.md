@@ -46,7 +46,7 @@ silently cancelled the npc menu before).
 collateral:** `examine` onto the south item pile reaches `input_context("PICKUP")` (not a uilist) and stays
 an accepted guard-cancel; `wait` reaches no uilist; the `pickup` vehicle-source and secondary-capacity
 uilists are ARMED (`uilist_transaction_guard`, `src/pickup.cpp`) and keep driving at level 4; cata_test /
-normal play are inert (`!session.active`). **One more collateral, also correct:** `examine` of a *vehicle*
+normal play are inert (`!session.active`). **One more collateral, also correct:** `examine` of a _vehicle_
 tile routes to `vehicle::interact_with` (`src/game.cpp` `game::examine` → `vp->vehicle().interact_with`,
 which `return`s before the pickup tail), and that opens its OWN unarmed `uilist selectmenu` ("Select an
 action", `src/vehicle_use.cpp` — EXAMINE + TRACK are unconditional so it is always ≥2 entries and calls
@@ -78,6 +78,7 @@ hangs; the command runner turns the recorded state into the failure.
 - **No render/window/curses call** is added; the safe fallback is unchanged.
 
 Surfacing is **entirely reused** from Spike 20 (no new code):
+
 - one-shot/export: `src/arcopolis_export.cpp` checks `backend_session_failure()` after `do_turn` and
   before the snapshot → exit 14, no success snapshot.
 - run-script: `src/arcopolis_script.cpp` post-loop `backend_session_failure()` check → exit 14; `done`
@@ -132,12 +133,12 @@ still shows the NPC destination in the explanation when inferable from the befor
 
 **`blocked_by=terrain` is NOT asserted for the wall witness (honest scope).** The harness's terrain-blocker
 attribution requires `dest.seen=true`, but a HEADLESS run never populates the player's LOS / map-memory, so
-**every** tile exports `seen=false` at the export instant (this is why the *old* NPC witness used
+**every** tile exports `seen=false` at the export instant (this is why the _old_ NPC witness used
 `blocked_by=npc`, which is seen-agnostic). The harness `seen` guard mirrors real player knowledge, so it was
 deliberately **left unchanged** (dropping it would make the external consumer ignore its own contract field
 — an Arcopolis-side divergence). The wall gate therefore asserts the essential `blocked_no_op` outcome plus
 that the harness's destination analysis reads the real `t_wall` terrain; `blocked_by` is honestly reported
-empty ("no obvious blocker") for the unseen tile. The witness proves the `blocked_no_op` *classification*
+empty ("no obvious blocker") for the unseen tile. The witness proves the `blocked_no_op` _classification_
 (distinct from the move-into-NPC `unexpected_prompt`) on a genuine no-prompt terrain block — not the
 seen-gated attribution.
 
@@ -199,17 +200,17 @@ linked exes retain the change as a build artifact; the main repo tree is clean.)
 
 Per [[cite-the-implementing-line]].
 
-| Claim | Cite | Type | Verdict |
-| --- | --- | --- | --- |
-| query() reports unexpected_prompt before its UILIST_ERROR fallback, gated on session | `src/ui.cpp` `uilist::query` | behavioral | ✅ unit + npc_export/examine/live regressions |
-| Reported at query() only; exactly one report per uilist (no init() double) | `src/ui.cpp` (init() unchanged) | absence | ✅ static; npc_export gate asserts exactly 1 error event |
-| Inert outside a session (cata_test unchanged) | `src/arcopolis_backend_input.cpp` `backend_report_unexpected_prompt` (`!session.active`) | behavioral | ✅ unit (cata_test uilist still aborts, no failure) |
-| Reuses Spike 20 channel (no new error kind / exit 14) | `src/arcopolis_command.cpp` `exit_code_for` | structural | ✅ static |
-| Both move AND examine into the NPC reach the same unarmed npc_menu uilist | `src/avatar_action.cpp` move; `src/game.cpp` `game::examine` → `npc_menu` | behavioral | ✅ regression (npc_export / examine / live) |
-| Armed uilist (13B/14) records no failure / still driven L4 | `tests/arcopolis_backend_input_test.cpp` + prompt_menu/script_prompt | behavioral | ✅ unit + prompt_menu/script_prompt regressions |
-| harness classifies move-into-NPC as unexpected_prompt, not blocked_no_op | `tools/arcopolis_client/harness.py` `classify_pair` / `BACKEND_EXIT_MEANINGS` | behavioral | ✅ client_harness / live regressions |
-| terrain `blocked_no_op` retains a live witness (classification only; `blocked_by` withheld, `seen=false` headless) | `docs/arcopolis/make_wall_fixture.py` + client_harness terrain gate | behavioral | ✅ regression (blocked_no_op + t_wall dest) |
-| No new curses window / render primitive | no new `newwin`/draw call added | absence | ✅ static |
+| Claim                                                                                                              | Cite                                                                                     | Type       | Verdict                                                  |
+| ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------- |
+| query() reports unexpected_prompt before its UILIST_ERROR fallback, gated on session                               | `src/ui.cpp` `uilist::query`                                                             | behavioral | ✅ unit + npc_export/examine/live regressions            |
+| Reported at query() only; exactly one report per uilist (no init() double)                                         | `src/ui.cpp` (init() unchanged)                                                          | absence    | ✅ static; npc_export gate asserts exactly 1 error event |
+| Inert outside a session (cata_test unchanged)                                                                      | `src/arcopolis_backend_input.cpp` `backend_report_unexpected_prompt` (`!session.active`) | behavioral | ✅ unit (cata_test uilist still aborts, no failure)      |
+| Reuses Spike 20 channel (no new error kind / exit 14)                                                              | `src/arcopolis_command.cpp` `exit_code_for`                                              | structural | ✅ static                                                |
+| Both move AND examine into the NPC reach the same unarmed npc_menu uilist                                          | `src/avatar_action.cpp` move; `src/game.cpp` `game::examine` → `npc_menu`                | behavioral | ✅ regression (npc_export / examine / live)              |
+| Armed uilist (13B/14) records no failure / still driven L4                                                         | `tests/arcopolis_backend_input_test.cpp` + prompt_menu/script_prompt                     | behavioral | ✅ unit + prompt_menu/script_prompt regressions          |
+| harness classifies move-into-NPC as unexpected_prompt, not blocked_no_op                                           | `tools/arcopolis_client/harness.py` `classify_pair` / `BACKEND_EXIT_MEANINGS`            | behavioral | ✅ client_harness / live regressions                     |
+| terrain `blocked_no_op` retains a live witness (classification only; `blocked_by` withheld, `seen=false` headless) | `docs/arcopolis/make_wall_fixture.py` + client_harness terrain gate                      | behavioral | ✅ regression (blocked_no_op + t_wall dest)              |
+| No new curses window / render primitive                                                                            | no new `newwin`/draw call added                                                          | absence    | ✅ static                                                |
 
 ## 10. Residual uncertainties (kept)
 
