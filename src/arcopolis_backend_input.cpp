@@ -99,6 +99,13 @@ struct backend_session {
     std::size_t script_prompt_cursor = 0;            ///< next script_prompt_answers index to consume
     std::optional<int>
     script_prompt_step_index;     ///< the arming command's step index (transcript correlation)
+
+    // --- Spike 20: an UNARMED player-visible prompt/query was reached during this session (a test_mode
+    //     abort that would otherwise silently default/cancel). Recorded by backend_report_unexpected_prompt
+    //     at the abort site. In NON-LIVE mode that sets `failure`+`done` (surfaced post-do_turn/post-loop as
+    //     exit 14); in LIVE mode it sets THIS recoverable pending error instead (no done/failure), which the
+    //     per-request runner consumes -> a visibly-failed ok=false response, session stays open. ---
+    std::optional<arcopolis::command_error> unexpected_prompt_pending;
 };
 
 backend_session session;
@@ -543,6 +550,78 @@ auto arcopolis::backend_cursor() -> std::size_t
 auto arcopolis::backend_session_failure() -> std::optional<command_error>
 {
     return session.failure;
+}
+
+auto arcopolis::backend_report_unexpected_prompt( const std::string &family,
+        const std::string &site ) -> void
+{
+    // Spike 20. Called from the engine's test_mode prompt-abort sites (e.g. query_popup::query_once) when an
+    // UNARMED player-visible prompt is reached during an active session -- the abort would otherwise silently
+    // default/cancel and report a hidden lost interaction as success. Inert outside a session, so cata_test /
+    // normal play are unchanged (the abort site still takes its normal default). This is a SEPARATE,
+    // generically-named channel from record_script_prompt_failure (it is reached from live and one-shot too,
+    // not just scripts) but reuses the SAME session.failure storage + session_log_error plumbing. The
+    // signature takes NO step_index on purpose: generic UI code must not know Arcopolis script internals -- the
+    // current command's step index is inferred here for transcript correlation only.
+    if( !session.active ) {
+        return;
+    }
+    const auto detail = string_format(
+                            "an unsupported player-visible prompt (%s, at %s) was reached during an active Arcopolis "
+                            "session but no matching backend transaction was armed; failing loud rather than silently "
+                            "defaulting/cancelling it (a hidden lost interaction)",
+                            family.c_str(), site.c_str() );
+    // Best-effort transcript correlation: the examine precondition / armed query_popup step, else the script
+    // command step, else absent (one-shot has neither).
+    const auto step_index = session.query_popup.step_index
+                            ? session.query_popup.step_index
+                            : session.script_prompt_step_index;
+    if( session.live_source ) {
+        // LIVE: recoverable. The per-request runner consumes this -> a visibly-failed ok=false response; the
+        // session stays open (the engine already handled query_once's fallback as a safe cancel/default).
+        // First report wins; do NOT set failure/done (that would end the live session). Mark the command
+        // failed in the transcript with the RECOVERABLE `prompt_failed` marker, NOT an `error` event -- in
+        // the live transcript an `error` means the session FAILED (src/arcopolis_live.cpp), which this does
+        // not. This still satisfies "the transcript must mark the command failed" without faking a fatal end.
+        if( !session.unexpected_prompt_pending ) {
+            session.unexpected_prompt_pending = arcopolis::command_error{
+                .kind = arcopolis::command_error_kind::unexpected_prompt,
+                .detail = detail,
+            };
+            arcopolis::session_log_prompt_failed( {
+                .step_index = step_index,
+                .reason = "unexpected_prompt",
+                .detail = detail,
+            } );
+        }
+        return;
+    }
+    // NON-LIVE (script / one-shot): fatal. Set failure + done so the post-do_turn (one-shot) / post-loop
+    // (run_script) backend_session_failure() check surfaces exit 14 and the steps walk stops. First failure
+    // wins (shared with record_script_prompt_failure).
+    if( session.failure ) {
+        return;
+    }
+    session.failure = arcopolis::command_error{
+        .kind = arcopolis::command_error_kind::unexpected_prompt,
+        .detail = detail,
+    };
+    session.done = true;
+    arcopolis::session_log_error( {
+        .step_index = step_index,
+        .kind = arcopolis::command_error_kind::unexpected_prompt,
+        .detail = detail,
+    } );
+}
+
+auto arcopolis::backend_take_unexpected_prompt_error() -> std::optional<command_error>
+{
+    // Spike 20 (live): return and clear the recoverable pending unexpected-prompt error. The live runner calls
+    // this after each request's do_turn; a non-null result means the command reached an unarmed prompt and must
+    // be reported as a visibly-failed ok=false response (never success), with the session left open.
+    const auto pending = session.unexpected_prompt_pending;
+    session.unexpected_prompt_pending.reset();
+    return pending;
 }
 
 auto arcopolis::next_backend_action() -> action_id

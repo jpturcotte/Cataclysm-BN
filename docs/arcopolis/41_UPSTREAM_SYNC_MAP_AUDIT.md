@@ -18,12 +18,12 @@ no `command -> do_turn` revival, no seam bypass, no fail-loud weakening, no new 
 
 Per the documented **mirror + rebased dev branch** model (`AGENTS.md` "Repository layout"):
 
-| | ref | date |
-| --- | --- | --- |
-| previous merge-base | `fe628e7d24` (the 2026-06-10 sync, PR #26) | 2026-06-10 |
-| `arcopolis` before sync | `c2bca2d8fe` (53 patches on the old base) | 2026-06-19 |
-| `upstream/main` merged (new base) | `20e4cb2d24` "fix: let ear protection block screecher daze (#9577)" | 2026-06-19 |
-| result branch | `arcopolis-upstream-sync-map-audit` = the 53 patches rebased onto `20e4cb2d24`, linear | 2026-06-19 |
+|                                   | ref                                                                                    | date       |
+| --------------------------------- | -------------------------------------------------------------------------------------- | ---------- |
+| previous merge-base               | `fe628e7d24` (the 2026-06-10 sync, PR #26)                                             | 2026-06-10 |
+| `arcopolis` before sync           | `c2bca2d8fe` (53 patches on the old base)                                              | 2026-06-19 |
+| `upstream/main` merged (new base) | `20e4cb2d24` "fix: let ear protection block screecher daze (#9577)"                    | 2026-06-19 |
+| result branch                     | `arcopolis-upstream-sync-map-audit` = the 53 patches rebased onto `20e4cb2d24`, linear | 2026-06-19 |
 
 `main` was fast-forwarded `fe628e7d24 -> 20e4cb2d24` and pushed (pure mirror; never conflicts), then
 `arcopolis`'s 53 commits were **rebased** onto it on the dedicated branch. **112 upstream commits**
@@ -34,17 +34,17 @@ set (linear; the invariant holds).
 
 The wave the project flagged in advance — all present and absorbed:
 
-| PR | what | Arcopolis relevance |
-| --- | --- | --- |
-| #9398 `dda6330da9` | Map function migration API start (mapbuffer +1277, submap_load_manager, overmapbuffer, new `map_functions`) | export reads map state |
-| #9506 `cefac1cfc5` | Absolute migration + pathfinding (map.cpp −159, pathfinding +460, monmove/npcmove, **iexamine ±88**, new `map_utils`) | export coords + Spike 15 iexamine witness |
-| #9519 `6f5fe49f7a` | Absolute Space Migrations | coords |
-| #9543 `5927589293` | **Absolute Mapgen Migration + Z-Level Option Removal** | coords; fixture option staleness (§6) |
-| #9559 `b0382913dc` | Absolute Backing API | touches `pickup.cpp` |
-| #9479 `d31831136a` / #9447 `865cb1f0e6` | Visibility & Position Fixes / Absolute Peek Anchor | export `seen`/`pl_sees` |
-| #9482 `1b79f6bee0` | Fix filter in experimental pickup menu | touches `inventory_ui` only (the NEW menu) — **not** the old `"PICKUP"` menu Arcopolis drives |
-| #9518 `968b72fda3` | action-id lookup no longer aborts | seam behavior note (§5) |
-| #9535 `22b1c4d4f4` | fix auto-drive | `handle_action` auto-move branch (neighbours the seam hook) |
+| PR                                      | what                                                                                                                  | Arcopolis relevance                                                                           |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| #9398 `dda6330da9`                      | Map function migration API start (mapbuffer +1277, submap_load_manager, overmapbuffer, new `map_functions`)           | export reads map state                                                                        |
+| #9506 `cefac1cfc5`                      | Absolute migration + pathfinding (map.cpp −159, pathfinding +460, monmove/npcmove, **iexamine ±88**, new `map_utils`) | export coords + Spike 15 iexamine witness                                                     |
+| #9519 `6f5fe49f7a`                      | Absolute Space Migrations                                                                                             | coords                                                                                        |
+| #9543 `5927589293`                      | **Absolute Mapgen Migration + Z-Level Option Removal**                                                                | coords; fixture option staleness (§6)                                                         |
+| #9559 `b0382913dc`                      | Absolute Backing API                                                                                                  | touches `pickup.cpp`                                                                          |
+| #9479 `d31831136a` / #9447 `865cb1f0e6` | Visibility & Position Fixes / Absolute Peek Anchor                                                                    | export `seen`/`pl_sees`                                                                       |
+| #9482 `1b79f6bee0`                      | Fix filter in experimental pickup menu                                                                                | touches `inventory_ui` only (the NEW menu) — **not** the old `"PICKUP"` menu Arcopolis drives |
+| #9518 `968b72fda3`                      | action-id lookup no longer aborts                                                                                     | seam behavior note (§5)                                                                       |
+| #9535 `22b1c4d4f4`                      | fix auto-drive                                                                                                        | `handle_action` auto-move branch (neighbours the seam hook)                                   |
 
 ## 3. Conflicts and how they were resolved
 
@@ -53,15 +53,15 @@ The conflict-risk set = {files Arcopolis modifies} ∩ {files upstream touched} 
 **only `deno.jsonc` required a hand resolution.** Each auto-merge was then re-verified by reading the
 result (a clean rebase is necessary but not sufficient).
 
-| File | conflict | resolution (verified) |
-| --- | --- | --- |
-| `deno.jsonc` | **manual** | kept BOTH upstream's `build-scripts/problem-matchers` exclude + `build-scripts` include AND Arcopolis's `.claude/worktrees` exclude |
-| `src/game.cpp` | auto | clean-park guard `backend_session_active() && backend_input_done() -> return false` intact, after `is_game_over()`, before `QUIT_WATCH`; `do_turn` head byte-identical so the `new_game` bootstrap-turn skip is preserved |
-| `src/handle_action.cpp` | auto | backend-input branch (`backend_session_active() -> next_backend_action()`) still LEADS `handle_action_get_action`'s dispatch chain as `if / else if (u.has_destination())`; upstream only touched `pldrive`/`smash`/`sleep` (far away) |
-| `src/iexamine.cpp` | auto | Spike 15 `query_popup_witness_guard` intact at the top of `deployed_furniture`; its body is upstream-unchanged and still calls the **2-arg** `take_down_deployed_furniture(pos,pos)` (upstream KEEPS that overload alongside the new 3-arg `mapbuffer&` one) |
-| `src/pickup.cpp` | auto | all three gated blocks intact — Spike 12A top-level menu arm, Spike 13B vehicle-source uilist drive, Spike 14 secondary-capacity uilist drive + no-channel/orphaned/disabled-entry fail-loud fallbacks; upstream's `pick_one_up`/`do_pickup` migration is in different functions |
-| `AGENTS.md` | auto | 185 insertions / 0 deletions vs the upstream base — Arcopolis sections layered on top, upstream's recent AGENTS.md edits preserved |
-| `.github/semantic.yml` | auto | adds only the `arcopolis` scope; upstream's scope additions preserved |
+| File                    | conflict   | resolution (verified)                                                                                                                                                                                                                                                            |
+| ----------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deno.jsonc`            | **manual** | kept BOTH upstream's `build-scripts/problem-matchers` exclude + `build-scripts` include AND Arcopolis's `.claude/worktrees` exclude                                                                                                                                              |
+| `src/game.cpp`          | auto       | clean-park guard `backend_session_active() && backend_input_done() -> return false` intact, after `is_game_over()`, before `QUIT_WATCH`; `do_turn` head byte-identical so the `new_game` bootstrap-turn skip is preserved                                                        |
+| `src/handle_action.cpp` | auto       | backend-input branch (`backend_session_active() -> next_backend_action()`) still LEADS `handle_action_get_action`'s dispatch chain as `if / else if (u.has_destination())`; upstream only touched `pldrive`/`smash`/`sleep` (far away)                                           |
+| `src/iexamine.cpp`      | auto       | Spike 15 `query_popup_witness_guard` intact at the top of `deployed_furniture`; its body is upstream-unchanged and still calls the **2-arg** `take_down_deployed_furniture(pos,pos)` (upstream KEEPS that overload alongside the new 3-arg `mapbuffer&` one)                     |
+| `src/pickup.cpp`        | auto       | all three gated blocks intact — Spike 12A top-level menu arm, Spike 13B vehicle-source uilist drive, Spike 14 secondary-capacity uilist drive + no-channel/orphaned/disabled-entry fail-loud fallbacks; upstream's `pick_one_up`/`do_pickup` migration is in different functions |
+| `AGENTS.md`             | auto       | 185 insertions / 0 deletions vs the upstream base — Arcopolis sections layered on top, upstream's recent AGENTS.md edits preserved                                                                                                                                               |
+| `.github/semantic.yml`  | auto       | adds only the `arcopolis` scope; upstream's scope additions preserved                                                                                                                                                                                                            |
 
 `git diff --check` is clean; no conflict markers remain anywhere in the tree.
 
@@ -77,16 +77,16 @@ comes from `ctx.levz` (`g->get_levz()`) — the z-level being exported, which al
 `map_bounds "z"` and every exported tile's z, so the emitted value is unchanged for the single-z
 snapshot. This is the **only** `arcopolis_*` source change in the sync.
 
-| API used by `src/arcopolis_export.cpp` | upstream status |
-| --- | --- |
-| `Creature::bub_pos()` / `abs_pos()` (avatar, monster, npc) | unchanged (tripoint, has `.z()`) |
-| `map::get_abs_sub()` | **CHANGED → 2-D `point_abs_sm`** (`map.h:1979`); export adapted to use `ctx.levz` for the origin z |
-| `map::ter/furn(tripoint_bub_ms)` | unchanged (`map.h:1236/1261`) |
-| `map::i_at(tripoint_bub_ms) -> map_stack` | public signature/behavior unchanged; internal storage moved to abs_ms but encapsulated (`map.h:1712`) |
-| `map::inbounds / getmapsize / pl_sees` | unchanged |
-| `points_in_radius(tripoint_bub_ms,int)` | unchanged (`map_iterator.h:126`) |
-| `bub_to_abs(tripoint_bub_ms) -> tripoint_abs_ms` | unchanged (`map.h:2796`) |
-| coordinate types `tripoint_bub_ms / _abs_ms / _abs_sm` | intact |
+| API used by `src/arcopolis_export.cpp`                     | upstream status                                                                                       |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `Creature::bub_pos()` / `abs_pos()` (avatar, monster, npc) | unchanged (tripoint, has `.z()`)                                                                      |
+| `map::get_abs_sub()`                                       | **CHANGED → 2-D `point_abs_sm`** (`map.h:1979`); export adapted to use `ctx.levz` for the origin z    |
+| `map::ter/furn(tripoint_bub_ms)`                           | unchanged (`map.h:1236/1261`)                                                                         |
+| `map::i_at(tripoint_bub_ms) -> map_stack`                  | public signature/behavior unchanged; internal storage moved to abs_ms but encapsulated (`map.h:1712`) |
+| `map::inbounds / getmapsize / pl_sees`                     | unchanged                                                                                             |
+| `points_in_radius(tripoint_bub_ms,int)`                    | unchanged (`map_iterator.h:126`)                                                                      |
+| `bub_to_abs(tripoint_bub_ms) -> tripoint_abs_ms`           | unchanged (`map.h:2796`)                                                                              |
+| coordinate types `tripoint_bub_ms / _abs_ms / _abs_sm`     | intact                                                                                                |
 
 `src/main.cpp` was **not** touched by upstream this round, so the `std::array<arg_handler, N>`
 literal replayed clean and the silent-mis-merge gotcha did not bite: upstream first_pass is still 17,
@@ -121,7 +121,7 @@ All preserved, present, and correctly placed (each read in the post-rebase tree)
 
 **Behavior note — #9518** (`src/action.cpp`: `abort()` -> `return "null"`): an unknown action id no
 longer hard-aborts the process. Arcopolis validates verbs -> action_ids up front
-(`arcopolis_command.cpp`), so this never fires on the Arcopolis path; the change is strictly *safer*
+(`arcopolis_command.cpp`), so this never fires on the Arcopolis path; the change is strictly _safer_
 for a headless run (a stray unknown action degrades to a no-op instead of killing the process). It
 does **not** alter any Arcopolis fail-loud (those are explicit typed errors, not `abort()`).
 
@@ -163,6 +163,7 @@ shift / off-bubble. **Result: no real issues, nothing left uncertain.**
 > against the synced headers (the definitive proof the map calls resolve correctly).
 
 ### Residual (non-blocking)
+
 - **#9543 Z-Level Option Removal** — fixtures loaded green; if any `options.json` carries the removed
   option it is silently ignored (forward-compatible). A fixture refresh is optional, not required.
 

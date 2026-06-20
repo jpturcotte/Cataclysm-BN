@@ -455,14 +455,14 @@ A minimal, **read-only** "current view" export. Coordinates are bubble-local
   "schema_version": 1,
   "backend": {
     "game_version": "<getVersionString()>", // src/get_version.h:2
-    "save_version": 0 // src/game.h:64  (extern const int savegame_version)
+    "save_version": 0, // src/game.h:64  (extern const int savegame_version)
   },
   "turn": {
     "turn": 0, // calendar::turn as a turn count
     "time_of_day": "08:00:00", // to_string_time_of_day(calendar::turn)
     "season": "spring", // season_of_year(calendar::turn)
     "day": 1,
-    "year": 1
+    "year": 1,
   },
   "avatar": {
     "name": "", // Character::get_name()
@@ -476,31 +476,31 @@ A minimal, **read-only** "current view" export. Coordinates are bubble-local
     "thirst": 0,
     "fatigue": 0,
     "stored_kcal": 0,
-    "kcal_percent": 0.0 // get_stored_kcal() / get_kcal_percent(); satiety signal
+    "kcal_percent": 0.0, // get_stored_kcal() / get_kcal_percent(); satiety signal
   },
   "map_bounds": {
     "origin_abs_sm": [0, 0, 0], // map::get_abs_sub()
     "size_x": 132,
     "size_y": 132, // g_mapsize_x / g_mapsize_y
-    "z": 0
+    "z": 0,
   },
   "tiles": [
     // one entry per exported tile (full 132x132 bubble, or a radius-R window around the avatar)
-    { "x": 60, "y": 60, "ter": "t_floor", "furn": "f_null", "seen": true }
+    { "x": 60, "y": 60, "ter": "t_floor", "furn": "f_null", "seen": true },
     //   ter  = map::ter(p).id().str()   furn = map::furn(p).id().str()
     //   seen = map::pl_sees(p, range) or a visibility_cache lookup
   ],
   "actors": [
     { "kind": "monster", "name": "zombie", "pos_local": [62, 60, 0] }, // all_monsters()
-    { "kind": "npc", "name": "Smith", "pos_local": [58, 61, 0] } // all_npcs()
+    { "kind": "npc", "name": "Smith", "pos_local": [58, 61, 0] }, // all_npcs()
   ],
   "items": [
-    { "pos_local": [60, 61, 0], "items": [{ "name": "rock" }] } // map::i_at(p) -> item::tname()
+    { "pos_local": [60, 61, 0], "items": [{ "name": "rock" }] }, // map::i_at(p) -> item::tname()
   ],
   "messages": [
-    { "text": "You wake up.", "type": "good" } // Messages::recent_messages(N)
+    { "text": "You wake up.", "type": "good" }, // Messages::recent_messages(N)
   ],
-  "diagnostics": { "warnings": [] }
+  "diagnostics": { "warnings": [] },
 }
 ```
 
