@@ -122,9 +122,11 @@ def write_submap_file(db, path, obj, compressed):
 
 
 def decode_terrain(arr):
-    """Decode the submap ``terrain`` RLE into a flat list of 144 ids, indexed x-major: index = x*SEEY + y
-    (src/coordinates.h submap_tiles() iterates x outer, y inner). Each element is a string (one tile) or a
-    ``[id, count]`` run."""
+    """Decode the submap ``terrain`` RLE into a flat list of 144 ids, indexed row-major: index = y*SEEX + x
+    (y outer, x inner; src/coordinates.h submap_tiles() / src/map_iterator.h increment x fastest, so RLE
+    element N is the tile at x = N % SEEX, y = N // SEEX, matching the engine loader in
+    src/savegame_json.cpp which writes ter[sm_ms.x()][sm_ms.y()] over submap_tiles()). Each element is a
+    string (one tile) or a ``[id, count]`` run."""
     flat = []
     for e in arr:
         if isinstance(e, list):
@@ -189,7 +191,7 @@ def main(argv=None):
     src_submap = next((s for s in src_submaps if s.get("coordinates") == [sx, sy, tz]), None)
     if src_submap is None:
         raise SystemExit("fatal: submap (%d,%d,%d) not present in %s" % (sx, sy, tz, path))
-    ter = decode_terrain(src_submap["terrain"])[wx * SEEY + wy]
+    ter = decode_terrain(src_submap["terrain"])[wy * SEEX + wx]
     if ter != EXPECTED_TER:
         raise SystemExit("fatal: witness tile terrain is '%s', expected '%s' -- pick a clean floor offset"
                          % (ter, EXPECTED_TER))
