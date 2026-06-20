@@ -275,6 +275,13 @@ query_popup::result query_popup::query_once()
     // callbacks (init()->newwin / show()) are test_mode no-ops in ui_manager::redraw_invalidated(), so this
     // path creates NO curses window and calls NO render primitive in any build (mirrors the uilist invariant).
     if( test_mode && !arcopolis::backend_query_popup_transaction_active() ) {
+        // Arcopolis Spike 20: if this abort is reached during an ACTIVE backend session WITHOUT an armed
+        // query_popup transaction, it is an UNARMED player-visible prompt (a query_yn / popup / popup_getkey
+        // Arcopolis has not witnessed). Silently returning the default below would answer it NO/CANCEL and let
+        // the command look successful while hiding a lost interaction. Record a fail-loud unexpected_prompt
+        // (non-live: fatal exit 14; live: a recoverable ok=false) BEFORE returning the safe default as a mere
+        // transport fallback. Inert outside a session, so cata_test / normal play keep the plain abort.
+        arcopolis::backend_report_unexpected_prompt( "query_popup", "query_once" );
         return { false, "ERROR", {} };
     }
 
