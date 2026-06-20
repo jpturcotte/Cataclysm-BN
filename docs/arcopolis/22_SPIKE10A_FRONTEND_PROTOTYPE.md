@@ -123,7 +123,7 @@ one regression parse path):
     "tool": "arcopolis_frontend_prototype",
     "version": "0.1.0",
     "protocol_version": 1,
-    "schema_version": 1
+    "schema_version": 1,
   },
   "state_serial": 17, // monotonic; the page never renders an older doc over a newer one
   "phase": "idle | starting | ready | ended | dead",
@@ -136,14 +136,14 @@ one regression parse path):
     "seed": null,
     "exit_code": null,
     "exit_meaning": null,
-    "final_snapshot": null
+    "final_snapshot": null,
   },
   "backend": { "turn": 1324801, "export_index": 0, "snapshot": "000_start.json" },
   "avatar": {/* verbatim snapshot avatar block */},
   "map": {
     "bounds": {/* map_bounds */},
     "tiles": [/* tiles[] */],
-    "entities": { "monsters": [], "npcs": [], "items": [] }
+    "entities": { "monsters": [], "npcs": [], "items": [] },
   },
   "messages": [/* verbatim messages[] */],
   "last_result": {
@@ -159,10 +159,10 @@ one regression parse path):
       "blocked_by": ["npc"],
       "blocker_name": "Edwardo Stovall",
       "explanation": "…",
-      "error": null
-    }
+      "error": null,
+    },
   },
-  "last_error": null
+  "last_error": null,
 }
 ```
 

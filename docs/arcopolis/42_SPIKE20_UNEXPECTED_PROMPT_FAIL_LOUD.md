@@ -68,6 +68,7 @@ prompt as a "script" failure):
 - `arcopolis::backend_take_unexpected_prompt_error()` — returns + clears the pending error (live runner).
 
 Mode surfacing:
+
 - **one-shot/export** (`src/arcopolis_export.cpp`): checks `backend_session_failure()` **immediately after
   `g->do_turn()` and BEFORE the success snapshot** is written — a hidden lost interaction never produces
   success-looking output. (One-shot arms no transaction, so e.g. an `examine` of deployed furniture fails loud
@@ -164,17 +165,17 @@ Spike 20 guard fires ONLY when the transaction is unarmed.
 
 Per [[cite-the-implementing-line]].
 
-| Claim                                                                                  | Cite                                                                                  | Type       | Verdict |
-| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ---------- | ------- |
-| query_once reports an unexpected prompt before its safe-default abort, gated on session | `src/popup.cpp` `query_popup::query_once`                                              | behavioral | ✅ one-shot exit 14 + unit |
-| Inert outside a session (cata_test unchanged)                                          | `src/arcopolis_backend_input.cpp` `backend_report_unexpected_prompt` (`!session.active`) | behavioral | ✅ static |
-| Non-live sets failure+done (exit 14); live sets recoverable pending (no done)          | `src/arcopolis_backend_input.cpp` `backend_report_unexpected_prompt`                   | behavioral | ✅ static |
-| New kind maps to exit 14                                                               | `src/arcopolis_command.cpp` `exit_code_for`                                            | structural | ✅ static |
-| One-shot checks failure before the success snapshot                                    | `src/arcopolis_export.cpp` (post-`do_turn` block)                                      | behavioral | ✅ one-shot: exit 14, no snapshot |
-| Live surfaces ok=false `unexpected_prompt`, session stays open                         | `src/arcopolis_live.cpp` `live_next_action` block (a)                                  | behavioral | ✅ unit (channel) / static (wire) |
-| Armed query_popup witness records no failure                                           | `tests/arcopolis_backend_input_test.cpp` (armed `query()` witness)                    | behavioral | ✅ unit pass |
-| uilist family unchanged (move-into-NPC still `blocked_no_op`)                          | `src/ui.cpp` `uilist::query` (no edit)                                                 | absence    | ✅ static |
-| No new curses window / render primitive                                                | no new `newwin`/draw call added                                                        | absence    | ✅ static |
+| Claim                                                                                   | Cite                                                                                     | Type       | Verdict                           |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------- | --------------------------------- |
+| query_once reports an unexpected prompt before its safe-default abort, gated on session | `src/popup.cpp` `query_popup::query_once`                                                | behavioral | ✅ one-shot exit 14 + unit        |
+| Inert outside a session (cata_test unchanged)                                           | `src/arcopolis_backend_input.cpp` `backend_report_unexpected_prompt` (`!session.active`) | behavioral | ✅ static                         |
+| Non-live sets failure+done (exit 14); live sets recoverable pending (no done)           | `src/arcopolis_backend_input.cpp` `backend_report_unexpected_prompt`                     | behavioral | ✅ static                         |
+| New kind maps to exit 14                                                                | `src/arcopolis_command.cpp` `exit_code_for`                                              | structural | ✅ static                         |
+| One-shot checks failure before the success snapshot                                     | `src/arcopolis_export.cpp` (post-`do_turn` block)                                        | behavioral | ✅ one-shot: exit 14, no snapshot |
+| Live surfaces ok=false `unexpected_prompt`, session stays open                          | `src/arcopolis_live.cpp` `live_next_action` block (a)                                    | behavioral | ✅ unit (channel) / static (wire) |
+| Armed query_popup witness records no failure                                            | `tests/arcopolis_backend_input_test.cpp` (armed `query()` witness)                       | behavioral | ✅ unit pass                      |
+| uilist family unchanged (move-into-NPC still `blocked_no_op`)                           | `src/ui.cpp` `uilist::query` (no edit)                                                   | absence    | ✅ static                         |
+| No new curses window / render primitive                                                 | no new `newwin`/draw call added                                                          | absence    | ✅ static                         |
 
 ## 9. Residual uncertainties (kept)
 
