@@ -63,9 +63,21 @@ import sqlite3
 import sys
 import zlib
 
-# The approved external fixture root (AGENTS.md fixture section); kept as the default so the command is
-# copy-pasteable. Override with --fixture-root for a different layout.
-DEFAULT_FIXTURE_ROOT = r"C:\dev\arcopolis-fixtures\arcopolis_user"
+# Resolve the fixture root with the same precedence as the *_regression.ps1 scripts:
+# ARCO_FIXTURE_ROOT env override > repo-local committed pack (docs/arcopolis/fixtures/arcopolis_user)
+# > optional external dev fallback (C:\dev\arcopolis-fixtures, an AGENTS.md-approved non-sensitive path).
+# Pass --fixture-root to override explicitly. See docs/arcopolis/fixtures/README.md.
+def _default_fixture_root() -> str:
+    env = os.environ.get("ARCO_FIXTURE_ROOT")
+    if env:
+        return env
+    repo_local = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "arcopolis_user")
+    if os.path.isdir(repo_local):
+        return repo_local
+    external = r"C:\dev\arcopolis-fixtures\arcopolis_user"
+    if os.path.isdir(external):
+        return external
+    return repo_local  # canonical target; the existing not-found checks report it clearly
 SEEX = SEEY = 12  # submap side length
 
 # Heuristic only — for a WARNING. The engine's real test is `impassable && !can_move_to` (move-cost 0
@@ -163,7 +175,7 @@ def build_witness(template, monster_id, pos_abs, turn):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Build the ArcopolisNearMonsterTest monster-witness fixture.")
-    parser.add_argument("--fixture-root", default=DEFAULT_FIXTURE_ROOT,
+    parser.add_argument("--fixture-root", default=_default_fixture_root(),
                         help="userdir holding save/<world> (default: the AGENTS.md fixture root)")
     parser.add_argument("--source-world", default="ArcopolisTest", help="world to clone (read-only)")
     parser.add_argument("--dest-world", default="ArcopolisNearMonsterTest", help="world to create")
