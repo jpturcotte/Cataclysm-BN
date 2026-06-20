@@ -23,16 +23,22 @@
 .NOTES
   Dot-source from a regression script and call after the param() block, e.g.:
 
-    . "$PSScriptRoot\arco_fixture_root.ps1"
-    if( $FixtureSrc ) { } else { $FixtureSrc = Resolve-ArcoFixtureRoot -ScriptDir $PSScriptRoot }
+    . "$PSScriptRoot/arco_fixture_root.ps1"
+    if( -not $FixtureSrc ) { $FixtureSrc = Resolve-ArcoFixtureRoot -ScriptDir $PSScriptRoot }
 #>
 
 function Resolve-ArcoFixtureRoot {
-    param([string]$ScriptDir)   # pass the caller's $PSScriptRoot (this file lives in docs/arcopolis)
+    param([string]$ScriptDir)   # caller's $PSScriptRoot; both it and this helper live in docs/arcopolis
 
     if( $env:ARCO_FIXTURE_ROOT ) { return $env:ARCO_FIXTURE_ROOT }              # override (empty = unset)
 
-    $repoLocal = Join-Path $ScriptDir "fixtures\arcopolis_user"
+    # Fall back to THIS helper's own dir when no/empty -ScriptDir was passed (e.g. dot-sourced at an
+    # interactive prompt where the caller's $PSScriptRoot is empty). Both the regression scripts and this
+    # helper live in docs/arcopolis, so the same fixtures/ subtree resolves. This avoids Join-Path's
+    # empty-Path throw WITHOUT falling back to the (wrong) current working directory.
+    if( -not $ScriptDir ) { $ScriptDir = $PSScriptRoot }
+
+    $repoLocal = Join-Path $ScriptDir "fixtures/arcopolis_user"
     if( Test-Path $repoLocal ) { return $repoLocal }                           # repo-local committed pack
 
     $external = "C:\dev\arcopolis-fixtures\arcopolis_user"

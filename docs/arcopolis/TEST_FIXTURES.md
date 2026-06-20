@@ -6,10 +6,10 @@ in the repo** under [`docs/arcopolis/fixtures/arcopolis_user/`](fixtures/arcopol
 scripts copy that userdir into the gitignored `.\arcopolis_user` sandbox automatically — **no external
 setup required.**
 
-The fixture root resolves with this precedence: a script's `-FixtureSrc` (or a generator's `--fixture-root`)
-> `$env:ARCO_FIXTURE_ROOT` > the repo-local pack above > an optional external dev fallback at
-`C:\dev\arcopolis-fixtures\arcopolis_user`. The external root is now **optional developer scratch space**,
-not a prerequisite; set `ARCO_FIXTURE_ROOT` to point the suite at one for a one-off. These worlds are
+The fixture root resolves in this order (first match wins): an explicit `-FixtureSrc` (or a generator's
+`--fixture-root`); then `$env:ARCO_FIXTURE_ROOT`; then the repo-local pack above; then an optional external
+dev fallback at `C:\dev\arcopolis-fixtures\arcopolis_user`. The external root is now **optional developer
+scratch space**, not a prerequisite; set `ARCO_FIXTURE_ROOT` to point the suite at one for a one-off. These worlds are
 point-in-time snapshots; regenerate the generated ones with the `make_*_fixture.py` script that owns each
 (see per-world sections below and `fixtures/README.md`).
 

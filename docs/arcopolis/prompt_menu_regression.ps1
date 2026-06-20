@@ -97,8 +97,8 @@ param(
 $ErrorActionPreference = "Stop"
 # Resolve the fixture root: explicit -FixtureSrc > $env:ARCO_FIXTURE_ROOT > repo-local committed pack
 # (docs/arcopolis/fixtures/arcopolis_user) > optional external dev fallback. See docs/arcopolis/fixtures/README.md.
-. "$PSScriptRoot\arco_fixture_root.ps1"
-if( $FixtureSrc ) { } else { $FixtureSrc = Resolve-ArcoFixtureRoot -ScriptDir $PSScriptRoot }
+. "$PSScriptRoot/arco_fixture_root.ps1"
+if( -not $FixtureSrc ) { $FixtureSrc = Resolve-ArcoFixtureRoot -ScriptDir $PSScriptRoot }
 
 function Stop-WithCode {
     param([string]$Message, [int]$Code)
