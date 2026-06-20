@@ -60,7 +60,7 @@ A clone of `ArcopolisTest` whose avatar additionally wears a `backpack`, giving 
 [30_SPIKE12A_PROMPT_MENU_TRANSACTION.md](30_SPIKE12A_PROMPT_MENU_TRANSACTION.md) and
 [34_SPIKE14_SECONDARY_PICKUP_UILIST.md](34_SPIKE14_SECONDARY_PICKUP_UILIST.md).
 
-## `ArcopolisVehicleCargoTest` — backend-driven vehicle-source `uilist` witness (Spike 13B)
+## `ArcopolisVehicleCargoTest` — vehicle-source `uilist` witness (Spike 13B `pickup`); vehicle `examine` "Select an action" fail-loud witness (Spike 21)
 
 (Was the Spike 12A-follow-up fail-loud witness.) A clone of `ArcopolisTest` with an exact `folding_wagon`
 replica (a single-tile `folding_frame`+`wheel_caster`+`basketlg_folding` CARGO cart) injected ONTO the
@@ -74,6 +74,15 @@ no-channel fallback (non-live / misconfigured). Built reproducibly by
 [`docs/arcopolis/prompt_menu_regression.ps1`](prompt_menu_regression.ps1) (gate H, four sub-scenarios). See
 [33_SPIKE13B_BACKEND_DRIVEN_UILIST.md](33_SPIKE13B_BACKEND_DRIVEN_UILIST.md) (and the historical
 [31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md](31_SPIKE12A_FOLLOWUP_FAIL_LOUD.md)).
+
+**Also the unarmed vehicle `examine` `uilist` fail-loud witness (Spike 21).** The same cart tile is examined
+(not picked up) by [`docs/arcopolis/examine_regression.ps1`](examine_regression.ps1) scenario C: `examine
+move_s` routes through `game::examine` → `vehicle::interact_with` (which returns before the pickup tail)
+into its OWN unarmed `"Select an action"` `uilist selectmenu` (EXAMINE + TRACK are unconditional, so it
+always has ≥2 entries and calls `query()`). `examine` arms only the query_popup transaction, so that uilist
+is UNARMED and FAILS LOUD — non-live run-script **exit 14**, live recoverable **`ok=false`** — a distinct
+path from the ARMED, level-4-DRIVEN `pickup` uilist above. See
+[43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md](43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md) §2/§10.
 
 ## `ArcopolisCapacityTest` — backend-driven secondary capacity/wield/spill `uilist` multi-entry witness (Spike 14)
 
