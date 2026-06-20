@@ -240,6 +240,8 @@ def main(argv=None):
     db = os.path.join(dst, "map.sqlite3")
     compressed, submaps = read_submap_file(db, path)
     submap = next((s for s in submaps if s.get("coordinates") == [sx, sy, tz]), None)
+    if submap is None:
+        raise SystemExit("fatal: submap (%d,%d,%d) not found in the cloned map" % (sx, sy, tz))
     flat = decode_terrain(submap["terrain"])
     flat[idx] = WALL_TER
     submap["terrain"] = encode_terrain(flat)
@@ -248,6 +250,8 @@ def main(argv=None):
     # Read-back sanity: confirm the witness tile now decodes to the wall and the tile count is intact.
     _, verify_submaps = read_submap_file(db, path)
     verify_submap = next((s for s in verify_submaps if s.get("coordinates") == [sx, sy, tz]), None)
+    if verify_submap is None:
+        raise SystemExit("fatal: read-back verification failed (submap not found)")
     verify_flat = decode_terrain(verify_submap["terrain"])
     if len(verify_flat) != SEEX * SEEY or verify_flat[idx] != WALL_TER:
         raise SystemExit("fatal: read-back verification failed (tiles=%d, witness='%s')"
