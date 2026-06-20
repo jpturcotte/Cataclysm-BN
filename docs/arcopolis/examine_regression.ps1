@@ -10,12 +10,15 @@
 #     ESC class (transcript `nested_input_guard`, action QUIT) with NO items taken,
 #   - malformed examine requests are recoverable rejections (ok:false unsupported_command) and the
 #     session continues,
-#   - the existing move/wait behavior is unchanged (move_n blocked by the shelter NPC, move_s moves,
-#     wait ticks), no stale nested answer leaks into a later command, and the session ends with a
-#     quit response + final snapshot + session_end "ok" + process exit 0,
+#   - SPIKE 21: examine move_n AND move move_n into the shelter NPC each reach game::npc_menu's UNARMED
+#     uilist and now FAIL LOUD (ok:false unexpected_prompt, RECOVERABLE -- the chooser answer is still
+#     served first); move_s moves, wait ticks; no stale nested answer leaks into a later command, and the
+#     session ends with a quit response + final snapshot + session_end "ok" + process exit 0
+#     (see docs/arcopolis/43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md),
 #   - under the deployment default AUTOSELECT_SINGLE_VALID_TARGET=true (scenario B) the same examine
-#     stays hang-free and the armed answer is accounted for (served or force-cleared as
-#     `nested_input_unconsumed` -- the engine may skip its chooser entirely).
+#     stays hang-free: the engine auto-selects the NPC tile (chooser skipped, armed answer force-cleared
+#     as `nested_input_unconsumed`) and then the unarmed npc_menu uilist FAILS LOUD recoverably (Spike 21);
+#     the session keeps serving and quits cleanly.
 #
 # The AUTOSELECT_SINGLE_VALID_TARGET option is PINNED IN THE SANDBOX COPY's options.json per
 # scenario (false for A, true for B) so the gates stay deterministic regardless of fixture drift;
@@ -145,8 +148,33 @@ function Get-DispatchWindow {
     }
 }
 
+# Like Get-DispatchWindow, but for a command that produced NO export -- a Spike 21 fail-loud command
+# (examine/move into the NPC reaches game::npc_menu's unarmed uilist -> unexpected_prompt, no snapshot
+# written). The window is the events strictly between this step's `command` event and the NEXT `command`
+# event (or end of transcript). Rejected protocol requests never enter the transcript, so the next
+# `command` event is the next ACCEPTED step.
+function Get-CommandSpan {
+    param($Events, [int]$StepIndex)
+    $cmdIdx = -1
+    for( $i = 0; $i -lt $Events.Count; $i++ ) {
+        if( $Events[$i].event -eq 'command' -and $Events[$i].step_index -eq $StepIndex ) { $cmdIdx = $i; break }
+    }
+    if( $cmdIdx -lt 0 ) { return $null }
+    $end = $Events.Count
+    for( $j = $cmdIdx + 1; $j -lt $Events.Count; $j++ ) {
+        if( $Events[$j].event -eq 'command' ) { $end = $j; break }
+    }
+    return [pscustomobject]@{
+        Command = $Events[$cmdIdx]
+        Between = @( if( $end -gt $cmdIdx + 1 ) { $Events[($cmdIdx + 1)..($end - 1)] } )
+    }
+}
+
 function Read-Snapshot {
     param([string]$Dir, [string]$Name)
+    # A fail-loud command (Spike 21 unexpected_prompt) writes no snapshot, so its response carries an
+    # empty/null name -- guard so Join-Path doesn't resolve to the directory (Get-Content would then throw).
+    if( [string]::IsNullOrEmpty($Name) ) { return $null }
     $path = Join-Path $Dir $Name
     if( -not (Test-Path $path) ) { return $null }
     return Get-Content $path -Raw | ConvertFrom-Json
@@ -221,27 +249,30 @@ if( $g2 ) {
     $fail++
 }
 
-# --- Gate 3: examine toward the NPC -- ok response, command event action_id "examine", the armed
-# answer served to the DEFAULTMODE chooser, the NPC menu auto-cancelled (no guard event needed),
-# avatar did not move, no time passed (a zero-cost cancelled interaction). ---
-$w2 = Get-DispatchWindow -Events $evA -StepIndex 1
+# --- Gate 3 (Spike 21): examine toward the NPC -- the armed chooser answer is STILL served to the
+# DEFAULTMODE chooser (the level-4 chooser is unchanged), then the engine opens game::npc_menu's UNARMED
+# uilist, which now FAILS LOUD: the response is ok=false / unexpected_prompt (RECOVERABLE -- the session
+# keeps serving). The failed examine writes no snapshot. Previously the npc menu silently auto-cancelled
+# and the examine looked successful (a hidden lost interaction); see
+# docs/arcopolis/43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md. ---
+# Get-CommandSpan (NOT Get-DispatchWindow): the failed examine writes no export, so the window is bounded
+# by the next command event. The transcript span is [nested_input_answer(DEFAULTMODE/UP), prompt_failed].
+$w2 = Get-CommandSpan -Events $evA -StepIndex 1
 $snapStart = Read-Snapshot -Dir $A.Dir -Name $respA[1].snapshot
-$snapNpc = Read-Snapshot -Dir $A.Dir -Name $respA[2].snapshot
 $answers2 = @($w2.Between | Where-Object { $_.event -eq 'nested_input_answer' })
 $guards2 = @($w2.Between | Where-Object { $_.event -eq 'nested_input_guard' })
 $unconsumed2 = @($w2.Between | Where-Object { $_.event -eq 'nested_input_unconsumed' })
-$g3 = ($respA[2].ok -eq $true) -and $w2 -and ($w2.Command.command -eq 'examine') -and
-      ($w2.Command.direction -eq 'move_n') -and ($w2.Command.action_id -eq 'examine') -and
-      ($answers2.Count -eq 1) -and ($answers2[0].context -eq 'DEFAULTMODE') -and
-      ($answers2[0].direction -eq 'move_n') -and ($answers2[0].action -eq 'UP') -and
-      ($guards2.Count -eq 0) -and ($unconsumed2.Count -eq 0) -and
-      $snapStart -and $snapNpc -and
-      (($snapNpc.avatar.pos_abs -join ',') -eq ($snapStart.avatar.pos_abs -join ',')) -and
-      ($snapNpc.backend.turn -eq $snapStart.backend.turn)
+$pf2 = @($w2.Between | Where-Object { $_.event -eq 'prompt_failed' -and $_.reason -eq 'unexpected_prompt' })
+$g3 = ($respA[2].ok -eq $false) -and ($respA[2].error.code -eq 'unexpected_prompt') -and
+      $w2 -and ($w2.Command.command -eq 'examine') -and ($w2.Command.direction -eq 'move_n') -and
+      ($w2.Command.action_id -eq 'examine') -and ($answers2.Count -eq 1) -and
+      ($answers2[0].context -eq 'DEFAULTMODE') -and ($answers2[0].direction -eq 'move_n') -and
+      ($answers2[0].action -eq 'UP') -and ($guards2.Count -eq 0) -and ($unconsumed2.Count -eq 0) -and
+      ($pf2.Count -eq 1)
 if( $g3 ) {
-    Write-Host "  PASS: examine move_n (NPC) -- action_id examine, answer UP served to DEFAULTMODE, npc menu auto-cancelled, no move, no tick." -ForegroundColor Green
+    Write-Host "  PASS: examine move_n (NPC) -- action_id examine, answer UP served to DEFAULTMODE chooser, then the unarmed NPC menu fails loud (ok=false / unexpected_prompt + prompt_failed, recoverable). See doc 43." -ForegroundColor Green
 } else {
-    Write-Host "  FAIL: examine move_n (NPC) -- resp=$($respA[2] | ConvertTo-Json -Compress) window=$($w2 | ConvertTo-Json -Compress -Depth 4)" -ForegroundColor Red
+    Write-Host "  FAIL: examine move_n (NPC) -- resp=$($respA[2] | ConvertTo-Json -Compress) answers=$($answers2 | ConvertTo-Json -Compress) prompt_failed=$($pf2.Count) window=$($w2 | ConvertTo-Json -Compress -Depth 4)" -ForegroundColor Red
     $fail++
 }
 
@@ -260,28 +291,28 @@ if( $g4 ) {
 # (Error responses nest the code under .error, protocol v1 shape.) ---
 $g5 = ($respA[4].ok -eq $false) -and ($respA[4].error.code -eq 'unsupported_command') -and
       ($respA[5].ok -eq $false) -and ($respA[5].error.code -eq 'unsupported_command') -and
-      ($respA[6].ok -eq $true)
+      ($respA[7].ok -eq $true)
 if( $g5 ) {
-    Write-Host "  PASS: bad examine probes -- missing direction and move_up both ok:false unsupported_command; next command still served." -ForegroundColor Green
+    Write-Host "  PASS: bad examine probes -- missing direction and move_up both ok:false unsupported_command; the session keeps serving (move_s at id7 succeeds, even across the recoverable move_n fail-loud at id6)." -ForegroundColor Green
 } else {
-    Write-Host "  FAIL: bad examine probes -- missing=$($respA[4] | ConvertTo-Json -Compress) vertical=$($respA[5] | ConvertTo-Json -Compress) next=$($respA[6].ok)" -ForegroundColor Red
+    Write-Host "  FAIL: bad examine probes -- missing=$($respA[4] | ConvertTo-Json -Compress) vertical=$($respA[5] | ConvertTo-Json -Compress) move_s(id7)=$($respA[7].ok)" -ForegroundColor Red
     $fail++
 }
 
-# --- Gate 6: existing move/wait behavior unchanged -- move_n blocked (NPC), move_s moved [0,1,0]. ---
-$snapBlocked = Read-Snapshot -Dir $A.Dir -Name $respA[6].snapshot
+# --- Gate 6 (Spike 21): move_n into the NPC now FAILS LOUD (ok=false / unexpected_prompt, recoverable);
+# move_s still moves [0,1]. The failed move_n writes no snapshot, so move_s's delta is measured from the
+# start snapshot (the avatar did not move across examine/wait/move_n -- only move_s does). ---
 $snapMoved = Read-Snapshot -Dir $A.Dir -Name $respA[7].snapshot
 $deltaMove = @(0, 0, 0)
-if( $snapBlocked -and $snapMoved ) {
-    $deltaMove = @(0, 1) | ForEach-Object { $snapMoved.avatar.pos_abs[$_] - $snapBlocked.avatar.pos_abs[$_] }
+if( $snapStart -and $snapMoved ) {
+    $deltaMove = @(0, 1) | ForEach-Object { $snapMoved.avatar.pos_abs[$_] - $snapStart.avatar.pos_abs[$_] }
 }
-$g6 = $snapBlocked -and $snapMoved -and
-      (($snapBlocked.avatar.pos_abs -join ',') -eq ($snapNpc.avatar.pos_abs -join ',')) -and
-      (($deltaMove -join ',') -eq '0,1')
+$g6 = ($respA[6].ok -eq $false) -and ($respA[6].error.code -eq 'unexpected_prompt') -and
+      $snapStart -and $snapMoved -and (($deltaMove -join ',') -eq '0,1')
 if( $g6 ) {
-    Write-Host "  PASS: baseline unchanged -- move_n blocked by the shelter NPC (no move), move_s moved [0,1]." -ForegroundColor Green
+    Write-Host "  PASS: Spike 21 baseline -- move_n into the NPC fails loud (unexpected_prompt, recoverable, no snapshot); move_s moved [0,1] from start." -ForegroundColor Green
 } else {
-    Write-Host "  FAIL: baseline -- blocked_pos=$($snapBlocked.avatar.pos_abs -join ',') moved_pos=$($snapMoved.avatar.pos_abs -join ',') (vs npc_pos=$($snapNpc.avatar.pos_abs -join ','))" -ForegroundColor Red
+    Write-Host "  FAIL: baseline -- move_n.ok=$($respA[6].ok) move_n.code=$($respA[6].error.code) move_s_delta=$($deltaMove -join ',') (expected false / unexpected_prompt / 0,1)." -ForegroundColor Red
     $fail++
 }
 
@@ -326,7 +357,7 @@ if( $itemsBefore -lt 1 ) {
 $snapWait2 = Read-Snapshot -Dir $A.Dir -Name $respA[9].snapshot
 $quitResp = @($A.Result.responses)[-1]
 $finalSnap = Get-ChildItem $A.Dir -Filter "*_final.json" -ErrorAction SilentlyContinue
-$g8 = ($respA[9].ok -eq $true) -and $snapWait2 -and ($snapWait2.backend.turn -gt $snapNpc.backend.turn) -and
+$g8 = ($respA[9].ok -eq $true) -and $snapWait2 -and ($snapWait2.backend.turn -gt $snapStart.backend.turn) -and
       ($quitResp.op -eq 'quit') -and ($quitResp.status -eq 'session_end') -and
       ($null -ne $finalSnap) -and (Test-Path (Join-Path $A.Dir "session.jsonl"))
 if( $g8 ) {
@@ -370,34 +401,31 @@ if( $swFurn -ne 'f_cupboard' ) {
     }
 }
 
-# --- Gate 11: the engine's own MESSAGE stream corroborates every witnessed path -- a second
-# witness chain, independent of the backend's transcript events. The served-chooser NPC examine
-# adds NO message (the chooser was answered, so no "Never mind." from its cancel, action.cpp:1117;
-# the NPC menu's test_mode cancel is message-silent). The item examine adds EXACTLY two, in order:
-# iexamine::none's "That is a %s." (iexamine.cpp:255 -- proof the examine actor really ran on the
-# chosen tile) and the pickup UI's own cancel "Never mind." (pickup.cpp:1177 -- the engine's real
-# ESC path answering the guard's QUIT). And "Never mind." appears NOWHERE before the item examine
-# (no hidden chooser cancel anywhere) and nothing further after it. ---
+# --- Gate 11: the engine's own MESSAGE stream corroborates the item-examine path -- a second witness
+# chain, independent of the backend's transcript events. The item examine adds EXACTLY two messages, in
+# order: iexamine::none's "That is a %s." (iexamine.cpp:255 -- proof the examine actor really ran on the
+# chosen tile) and the pickup UI's own cancel "Never mind." (pickup.cpp:1177 -- the engine's real ESC path
+# answering the guard's QUIT). And "Never mind." appears NOWHERE before the item examine (no hidden chooser
+# cancel) and nothing further after it. (Spike 21: the NPC-examine message witness is GONE -- examine
+# move_n now fails loud and writes no snapshot; the only snapshots before the item examine are start /
+# after_examine_wait / move_s, and the npc_menu uilist fail-loud is message-silent.) ---
 $snapExWait = Read-Snapshot -Dir $A.Dir -Name $respA[3].snapshot
-$msgStart = Get-MessageTexts $snapStart
-$msgNpc = Get-MessageTexts $snapNpc
 $msgMoved = Get-MessageTexts $snapMoved
 $msgItems = Get-MessageTexts $snapItems
 $msgWait2 = Get-MessageTexts $snapWait2
 $newItemMsgs = @( if( $msgItems.Count -ge 2 ) { $msgItems[-2..-1] } )
-$preItemNeverMind = @(($msgStart + $msgNpc + (Get-MessageTexts $snapExWait) +
-    (Get-MessageTexts $snapBlocked) + $msgMoved) | Where-Object { $_ -eq 'Never mind.' }).Count
+$preItemNeverMind = @(((Get-MessageTexts $snapStart) + (Get-MessageTexts $snapExWait) + $msgMoved) |
+    Where-Object { $_ -eq 'Never mind.' }).Count
 $itemNeverMind = @($msgItems | Where-Object { $_ -eq 'Never mind.' }).Count
-$g11 = ($msgNpc.Count -eq $msgStart.Count) -and
-       ($msgItems.Count -eq ($msgMoved.Count + 2)) -and
+$g11 = ($msgItems.Count -eq ($msgMoved.Count + 2)) -and
        ($newItemMsgs.Count -eq 2) -and ($newItemMsgs[0] -like 'That is a *') -and
        ($newItemMsgs[1] -eq 'Never mind.') -and
        ($preItemNeverMind -eq 0) -and ($itemNeverMind -eq 1) -and
        ($msgWait2.Count -eq $msgItems.Count)
 if( $g11 ) {
-    Write-Host "  PASS: engine message stream -- NPC examine added none; item examine added exactly '$($newItemMsgs[0])' + 'Never mind.' (the pickup UI's own cancel); no 'Never mind.' anywhere earlier." -ForegroundColor Green
+    Write-Host "  PASS: engine message stream -- item examine added exactly '$($newItemMsgs[0])' + 'Never mind.' (the pickup UI's own cancel); no 'Never mind.' anywhere earlier." -ForegroundColor Green
 } else {
-    Write-Host "  FAIL: engine message stream -- npc=$($msgNpc.Count)/$($msgStart.Count) items=$($msgItems.Count)/$($msgMoved.Count)+2 new=$($newItemMsgs -join ' || ') preNeverMind=$preItemNeverMind itemNeverMind=$itemNeverMind wait=$($msgWait2.Count)" -ForegroundColor Red
+    Write-Host "  FAIL: engine message stream -- items=$($msgItems.Count)/$($msgMoved.Count)+2 new=$($newItemMsgs -join ' || ') preNeverMind=$preItemNeverMind itemNeverMind=$itemNeverMind wait=$($msgWait2.Count)" -ForegroundColor Red
     $fail++
 }
 
@@ -429,24 +457,26 @@ if( $g9 ) {
     $fail++
 }
 
-# --- Gate 10: the armed answer is accounted for under autoselect. PINNED from observed fixture
-# truth (first validated run, 2026-06-12): at spawn the shelter NPC's tile is the ONLY valid
-# adjacent examine target, so the engine auto-selects it, the chooser never asks, and the armed
-# answer is force-cleared as `nested_input_unconsumed` -- the doc-25 stale-slot class, witnessed
-# live. (If the fixture world changes this gate documents what to re-pin.) ---
+# --- Gate 10 (Spike 21): under autoselect=true the engine auto-selects the NPC tile (the ONLY valid
+# adjacent examine target), so the chooser never asks and the armed answer is force-cleared as
+# `nested_input_unconsumed` -- and the engine then opens game::npc_menu's UNARMED uilist, which now FAILS
+# LOUD: ok=false / unexpected_prompt (RECOVERABLE). So the step's span carries BOTH a prompt_failed AND the
+# force-cleared answer (the auto-select branch is what makes it unconsumed, not served). The failed examine
+# writes no snapshot, so its window is found by Get-CommandSpan, not Get-DispatchWindow. ---
 $g10 = $false
 $respB2 = $null
 $wB = $null
 if( $B.Result -and (@($B.Result.responses).Count -ge 2) ) {
     $respB2 = @($B.Result.responses) | Where-Object { $_.id -eq 2 } | Select-Object -First 1
-    $wB = Get-DispatchWindow -Events $evB -StepIndex 1
+    $wB = Get-CommandSpan -Events $evB -StepIndex 1
     $aB = @($wB.Between | Where-Object { $_.event -eq 'nested_input_answer' })
     $uB = @($wB.Between | Where-Object { $_.event -eq 'nested_input_unconsumed' })
-    $g10 = ($respB2.ok -eq $true) -and $wB -and ($aB.Count -eq 0) -and ($uB.Count -eq 1) -and
-           ($uB[0].reason -eq 'command_completed') -and ($uB[0].direction -eq 'move_n') -and
-           ($uB[0].action -eq 'UP')
+    $pfB = @($wB.Between | Where-Object { $_.event -eq 'prompt_failed' -and $_.reason -eq 'unexpected_prompt' })
+    $g10 = ($respB2.ok -eq $false) -and ($respB2.error.code -eq 'unexpected_prompt') -and $wB -and
+           ($aB.Count -eq 0) -and ($uB.Count -eq 1) -and ($uB[0].reason -eq 'command_completed') -and
+           ($uB[0].direction -eq 'move_n') -and ($uB[0].action -eq 'UP') -and ($pfB.Count -eq 1)
     if( $g10 ) {
-        Write-Host "  PASS: examine under autoselect=true -- ok, no hang, engine auto-selected (prompt skipped) and the armed answer was force-cleared as nested_input_unconsumed." -ForegroundColor Green
+        Write-Host "  PASS: examine under autoselect=true -- engine auto-selected (chooser skipped, armed answer force-cleared as nested_input_unconsumed), then the unarmed NPC menu failed loud (ok=false / unexpected_prompt + prompt_failed). See doc 43." -ForegroundColor Green
     }
 }
 if( -not $g10 ) {
@@ -454,21 +484,18 @@ if( -not $g10 ) {
     $fail++
 }
 
-# --- Gate 12: under autoselect=true the examine adds NO message at all -- in particular NOT the
-# 0-valid failure message ("There is nothing that can be examined nearby."), which independently
-# confirms the engine took the 1-VALID auto-select branch (action.cpp:1167-1169) that gate 10's
-# pinned nested_input_unconsumed interpretation rests on. ---
-$g12 = $false
-if( $B.Result -and (@($B.Result.responses).Count -ge 2) ) {
-    $respB1 = @($B.Result.responses) | Where-Object { $_.id -eq 1 } | Select-Object -First 1
-    $msgBStart = Get-MessageTexts (Read-Snapshot -Dir $B.Dir -Name $respB1.snapshot)
-    $msgBExamine = Get-MessageTexts (Read-Snapshot -Dir $B.Dir -Name $respB2.snapshot)
-    $g12 = ($msgBStart.Count -gt 0) -and ($msgBExamine.Count -eq $msgBStart.Count)
-}
+# --- Gate 12 (Spike 21): the autoselect fail-loud examine is RECOVERABLE -- the session keeps serving (the
+# follow-up wait succeeds) and quits cleanly with session_end ok. (The old message-stream check needed the
+# examine's snapshot, which a fail-loud examine does not write.) ---
+$respB3 = if( $B.Result ) { @($B.Result.responses) | Where-Object { $_.id -eq 3 } | Select-Object -First 1 } else { $null }
+$quitB = if( $B.Result ) { @($B.Result.responses)[-1] } else { $null }
+$endB = $evB | Where-Object { $_.event -eq 'session_end' } | Select-Object -First 1
+$g12 = ($null -ne $respB3) -and ($respB3.ok -eq $true) -and ($quitB.op -eq 'quit') -and
+       ($endB.status -eq 'ok')
 if( $g12 ) {
-    Write-Host "  PASS: autoselect message stream -- the examine added no message (and no 0-valid failure text): the 1-valid auto-select branch, as pinned." -ForegroundColor Green
+    Write-Host "  PASS: autoselect fail-loud is recoverable -- the follow-up wait succeeded and the session quit cleanly (session_end ok)." -ForegroundColor Green
 } else {
-    Write-Host "  FAIL: autoselect message stream -- start=$($msgBStart.Count) examine=$($msgBExamine.Count) (expected equal, nonzero)." -ForegroundColor Red
+    Write-Host "  FAIL: autoselect recoverability -- wait(id3)=$($respB3 | ConvertTo-Json -Compress) quit=$($quitB | ConvertTo-Json -Compress) end=$($endB | ConvertTo-Json -Compress)." -ForegroundColor Red
     $fail++
 }
 

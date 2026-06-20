@@ -643,6 +643,76 @@ TEST_CASE( "arcopolis cata_test uilist still aborts to UILIST_ERROR without a ba
         CHECK( menu.ret == UILIST_ERROR );
     } );
     CHECK_FALSE( msgs.empty() );
+    // Spike 21: with NO backend session, query()'s unarmed abort reaches backend_report_unexpected_prompt,
+    // which is inert (!session.active) -- so cata_test records no failure, exactly as before this spike.
+    CHECK_FALSE( arcopolis::backend_session_failure().has_value() );
+}
+
+TEST_CASE( "arcopolis unarmed uilist during a session fails loud (non-live)", "[arcopolis]" )
+{
+    // Spike 21 -- the honesty hole this spike closes (the uilist sibling of the Spike 20 query_popup case).
+    // During an ACTIVE NON-LIVE backend session (script / one-shot) a uilist Arcopolis did NOT arm as a
+    // witnessed transaction (e.g. game::npc_menu reached by moving/examining into an NPC) hits query()'s
+    // test_mode abort. Before Spike 21 it silently returned UILIST_ERROR (exit 0, unmarked) -- a hidden lost
+    // interaction that made an unsupported path look like a faithful blocked_no_op. Now the abort site records
+    // a FATAL unexpected_prompt failure (the run surfaces it as exit 14, and `done` stops the steps walk)
+    // while STILL returning the safe default UILIST_ERROR as a mere transport fallback. No transaction is
+    // armed and there is no live_source, so this is the script/one-shot (non-live) path. Reported at query()
+    // ONLY, so exactly ONE failure is recorded. Contrast: the cata_test case above (no session) records none.
+    arcopolis::begin_backend_session( { .steps = {} } );  // non-live: no live_source, nothing armed
+    const bool txn_active_before = arcopolis::backend_uilist_transaction_active();
+    const bool failure_before = arcopolis::backend_session_failure().has_value();
+    const std::string msgs = capture_debugmsg_during( []() {
+        uilist menu( "What to do with Edwardo Stovall?", { "Talk", "Attack" } );
+        CHECK( menu.ret == UILIST_ERROR );    // safe default still returned (transport fallback)
+    } );
+    // Capture state, THEN end the session, THEN assert -- so a failed assertion can never skip
+    // end_backend_session() and leak the static session into later tests (these are global-session tests).
+    const auto failure = arcopolis::backend_session_failure();
+    const bool done = arcopolis::backend_input_done();
+    arcopolis::end_backend_session();
+
+    CHECK_FALSE( txn_active_before );
+    CHECK_FALSE( failure_before );
+    CHECK_FALSE( msgs.empty() );
+    REQUIRE( failure.has_value() );
+    CHECK( failure->kind == arcopolis::command_error_kind::unexpected_prompt );
+    CHECK( done );                                         // non-live: `done` set so the steps walk stops
+}
+
+TEST_CASE( "arcopolis unarmed uilist during a LIVE session is recoverable", "[arcopolis]" )
+{
+    // Spike 21 (live): the SAME unarmed uilist during a LIVE session is RECOVERABLE. It records a PENDING
+    // unexpected_prompt error the per-request runner surfaces as a visibly-failed ok=false response (NOT a
+    // fatal session failure), so the session keeps serving -- the engine already handled query()'s fallback
+    // as a safe cancel (UILIST_ERROR). `failure` / `done` stay UNSET;
+    // backend_take_unexpected_prompt_error() returns and clears the pending error. Mirrors the Spike 20
+    // query_popup live test.
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .live_source = []() -> action_id { return ACTION_NULL; } } );
+    const bool txn_active_before = arcopolis::backend_uilist_transaction_active();
+    const std::string msgs = capture_debugmsg_during( []() {
+        uilist menu( "What to do with Edwardo Stovall?", { "Talk", "Attack" } );
+        CHECK( menu.ret == UILIST_ERROR );                           // safe default
+    } );
+    // Capture state -- incl. BOTH takes (the first should yield the pending error, the second clear it) --
+    // THEN end the session, THEN assert, so a failed assertion can never leak the static session.
+    const bool failure_present =
+        arcopolis::backend_session_failure().has_value();  // NOT fatal in live mode
+    const bool done =
+        arcopolis::backend_input_done();                  // session stays open (recoverable)
+    const auto taken = arcopolis::backend_take_unexpected_prompt_error();
+    const bool second_take_present =
+        arcopolis::backend_take_unexpected_prompt_error().has_value();  // cleared after the first take
+    arcopolis::end_backend_session();
+
+    CHECK_FALSE( txn_active_before );
+    CHECK_FALSE( msgs.empty() );
+    CHECK_FALSE( failure_present );
+    CHECK_FALSE( done );
+    REQUIRE( taken.has_value() );
+    CHECK( taken->kind == arcopolis::command_error_kind::unexpected_prompt );
+    CHECK_FALSE( second_take_present );
 }
 
 TEST_CASE( "arcopolis backend uilist setup populates state but creates NO curses window",
@@ -674,6 +744,12 @@ TEST_CASE( "arcopolis backend uilist setup populates state but creates NO curses
            0 );   // setup()'s data pass ran: retvals auto-assigned to the index
     CHECK( menu.entries[1].retval ==
            1 );   // (so the real loop's CONFIRM resolves ground -> from_ground=1)
+
+    // Spike 21: the ARMED witnessed uilist path must NOT trip the unexpected-prompt fail-loud --
+    // backend_uilist_transaction_active() is true, so query()'s abort branch (which calls
+    // backend_report_unexpected_prompt) is skipped entirely. No failure is recorded. (The end-to-end armed
+    // uilist drive through query() is covered by prompt_menu_regression.ps1 / script_prompt_regression.ps1.)
+    CHECK_FALSE( arcopolis::backend_session_failure().has_value() );
 
     arcopolis::backend_end_uilist_transaction();
     arcopolis::end_backend_session();

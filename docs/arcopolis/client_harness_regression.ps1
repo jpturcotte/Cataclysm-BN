@@ -3,46 +3,50 @@
   Arcopolis client-harness regression scenario (Spike 9A, the external player-loop proof).
 
 .DESCRIPTION
-  Drives the headless backend over the ArcopolisTest fixture through ONE script session
-  (export start -> move_n -> export -> move_s -> export -> wait -> export, plus the engine's
-  final-on-exit snapshot) and asserts that the EXTERNAL consumer harness
-  (tools/arcopolis_client/harness.py) can build a local view, run commands through the backend,
-  and explain every outcome from the Spikes 0-8A contract alone:
+  Drives the headless backend over the Arcopolis fixtures through the EXTERNAL consumer harness
+  (tools/arcopolis_client/harness.py) and asserts it can run commands through the backend, classify
+  every outcome, and build a local view from the Spikes 0-8A contract alone.
 
-    * move_n FIRST, while the stock shelter NPC Edwardo Stovall is still one tile north of the
-      avatar (local [85,84,0]) -> the harness must classify "blocked_no_op" with blocked_by=npc
-      and name the NPC from the BEFORE snapshot (after move_s the start tile is empty, so a
-      later move_n would SUCCEED - the order is load-bearing).
-    * move_s -> "moved" with pos_abs delta (0,1,0) and the turn advancing.
-    * wait -> "waited" with the position unchanged and the turn advancing.
-    * the final-on-exit pair -> "no_command" with nothing changed (clean-park).
+  SPIKE 21 RECLASSIFICATION: move_n into the shelter NPC Edwardo is NO LONGER a blocked_no_op. It bumps
+  the NPC and reaches game::npc_menu's UNARMED uilist, which the backend now FAILS LOUD on
+  (unexpected_prompt, exit 14) instead of silently auto-cancelling the menu. The old blocked_no_op baseline
+  was a tolerated historical artifact (a hidden player-visible menu cancellation), not a true equivalence
+  witness. So:
+    * move_n into Edwardo (run mode) -> the harness surfaces run.exit_meaning="unexpected_prompt" (exit 14),
+      classified DISTINCTLY -- not blocked_no_op, not success. The 'start' snapshot still shows Edwardo
+      north; no success snapshot for the failed command.
+    * the NORMAL outcomes (moved/waited/no_command) are witnessed by a separate move_s,wait run.
+    * the blocked_no_op / blocked_by=terrain witness moves to a GENUINE terrain block: move_e into a
+      t_wall on ArcopolisWallTest (built by make_wall_fixture.py), a real no-prompt no-op.
+  See docs/arcopolis/43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md.
 
   Why this is a fixture-driven script and not a CI catch2 test (same reasoning as the sibling
   scripts): it needs a fully loaded world; the harness's own load/classify logic is exercised
   offline against recorded sessions during development, and this script is the live end-to-end
-  gate. Outcome labels (blocked_no_op etc.) are DATA the harness reports - the gates assert the
-  harness derives the RIGHT labels, while the backend behavior itself stays gated by
-  movement_regression.ps1 / npc_export_regression.ps1.
+  gate. Outcome labels are DATA the harness reports - the gates assert the harness derives the RIGHT
+  labels, while the backend behavior itself stays gated by movement_regression.ps1 / npc_export_regression.ps1.
 
   What it asserts (hard gates):
-    1. The backend run exits 0 and produces exactly 5 NNN_<name>.json snapshots.
-    2. `harness.py explain --json` exits 0, parses, schema_version=1, contract_check.ok=true.
-    3. 4 pairs with outcome_sequence exactly: blocked_no_op,moved,waited,no_command.
-    4. NPC-BLOCK PAIR: pair 0 is the move_n command, outcome blocked_no_op, blocked_by contains
-       "npc", turn_delta 0, pos_abs_delta 0,0,0, and the destination (one tile north of the
-       avatar's before-pos_local) carries an NPC - Edwardo Stovall in the canonical fixture.
-       The PASS line prints the harness's own explanation string (the spike's headline proof).
-    5. MOVED PAIR: pair 1 is move_s, outcome moved, pos_abs_delta 0,1,0, turn_delta >= 1.
-    6. WAIT PAIR: pair 2 is wait, outcome waited, pos_abs_delta 0,0,0, turn_delta >= 1.
-    7. FINAL PAIR: pair 3 has no command, outcome no_command, turn_delta 0.
-    8. `harness.py view --at <north tile>` exits 0 and the HTML carries the inspector markers
-       (the NPC's name, t_floor, and the move_n "one command away" hint). Presence-only checks -
-       cosmetic layout changes must not break the regression.
-    9. RUN MODE: `harness.py run` (the harness launches the backend itself) exits 0 with the
-       same outcome_sequence and run.exit_code=0 - the full choose -> run -> explain loop.
-   10. The Spike 4 viewer agrees: make_report.py exits 0 on the same session dir (two
+    1. FAIL LOUD: `harness.py run --commands move_n` exits 1 with run.exit_code=14,
+       run.exit_meaning="unexpected_prompt"; the 'start' snapshot exists (Edwardo visible) and NO
+       after-snapshot is written for the failed command. Not blocked_no_op, not success.
+    2. NORMAL OUTCOMES: `harness.py run --commands move_s,wait` exits 0 with outcome_sequence exactly
+       moved,waited,no_command and contract_check.ok.
+    3. TERRAIN BLOCKED_NO_OP: `harness.py run --commands move_e --world ArcopolisWallTest` exits 0 with
+       outcome_sequence blocked_no_op,no_command; pair 0 outcome blocked_no_op, destination.ter t_wall,
+       turn_delta 0, pos_abs_delta 0,0,0 -- a GENUINE no-prompt block (the replacement witness). NOTE:
+       blocked_by is NOT asserted to be "terrain" -- that harness branch needs dest.seen=true, but a
+       headless run never populates LOS so every tile exports seen=false; the witness is the blocked_no_op
+       classification (distinct from the move-into-NPC unexpected_prompt) on a real t_wall, not the
+       seen-gated attribution (doc 43).
+    4. VIEW: `harness.py view --at <north tile>` on the fail-loud run's 'start' snapshot exits 0 and the
+       HTML carries the inspector markers (the NPC's name, t_floor, the move_n "one command away" hint).
+       The blocker stays visible even though move_n now fails loud. Presence-only checks.
+    5. DIAGONAL RUN MODE: `harness.py run --commands move_se` exits 0 as moved,no_command with
+       pos_abs_delta 1,1,0 - 8-way movement is drivable through the contract consumer.
+    6. The Spike 4 viewer agrees: make_report.py exits 0 on the clean normal-sequence session (two
        independent consumers accept the same contract artifacts).
-   11. MONSTER FIXTURE: run mode over ArcopolisNearMonsterTest (the Spike 6B immobile-monster
+    7. MONSTER FIXTURE: run mode over ArcopolisNearMonsterTest (the Spike 6B immobile-monster
        witness, built by make_monster_fixture.py) exits 0 as waited,no_command with
        contract_check.ok, the start snapshot carries >= 1 exported monster, and the HTML view of
        the monster's own tile (computed from the snapshot, not hardcoded) renders the 'M' monster
@@ -61,6 +65,7 @@ param(
     [string]$UserDir    = ".\arcopolis_user",
     [string]$World      = "ArcopolisTest",
     [string]$MonsterWorld = "ArcopolisNearMonsterTest",
+    [string]$WallWorld  = "ArcopolisWallTest",
     [string]$OutRoot    = ".\out\arco_client_regress",
     [string]$Harness    = "tools\arcopolis_client\harness.py",
     [string]$Viewer     = "tools\arcopolis_viewer\make_report.py"
@@ -93,6 +98,10 @@ $monsterFixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $MonsterWorld)
 if( -not (Test-Path $monsterFixtureWorld) ) {
     Stop-WithCode "Monster fixture world '$MonsterWorld' not found at $monsterFixtureWorld -- build it with docs/arcopolis/make_monster_fixture.py (see 16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md)." 5
 }
+$wallFixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $WallWorld)
+if( -not (Test-Path $wallFixtureWorld) ) {
+    Stop-WithCode "Wall fixture world '$WallWorld' not found at $wallFixtureWorld -- build it with docs/arcopolis/make_wall_fixture.py (the Spike 21 terrain blocked_no_op witness; see 43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md)." 5
+}
 if( -not (Get-Command python -ErrorAction SilentlyContinue) ) {
     Stop-WithCode "python not found on PATH (needed to run the client harness and the offline viewer). See 00_WINDOWS_LOCAL_ENVIRONMENT.md." 6
 }
@@ -124,212 +133,146 @@ function Invoke-PyTool {
 }
 
 $fail = 0
-$dir = Join-Path $OutRoot "loop"
-if( Test-Path $dir ) { Remove-Item $dir -Recurse -Force }
-New-Item -ItemType Directory -Force $dir | Out-Null
 
-# move_n FIRST (Edwardo still adjacent-north), then move_s (walkable), then wait (tick). Exports
-# between every step; the engine appends NNN_final.json on clean exit.
-$scriptPath = Join-Path $dir "script.json"
-@'
-{ "schema_version": 1, "steps": [
-  { "op": "export",  "name": "start" },
-  { "op": "command", "command": "move", "direction": "move_n" },
-  { "op": "export",  "name": "after_move_n" },
-  { "op": "command", "command": "move", "direction": "move_s" },
-  { "op": "export",  "name": "after_move_s" },
-  { "op": "command", "command": "wait" },
-  { "op": "export",  "name": "after_wait" }
-] }
-'@ | Set-Content -Encoding ascii $scriptPath
-
-# cataclysm-bn-tiles is a GUI / WINDOWS-subsystem exe, so a bare `& $exe` does NOT wait for it and
-# leaves $LASTEXITCODE empty. Start-Process -Wait -PassThru waits and captures the real exit code.
-$p = Start-Process -FilePath $Exe -ArgumentList @(
-    '--world', $World,
-    '--arcopolis-run-script', $scriptPath,
-    '--arcopolis-export-dir', $dir,
-    '--userdir', $UserDir
-) -NoNewWindow -Wait -PassThru `
-    -RedirectStandardOutput (Join-Path $dir "stdout.txt") -RedirectStandardError (Join-Path $dir "stderr.txt")
-
-# --- Hard gate 1: backend exit 0 and exactly 5 snapshots (start, 3 afters, final). ---
-if( $p.ExitCode -ne 0 ) {
-    Write-Host "  FAIL: backend run exited $($p.ExitCode) (expected 0): $(Get-Content (Join-Path $dir 'stderr.txt') -Raw)" -ForegroundColor Red
-    Write-Host "CLIENT HARNESS REGRESSION: 1 hard assertion failed." -ForegroundColor Red
-    exit 1
-}
-$snapFiles = @(Get-ChildItem $dir -Filter "*.json" | Where-Object { $_.Name -match '^\d+_' } | Sort-Object Name)
-if( $snapFiles.Count -ne 5 ) {
-    Write-Host "  FAIL: expected 5 NNN_<name>.json snapshots, found $($snapFiles.Count)." -ForegroundColor Red
-    $fail++
-} else {
-    Write-Host "  PASS: backend exit 0, 5 snapshots produced ($(($snapFiles | ForEach-Object Name) -join ', '))." -ForegroundColor Green
-}
-
-# --- Hard gate 2: explain --json exits 0, parses, schema 1, contract_check.ok. ---
-$explainJson = Join-Path $dir "explain.json"
-$explainErr  = Join-Path $dir "explain_stderr.txt"
-$pe = Invoke-PyTool -ToolArgs @($Harness, 'explain', '--session-dir', $dir, '--json') `
-    -StdoutPath $explainJson -StderrPath $explainErr
-if( $pe.ExitCode -ne 0 ) {
-    Write-Host "  FAIL: harness explain exited $($pe.ExitCode) (0=clean; 2=contract discrepancies; 1=fatal). See $explainErr." -ForegroundColor Red
-    Write-Host "CLIENT HARNESS REGRESSION: $($fail + 1) hard assertion(s) failed." -ForegroundColor Red
-    exit 1
-}
-$ex = $pe.Stdout | ConvertFrom-Json
-if( $ex.schema_version -ne 1 ) {
-    Write-Host "  FAIL: explain JSON schema_version=$($ex.schema_version) (expected 1)." -ForegroundColor Red
-    $fail++
-}
-if( -not $ex.contract_check.ok ) {
-    Write-Host "  FAIL: contract_check.ok=false: $(($ex.contract_check | ConvertTo-Json -Compress))" -ForegroundColor Red
-    $fail++
-} else {
-    Write-Host "  PASS: explain --json exit 0, schema 1, contract_check.ok=true." -ForegroundColor Green
-}
-
-# --- Hard gate 3: 4 pairs, exact outcome sequence. ---
-# Wrap with @() FIRST -- a single element deserializes as a scalar; also filter $null elements (a
-# missing/null property coerces to @($null), .Count 1), the documented house gotcha.
-$pairs = @($ex.pairs | Where-Object { $null -ne $_ })
-$seq = (@($ex.summary.outcome_sequence) -join ',')
-if( $pairs.Count -ne 4 -or $seq -ne 'blocked_no_op,moved,waited,no_command' ) {
-    Write-Host "  FAIL: expected 4 pairs with outcomes 'blocked_no_op,moved,waited,no_command'; got $($pairs.Count) pair(s), '$seq'." -ForegroundColor Red
-    $fail++
-} else {
-    Write-Host "  PASS: 4 pairs, outcome sequence = $seq." -ForegroundColor Green
-}
-
-# --- Hard gate 4: the NPC-block pair (the spike's headline proof). ---
-if( $pairs.Count -ge 1 ) {
-    $p0 = $pairs[0]
-    $cmd0 = @($p0.commands | Where-Object { $null -ne $_ })
-    $ok4 = $true
-    if( $cmd0.Count -ne 1 -or $cmd0[0].command -ne 'move' -or $cmd0[0].direction -ne 'move_n' ) {
-        Write-Host "  FAIL: pair 0 command is not the single move_n (got: $(($cmd0 | ConvertTo-Json -Compress)))." -ForegroundColor Red
-        $ok4 = $false
+# =============================================================================
+# Gate 1 (Spike 21 headline): move_n into Edwardo FAILS LOUD, classified DISTINCTLY (not blocked_no_op).
+# The harness `run` drives the backend; move_n bumps the NPC and reaches game::npc_menu's UNARMED uilist,
+# so the backend exits 14 (unexpected_prompt) instead of silently auto-cancelling the menu. The harness
+# surfaces this distinctly: harness exits 1 (fatal backend exit), run.exit_code=14,
+# run.exit_meaning="unexpected_prompt" (NOT "blocked_no_op", NOT success). The `start` export still lands
+# (Edwardo visible), but the failed command produces NO after-snapshot. The old single-run
+# blocked_no_op,moved,waited,no_command sequence is gone -- move_n first now aborts the whole run -- so the
+# normal outcomes move to Gate 2 and the blocked_no_op witness moves to the terrain Gate 3.
+# =============================================================================
+$failDir = Join-Path $OutRoot "run_failloud"
+if( Test-Path $failDir ) { Remove-Item $failDir -Recurse -Force }
+$failJson = Join-Path $OutRoot "run_failloud_result.json"
+$pf = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', $Exe, '--world', $World, '--userdir', $UserDir,
+    '--out', $failDir, '--commands', 'move_n', '--json') `
+    -StdoutPath $failJson -StderrPath (Join-Path $OutRoot "run_failloud_stderr.txt")
+$fj = $null
+try { $fj = $pf.Stdout | ConvertFrom-Json } catch {}
+$startSnap = Get-ChildItem $failDir -Filter "*_start.json" -ErrorAction SilentlyContinue | Select-Object -First 1
+$afterSnap = Get-ChildItem $failDir -Filter "*_after_*move_n*.json" -ErrorAction SilentlyContinue | Select-Object -First 1
+$failOk = $false
+if( $fj -and $fj.run ) {
+    $failOk = ($pf.ExitCode -eq 1) -and ($fj.run.exit_code -eq 14) -and
+              ($fj.run.exit_meaning -eq 'unexpected_prompt') -and $startSnap -and (-not $afterSnap)
+    if( -not $failOk ) {
+        Write-Host "  FAIL: fail-loud move_n -- harness_exit=$($pf.ExitCode) run.exit_code=$($fj.run.exit_code) run.exit_meaning=$($fj.run.exit_meaning) start=$([bool]$startSnap) after=$([bool]$afterSnap) (expected 1 / 14 / unexpected_prompt / start present / no after)." -ForegroundColor Red
     }
-    if( $p0.outcome -ne 'blocked_no_op' -or @($p0.blocked_by) -notcontains 'npc' ) {
-        Write-Host "  FAIL: pair 0 outcome=$($p0.outcome) blocked_by=$(@($p0.blocked_by) -join ',') (expected blocked_no_op / npc)." -ForegroundColor Red
-        $ok4 = $false
+} else {
+    Write-Host "  FAIL: fail-loud move_n -- harness run produced no parseable run block. stdout: $($pf.Stdout)" -ForegroundColor Red
+}
+if( $failOk ) {
+    Write-Host "  PASS: move_n into Edwardo fails loud via run mode -- run.exit_meaning=unexpected_prompt (exit 14), 'start' snapshot present (NPC visible), no success snapshot. Not blocked_no_op. See doc 43." -ForegroundColor Green
+} else {
+    $fail++
+}
+
+# =============================================================================
+# Gate 2: the NORMAL outcomes still classify correctly (run mode: move_s then wait, on ArcopolisTest).
+# move_s walks south (the start tile is clear), wait ticks, then the final-on-exit pair is no_command.
+# =============================================================================
+$normalDir = Join-Path $OutRoot "run_normal"
+if( Test-Path $normalDir ) { Remove-Item $normalDir -Recurse -Force }
+$normalJson = Join-Path $OutRoot "run_normal_result.json"
+$pn = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', $Exe, '--world', $World, '--userdir', $UserDir,
+    '--out', $normalDir, '--commands', 'move_s,wait', '--json') `
+    -StdoutPath $normalJson -StderrPath (Join-Path $OutRoot "run_normal_stderr.txt")
+$normalOk = $false
+if( $pn.ExitCode -eq 0 ) {
+    $nj = $pn.Stdout | ConvertFrom-Json
+    $nseq = (@($nj.summary.outcome_sequence) -join ',')
+    $normalOk = ($nj.run.exit_code -eq 0) -and ($nseq -eq 'moved,waited,no_command') -and $nj.contract_check.ok
+    if( -not $normalOk ) {
+        Write-Host "  FAIL: normal run -- run.exit_code=$($nj.run.exit_code) outcomes='$nseq' contract_ok=$($nj.contract_check.ok) (expected 0 / moved,waited,no_command / true)." -ForegroundColor Red
     }
-    if( $p0.turn_delta -ne 0 -or (@($p0.pos_abs_delta) -join ',') -ne '0,0,0' ) {
-        Write-Host "  FAIL: pair 0 turn_delta=$($p0.turn_delta) pos_abs_delta=$(@($p0.pos_abs_delta) -join ',') (expected 0 / 0,0,0)." -ForegroundColor Red
-        $ok4 = $false
+} else {
+    Write-Host "  FAIL: harness run --commands move_s,wait exited $($pn.ExitCode) (expected 0). See $(Join-Path $OutRoot 'run_normal_stderr.txt')." -ForegroundColor Red
+}
+if( $normalOk ) {
+    Write-Host "  PASS: normal sequence -- moved,waited,no_command (run.exit_code=0, contract ok)." -ForegroundColor Green
+} else {
+    $fail++
+}
+
+# =============================================================================
+# Gate 3 (Spike 21 replacement blocked_no_op witness): a GENUINE terrain block. move_e into a t_wall on
+# ArcopolisWallTest is rejected by the real avatar_action::move leaf with no move, no tick, and NO prompt
+# (auto-bash needs the smash command; auto-mine needs a dig tool the avatar lacks). The harness keeps a
+# live blocked_no_op / blocked_by=terrain witness even though move-into-NPC now fails loud. The fixture is
+# built by docs/arcopolis/make_wall_fixture.py.
+# =============================================================================
+$wallDir = Join-Path $OutRoot "run_wall"
+if( Test-Path $wallDir ) { Remove-Item $wallDir -Recurse -Force }
+$wallJson = Join-Path $OutRoot "run_wall_result.json"
+$pw = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', $Exe, '--world', $WallWorld, '--userdir', $UserDir,
+    '--out', $wallDir, '--commands', 'move_e', '--json') `
+    -StdoutPath $wallJson -StderrPath (Join-Path $OutRoot "run_wall_stderr.txt")
+$wallOk = $false
+if( $pw.ExitCode -eq 0 ) {
+    $wj = $pw.Stdout | ConvertFrom-Json
+    $wseq = (@($wj.summary.outcome_sequence) -join ',')
+    $wpairs = @($wj.pairs | Where-Object { $null -ne $_ })
+    $w0 = if( $wpairs.Count -ge 1 ) { $wpairs[0] } else { $null }
+    # The essential witness is the OUTCOME blocked_no_op (genuine no-prompt block: no move, no tick) plus the
+    # harness's destination analysis reading the real t_wall terrain from the authoritative export. We do NOT
+    # require blocked_by=terrain: that branch needs dest.seen=true, but a HEADLESS run never populates the
+    # player's LOS/map-memory, so EVERY tile exports seen=false at this point (the old NPC witness used
+    # blocked_by=npc, which is seen-agnostic). Forcing terrain attribution would mean dropping the harness's
+    # seen guard -- an external-consumer divergence from its own contract field, deliberately NOT done. So the
+    # harness honestly reports "no obvious blocker" here; the witness is the blocked_no_op classification
+    # itself (distinct from the move-into-NPC unexpected_prompt) on a genuine terrain block. See doc 43.
+    $wallOk = ($wj.run.exit_code -eq 0) -and ($wseq -eq 'blocked_no_op,no_command') -and $wj.contract_check.ok -and
+              $w0 -and ($w0.outcome -eq 'blocked_no_op') -and ($w0.destination.ter -eq 't_wall') -and
+              ($w0.turn_delta -eq 0) -and ((@($w0.pos_abs_delta) -join ',') -eq '0,0,0')
+    if( -not $wallOk ) {
+        Write-Host "  FAIL: wall run -- run.exit_code=$($wj.run.exit_code) outcomes='$wseq' pair0.outcome=$($w0.outcome) dest.ter=$($w0.destination.ter) turn_delta=$($w0.turn_delta) pos_delta=$(@($w0.pos_abs_delta) -join ',') (expected 0 / blocked_no_op,no_command / blocked_no_op / t_wall / 0 / 0,0,0)." -ForegroundColor Red
     }
-    # The destination must be one tile north of the avatar's before-pos_local and carry an NPC
-    # (Edwardo Stovall in the canonical fixture). Computed, not hardcoded, like npc gate 4.
-    $apl = @($p0.before.pos_local)
-    $destNpcs = @($p0.destination.npcs | Where-Object { $null -ne $_ })
-    if( $apl.Count -lt 3 -or $null -eq $p0.destination ) {
-        Write-Host "  FAIL: pair 0 lacks before.pos_local or a destination analysis." -ForegroundColor Red
-        $ok4 = $false
-    } else {
-        $expectedDest = "$($apl[0]),$($apl[1] - 1),$($apl[2])"
-        if( (@($p0.destination.pos_local) -join ',') -ne $expectedDest ) {
-            Write-Host "  FAIL: pair 0 destination $(@($p0.destination.pos_local) -join ',') is not one tile north ($expectedDest)." -ForegroundColor Red
-            $ok4 = $false
+} else {
+    Write-Host "  FAIL: harness run --commands move_e --world $WallWorld exited $($pw.ExitCode) (expected 0). See $(Join-Path $OutRoot 'run_wall_stderr.txt')." -ForegroundColor Red
+}
+if( $wallOk ) {
+    Write-Host "  PASS: terrain blocked_no_op witness -- move_e into t_wall classified blocked_no_op (no move, no tick); harness reads the t_wall destination. blocked_by attribution withheld (tile exports seen=false headlessly; not bent). $($w0.explanation)" -ForegroundColor Green
+} else {
+    $fail++
+}
+
+# =============================================================================
+# Gate 4: the HTML view + tile inspector still carries the NPC blocker (presence-only markers, not layout)
+# -- even though move_n now fails loud, the start snapshot still shows Edwardo one tile north. Compute the
+# north tile + blocker name directly from the fail-loud run's start snapshot (that run produced no pairs).
+# =============================================================================
+$viewOk = $false
+if( $startSnap ) {
+    $sjson = Get-Content $startSnap.FullName -Raw | ConvertFrom-Json
+    $apl = @($sjson.avatar.pos_local)
+    if( $apl.Count -ge 2 ) {
+        $northAt = "$($apl[0]),$($apl[1] - 1)"
+        $npcs = @($sjson.entities.npcs | Where-Object { $null -ne $_ })
+        $northNpc = $npcs | Where-Object {
+            @($_.pos_local).Count -ge 2 -and $_.pos_local[0] -eq $apl[0] -and $_.pos_local[1] -eq ($apl[1] - 1)
+        } | Select-Object -First 1
+        $blockerName = if( $northNpc ) { $northNpc.name } else { "Edwardo Stovall" }
+        $viewHtml = Join-Path $failDir "view.html"
+        $pv = Invoke-PyTool -ToolArgs @($Harness, 'view', '--session-dir', $failDir, '--output', $viewHtml, '--snapshot', 'start', '--at', $northAt) `
+            -StdoutPath (Join-Path $failDir "view_stdout.txt") -StderrPath (Join-Path $failDir "view_stderr.txt")
+        if( ($pv.ExitCode -eq 0) -and (Test-Path $viewHtml) ) {
+            $htmlRaw = Get-Content $viewHtml -Raw
+            $viewOk = $htmlRaw.Contains($blockerName) -and $htmlRaw.Contains('t_floor') -and
+                      $htmlRaw.Contains('move_n') -and $htmlRaw.Contains('Tile inspector')
         }
-        if( $destNpcs.Count -lt 1 ) {
-            Write-Host "  FAIL: pair 0 destination has no NPC (the move_n blocker is not in the bundle)." -ForegroundColor Red
-            $ok4 = $false
-        }
-    }
-    if( $ok4 ) {
-        Write-Host ("  PASS: npc-block pair -- north blocker = {0}. Harness explains: ""{1}""" -f $destNpcs[0].name, $p0.explanation) -ForegroundColor Green
-    } else {
-        $fail++
     }
 }
-
-# --- Hard gate 5: the moved pair. ---
-if( $pairs.Count -ge 2 ) {
-    $p1 = $pairs[1]
-    if( $p1.outcome -ne 'moved' -or (@($p1.pos_abs_delta) -join ',') -ne '0,1,0' -or $p1.turn_delta -lt 1 ) {
-        Write-Host "  FAIL: pair 1 outcome=$($p1.outcome) pos_abs_delta=$(@($p1.pos_abs_delta) -join ',') turn_delta=$($p1.turn_delta) (expected moved / 0,1,0 / >=1)." -ForegroundColor Red
-        $fail++
-    } else {
-        Write-Host "  PASS: moved pair -- $($p1.explanation)" -ForegroundColor Green
-    }
-}
-
-# --- Hard gate 6: the wait pair. ---
-if( $pairs.Count -ge 3 ) {
-    $p2 = $pairs[2]
-    if( $p2.outcome -ne 'waited' -or (@($p2.pos_abs_delta) -join ',') -ne '0,0,0' -or $p2.turn_delta -lt 1 ) {
-        Write-Host "  FAIL: pair 2 outcome=$($p2.outcome) pos_abs_delta=$(@($p2.pos_abs_delta) -join ',') turn_delta=$($p2.turn_delta) (expected waited / 0,0,0 / >=1)." -ForegroundColor Red
-        $fail++
-    } else {
-        Write-Host "  PASS: wait pair -- $($p2.explanation)" -ForegroundColor Green
-    }
-}
-
-# --- Hard gate 7: the final (no-command) pair. ---
-if( $pairs.Count -ge 4 ) {
-    $p3 = $pairs[3]
-    $cmd3 = @($p3.commands | Where-Object { $null -ne $_ })
-    if( $p3.outcome -ne 'no_command' -or $cmd3.Count -ne 0 -or $p3.turn_delta -ne 0 ) {
-        Write-Host "  FAIL: pair 3 outcome=$($p3.outcome) commands=$($cmd3.Count) turn_delta=$($p3.turn_delta) (expected no_command / 0 / 0)." -ForegroundColor Red
-        $fail++
-    } else {
-        Write-Host "  PASS: final pair -- $($p3.explanation)" -ForegroundColor Green
-    }
-}
-
-# --- Hard gate 8: the HTML view + tile inspector (presence-only markers, not layout). ---
-# Inspect the tile one north of the avatar (the NPC blocker) -- computed from the explain JSON.
-$viewHtml = Join-Path $dir "view.html"
-$northAt = ""
-if( $pairs.Count -ge 1 -and @($pairs[0].before.pos_local).Count -ge 2 ) {
-    $apl = @($pairs[0].before.pos_local)
-    $northAt = "$($apl[0]),$($apl[1] - 1)"
-}
-if( $northAt -eq "" ) {
-    Write-Host "  FAIL: cannot compute the north tile for the view gate (no pair 0 pos_local)." -ForegroundColor Red
-    $fail++
+if( $viewOk ) {
+    Write-Host "  PASS: view --at the north tile carries the NPC blocker + inspector markers (the blocker stays visible even though move_n fails loud)." -ForegroundColor Green
 } else {
-    $pv = Invoke-PyTool -ToolArgs @($Harness, 'view', '--session-dir', $dir, '--output', $viewHtml, '--snapshot', 'start', '--at', $northAt) `
-        -StdoutPath (Join-Path $dir "view_stdout.txt") -StderrPath (Join-Path $dir "view_stderr.txt")
-    $htmlOk = $false
-    if( ($pv.ExitCode -eq 0) -and (Test-Path $viewHtml) ) {
-        $htmlRaw = Get-Content $viewHtml -Raw
-        $blockerName = if( $pairs.Count -ge 1 -and @($pairs[0].destination.npcs).Count -ge 1 ) { @($pairs[0].destination.npcs)[0].name } else { "Edwardo Stovall" }
-        $htmlOk = $htmlRaw.Contains($blockerName) -and $htmlRaw.Contains('t_floor') -and $htmlRaw.Contains('move_n') -and $htmlRaw.Contains('Tile inspector')
-    }
-    if( -not $htmlOk ) {
-        Write-Host "  FAIL: view gate -- exit=$($pv.ExitCode), or view.html lacks the inspector markers (NPC name / t_floor / move_n)." -ForegroundColor Red
-        $fail++
-    } else {
-        Write-Host "  PASS: view --at $northAt exit 0; HTML carries the map + inspector markers. ($($pv.Stdout.Trim()))" -ForegroundColor Green
-    }
-}
-
-# --- Hard gate 9: run mode (the harness drives the backend itself: choose -> run -> explain). ---
-$runDir = Join-Path $OutRoot "run_mode"
-if( Test-Path $runDir ) { Remove-Item $runDir -Recurse -Force }
-$runJson = Join-Path $OutRoot "run_mode_result.json"
-$pr = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', $Exe, '--world', $World, '--userdir', $UserDir,
-    '--out', $runDir, '--commands', 'move_n,move_s,wait', '--json') `
-    -StdoutPath $runJson -StderrPath (Join-Path $OutRoot "run_mode_stderr.txt")
-$runOk = $false
-if( $pr.ExitCode -eq 0 ) {
-    $rj = $pr.Stdout | ConvertFrom-Json
-    $rseq = (@($rj.summary.outcome_sequence) -join ',')
-    $runOk = ($rj.run.exit_code -eq 0) -and ($rseq -eq 'blocked_no_op,moved,waited,no_command') -and $rj.contract_check.ok
-    if( -not $runOk ) {
-        Write-Host "  FAIL: run-mode JSON -- run.exit_code=$($rj.run.exit_code) outcomes='$rseq' contract_ok=$($rj.contract_check.ok)." -ForegroundColor Red
-    }
-} else {
-    Write-Host "  FAIL: harness run exited $($pr.ExitCode) (expected 0). See $(Join-Path $OutRoot 'run_mode_stderr.txt')." -ForegroundColor Red
-}
-if( $runOk ) {
-    Write-Host "  PASS: run mode -- harness launched the backend, re-derived the same outcome sequence (run.exit_code=0)." -ForegroundColor Green
-} else {
+    Write-Host "  FAIL: view gate -- the start snapshot's north-tile HTML lacks the NPC name / t_floor / move_n / inspector markers (or view failed)." -ForegroundColor Red
     $fail++
 }
 
-# --- Hard gate 9b: run mode drives a DIAGONAL move end-to-end. The 8-way move fix is only usable if
+# --- Hard gate 5: run mode drives a DIAGONAL move end-to-end. The 8-way move fix is only usable if
 # the official client harness can express it -- the harness whitelists COMMAND_TOKENS and rejects
 # unknown tokens BEFORE launching the backend, so a diagonal that the backend accepts but the harness
 # rejects would be undrivable through the contract consumer. move_se from spawn (SE tile (86,86) and
@@ -360,19 +303,21 @@ if( $diagOk ) {
     $fail++
 }
 
-# --- Hard gate 10: the Spike 4 viewer agrees (two independent consumers, one contract). ---
-$report = Join-Path $dir "report.html"
-$pview = Invoke-PyTool -ToolArgs @($Viewer, '--session-dir', $dir, '--output', $report) `
-    -StdoutPath (Join-Path $dir "viewer_stdout.txt") -StderrPath (Join-Path $dir "viewer_stderr.txt")
+# --- Hard gate 6: the Spike 4 viewer agrees (two independent consumers, one contract). Run it on the CLEAN
+# normal-sequence session (Gate 2) -- the fail-loud run's transcript carries an error event the viewer would
+# (correctly) flag as a discrepancy. ---
+$report = Join-Path $normalDir "report.html"
+$pview = Invoke-PyTool -ToolArgs @($Viewer, '--session-dir', $normalDir, '--output', $report) `
+    -StdoutPath (Join-Path $normalDir "viewer_stdout.txt") -StderrPath (Join-Path $normalDir "viewer_stderr.txt")
 Write-Host ("[viewer] exit=$($pview.ExitCode)  " + $pview.Stdout.Trim())
 if( $pview.ExitCode -ne 0 ) {
-    Write-Host "  FAIL: viewer exited $($pview.ExitCode) (0=clean; 2=discrepancies; 1=fatal) on the harness's session." -ForegroundColor Red
+    Write-Host "  FAIL: viewer exited $($pview.ExitCode) (0=clean; 2=discrepancies; 1=fatal) on the normal-sequence session." -ForegroundColor Red
     $fail++
 } else {
-    Write-Host "  PASS: viewer exit 0 on the same session (consumer cross-check)." -ForegroundColor Green
+    Write-Host "  PASS: viewer exit 0 on the normal-sequence session (consumer cross-check)." -ForegroundColor Green
 }
 
-# --- Hard gate 11: the monster fixture (ArcopolisNearMonsterTest, the Spike 6B immobile witness). ---
+# --- Hard gate 7: the monster fixture (ArcopolisNearMonsterTest, the Spike 6B immobile witness). ---
 # A second run-mode session proves the harness's monster path (cell bundles, 'M' overlay, inspector)
 # against a REAL exported monster -- every ArcopolisTest session above carries an EMPTY
 # entities.monsters[]. The sandbox $UserDir already holds this world (the fixture copy includes

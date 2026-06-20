@@ -33,8 +33,9 @@
              "radius-12, clamped to the loaded bubble", NOT "always 625 tiles").
     Gate  4: GET /api/state is a side-effect-free cache (state_serial/turn stable across reads).
     Gate  5: a second POST /api/start -> 409 session_already_running.
-    Gate  6: move_n  -> outcome blocked_no_op, blocked_by npc "Edwardo Stovall",
-             turn_delta 0, pos_abs_delta 0,0,0 (the canonical Spike 7A/9A blocker).
+    Gate  6: move_n  -> Spike 21: a RECOVERABLE unexpected_prompt (bumping NPC Edwardo reaches an unarmed
+             npc_menu uilist that fails loud). HTTP 200, outcome "error", error.code "unexpected_prompt",
+             session survives (Gate 7 succeeds after). NOT blocked_no_op. See doc 43.
     Gate  7: move_s  -> outcome moved, pos_abs_delta 0,1,0, turn_delta >= 1.
     Gate  8: POST /api/wait -> outcome waited, pos_abs_delta 0,0,0, turn_delta >= 1.
     Gate  9: POST /api/export -> outcome no_command, turn_delta 0, snapshot file readable.
@@ -46,9 +47,10 @@
     Gate 12: POST /api/quit -> phase "ended", backend exit_code 0, a NNN_final.json snapshot
              on disk, session.jsonl present.
     Gate 13: 8-way move + examine through the bridge, on a fresh restartable session (session_002
-             from spawn): examine move_n (toward the NPC) and examine here both -> HTTP 200 +
-             outcome "examined" with NO hang; an invalid examine (move_up) -> HTTP 200 + outcome
-             "error" (unsupported_command) and the session stays ready; the diagonal move_se ->
+             from spawn): SPIKE 21 -- examine move_n (toward the NPC) reaches the unarmed npc_menu
+             uilist and -> HTTP 200 + outcome "error" (unexpected_prompt, recoverable, no hang);
+             examine here -> HTTP 200 + outcome "examined"; an invalid examine (move_up) -> HTTP 200 +
+             outcome "error" (unsupported_command) and the session stays ready; the diagonal move_se ->
              outcome "moved", pos_abs_delta 1,1,0, turn_delta >= 1 (a HARD fixture assertion - no
              silent fallback to another diagonal); then a clean quit (exit 0 + NNN_final.json). This
              both proves restartability and witnesses the GUI-equivalent planar move/examine surface.
@@ -58,7 +60,8 @@
              and the server shuts down cleanly (glyph mode never needs the tileset).
 
   Together gates 3..12 reproduce the fixture-proven live sequence
-  (blocked_no_op, moved, waited, no_command) through the HTTP bridge, and gate 13 adds the Spike 11B
+  (unexpected_prompt, moved, waited, no_command -- since Spike 21 move_n into Edwardo fails loud
+  recoverably, NOT blocked_no_op) through the HTTP bridge, and gate 13 adds the Spike 11B
   GUI-equivalent planar surface: a diagonal move and directed/self examine through the same bridge.
 
   A deliberate omission: there is no "busy 409" race gate. Commands complete in milliseconds
@@ -366,16 +369,18 @@ try {
         Assert-True ($again.Status -eq 409 -and $again.Json.error.code -eq "session_already_running") `
             "second start answers 409 session_already_running" "(status $($again.Status), code $($again.Json.error.code))"
 
-        # --- Gate 6: move_n -> blocked_no_op (the canonical NPC blocker). --------------------
-        Write-Host "Gate 6: move_n -> blocked_no_op (Edwardo)" -ForegroundColor Cyan
+        # --- Gate 6 (Spike 21): move_n -> recoverable unexpected_prompt. ----------------------
+        # move_n bumps the shelter NPC Edwardo and reaches game::npc_menu's UNARMED uilist, which the backend
+        # now fails loud on (ok=false / unexpected_prompt) instead of a silent blocked_no_op. unexpected_prompt
+        # is RECOVERABLE (Spike 20 added it to the bridge's RECOVERABLE_ERROR_CODES), so the bridge answers
+        # HTTP 200 and surfaces it as last_result.outcome="error" with error.code="unexpected_prompt" WITHOUT
+        # killing the session (Gate 7's move_s succeeds right after, proving recoverability). See doc 43.
+        Write-Host "Gate 6: move_n -> unexpected_prompt (Edwardo, recoverable)" -ForegroundColor Cyan
         $mn = Invoke-Api POST "/api/command" '{"command":"move","direction":"move_n"}'
         $o = $mn.Json.last_result.outcome
-        Assert-True ($mn.Status -eq 200 -and $o.outcome -eq "blocked_no_op") `
-            "outcome is blocked_no_op" "(status $($mn.Status), outcome $($o.outcome))"
-        Assert-True (@($o.blocked_by) -contains "npc") "blocked_by contains npc" "(got $(@($o.blocked_by) -join ','))"
-        Assert-True ($o.blocker_name -eq "Edwardo Stovall") "blocker is Edwardo Stovall" "(got $($o.blocker_name))"
-        Assert-True ($o.turn_delta -eq 0) "turn_delta is 0" "(got $($o.turn_delta))"
-        Assert-True ((@($o.pos_abs_delta) -join ",") -eq "0,0,0") "pos_abs_delta is 0,0,0" "(got $(@($o.pos_abs_delta) -join ','))"
+        Assert-True ($mn.Status -eq 200 -and $o.outcome -eq "error") `
+            "outcome is error (recoverable rejection)" "(status $($mn.Status), outcome $($o.outcome))"
+        Assert-True ($o.error.code -eq "unexpected_prompt") "error.code is unexpected_prompt" "(got $($o.error.code))"
 
         # --- Gate 7: move_s -> moved. ----------------------------------------------------------
         Write-Host "Gate 7: move_s -> moved" -ForegroundColor Cyan
@@ -450,15 +455,14 @@ try {
         Assert-True (Test-Path (Join-Path (Join-Path $sessionsRoot "session_002") $start2.Json.backend.snapshot)) `
             "session_002 has its own start snapshot"
 
-        # examine move_n toward the shelter NPC: completes through the backend input path, the engine
-        # answers the chooser, the NPC menu auto-cancels (no move, no tick) -> outcome "examined",
-        # NO hang. (The bridge's per-response timeout would turn any hang into a loud FAIL, never a
-        # stuck script.)
+        # examine move_n toward the shelter NPC: SPIKE 21 -- it reaches game::npc_menu's UNARMED uilist and
+        # FAILS LOUD recoverably (HTTP 200, outcome "error", error.code "unexpected_prompt"); the session
+        # stays usable (the examine here / move_up / move_se below all run after it). NO hang. (The bridge's
+        # per-response timeout would turn any hang into a loud FAIL, never a stuck script.) See doc 43.
         $exN = Invoke-Api POST "/api/command" '{"command":"examine","direction":"move_n"}'
         $o = $exN.Json.last_result.outcome
-        Assert-True ($exN.Status -eq 200 -and $exN.Json.last_result.response.ok -eq $true -and $o.outcome -eq "examined") `
-            "examine move_n -> 200 + ok:true + outcome examined (no hang)" "(status $($exN.Status), outcome $($o.outcome))"
-        Assert-True ((@($o.pos_abs_delta) -join ",") -eq "0,0,0") "examine move_n did not move the avatar" "(got $(@($o.pos_abs_delta) -join ','))"
+        Assert-True ($exN.Status -eq 200 -and $o.outcome -eq "error" -and $o.error.code -eq "unexpected_prompt") `
+            "examine move_n -> 200 + outcome error (unexpected_prompt, recoverable, no hang)" "(status $($exN.Status), outcome $($o.outcome), code $($o.error.code))"
 
         # examine here (the avatar's own tile): position-independent self examine -> outcome examined.
         $exH = Invoke-Api POST "/api/command" '{"command":"examine","direction":"here"}'

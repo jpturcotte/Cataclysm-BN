@@ -16,8 +16,8 @@ auto-synced.
 **Run these regressions with `pwsh` (PowerShell 7), not `powershell` (5.1)** — 5.1 misreads BOM-less UTF-8
 snapshots and writes an options.json BOM, causing spurious gate failures on unchanged code.
 
-All six worlds below are clones of `ArcopolisTest` and live in the same userdir; each adds one
-deterministic element so it can act as a specific export/prompt witness.
+All worlds below live in the same userdir; `ArcopolisTest` is the base and the rest are clones of it, each
+adding one deterministic element so it can act as a specific export/prompt/movement witness.
 
 ## `ArcopolisTest` — base world; movement / NPC / item / live-protocol witness
 
@@ -107,6 +107,23 @@ client's YES/NO is served as registered `LEFT`/`CONFIRM` through the real `input
 [`docs/arcopolis/query_popup_regression.ps1`](query_popup_regression.ps1) (six gates:
 accept/reject/state-change/recovery/EOF). See
 [35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md](35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md).
+
+## `ArcopolisWallTest` — genuine terrain `blocked_no_op` witness (Spike 21)
+
+A clone of `ArcopolisTest` with ONE impassable wall (`t_wall`, `move_cost 0`) written onto the clean
+`t_floor` tile one tile EAST of the avatar. A `move direction=move_e` into it runs the real
+`avatar_action::move` → `g->walk_move` leaf, which rejects the impassable destination with **no move, no
+tick, and NO prompt** (auto-bash needs the explicit smash command; auto-mine needs a dig tool the avatar
+lacks) — a genuine `blocked_no_op`. This is the **replacement** `blocked_no_op` witness after Spike 21 made
+move-into-NPC fail loud (`unexpected_prompt`): the old move-into-Edwardo `blocked_no_op` was a tolerated
+historical artifact (a hidden player-visible menu cancellation), not a true equivalence witness. (The gate
+asserts the `blocked_no_op` outcome + the harness reading the real `t_wall` destination; it does NOT assert
+`blocked_by=terrain`, because that harness branch needs `dest.seen=true` and a headless run never populates
+LOS — every tile exports `seen=false` — so the attribution is honestly withheld rather than bend the
+consumer's `seen` guard.) Built reproducibly by [`docs/arcopolis/make_wall_fixture.py`](make_wall_fixture.py)
+(save-edit of the submap `terrain` RLE, no GUI/build), gated by the terrain `blocked_no_op` gate in
+[`docs/arcopolis/client_harness_regression.ps1`](client_harness_regression.ps1). See
+[43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md](43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md).
 
 ## Spike 16 — non-live run-script reuse of the prompt fixtures
 

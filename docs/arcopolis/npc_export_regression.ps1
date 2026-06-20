@@ -31,11 +31,15 @@
     3. The "before" snapshot has entities.npcs count > 0.
     4. NORTH BLOCKER: from before.avatar.pos_local = [ax,ay,az], at least one NPC sits at [ax, ay-1, az].
        On success a clear PASS line names that NPC with its position and relationship flags.
-    5. FAITHFUL NO-OP: after move_n, the "after" snapshot's avatar.pos_abs equals the "before" one's AND
-       backend.turn is unchanged (the turn did not complete -> clean-park, world not ticked). avatar.moves
-       is REPORTED but is NOT the primary signal (the "after" snapshot is at the next input rest where
-       Creature::process_turn may have refilled moves -- the same idiom movement_regression.ps1 uses).
-    6. The offline viewer (make_report.py) runs, exits 0, AND prints npcs_off_window=0.
+    5. FAIL LOUD (Spike 21): move_n into the NPC now reaches game::npc_menu's UNARMED uilist, which the
+       backend reports as unexpected_prompt instead of silently auto-cancelling it. A separate run
+       (export before -> move_n -> export after_move_n) must EXIT 14, write the "before" snapshot but NO
+       "after_move_n" snapshot, and record EXACTLY ONE transcript `error` event kind=unexpected_prompt
+       (one report from query(), none from init()). This replaces the old "faithful no-op" gate: the old
+       blocked_no_op baseline was a tolerated historical artifact, not a true equivalence witness. See
+       docs/arcopolis/43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md.
+    6. The offline viewer (make_report.py) runs on a CLEAN witness session (export only, exit 0), exits 0,
+       AND prints npcs_off_window=0.
   It also REPORTS (soft, non-fatal) every NPC's name + enemy/following/ally/stationary/halluc flags.
 
   Negative check (documented, NOT enforced here): running against a fixture WITHOUT the shelter NPC would
@@ -99,25 +103,19 @@ Copy-Item $FixtureSrc $UserDir -Recurse -Force
 New-Item -ItemType Directory -Force $OutRoot | Out-Null
 
 function Invoke-NpcScenario {
-    param([string]$Name)
+    param([string]$Name, [string]$ScriptBody)
 
     $dir = Join-Path $OutRoot $Name
     if( Test-Path $dir ) { Remove-Item $dir -Recurse -Force }
     New-Item -ItemType Directory -Force $dir | Out-Null
 
-    # export the NPC blocker before the move, drive move_n (the documented no-op into Edwardo), then export
-    # again. Both frames show the NPC on the tile immediately north of the avatar.
     $scriptPath = Join-Path $dir "script.json"
-    @'
-{ "schema_version": 1, "steps": [
-  { "op": "export",  "name": "before" },
-  { "op": "command", "command": "move", "direction": "move_n" },
-  { "op": "export",  "name": "after_move_n" }
-] }
-'@ | Set-Content -Encoding ascii $scriptPath
+    $ScriptBody | Set-Content -Encoding ascii $scriptPath
 
     # cataclysm-bn-tiles is a GUI / WINDOWS-subsystem exe, so a bare `& $exe` does NOT wait for it and
     # leaves $LASTEXITCODE empty. Start-Process -Wait -PassThru waits and captures the real exit code.
+    # Spike 21: do NOT throw on a nonzero exit -- the fail-loud scenario is EXPECTED to exit 14. The caller
+    # asserts the exit code.
     $p = Start-Process -FilePath $Exe -ArgumentList @(
         '--world', $World,
         '--arcopolis-run-script', $scriptPath,
@@ -125,22 +123,40 @@ function Invoke-NpcScenario {
         '--userdir', $UserDir
     ) -NoNewWindow -Wait -PassThru `
         -RedirectStandardOutput (Join-Path $dir "stdout.txt") -RedirectStandardError (Join-Path $dir "stderr.txt")
-    if( $p.ExitCode -ne 0 ) { throw "run for $Name exited $($p.ExitCode) (expected 0): $(Get-Content (Join-Path $dir 'stderr.txt') -Raw)" }
 
     # Select snapshots by the NNN_ prefix so we pick only NNN_<name>.json (excludes script.json); the
     # numeric prefix orders them. session.jsonl is .jsonl, not matched.
     $snapFiles = Get-ChildItem $dir -Filter "*.json" |
                  Where-Object { $_.Name -match '^\d+_' } |
                  Sort-Object Name
-    if( $snapFiles.Count -lt 1 ) { throw "no snapshot files produced in $dir" }
     $snaps = foreach( $f in $snapFiles ) {
         [pscustomobject]@{ File = $f.Name; Snap = (Get-Content $f.FullName -Raw | ConvertFrom-Json) }
     }
-    return [pscustomobject]@{ Name = $Name; Dir = $dir; Snaps = $snaps }
+    # Parse the transcript events (one JSON object per line) so the fail-loud gate can assert the error event.
+    $logPath = Join-Path $dir "session.jsonl"
+    $events = @()
+    if( Test-Path $logPath ) {
+        $events = @(Get-Content $logPath | Where-Object { $_.Trim() } | ForEach-Object { $_ | ConvertFrom-Json })
+    }
+    return [pscustomobject]@{ Name = $Name; Dir = $dir; Snaps = $snaps; ExitCode = $p.ExitCode; Events = $events }
 }
 
 $fail = 0
-$scn  = Invoke-NpcScenario -Name "npc_blocker"
+
+# Witness scenario (CLEAN, exit 0): export the NPC blocker only. The "before" frame shows Edwardo one tile
+# north of the avatar. This is the NPC-export witness (gates 1-4) and the viewer cross-check (gate 6) -- it
+# carries NO failing command, so its transcript is clean and the viewer accepts it.
+$witnessScript = @'
+{ "schema_version": 1, "steps": [
+  { "op": "export",  "name": "before" }
+] }
+'@
+$scn = Invoke-NpcScenario -Name "npc_witness" -ScriptBody $witnessScript
+if( $scn.ExitCode -ne 0 ) {
+    Write-Host "  FAIL: witness run exited $($scn.ExitCode) (expected 0): $(Get-Content (Join-Path $scn.Dir 'stderr.txt') -Raw)" -ForegroundColor Red
+    Write-Host "NPC EXPORT REGRESSION: aborting (witness run did not export cleanly)." -ForegroundColor Red
+    exit 1
+}
 
 # --- Hard gates 1 & 2, per exported snapshot. ---
 foreach( $entry in $scn.Snaps ) {
@@ -194,9 +210,8 @@ foreach( $entry in $scn.Snaps ) {
     }
 }
 
-# Locate the before / after snapshots by their NNN_<name>.json suffix.
-$before = ($scn.Snaps | Where-Object { $_.File -like '*_before.json' }       | Select-Object -First 1)
-$after  = ($scn.Snaps | Where-Object { $_.File -like '*_after_move_n.json' } | Select-Object -First 1)
+# Locate the before snapshot by its NNN_<name>.json suffix (the witness scenario's blocker frame).
+$before = ($scn.Snaps | Where-Object { $_.File -like '*_before.json' } | Select-Object -First 1)
 
 # --- Hard gates 3 & 4: count > 0 and the north blocker, on the "before" snapshot. ---
 if( -not $before ) {
@@ -235,22 +250,38 @@ if( -not $before ) {
     }
 }
 
-# --- Hard gate 5: move_n is a faithful no-op (avatar did not move, world did not tick). ---
-if( -not $before -or -not $after ) {
-    Write-Host "  FAIL: missing before/after snapshot -- cannot check the move_n no-op." -ForegroundColor Red
-    $fail++
+# --- Hard gate 5: move_n into the NPC FAILS LOUD (Spike 21). ---
+# A separate run drives `export before -> move_n -> export after_move_n`. move_n bumps Edwardo, reaching
+# game::npc_menu's UNARMED uilist; the backend now reports unexpected_prompt (exit 14) instead of silently
+# auto-cancelling it. The `before` snapshot is still written (export ran before the failure); the run aborts
+# at move_n, so NO `after_move_n` snapshot exists and the transcript carries EXACTLY ONE error event
+# (kind=unexpected_prompt) -- one report from query(), none from init(). This replaces the old
+# "faithful no-op" gate: the old blocked_no_op baseline was a tolerated historical artifact, not a true
+# equivalence witness (docs/arcopolis/43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md).
+$failloudScript = @'
+{ "schema_version": 1, "steps": [
+  { "op": "export",  "name": "before" },
+  { "op": "command", "command": "move", "direction": "move_n" },
+  { "op": "export",  "name": "after_move_n" }
+] }
+'@
+$fl = Invoke-NpcScenario -Name "npc_failloud" -ScriptBody $failloudScript
+$flBefore = ($fl.Snaps | Where-Object { $_.File -like '*_before.json' }       | Select-Object -First 1)
+$flAfter  = ($fl.Snaps | Where-Object { $_.File -like '*_after_move_n.json' } | Select-Object -First 1)
+$errEvents = @($fl.Events | Where-Object { $_.event -eq 'error' })
+$unexpected = @($errEvents | Where-Object { $_.kind -eq 'unexpected_prompt' })
+Write-Host ("[move_n fail-loud] exit={0}  before={1}  after_move_n={2}  error_events={3}  unexpected_prompt={4}" -f `
+    $fl.ExitCode, [bool]$flBefore, [bool]$flAfter, $errEvents.Count, $unexpected.Count)
+$g5 = ($fl.ExitCode -eq 14) -and $flBefore -and (-not $flAfter) -and
+      ($errEvents.Count -eq 1) -and ($unexpected.Count -eq 1)
+if( $g5 ) {
+    Write-Host "  PASS: move_n into the NPC fails loud -- exit 14, 'before' written, NO 'after_move_n' snapshot, exactly one unexpected_prompt error event (no init()+query() double report). See doc 43." -ForegroundColor Green
 } else {
-    $bpos = $before.Snap.avatar.pos_abs; $apos = $after.Snap.avatar.pos_abs
-    $bturn = $before.Snap.backend.turn;  $aturn = $after.Snap.backend.turn
-    $posSame  = ($bpos -join ',') -eq ($apos -join ',')
-    $turnSame = $bturn -eq $aturn
-    Write-Host ("[move_n] pos {0} -> {1}   turn {2} -> {3}   moves {4} -> {5}" -f `
-        ($bpos -join ','), ($apos -join ','), $bturn, $aturn, $before.Snap.avatar.moves, $after.Snap.avatar.moves)
-    if( -not $posSame )  { Write-Host "  FAIL: avatar.pos_abs changed across move_n (expected a no-op into the NPC)." -ForegroundColor Red; $fail++ }
-    if( -not $turnSame ) { Write-Host "  FAIL: backend.turn advanced across move_n (expected no tick on the clean-park no-op)." -ForegroundColor Red; $fail++ }
-    if( $posSame -and $turnSame ) {
-        Write-Host "  PASS: move_n is a faithful no-op (pos_abs and backend.turn unchanged) -- the exported NPC explains why. See doc 15/18." -ForegroundColor Green
-    }
+    if( $fl.ExitCode -ne 14 ) { Write-Host "  FAIL: move_n run exited $($fl.ExitCode) (expected 14 / unexpected_prompt). stderr: $(Get-Content (Join-Path $fl.Dir 'stderr.txt') -Raw -ErrorAction SilentlyContinue)" -ForegroundColor Red }
+    if( -not $flBefore )       { Write-Host "  FAIL: no 'before' snapshot in the fail-loud run (it should be written before move_n fails)." -ForegroundColor Red }
+    if( $flAfter )             { Write-Host "  FAIL: an 'after_move_n' snapshot exists (the failed command must not produce a success snapshot)." -ForegroundColor Red }
+    if( $errEvents.Count -ne 1 -or $unexpected.Count -ne 1 ) { Write-Host "  FAIL: expected exactly ONE error event (kind=unexpected_prompt); got $($errEvents.Count) error event(s), $($unexpected.Count) unexpected_prompt." -ForegroundColor Red }
+    $fail++
 }
 
 # --- Hard gate 6: the offline viewer agrees (exit 0 AND npcs_off_window=0). ---

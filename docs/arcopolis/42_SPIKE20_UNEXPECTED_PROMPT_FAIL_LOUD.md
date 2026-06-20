@@ -119,7 +119,10 @@ makes that silent default **observable and fatal/visible** instead of hidden.
   harness classifies it (`tools/arcopolis_client/harness.py`). **Follow-up (a "Spike 21"):** guard
   `uilist::query` the same way, and deliberately update those two regressions + `harness.py`'s classification +
   the docs so move-into-NPC fails loud. Deferred here to keep this spike narrow and avoid silently changing a
-  witnessed baseline.
+  witnessed baseline. **→ DONE: Spike 21 landed this** — `uilist::query` now reports `unexpected_prompt` for
+  the unarmed case (move AND examine into the NPC), the move-into-NPC `blocked_no_op` baseline is retired, and
+  a genuine terrain `blocked_no_op` witness (`ArcopolisWallTest`) replaces it. See
+  [43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md](43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md).
 - **`NEW_PICKUP_MENU=true` / `inventory_selector`** — still rejected at pre-flight (`unsupported_command`, exit
   6), unweakened (docs 39/40).
 - **Generic `query_popup`/`query_yn` support** — still none; exactly one site arms a transaction

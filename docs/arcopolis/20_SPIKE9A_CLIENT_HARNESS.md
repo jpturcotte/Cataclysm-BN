@@ -8,6 +8,15 @@
 > schema changes, no new commands; the snapshot `schema_version` stays **1**. Builds on every prior
 > spike and on the Spike 4 viewer ([12_SPIKE4_OFFLINE_SESSION_VIEWER.md](12_SPIKE4_OFFLINE_SESSION_VIEWER.md)).
 
+> **Forward-note (Spike 21, 2026-06-20):** the `blocked_no_op,moved,waited,no_command` outcome sequence
+> recorded below is the point-in-time Spike 9A record. Spike 21
+> ([43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md](43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md))
+> reclassified `move_n` into the shelter NPC: it now **fails loud** (`unexpected_prompt`), not
+> `blocked_no_op`. `client_harness_regression.ps1` therefore no longer asserts that single sequence — the
+> current gates assert a fail-loud `move_n` (exit 14), a normal `move_s,wait → moved,waited,no_command`,
+> and a separate genuine terrain `blocked_no_op` witness (`ArcopolisWallTest`). See doc 43 and
+> [ARCOPOLIS_STATE.md](ARCOPOLIS_STATE.md) for current behavior.
+
 ## Why this is "Spike 9A"
 
 Spikes 0–8A proved backend **observability** (where am I, what terrain/monsters/NPCs/items are
