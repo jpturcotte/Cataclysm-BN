@@ -9,9 +9,12 @@
   after the previous response/snapshot), and assert that the SAME explanation sequence Spike 9A got
   from a one-shot script comes out of one still-running process:
 
-    * move_n FIRST, while the stock shelter NPC Edwardo Stovall is still one tile north of the
-      avatar -> "blocked_no_op" with blocked_by=npc (after move_s the start tile is empty, so the
-      order is load-bearing, exactly as in client_harness_regression.ps1).
+    * move_n FIRST, while the stock shelter NPC Edwardo Stovall is still one tile north of the avatar ->
+      SPIKE 21: a RECOVERABLE ok=false / unexpected_prompt (move_n bumps the NPC and reaches
+      game::npc_menu's unarmed uilist, which fails loud instead of silently auto-cancelling). The session
+      stays alive; the harness anchors an export so the failed command forms its own pair, classified
+      "unexpected_prompt" (NOT blocked_no_op). The order is still load-bearing (after move_s the start tile
+      is empty). See docs/arcopolis/43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md.
     * move_s -> "moved" with pos_abs delta (0,1,0) and the turn advancing.
     * wait -> "waited" with the position unchanged and the turn advancing.
     * the final-on-exit pair -> "no_command" with nothing changed (clean-park after quit).
@@ -32,14 +35,15 @@
   What it asserts (hard gates):
     1. Happy path: `harness.py live --json` exits 0.
     2. live.ready_seen=true, live.protocol_version=1, live.process_exit_code=0.
-    3. Five protocol responses (export + 3 commands + quit), all ok, in order, each export/command
-       response naming an existing snapshot.
-    4. explain contract_check.ok=true (schema 1).
-    5. 4 pairs with outcome_sequence exactly: blocked_no_op,moved,waited,no_command.
-    6. NPC-BLOCK PAIR: pair 0 is the single move_n, outcome blocked_no_op, blocked_by contains
-       npc, turn_delta 0, pos_abs_delta 0,0,0, destination one tile north carrying NPC
-       "Edwardo Stovall" (the canonical fixture blocker; the PASS line prints the harness's own
-       explanation).
+    3. Six protocol responses in order: export, command(move_n ok=false unexpected_prompt), export(anchor),
+       command(move_s), command(wait), quit -- exactly one ok=false (the recoverable move_n), every ok
+       export/command response naming an existing snapshot.
+    4. explain contract_check.ok=true (schema 1) -- live unexpected_prompt logs prompt_failed (recoverable),
+       NOT an error event, so the contract stays clean.
+    5. 4 pairs with outcome_sequence exactly: unexpected_prompt,moved,waited,no_command (Spike 21).
+    6. NPC FAIL-LOUD PAIR: pair 0 is the single move_n, outcome unexpected_prompt (recoverable), destination
+       one tile north carrying NPC "Edwardo Stovall" (still shown though no longer a "block"; the PASS line
+       prints the harness's own explanation).
     7. MOVED PAIR: pair 1 is move_s, outcome moved, pos_abs_delta 0,1,0, turn_delta >= 1.
     8. WAIT PAIR: pair 2 is wait, outcome waited, pos_abs_delta 0,0,0, turn_delta >= 1.
     9. FINAL PAIR: pair 3 has no command, outcome no_command, turn_delta 0.
@@ -147,18 +151,25 @@ if( -not $lj.live.ready_seen -or $lj.live.protocol_version -ne 1 -or $lj.live.pr
     Write-Host "  PASS: ready seen, protocol_version 1, backend exited 0 after quit (in $($lj.live.duration_s)s)." -ForegroundColor Green
 }
 
-# --- Hard gate 3: five ok responses in order (export + move_n + move_s + wait + quit), snapshots named. ---
+# --- Hard gate 3: six responses in order. Spike 21: move_n into Edwardo is now a RECOVERABLE ok=false
+# (unexpected_prompt) -- the harness anchors an export after it, so the sequence is
+# export, command(move_n, ok=false), export(anchor), command(move_s), command(wait), quit. Every OK
+# export/command response names an existing snapshot; the single ok=false is the move_n unexpected_prompt. ---
 # Wrap with @() FIRST -- a single element deserializes as a scalar; also filter $null elements (the
 # documented house gotchas).
 $resps = @($lj.live.responses | Where-Object { $null -ne $_ })
 $ops = (@($resps | ForEach-Object { $_.op }) -join ',')
-$allOk = (@($resps | Where-Object { $_.ok -ne $true }).Count -eq 0)
-$snapsNamed = (@($resps | Where-Object { $_.op -ne 'quit' -and [string]::IsNullOrEmpty($_.snapshot) }).Count -eq 0)
-if( $resps.Count -ne 5 -or $ops -ne 'export,command,command,command,quit' -or -not $allOk -or -not $snapsNamed ) {
-    Write-Host "  FAIL: responses -- count=$($resps.Count) ops='$ops' all_ok=$allOk snapshots_named=$snapsNamed (expected 5 / export,command,command,command,quit / true / true)." -ForegroundColor Red
+$failedResps = @($resps | Where-Object { $_.ok -ne $true })
+$moveNResp = if( $resps.Count -ge 2 ) { $resps[1] } else { $null }
+$okSnapsNamed = (@($resps | Where-Object { $_.ok -eq $true -and $_.op -ne 'quit' -and [string]::IsNullOrEmpty($_.snapshot) }).Count -eq 0)
+$g3 = ($resps.Count -eq 6) -and ($ops -eq 'export,command,export,command,command,quit') -and
+      ($failedResps.Count -eq 1) -and $moveNResp -and ($moveNResp.ok -eq $false) -and
+      ($moveNResp.error.code -eq 'unexpected_prompt') -and $okSnapsNamed
+if( -not $g3 ) {
+    Write-Host "  FAIL: responses -- count=$($resps.Count) ops='$ops' failed=$($failedResps.Count) move_n.ok=$($moveNResp.ok) move_n.code=$($moveNResp.error.code) ok_snaps_named=$okSnapsNamed (expected 6 / export,command,export,command,command,quit / 1 failed / move_n ok=false unexpected_prompt / true)." -ForegroundColor Red
     $fail++
 } else {
-    Write-Host "  PASS: 5 ok responses in order; every export/command response names its snapshot ($((@($resps | Where-Object { $_.op -ne 'quit' } | ForEach-Object { $_.snapshot }) -join ', ')))." -ForegroundColor Green
+    Write-Host "  PASS: 6 responses in order; move_n ok=false/unexpected_prompt (recoverable, session alive), every ok export/command response names its snapshot." -ForegroundColor Green
 }
 
 # --- Hard gate 4: explain contract holds on the live session (schema 1, contract_check.ok). ---
@@ -169,17 +180,20 @@ if( $lj.schema_version -ne 1 -or -not $lj.contract_check.ok ) {
     Write-Host "  PASS: schema 1, contract_check.ok=true on the live session." -ForegroundColor Green
 }
 
-# --- Hard gate 5: 4 pairs, the exact Spike 9A outcome sequence -- from ONE live process. ---
+# --- Hard gate 5: 4 pairs, the Spike 21 outcome sequence -- from ONE live process. move_n into the NPC is
+# now unexpected_prompt (RECOVERABLE), not blocked_no_op; move_s/wait/final follow unchanged. ---
 $pairs = @($lj.pairs | Where-Object { $null -ne $_ })
 $seq = (@($lj.summary.outcome_sequence) -join ',')
-if( $pairs.Count -ne 4 -or $seq -ne 'blocked_no_op,moved,waited,no_command' ) {
-    Write-Host "  FAIL: expected 4 pairs with outcomes 'blocked_no_op,moved,waited,no_command'; got $($pairs.Count) pair(s), '$seq'." -ForegroundColor Red
+if( $pairs.Count -ne 4 -or $seq -ne 'unexpected_prompt,moved,waited,no_command' ) {
+    Write-Host "  FAIL: expected 4 pairs with outcomes 'unexpected_prompt,moved,waited,no_command'; got $($pairs.Count) pair(s), '$seq'." -ForegroundColor Red
     $fail++
 } else {
-    Write-Host "  PASS: 4 pairs, outcome sequence = $seq (the Spike 9A sequence, live)." -ForegroundColor Green
+    Write-Host "  PASS: 4 pairs, outcome sequence = $seq (move_n fails loud recoverably, the rest unchanged)." -ForegroundColor Green
 }
 
-# --- Hard gate 6: the NPC-block pair (the win condition's headline proof). ---
+# --- Hard gate 6: the NPC fail-loud pair (the Spike 21 headline proof). pair 0 is the single move_n, now
+# classified unexpected_prompt (recoverable ok=false in the live response, session alive), with the NPC
+# destination still shown. ---
 if( $pairs.Count -ge 1 ) {
     $p0 = $pairs[0]
     $cmd0 = @($p0.commands | Where-Object { $null -ne $_ })
@@ -188,21 +202,18 @@ if( $pairs.Count -ge 1 ) {
         Write-Host "  FAIL: pair 0 command is not the single move_n (got: $(($cmd0 | ConvertTo-Json -Compress)))." -ForegroundColor Red
         $ok6 = $false
     }
-    if( $p0.outcome -ne 'blocked_no_op' -or @($p0.blocked_by) -notcontains 'npc' ) {
-        Write-Host "  FAIL: pair 0 outcome=$($p0.outcome) blocked_by=$(@($p0.blocked_by) -join ',') (expected blocked_no_op / npc)." -ForegroundColor Red
+    if( $p0.outcome -ne 'unexpected_prompt' ) {
+        Write-Host "  FAIL: pair 0 outcome=$($p0.outcome) (expected unexpected_prompt -- move_n into the NPC must fail loud, not blocked_no_op)." -ForegroundColor Red
         $ok6 = $false
     }
-    if( $p0.turn_delta -ne 0 -or (@($p0.pos_abs_delta) -join ',') -ne '0,0,0' ) {
-        Write-Host "  FAIL: pair 0 turn_delta=$($p0.turn_delta) pos_abs_delta=$(@($p0.pos_abs_delta) -join ',') (expected 0 / 0,0,0)." -ForegroundColor Red
-        $ok6 = $false
-    }
+    # The harness keeps the NPC destination visible even though it is no longer a "block".
     $destNpcs = @($p0.destination.npcs | Where-Object { $null -ne $_ })
     if( $destNpcs.Count -lt 1 -or $destNpcs[0].name -ne 'Edwardo Stovall' ) {
         Write-Host "  FAIL: pair 0 destination NPC is '$(if ($destNpcs.Count -ge 1) { $destNpcs[0].name } else { '<none>' })' (expected the canonical blocker 'Edwardo Stovall')." -ForegroundColor Red
         $ok6 = $false
     }
     if( $ok6 ) {
-        Write-Host ("  PASS: npc-block pair -- north blocker = {0}. Harness explains: ""{1}""" -f $destNpcs[0].name, $p0.explanation) -ForegroundColor Green
+        Write-Host ("  PASS: npc fail-loud pair -- north NPC = {0}, classified unexpected_prompt. Harness explains: ""{1}""" -f $destNpcs[0].name, $p0.explanation) -ForegroundColor Green
     } else {
         $fail++
     }

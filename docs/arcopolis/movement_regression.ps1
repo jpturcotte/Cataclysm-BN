@@ -25,9 +25,12 @@
       the unambiguous "the move happened" signals (the same "judge a move by pos_abs delta, not the
       move() bool" idiom the spikes use).
 
-  It also drives move_n and REPORTS the result: with the stock shelter NPC (Edwardo Stovall) on (85,84)
-  this is the documented faithful no-op. That arm is informational (it depends on fixture NPC placement),
-  not a hard gate -- see 15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md.
+  It also drives move_n and REPORTS the result: with the stock shelter NPC (Edwardo Stovall) on (85,84),
+  SPIKE 21 makes this FAIL LOUD -- move_n bumps the NPC and reaches game::npc_menu's unarmed uilist, which
+  the backend reports as unexpected_prompt (exit 14), no longer a silent no-op. That arm is informational
+  (it depends on fixture NPC placement), not a hard gate -- see 15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md (root
+  cause) and 43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md (the fail-loud). The genuine terrain
+  blocked_no_op witness now lives in client_harness_regression.ps1 (ArcopolisWallTest).
 
 .NOTES
   C:\dev\arcopolis-fixtures and C:\dev\ccache are the project's approved local-path exceptions (AGENTS.md
@@ -137,16 +140,34 @@ if( $sedx -eq 1 -and $sedy -eq 1 -and $sedturn -gt 0 ) {
     $fail++
 }
 
-# --- Informational: move_n into the stock shelter NPC is the documented faithful no-op. ---
-$n = Invoke-Scenario -Name "move_n_npc" -Direction "move_n"
-$ndy = $n.AfterPos[1] - $n.BeforePos[1]
-$ndturn = $n.AfterTurn - $n.BeforeTurn
-Write-Host ("[move_n] pos {0} -> {1} (dy={2})  turn {3} -> {4} (d={5})  moves {6} -> {7}" -f `
-    ($n.BeforePos -join ','), ($n.AfterPos -join ','), $ndy, $n.BeforeTurn, $n.AfterTurn, $ndturn, $n.BeforeMov, $n.AfterMov)
-if( $ndy -eq 0 -and $ndturn -eq 0 ) {
-    Write-Host "  INFO: move_n is a no-op here -- faithful: NPC Edwardo Stovall blocks (85,84). See doc 15." -ForegroundColor Yellow
+# --- Informational (Spike 21): move_n into the stock shelter NPC now FAILS LOUD. ---
+# move_n bumps NPC Edwardo and reaches game::npc_menu's UNARMED uilist, which the backend reports as
+# unexpected_prompt (exit 14) instead of the old silent no-op. This run is driven inline (NOT via
+# Invoke-Scenario, which throws on a nonzero exit) and is informational -- it depends on fixture NPC
+# placement, so it is not a hard gate. The genuine terrain blocked_no_op witness now lives in
+# client_harness_regression.ps1 (ArcopolisWallTest). See doc 15 (root cause) and
+# docs/arcopolis/43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md (the fail-loud).
+$nDir = Join-Path $OutRoot "move_n_npc"
+if( Test-Path $nDir ) { Remove-Item $nDir -Recurse -Force }
+New-Item -ItemType Directory -Force $nDir | Out-Null
+$nScript = Join-Path $nDir "script.json"
+@'
+{ "schema_version": 1, "steps": [
+  { "op": "export",  "name": "before" },
+  { "op": "command", "command": "move", "direction": "move_n" },
+  { "op": "export",  "name": "after" }
+] }
+'@ | Set-Content -Encoding ascii $nScript
+$np = Start-Process -FilePath $Exe -ArgumentList @(
+    '--world', $World, '--arcopolis-run-script', $nScript, '--arcopolis-export-dir', $nDir, '--userdir', $UserDir
+) -NoNewWindow -Wait -PassThru `
+    -RedirectStandardOutput (Join-Path $nDir "stdout.txt") -RedirectStandardError (Join-Path $nDir "stderr.txt")
+$nAfter = Get-ChildItem $nDir -Filter "*_after.json" -ErrorAction SilentlyContinue | Select-Object -First 1
+Write-Host ("[move_n] exit={0}  after_snapshot={1}" -f $np.ExitCode, [bool]$nAfter)
+if( $np.ExitCode -eq 14 -and -not $nAfter ) {
+    Write-Host "  INFO: move_n into NPC Edwardo fails loud (exit 14 / unexpected_prompt, no success snapshot) -- the old silent no-op was a tolerated artifact, not a true equivalence witness. See doc 43." -ForegroundColor Yellow
 } else {
-    Write-Host "  INFO: move_n advanced -- the fixture NPC is not on (85,84) (regenerated world?), or an NPC-interaction command now exists. Re-check doc 15." -ForegroundColor Yellow
+    Write-Host "  INFO: move_n exit $($np.ExitCode) (expected 14 / unexpected_prompt). The fixture NPC may have moved, or an NPC-interaction command now exists -- re-check doc 15/43." -ForegroundColor Yellow
 }
 
 if( $fail -gt 0 ) { Write-Host "MOVEMENT REGRESSION: $fail hard assertion(s) failed." -ForegroundColor Red; exit 1 }
