@@ -272,6 +272,8 @@ auto arcopolis::exit_code_for( command_error_kind kind ) -> int
             return 12;
         case command_error_kind::script_prompt_failed:
             return 13;
+        case command_error_kind::unexpected_prompt:
+            return 14;
     }
     return 1;  // unreachable; defensive default
 }

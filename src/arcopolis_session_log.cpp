@@ -62,6 +62,8 @@ auto error_kind_name( arcopolis::command_error_kind kind ) -> std::string
             return "nested_input_failed";
         case kind_t::script_prompt_failed:
             return "script_prompt_failed";
+        case kind_t::unexpected_prompt:
+            return "unexpected_prompt";
     }
     return "unknown";
 }

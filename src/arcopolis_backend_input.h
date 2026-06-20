@@ -520,6 +520,29 @@ auto backend_cursor() -> std::size_t;
 /// it as the process exit code after the engine loop ends.
 auto backend_session_failure() -> std::optional<command_error>;
 
+// --- Spike 20: fail-loud for an UNARMED player-visible prompt reached during an active session. The
+// engine's test_mode prompt-abort sites (today: query_popup::query_once) would otherwise silently
+// default/cancel an unsupported prompt and report a hidden lost interaction as success. These two
+// functions are the generic runtime channel for that -- a SEPARATE channel from the script-named
+// record_script_prompt_failure (it is reached from live and one-shot too), sharing the same
+// session.failure storage + transcript plumbing. See docs/arcopolis/42. ---
+
+/// Records that an UNARMED player-visible prompt/query (`family`, e.g. "query_popup", at `site`, e.g.
+/// "query_once") was reached during an active session. The signature deliberately takes NO step_index:
+/// generic UI code must not know Arcopolis script internals -- the current command's step index is inferred
+/// internally for transcript correlation. Inert outside a session (cata_test / normal play unchanged, so the
+/// abort site keeps its normal default). NON-LIVE (script/one-shot): records a fatal session failure (kind
+/// unexpected_prompt -> exit 14) + sets `done` + logs an `error` event, first-failure-wins. LIVE: records a
+/// RECOVERABLE pending error (no done/failure) the per-request runner surfaces as a visibly-failed ok=false
+/// response, leaving the session open. The abort site still returns its safe default as a transport fallback.
+auto backend_report_unexpected_prompt( const std::string &family, const std::string &site ) -> void;
+
+/// (Live) Returns and clears the recoverable pending unexpected-prompt error set by
+/// backend_report_unexpected_prompt during the just-completed request's do_turn. The live runner calls this
+/// after each request; a non-null result means the command reached an unarmed prompt and MUST be reported as
+/// a visibly-failed ok=false response (never success), with the session left open. nullopt otherwise.
+auto backend_take_unexpected_prompt_error() -> std::optional<command_error>;
+
 /// Writes the terminal final-on-exit snapshot (NNN_final.json, with session.final = true and a null
 /// step_index) using the live session's export dir + running index. Called by run_script() on clean script
 /// completion -- after do_turn returns from the clean-park path and before end_backend_session() clears

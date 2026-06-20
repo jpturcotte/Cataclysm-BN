@@ -391,6 +391,7 @@ behavior change; doc 40 carries the old→new name map).
 | 15    | one backend-driven `query_popup` at level 4: the deployed-furniture take-down `query_yn` (`input_context("YESNO")`), driven via served `LEFT`/`CONFIRM` through the real `query_once` loop, witness-scoped to that one call site (a different Class 2 mechanism than `uilist`); doc 35                                                                                     | ✅                                      |
 | 16    | non-live `--arcopolis-run-script` prompt answers: a command step's declared `prompt_answers` feed the SAME `backend_resolve_*` machinery as live mode (all four classes at level 4); missing/wrong/unused answers fail loud (`script_prompt_failed`, exit 13); one-shot pickup stays fail-loud; doc 36                                                                     | ✅                                      |
 | 19    | backend UI/prompt **boundary cleanup** (NO behavior change): un-abort gates renamed to the per-transaction family `backend_uilist_transaction_active` / `backend_query_popup_transaction_active`; a central served-category + invariant block added to `arcopolis_backend_input.h`; the `test_mode` un-abort-witness vs renderer-neutral-UI-mode boundary recorded; doc 40 | ✅ refactor/docs only                   |
+| 20    | **fail-loud for unexpected prompts:** an UNARMED `query_popup`/`query_yn` reached during an active session now reports `unexpected_prompt` (new error kind, exit 14 non-live; recoverable `ok=false` live) instead of silently defaulting to NO — closing the doc-38 silent-NO hole. NO new prompt support; cata_test/normal play unchanged; the `uilist` family (move-into-NPC) is audited but DEFERRED; doc 42 | ✅                                      |
 
 ## Source & tests
 
@@ -593,11 +594,15 @@ stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROT
 ## Known-unsupported / fail-loud (single source)
 
 Every unsupported path is **fail-loud** (typed error + nonzero exit) or an **honest marked partial** —
-never a silent _fake success_. **Caveat (doc 38):** that guarantee covers fabricated success, NOT every
-prompt — an unguarded `query_yn` reached through the **supported** `examine` verb silently defaults to NO
-(unmarked, exit 0; row below). Line numbers are current-tree (Spike 17) and may drift; confirm by symbol.
-Centralized here by the Spike 17 audit ([37_SPIKE17_CLAIM_AUDIT.md](37_SPIKE17_CLAIM_AUDIT.md)); the level-4
-truth pass is [38_LEVEL4_TRUTH_AUDIT.md](38_LEVEL4_TRUTH_AUDIT.md).
+never a silent _fake success_. **Caveat (doc 38, narrowed by Spike 20 — [42_SPIKE20_UNEXPECTED_PROMPT_FAIL_LOUD.md](42_SPIKE20_UNEXPECTED_PROMPT_FAIL_LOUD.md)):**
+the guarantee covers fabricated success, not every prompt. **Spike 20 closed the worst hole:** an unarmed
+`query_popup`/`query_yn` (incl. via the supported `examine` verb) reached during an **active** session now
+**fails loud** (`unexpected_prompt` — non-live exit 14, live `ok=false`) instead of silently defaulting to NO;
+**outside** a session (cata_test / normal play) it is unchanged. The `uilist` family's silent CANCEL is
+**audited but deferred** (guarding it would flip the witnessed move-into-NPC `blocked_no_op`; doc 42 §6). Line
+numbers are current-tree and may drift; confirm by symbol. Centralized here by the Spike 17 audit
+([37_SPIKE17_CLAIM_AUDIT.md](37_SPIKE17_CLAIM_AUDIT.md)); the level-4 truth pass is
+[38_LEVEL4_TRUTH_AUDIT.md](38_LEVEL4_TRUTH_AUDIT.md).
 
 | Trigger                                                                                                                          | Behavior                                                                                      | Exit            | Where                                                                                    |
 | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------- |
@@ -609,9 +614,9 @@ truth pass is [38_LEVEL4_TRUTH_AUDIT.md](38_LEVEL4_TRUTH_AUDIT.md).
 | secondary capacity uilist with ANY disabled entry                                                                                | refuse (`scrollby` would mis-navigate); marked partial; backstop `disabled_entry_unsupported` | 13 (run-script) | `src/pickup.cpp:285-288`; `src/arcopolis_backend_input.cpp:817`                          |
 | multi-tick resumed orphaned secondary                                                                                            | report marks, sets NO outcome, CANCEL                                                         | — (marked)      | `src/pickup.cpp:208-211`                                                                 |
 | scripted answer missing/wrong-kind/title-mismatch/out-of-range/cancel-of-noncancelable/unused                                    | `script_prompt_failed` (first-failure-wins)                                                   | 13              | `src/arcopolis_backend_input.cpp`; `src/arcopolis_command.cpp:269-270`                   |
-| generic `popup()`/`popup_getkey()`/`PF_GET_KEY`→`ANY_INPUT` (never arms a transaction)                                           | `query_once` test_mode abort `{false,"ERROR",{}}`                                             | — (aborted)     | `src/output.cpp`; `src/popup.cpp:277-279`                                                |
-| any `query_yn` ≠ the deployed-furniture witness (incl. via the supported `examine` verb)                                         | test_mode abort → **silent NO, unmarked**                                                     | 0 (silent)      | `src/popup.cpp:277-279` → `src/output.cpp:748`                                           |
-| any other `uilist` (cata_test, computer, NPC dialogue)                                                                           | test_mode abort → `UILIST_ERROR`                                                              | —               | `src/ui.cpp:933-937` (gated on per-transaction `backend_uilist_transaction_active()`)    |
+| unarmed `query_popup`/`query_yn`/`popup()`/`popup_getkey()`/`PF_GET_KEY`, **during an active session** (incl. any `query_yn` ≠ the deployed-furniture witness, via the supported `examine` verb) | **Spike 20:** `query_once` reports `unexpected_prompt` then returns the safe default as a transport fallback — **FAIL LOUD**, not silent | 14 (non-live) / `ok=false` (live) | `src/popup.cpp` `query_once` → `arcopolis::backend_report_unexpected_prompt`; surfaced `src/arcopolis_export.cpp` (one-shot) / `src/arcopolis_script.cpp` (post-loop) / `src/arcopolis_live.cpp` block (a) |
+| same prompts **outside** an Arcopolis session (cata_test / normal play)                                                          | `query_once` test_mode abort `{false,"ERROR",{}}` → silent NO — **unchanged**                 | — (aborted)     | `src/popup.cpp` `query_once` (inert: `!backend_session_active()`)                        |
+| any other `uilist` (cata_test, computer, NPC dialogue, move-into-NPC menu) — **still silent CANCEL** (Spike 20 audited the guard but DEFERRED it; doc 42 §6) | test_mode abort → `UILIST_ERROR` (silent) | — | `src/ui.cpp:933-937` (gated on per-transaction `backend_uilist_transaction_active()`)    |
 | `pickup` under `NEW_PICKUP_MENU=true` / `inventory_selector` (NOT a `uilist`; no narrow `test_mode` abort to pierce — doc 39 §4) | reject pre-flight, `unsupported_command`                                                      | 6               | `src/arcopolis_live.cpp:213-218` (live); `src/arcopolis_script.cpp:357-365` (run-script) |
 
 **Still backlog (no driving claim):** vertical `move` (`<`/`>`); explicit `open`/`close`/`smash`; per-unit
