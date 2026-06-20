@@ -126,13 +126,24 @@ BACKEND_EXIT_MEANINGS = {
     9: "export_failed",
     10: "backend_stalled",
     11: "game_over",
+    13: "script_prompt_failed",  # Spike 16: a non-live scripted prompt answer did not match
+    14: "unexpected_prompt",     # Spike 20/21: an UNARMED player-visible prompt/menu was reached
 }
 
 # Closed outcome enum (documented in docs/arcopolis/20_SPIKE9A_CLIENT_HARNESS.md).
+# "unexpected_prompt" (Spike 21): a move/examine reached an UNARMED player-visible prompt/menu (e.g.
+# game::npc_menu by bumping/examining an NPC); the backend fails loud rather than silently auto-cancelling
+# it. Distinct from "blocked_no_op" (a genuine no-prompt block) -- the snapshots can look identical, so the
+# classification keys on the recorded error / prompt_failed event, never the deltas alone.
 OUTCOMES = (
     "moved", "blocked_no_op", "acted_in_place", "waited", "no_command",
-    "multi_command", "displaced", "unknown", "unverifiable",
+    "multi_command", "displaced", "unexpected_prompt", "unknown", "unverifiable",
 )
+
+# Live-protocol error codes that are RECOVERABLE: the backend answers ok=false and keeps serving (mirrors
+# src/arcopolis_live.h live_error_code + tools/arcopolis_frontend/prototype_server.py RECOVERABLE_ERROR_CODES).
+# A command that hits one of these is DATA (a reported failure), not a transport/session death.
+RECOVERABLE_LIVE_CODES = ("unsupported_command", "unexpected_prompt")
 
 esc = html.escape
 
@@ -533,8 +544,12 @@ def pair_exports(events):
     """Walk the transcript in file order into export pairs.
 
     Returns ``(pairs, preamble_commands)`` where each pair is ``{"before":
-    export_ev, "after": export_ev, "commands": [...], "errors": [...]}`` with
-    the command / error events that sit strictly between the two exports.
+    export_ev, "after": export_ev, "commands": [...], "errors": [...],
+    "prompt_failures": [...]}`` with the command / error / prompt_failed events
+    that sit strictly between the two exports. ``prompt_failed`` is the live
+    RECOVERABLE marker (Spike 20/21) -- in live mode an unarmed prompt does NOT
+    emit an ``error`` event (which means a fatal session failure), so the
+    recoverable unexpected_prompt is carried here and read by ``classify_pair``.
     Commands before the first export (none today - run_script always exports
     eagerly when asked) are returned separately as session-level context.
     """
@@ -543,21 +558,26 @@ def pair_exports(events):
     last_export = None
     commands = []
     errors = []
+    prompt_failures = []
     for ev in events:
         kind = ev.get("event")
         if kind == "export":
             if last_export is not None:
                 pairs.append({"before": last_export, "after": ev,
-                              "commands": commands, "errors": errors})
+                              "commands": commands, "errors": errors,
+                              "prompt_failures": prompt_failures})
             elif commands:
                 preamble_commands.extend(commands)
             last_export = ev
             commands = []
             errors = []
+            prompt_failures = []
         elif kind == "command":
             commands.append(ev)
         elif kind == "error":
             errors.append(ev)
+        elif kind == "prompt_failed":
+            prompt_failures.append(ev)
     if last_export is None:
         preamble_commands.extend(commands)
     return pairs, preamble_commands
@@ -700,6 +720,50 @@ def classify_pair(pair, before_snap, after_snap):
     if msg_note:
         notes.append(msg_note)
 
+    # Spike 21: an UNARMED player-visible prompt/menu was reached during this command (a move/examine
+    # bumping or examining an NPC -> game::npc_menu's unarmed uilist, or any unarmed query_popup). The
+    # backend fails loud rather than silently auto-cancelling it. In LIVE mode this is the RECOVERABLE
+    # prompt_failed marker, which cmd_live anchors into its OWN export pair -- that is the path that
+    # actually drives this branch. The pair["errors"] disjunct below is DEFENSIVE only: a NON-LIVE
+    # fail-loud aborts the run (done=true, no after-snapshot) so its error event forms NO export pair and
+    # is surfaced via run.exit_meaning / the top-level model["errors"], not here (classify_pair is not even
+    # reached in run mode). The snapshots can look identical to a genuine blocked_no_op (no move, no tick),
+    # so the outcome is decided by the RECORDED EVENT, never the deltas alone. Checked BEFORE the delta
+    # dispatch so a no-op fail-loud is never mislabeled blocked_no_op.
+    unexpected = (any(e.get("kind") == "unexpected_prompt" for e in pair.get("errors", []))
+                  or any(pf.get("reason") == "unexpected_prompt"
+                         for pf in pair.get("prompt_failures", [])))
+    if unexpected:
+        result["outcome"] = "unexpected_prompt"
+        cmd0 = commands[0] if commands else None
+        verb0 = cmd0.get("command") if cmd0 else None
+        dir0 = cmd0.get("direction") if cmd0 else None
+        dest = None
+        # move AND examine both route a creature-occupied destination to game::npc_menu, so analyze the
+        # commanded tile the same way -- keep the NPC visible in the output even though it is not a block.
+        if verb0 in ("move", "examine") and dir0 in DIRECTION_DELTAS:
+            dest, dest_note = analyze_destination(before_snap, DIRECTION_DELTAS[dir0])
+            result["destination"] = dest
+            if dest_note:
+                notes.append(dest_note)
+        label = dir0 or verb0 or "the command"
+        notes.append("fail-loud honesty fix (Spike 21): an unarmed uilist/query reached during an active "
+                     "session is reported, not silently auto-cancelled -- see docs/arcopolis/43")
+        if dest is not None and dest["npcs"]:
+            npc = dest["npcs"][0]
+            result["explanation"] = ("%s reached an unsupported player-visible menu (an unarmed uilist) and "
+                                     "the backend failed loud: the destination tile %s holds NPC %s (%s), so "
+                                     "the engine opened its NPC-interaction menu (game::npc_menu). Arcopolis "
+                                     "reports unexpected_prompt rather than silently cancelling it -- this is "
+                                     "NOT a faithful blocked_no_op."
+                                     % (label, fmt_pos(dest["pos_local"]), npc.get("name", "?"),
+                                        npc_adjectives(npc)))
+        else:
+            result["explanation"] = ("%s reached an unsupported player-visible prompt/menu the backend has "
+                                     "not witnessed; Arcopolis failed loud (unexpected_prompt) rather than "
+                                     "silently cancelling it." % label)
+        return result
+
     if before_snap is None or after_snap is None or turn_delta is None or pos_delta is None:
         result["outcome"] = "unverifiable"
         notes.append("a snapshot or its scalars are unavailable; outcome cannot be classified")
@@ -789,8 +853,10 @@ def classify_pair(pair, before_snap, after_snap):
             elif dest["npcs"]:
                 result["blocked_by"] = ["npc"]
                 npc = dest["npcs"][0]
-                notes.append("faithful no-op: the NPC-interaction menu auto-cancels in test_mode; no AP "
-                             "spent, world not ticked (clean-park) - see docs/arcopolis/15 and 18")
+                notes.append("since Spike 21 a real move/examine into an NPC fails loud (unexpected_prompt) "
+                             "and is classified above; this blocked_by=npc branch now survives only as a "
+                             "fallback for a pair with an NPC destination but NO recorded fail-loud event "
+                             "- see docs/arcopolis/43 (and the historical 15 and 18)")
                 result["explanation"] = ("%s did not move the avatar and the turn did not advance: NPC %s "
                                          "(%s) occupies the destination tile %s."
                                          % (direction, npc.get("name", "?"), npc_adjectives(npc),
@@ -954,6 +1020,13 @@ def build_explain_model(session_dir):
             "entities_off_window": entities_off_window,
             "truncated": truncated,
         },
+        # Session-level error events (kind/detail/exit_code), surfaced in full -- not just counted in
+        # contract_check -- so a NON-LIVE fail-loud (e.g. Spike 21 unexpected_prompt from move/examine into an
+        # NPC) is legible even though it aborts the run and forms NO export pair (the failing step has no
+        # after-snapshot). Live recoverable failures use prompt_failed, not error, so they stay inside pairs.
+        "errors": [{"step_index": e.get("step_index"), "kind": e.get("kind"),
+                    "detail": e.get("detail"), "exit_code": e.get("exit_code")}
+                   for e in error_events],
         "pairs": pairs,
         "summary": {
             "pairs": len(pairs),
@@ -1549,7 +1622,13 @@ def cmd_live(args):
         live_expect_ok(resp, "export", out_dir, "export start")
         next_id += 1
 
-        # 3. One command per response (run-mode export naming, duplicate-safe).
+        # 3. One command per response (run-mode export naming, duplicate-safe). A RECOVERABLE ok=false
+        # (Spike 21: unexpected_prompt -- a move/examine into an NPC reaches an unarmed uilist; or an
+        # unsupported_command) is DATA, not a transport failure: the backend keeps serving and writes NO
+        # snapshot for the failed command. Anchor an export to capture the (unchanged) post-command state so
+        # the failed command forms its OWN export pair -- classify_pair reads the prompt_failed marker and
+        # labels it unexpected_prompt, never a mislabeled blocked_no_op (the snapshots look identical). A
+        # fatal ok=false still raises via live_expect_ok.
         for index, token in enumerate(tokens):
             req = {"id": next_id, "op": "command", "name": "after_%02d_%s" % (index, token)}
             if token == "wait":
@@ -1557,8 +1636,19 @@ def cmd_live(args):
             else:
                 req.update(command="move", direction=token)
             resp = send_and_recv(req, "the %s response" % token)
-            live_expect_ok(resp, "command", out_dir, token)
             next_id += 1
+            error = resp.get("error") if isinstance(resp.get("error"), dict) else {}
+            if resp.get("ok") is False and error.get("code") in RECOVERABLE_LIVE_CODES:
+                if proc.poll() is not None:
+                    raise LiveProtocolError("backend died after a recoverable %s (exit %s) - "
+                                            "recoverability violated" % (error.get("code"), proc.returncode))
+                anchor = send_and_recv({"id": next_id, "op": "export",
+                                        "name": "after_%02d_%s" % (index, token)},
+                                       "the %s anchor export response" % token)
+                live_expect_ok(anchor, "export", out_dir, "the %s anchor export" % token)
+                next_id += 1
+                continue
+            live_expect_ok(resp, "command", out_dir, token)
 
         # 4. Optional negative probe: a vocabulary-rejected command must produce ok=false
         # WITHOUT ending the session; a recovery wait must then succeed (Spike 9B's

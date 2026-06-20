@@ -9,6 +9,15 @@
 > [20_SPIKE9A_CLIENT_HARNESS.md](20_SPIKE9A_CLIENT_HARNESS.md) and the input-seam architecture
 > ([09](09_SPIKE3_1_INPUT_SEAM_EXPLORATION.md)).
 
+> **Forward-note (Spike 21, 2026-06-20):** the win condition / regression sequence
+> `blocked_no_op, moved, waited, no_command` described below is the point-in-time Spike 9B record. Spike 21
+> ([43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md](43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md))
+> reclassified `move_n` into the NPC to a recoverable **`unexpected_prompt`** (it reaches the unarmed
+> `game::npc_menu` uilist, which now fails loud instead of silently cancelling). `live_protocol_regression.ps1`
+> therefore now re-derives `unexpected_prompt,moved,waited,no_command` (move_n is a recoverable `ok=false`
+> the harness anchors into its own pair; the session stays alive). The text below is preserved as the
+> original record; see doc 43 and [ARCOPOLIS_STATE.md](ARCOPOLIS_STATE.md) for current behavior.
+
 ## Why this is "Spike 9B"
 
 Spike 9A proved an external harness can consume the contract — but only **one-shot**:

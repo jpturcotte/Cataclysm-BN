@@ -310,17 +310,24 @@ wire with `kind:"query_popup"` and the existing `prompt_*` transcript events; no
 [`query_popup_regression.ps1`](query_popup_regression.ps1) (6 gates incl. accept/reject/recovery/EOF). See
 [35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md](35_SPIKE15_BACKEND_DRIVEN_QUERY_POPUP.md).
 
-**Movement into an occupied/obstructed tile is a faithful no-op.** A `move` whose destination holds a
-creature, or a closed-but-not-bump-openable obstacle, runs the engine's real `avatar_action::move` leaf
-and can end the turn with the avatar not having moved — exactly as in the GUI. The studied case
-([15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md](15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md)): in `ArcopolisTest` the stock
-evac-shelter NPC **Edwardo Stovall** stands one tile north of the avatar, so `move_n` opens the engine's
-NPC interaction menu and returns without spending moves — and since the backend runs in `test_mode`, that
-`uilist` **auto-cancels** (≡ a GUI player pressing ESC) rather than blocking. Result: no move, 0 AP,
-clean-park (world not ticked). This is GUI-faithful, **not** a seam bug; there is simply no command yet to
-_choose_ an NPC interaction. **Spike 7A now exports NPCs** (`entities.npcs[]`), so this blocker is visible
-in the snapshot itself — the `before` snapshot carries a neutral NPC at the move_n destination
-(`is_enemy=false`, `is_player_ally=false`); see [18_SPIKE7A_NPC_EXPORT.md](18_SPIKE7A_NPC_EXPORT.md).
+**Movement/examine INTO a creature now FAILS LOUD (Spike 21); a TERRAIN block is the faithful no-op.**
+A `move`/`examine` whose target tile holds an NPC runs the engine's real `avatar_action::move` /
+`game::examine` leaf, which opens `game::npc_menu`'s `uilist` (`src/game.cpp`). Under `test_mode` that
+unarmed `uilist` used to **auto-cancel silently** and the command looked like a `blocked_no_op` (no move,
+0 AP, clean-park) — but that was a **hidden player-visible menu cancellation**, not a faithful blocked
+movement (`AGENTS.md:122-128`). **Spike 21 guards `uilist::query`** so the unarmed case reports
+`unexpected_prompt` during an active session (non-live exit 14; live recoverable `ok=false`): in
+`ArcopolisTest`, both `move_n` and `examine move_n` into the stock evac-shelter NPC **Edwardo Stovall**
+(one tile north, exported via Spike 7A `entities.npcs[]`) now fail loud rather than silently cancel. The
+old move-into-Edwardo `blocked_no_op` was a tolerated historical artifact, retired here — see
+[43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md](43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md) and
+the root cause [15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md](15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md). A **genuine** no-op
+remains a `move` into impassable terrain that opens NO prompt (the real `g->walk_move` rejection: no move,
+no tick) — now the dedicated `blocked_no_op` witness via `ArcopolisWallTest` (a
+`t_wall` one tile east, [`make_wall_fixture.py`](make_wall_fixture.py)), gated by
+[`client_harness_regression.ps1`](client_harness_regression.ps1). (The witness proves the `blocked_no_op`
+*classification* only; `blocked_by=terrain` is **not** asserted — a headless run exports every tile
+`seen=false`, so that attribution is honestly withheld; see [43 §6](43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md).)
 
 ## Terminology (backend-input vs engine vs frontend equivalence)
 
@@ -391,7 +398,8 @@ behavior change; doc 40 carries the old→new name map).
 | 15    | one backend-driven `query_popup` at level 4: the deployed-furniture take-down `query_yn` (`input_context("YESNO")`), driven via served `LEFT`/`CONFIRM` through the real `query_once` loop, witness-scoped to that one call site (a different Class 2 mechanism than `uilist`); doc 35                                                                                                                           | ✅                                      |
 | 16    | non-live `--arcopolis-run-script` prompt answers: a command step's declared `prompt_answers` feed the SAME `backend_resolve_*` machinery as live mode (all four classes at level 4); missing/wrong/unused answers fail loud (`script_prompt_failed`, exit 13); one-shot pickup stays fail-loud; doc 36                                                                                                           | ✅                                      |
 | 19    | backend UI/prompt **boundary cleanup** (NO behavior change): un-abort gates renamed to the per-transaction family `backend_uilist_transaction_active` / `backend_query_popup_transaction_active`; a central served-category + invariant block added to `arcopolis_backend_input.h`; the `test_mode` un-abort-witness vs renderer-neutral-UI-mode boundary recorded; doc 40                                       | ✅ refactor/docs only                   |
-| 20    | **fail-loud for unexpected prompts:** an UNARMED `query_popup`/`query_yn` reached during an active session now reports `unexpected_prompt` (new error kind, exit 14 non-live; recoverable `ok=false` live) instead of silently defaulting to NO — closing the doc-38 silent-NO hole. NO new prompt support; cata_test/normal play unchanged; the `uilist` family (move-into-NPC) is audited but DEFERRED; doc 42 | ✅                                      |
+| 20    | **fail-loud for unexpected prompts:** an UNARMED `query_popup`/`query_yn` reached during an active session now reports `unexpected_prompt` (new error kind, exit 14 non-live; recoverable `ok=false` live) instead of silently defaulting to NO — closing the doc-38 silent-NO hole. NO new prompt support; cata_test/normal play unchanged; the `uilist` family (move-into-NPC) is audited but DEFERRED (resolved in Spike 21); doc 42 | ✅                                      |
+| 21    | **fail-loud for unarmed `uilist` (the deferred Spike 20 follow-up):** `uilist::query` now reports `unexpected_prompt` for the UNARMED case during an active session (reusing the Spike 20 channel, NO new error kind), so `move_n` AND `examine move_n` into the NPC Edwardo fail loud instead of silently auto-cancelling the npc_menu. The old move-into-NPC `blocked_no_op` baseline is retired; a genuine terrain block (`ArcopolisWallTest`, `t_wall`) is the replacement `blocked_no_op` witness. NO NPC-menu / generic-uilist / INVENTORY support; armed 13B/14/15 paths + cata_test unchanged; doc 43 | ✅                                      |
 
 ## Source & tests
 
@@ -499,20 +507,24 @@ analysis [17_MONSTER_LOAD_AND_WALL_EJECT.md](17_MONSTER_LOAD_AND_WALL_EJECT.md).
 the item-export witness with **no** save edit; `export(items_before) → wait → export(items_after_wait)`); see
 [19_SPIKE8A_ITEM_EXPORT.md](19_SPIKE8A_ITEM_EXPORT.md).
 [`docs/arcopolis/client_harness_regression.ps1`](client_harness_regression.ps1) gates the **Spike 9A client
-harness** end-to-end on **`ArcopolisTest`** (one session `export → move_n → export → move_s → export → wait →
-export`; asserts the harness classifies `blocked_no_op` (naming Edwardo from the before-snapshot bundle),
-`moved`, `waited`, and the final `no_command` pair, that the HTML view/inspector carries the blocker, that
-run mode reproduces the sequence, and that the Spike 4 viewer accepts the same session; plus a
-monster-fixture run-mode gate on **`ArcopolisNearMonsterTest`** — `waited` tick with ≥1 exported monster,
-the `M` cell rendered, and the inspector listing the Spike 6B witness on its tile); see
-[20_SPIKE9A_CLIENT_HARNESS.md](20_SPIKE9A_CLIENT_HARNESS.md).
+harness** end-to-end on **`ArcopolisTest`** (7 gates, updated for Spike 21): a run-mode `move_n` into Edwardo
+now **fails loud** (`run.exit_meaning=unexpected_prompt`, exit 14 — no longer `blocked_no_op`), with the
+`start` bundle still naming the NPC; a normal `move_s,wait` run classifies `moved,waited,no_command`; the
+genuine `blocked_no_op` is witnessed by a `move_e` into **`ArcopolisWallTest`**'s `t_wall` (outcome
+`blocked_no_op` + the harness reading the real `t_wall` destination — `blocked_by=terrain` is **not**
+asserted, `seen=false` headlessly); the HTML view/inspector still carries the blocker; and the Spike 4 viewer
+accepts the session; plus a monster-fixture run-mode gate on **`ArcopolisNearMonsterTest`** — `waited` tick
+with ≥1 exported monster, the `M` cell rendered, and the inspector listing the Spike 6B witness on its tile);
+see [20_SPIKE9A_CLIENT_HARNESS.md](20_SPIKE9A_CLIENT_HARNESS.md) and
+[43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md](43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md).
 [`docs/arcopolis/live_protocol_regression.ps1`](live_protocol_regression.ps1) gates the **Spike 9B live
 protocol** end-to-end on **`ArcopolisTest`**: the harness `live` probe drives ONE persistent backend
 (`ready` → `export start` → `move_n` → `move_s` → `wait` → `quit`, one request per response, every
-stdout line verified JSON) and must re-derive the SAME `blocked_no_op,moved,waited,no_command`
-sequence through the unchanged explain pipeline, plus a recoverability scenario (a rejected `move_up`
-answers `ok=false`/`unsupported_command` without ending the session, then a recovery `wait` succeeds);
-see [21_SPIKE9B_LIVE_PROTOCOL.md](21_SPIKE9B_LIVE_PROTOCOL.md).
+stdout line verified JSON) and must re-derive the `unexpected_prompt,moved,waited,no_command`
+sequence through the explain pipeline (Spike 21: `move_n` into Edwardo is now a RECOVERABLE
+`ok=false`/`unexpected_prompt` the harness anchors into its own pair — the session keeps serving), plus a
+recoverability scenario (a rejected `move_up` answers `ok=false`/`unsupported_command` without ending the
+session, then a recovery `wait` succeeds); see [21_SPIKE9B_LIVE_PROTOCOL.md](21_SPIKE9B_LIVE_PROTOCOL.md).
 [`docs/arcopolis/examine_regression.ps1`](examine_regression.ps1) gates the **Spike 11A directed
 examine** on **`ArcopolisTest`** (raw requests through
 [`docs/arcopolis/examine_live_driver.py`](examine_live_driver.py), strict per-response timeouts —
@@ -581,10 +593,11 @@ the Spike 10B diff-UI static-hook gate 2b, the Spike 10C tileset gate 2c — `/t
 config + config-derived sheet PNGs + whitelist/traversal 404s + served UI hooks — the Spike 11B
 gate 2d (the 8 direction buttons + `here` + Move/Examine controls + 8 delta mappings + examine
 dispatch served, the hint no longer "N/S/E/W"), the Spike 11B gate 13 (a fresh restartable
-session_002 that examines move_n/here → `examined`, recoverably rejects examine move_up, and steps
+session_002 that examines `here` → `examined`, recoverably rejects `examine move_n` (Spike 21: now
+`unexpected_prompt`, session survives) and `examine move_up`, and steps
 the **diagonal** move_se → `moved` `[1,1,0]` as a HARD fixture assertion), and the Spike
 10C gate 15, a second `--disable-tileset` server proving the glyph-only fail-safe) and
-asserts the bridge re-derives the SAME `blocked_no_op,moved,waited,no_command` sequence through the
+asserts the bridge re-derives the `unexpected_prompt,moved,waited,no_command` sequence through the
 live protocol, that the backend exits 0 with a final snapshot + transcript, and that the server
 stops cleanly; see [22_SPIKE10A_FRONTEND_PROTOTYPE.md](22_SPIKE10A_FRONTEND_PROTOTYPE.md),
 [23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md](23_SPIKE10B_FRONTEND_SNAPSHOT_DIFF.md),
@@ -598,8 +611,12 @@ never a silent _fake success_. **Caveat (doc 38, narrowed by Spike 20 — [42_SP
 the guarantee covers fabricated success, not every prompt. **Spike 20 closed the worst hole:** an unarmed
 `query_popup`/`query_yn` (incl. via the supported `examine` verb) reached during an **active** session now
 **fails loud** (`unexpected_prompt` — non-live exit 14, live `ok=false`) instead of silently defaulting to NO;
-**outside** a session (cata_test / normal play) it is unchanged. The `uilist` family's silent CANCEL is
-**audited but deferred** (guarding it would flip the witnessed move-into-NPC `blocked_no_op`; doc 42 §6). Line
+**outside** a session (cata_test / normal play) it is unchanged. **Spike 21 closed the matching `uilist`
+hole** ([43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md](43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md)):
+an unarmed `uilist::query` during an active session now **fails loud** the same way, so `move_n` AND
+`examine move_n` into the NPC (the `game::npc_menu` uilist) report `unexpected_prompt` instead of silently
+cancelling — the old move-into-NPC `blocked_no_op` baseline is retired (a genuine terrain block,
+`ArcopolisWallTest`, is the replacement `blocked_no_op` witness). Line
 numbers are current-tree and may drift; confirm by symbol. Centralized here by the Spike 17 audit
 ([37_SPIKE17_CLAIM_AUDIT.md](37_SPIKE17_CLAIM_AUDIT.md)); the level-4 truth pass is
 [38_LEVEL4_TRUTH_AUDIT.md](38_LEVEL4_TRUTH_AUDIT.md).
@@ -616,7 +633,8 @@ numbers are current-tree and may drift; confirm by symbol. Centralized here by t
 | scripted answer missing/wrong-kind/title-mismatch/out-of-range/cancel-of-noncancelable/unused                                                                                                    | `script_prompt_failed` (first-failure-wins)                                                                                              | 13                                | `src/arcopolis_backend_input.cpp`; `src/arcopolis_command.cpp:269-270`                                                                                                                                     |
 | unarmed `query_popup`/`query_yn`/`popup()`/`popup_getkey()`/`PF_GET_KEY`, **during an active session** (incl. any `query_yn` ≠ the deployed-furniture witness, via the supported `examine` verb) | **Spike 20:** `query_once` reports `unexpected_prompt` then returns the safe default as a transport fallback — **FAIL LOUD**, not silent | 14 (non-live) / `ok=false` (live) | `src/popup.cpp` `query_once` → `arcopolis::backend_report_unexpected_prompt`; surfaced `src/arcopolis_export.cpp` (one-shot) / `src/arcopolis_script.cpp` (post-loop) / `src/arcopolis_live.cpp` block (a) |
 | same prompts **outside** an Arcopolis session (cata_test / normal play)                                                                                                                          | `query_once` test_mode abort `{false,"ERROR",{}}` → silent NO — **unchanged**                                                            | — (aborted)                       | `src/popup.cpp` `query_once` (inert: `!backend_session_active()`)                                                                                                                                          |
-| any other `uilist` (cata_test, computer, NPC dialogue, move-into-NPC menu) — **still silent CANCEL** (Spike 20 audited the guard but DEFERRED it; doc 42 §6)                                     | test_mode abort → `UILIST_ERROR` (silent)                                                                                                | —                                 | `src/ui.cpp:933-937` (gated on per-transaction `backend_uilist_transaction_active()`)                                                                                                                      |
+| unarmed `uilist` **during an active session** (the `game::npc_menu` reached by `move`/`examine` into an NPC; the vehicle `interact_with` "Select an action" `uilist` reached by `examine` of a vehicle tile; computer/monster menus) — **Spike 21:** `query` reports `unexpected_prompt` then returns `UILIST_ERROR` as a transport fallback — **FAIL LOUD**, not silent | 14 (non-live) / `ok=false` (live) | `src/ui.cpp` `uilist::query` → `arcopolis::backend_report_unexpected_prompt`; surfaced as for `query_popup` (doc 43) |
+| same unarmed `uilist` **outside** an Arcopolis session (cata_test / normal play)                                                                                                                | test_mode abort → `UILIST_ERROR` (silent) — **unchanged**                                                                                | — (aborted)                       | `src/ui.cpp` `uilist::query` (inert: `!backend_session_active()`)                                                                                                                                          |
 | `pickup` under `NEW_PICKUP_MENU=true` / `inventory_selector` (NOT a `uilist`; no narrow `test_mode` abort to pierce — doc 39 §4)                                                                 | reject pre-flight, `unsupported_command`                                                                                                 | 6                                 | `src/arcopolis_live.cpp:213-218` (live); `src/arcopolis_script.cpp:357-365` (run-script)                                                                                                                   |
 
 **Still backlog (no driving claim):** vertical `move` (`<`/`>`); explicit `open`/`close`/`smash`; per-unit

@@ -7,6 +7,14 @@ interaction through the accepted backend input seam — supplying any required t
 avoiding prompt/menu deadlocks, and observing the real engine outcome through snapshots and the
 transcript. The next implementation PR should be based on the decision documented here.
 
+> **Forward-note (Spike 21, 2026-06-20):** where this doc cites the
+> `blocked_no_op,moved,waited,no_command` move/wait baseline as "re-run unchanged", note that Spike 21
+> ([43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md](43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md))
+> later reclassified BOTH `move_n` AND `examine` into an NPC to a fail-loud **`unexpected_prompt`** (they
+> reach the same unarmed `game::npc_menu` uilist, which no longer silently cancels). So that baseline
+> sequence is no longer current; the text below is the point-in-time Spike 11A-prep record. See doc 43 and
+> [ARCOPOLIS_STATE.md](ARCOPOLIS_STATE.md) for current behavior.
+
 ## Why this exists
 
 Every command proven so far (`wait`, `move`) is **one** engine `action_id` consumed at the
