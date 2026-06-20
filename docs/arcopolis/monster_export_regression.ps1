@@ -48,7 +48,7 @@
 [CmdletBinding()]
 param(
     [string]$Exe        = ".\out\build\win-rel-deb\src\cataclysm-bn-tiles.exe",
-    [string]$FixtureSrc = "C:\dev\arcopolis-fixtures\arcopolis_user",
+    [string]$FixtureSrc = "",
     [string]$UserDir    = ".\arcopolis_user",
     [string]$World      = "ArcopolisNearMonsterTest",
     [string]$OutRoot    = ".\out\arco_monster_regress",
@@ -56,6 +56,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# Resolve the fixture root: explicit -FixtureSrc > $env:ARCO_FIXTURE_ROOT > repo-local committed pack
+# (docs/arcopolis/fixtures/arcopolis_user) > optional external dev fallback. See docs/arcopolis/fixtures/README.md.
+. "$PSScriptRoot\arco_fixture_root.ps1"
+if( $FixtureSrc ) { } else { $FixtureSrc = Resolve-ArcoFixtureRoot -ScriptDir $PSScriptRoot }
 
 # Fatal-prereq helper: print to stderr and exit with a SPECIFIC code. A bare `Write-Error; exit N` does NOT
 # work under `$ErrorActionPreference = "Stop"`: Write-Error throws a terminating error that unwinds BEFORE
@@ -73,7 +77,7 @@ if( -not (Test-Path $Exe) ) {
     Stop-WithCode "Binary not found: $Exe  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
 if( -not (Test-Path $FixtureSrc) ) {
-    Stop-WithCode "Fixture source directory not found: $FixtureSrc" 4
+    Stop-WithCode "Fixture source directory not found: $FixtureSrc  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4
 }
 # The monster fixture world must already exist inside the fixture userdir (doc 16 creates it). Use $World
 # in the path so a rename stays correct; the layout is ...\arcopolis_user\save\<World>\.
