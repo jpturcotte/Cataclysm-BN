@@ -109,10 +109,21 @@ auto live_next_action() -> action_id
     if( pump.pending ) {
         const auto pending = *pump.pending;
         pump.pending.reset();
+        // Spike 20 FAIL LOUD: the just-finished command may have reached an UNARMED player-visible prompt
+        // during its do_turn (a query_yn etc. that would silently test_mode-default to NO/CANCEL).
+        // backend_report_unexpected_prompt recorded a RECOVERABLE pending error; take it now. Reporting it
+        // ok=false (NOT a success snapshot) keeps the command from looking successful while hiding a lost
+        // interaction; the session stays open because query_once's fallback was a safe cancel/default the
+        // engine already handled. Take it BEFORE the pickup outcome so it is reported even on a pickup turn.
+        const auto unexpected = arcopolis::backend_take_unexpected_prompt_error();
         // Spike 12A follow-up: a pickup command may have met an UNSUPPORTED in-action prompt the
         // transaction cannot drive (the guard recorded which, surviving the seam's stale-clear).
         const auto outcome = arcopolis::backend_take_pickup_outcome();
-        if( outcome == arcopolis::pickup_command_outcome::unsupported_submenu ) {
+        if( unexpected ) {
+            send_error( { .id = pending.id, .op = "command",
+                          .code = arcopolis::live_error_code::unexpected_prompt,
+                          .message = unexpected->detail } );
+        } else if( outcome == arcopolis::pickup_command_outcome::unsupported_submenu ) {
             // The pre-menu vehicle "Get items from where?" submenu: FAIL LOUD instead of a success
             // snapshot. The guard already force-cancelled it (pick_up returned early, no pickup), so no
             // state changed; answer unsupported_command and keep serving (recoverable). Writing no
@@ -518,6 +529,8 @@ auto arcopolis::live_error_code_name( live_error_code code ) -> std::string
             return "bad_request";
         case live_error_code::unsupported_command:
             return "unsupported_command";
+        case live_error_code::unexpected_prompt:
+            return "unexpected_prompt";
         case live_error_code::export_failed:
             return "export_failed";
         case live_error_code::game_over:

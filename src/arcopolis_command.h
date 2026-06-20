@@ -53,6 +53,10 @@ enum class command_error_kind {
     script_prompt_failed,  ///< a non-live script's declared prompt answer did not match the open prompt
     ///< (missing / wrong kind / title / out-of-range / cancel-on-noncancelable /
     ///< unused) -- fatal, the run aborts honestly rather than silently succeed (Spike 16)
+    unexpected_prompt,    ///< an UNARMED player-visible prompt/query was reached during an active Arcopolis
+    ///< session and would otherwise silently default/cancel under test_mode -- recorded so the command
+    ///< fails loud (non-live: fatal, exit 14; live: a recoverable per-request ok=false) instead of
+    ///< reporting a hidden lost interaction as success (Spike 20)
 };
 
 /// A command failure: a machine-readable kind plus a human-readable detail for stderr.

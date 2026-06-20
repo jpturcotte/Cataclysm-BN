@@ -926,6 +926,9 @@ TEST_CASE( "arcopolis backend-driven query_popup runs query() headless with NO w
             action = popup.query().action;  // drives the real query_once loop through the seam
         }
         CHECK_FALSE( popup.has_window() );  // the load-bearing invariant: NO curses window was created
+        // Spike 20: the ARMED witnessed query() must NOT trip the unexpected-prompt fail-loud (query_once did
+        // not abort -- the gate was on -- so backend_report_unexpected_prompt was never called).
+        CHECK_FALSE( arcopolis::backend_session_failure().has_value() );
         arcopolis::end_backend_session();
         return action;
     };
@@ -941,6 +944,48 @@ TEST_CASE( "arcopolis cata_test query_popup still aborts without a backend sessi
     // false here, so the abort is taken and no input_context loop runs.
     REQUIRE_FALSE( arcopolis::backend_query_popup_transaction_active() );
     CHECK_FALSE( query_yn( "Take down the mattress?" ) );
+}
+
+TEST_CASE( "arcopolis unarmed query_popup during a session fails loud (non-live)", "[arcopolis]" )
+{
+    // Spike 20 -- the honesty hole this spike closes. During an ACTIVE NON-LIVE backend session (script /
+    // one-shot) a query_yn Arcopolis did NOT arm as a witnessed transaction reaches query_once's test_mode
+    // abort. Before Spike 20 it silently returned NO (exit 0, unmarked) -- a hidden lost interaction that made
+    // an unsupported path look successful. Now the abort site records a FATAL unexpected_prompt failure (the
+    // run surfaces it as exit 14, and `done` stops the steps walk) while STILL returning the safe default NO
+    // as a mere transport fallback. No transaction is armed and there is no live_source, so this is the
+    // script/one-shot (non-live) path. Contrast: the cata_test case above (no session) keeps the plain abort.
+    arcopolis::begin_backend_session( { .steps = {} } );  // non-live: no live_source, nothing armed
+    REQUIRE_FALSE( arcopolis::backend_query_popup_transaction_active() );
+    REQUIRE_FALSE( arcopolis::backend_session_failure().has_value() );
+    CHECK_FALSE( query_yn( "Slip through the door?" ) );   // safe default NO (transport fallback)
+    REQUIRE( arcopolis::backend_session_failure().has_value() );
+    CHECK( arcopolis::backend_session_failure()->kind ==
+           arcopolis::command_error_kind::unexpected_prompt );
+    CHECK( arcopolis::backend_input_done() );              // non-live: `done` set so the steps walk stops
+    arcopolis::end_backend_session();
+}
+
+TEST_CASE( "arcopolis unarmed query_popup during a LIVE session is recoverable", "[arcopolis]" )
+{
+    // Spike 20 (live): the SAME unarmed query_yn during a LIVE session is RECOVERABLE. It records a PENDING
+    // unexpected_prompt error the per-request runner surfaces as a visibly-failed ok=false response (NOT a
+    // fatal session failure), so the session keeps serving -- the engine already handled query_once's fallback
+    // as a safe cancel/default. `failure` / `done` stay UNSET; backend_take_unexpected_prompt_error() returns
+    // and clears the pending error.
+    arcopolis::begin_backend_session( { .steps = {},
+                                        .live_source = []() -> action_id { return ACTION_NULL; } } );
+    REQUIRE_FALSE( arcopolis::backend_query_popup_transaction_active() );
+    CHECK_FALSE( query_yn( "Slip through the door?" ) );              // safe default NO
+    CHECK_FALSE( arcopolis::backend_session_failure().has_value() );  // NOT fatal in live mode
+    CHECK_FALSE(
+        arcopolis::backend_input_done() );                   // session stays open (recoverable)
+    const auto taken = arcopolis::backend_take_unexpected_prompt_error();
+    REQUIRE( taken.has_value() );
+    CHECK( taken->kind == arcopolis::command_error_kind::unexpected_prompt );
+    CHECK_FALSE(
+        arcopolis::backend_take_unexpected_prompt_error().has_value() );  // cleared after the take
+    arcopolis::end_backend_session();
 }
 
 // --- Spike 16: non-live SCRIPT prompt sources. These prove that a scripted answer, consumed by the script

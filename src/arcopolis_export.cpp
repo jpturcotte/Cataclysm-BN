@@ -448,7 +448,18 @@ auto arcopolis::export_current_view( const export_current_view_options &opts ) -
             .steps = { { .op = "command", .command = cmd->command, .direction = cmd->direction } },
         } );
         g->do_turn();
+        // Spike 20 FAIL LOUD: if the command reached an UNARMED player-visible prompt during do_turn (a
+        // query_yn etc. that would silently test_mode-default to NO/CANCEL), backend_report_unexpected_prompt
+        // recorded a fatal failure. Surface it as the exit code HERE -- BEFORE the success snapshot below --
+        // so a hidden lost interaction never produces success-looking output (amendment 3). One-shot arms no
+        // prompt transaction, so e.g. an `examine` of deployed furniture (which raises query_yn) fails loud
+        // here rather than silently answering NO. Capture before end_backend_session() clears the state.
+        const auto prompt_failure = backend_session_failure();
         end_backend_session();
+        if( prompt_failure ) {
+            std::cerr << "arcopolis: " << prompt_failure->detail << "\n";
+            return exit_code_for( prompt_failure->kind );
+        }
     }
 
     if( !write_current_view( opts.output_path, std::nullopt ) ) {

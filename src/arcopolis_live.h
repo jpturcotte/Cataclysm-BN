@@ -32,6 +32,9 @@ enum class live_error_code {
     malformed_json,       ///< the line is not a well-formed JSON object
     bad_request,          ///< structurally invalid: missing/mistyped field, unknown op, invalid name
     unsupported_command,  ///< vocabulary rejection: unknown verb or unsupported direction
+    unexpected_prompt,    ///< RECOVERABLE: the command reached an UNARMED player-visible prompt that would
+    ///< have silently test_mode-defaulted; reported ok=false (never success) and the session keeps serving
+    ///< (Spike 20). The engine already handled query_once's fallback as a safe cancel/default.
     export_failed,        ///< a snapshot could not be written (fatal; process exits 9)
     game_over,            ///< the game ended while a command was in flight (fatal; process exits 11)
     backend_stalled,      ///< the engine stopped consuming input (fatal; process exits 10)

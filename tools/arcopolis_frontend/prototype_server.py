@@ -36,7 +36,10 @@ and docs/arcopolis/21_SPIKE9B_LIVE_PROTOCOL.md):
               is the same clean path without a response line.
   * errors:   {"type":"response",...,"ok":false,["op",]"error":{"code",
               "message"}}. Recoverable codes (session continues):
-              malformed_json, bad_request, unsupported_command. Fatal codes
+              malformed_json, bad_request, unsupported_command, and
+              unexpected_prompt (Spike 20: a command reached an UNARMED
+              player-visible prompt and was failed loud - ok:false, never a
+              success snapshot - WHILE the backend keeps serving). Fatal codes
               (process exits right after responding): export_failed(exit 9),
               backend_stalled(exit 10), game_over(exit 11).
   * a command response is DEFERRED to the next input-rest instant, so the
@@ -110,8 +113,17 @@ LIVE_PROTOCOL_VERSION = 1
 EXPECTED_SCHEMA_VERSION = 1
 
 # Recoverable protocol rejections: the backend answers ok:false and the session
-# keeps accepting requests (src/arcopolis_live.h, live_error_code).
-RECOVERABLE_ERROR_CODES = {"malformed_json", "bad_request", "unsupported_command"}
+# keeps accepting requests (src/arcopolis_live.h, live_error_code). unexpected_prompt
+# is Spike 20's fail-loud code: a command that reached an UNARMED player-visible
+# prompt is reported ok:false (never a success snapshot) WHILE the session stays
+# open - so it MUST be classified recoverable here, not fatal, or _op_backend_step
+# would reap and kill a backend that is deliberately still serving.
+RECOVERABLE_ERROR_CODES = {
+    "malformed_json",
+    "bad_request",
+    "unsupported_command",
+    "unexpected_prompt",
+}
 
 # Backend process exit codes for the live mode (doc 21; arcopolis_live.h).
 BACKEND_EXIT_MEANINGS = {
