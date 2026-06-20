@@ -124,9 +124,12 @@ terrain block**:
 The client harness now classifies the move-into-NPC outcome **distinctly** as `unexpected_prompt` (a new
 outcome in `tools/arcopolis_client/harness.py`'s `OUTCOMES`) — never from the deltas alone, since a
 fail-loud no-op and a genuine block have identical snapshots. The two surfacings differ by mode:
-**non-live** aborts the run (no after-snapshot, so no export pair forms) and is reported via the backend
-exit code (`run.exit_meaning=unexpected_prompt`) plus the top-level `model["errors"]` — `classify_pair` is
-not even reached in run mode; **live** is recoverable, so `cmd_live` anchors the failed command into its own
+**non-live** aborts the run (no after-snapshot, so no export pair forms) and `cmd_run` reports it via the
+backend exit code alone — it emits only the `run` block (`run.exit_meaning=unexpected_prompt`) and exits 1
+*before* `build_explain_model`, so neither `classify_pair` nor the top-level `model["errors"]` is produced
+in the aborting path (`model["errors"]` is built by `build_explain_model`, reached only by a separate
+`explain` of the saved session dir, or by a run that exited 0); **live** is recoverable, so `cmd_live`
+anchors the failed command into its own
 export pair carrying the `prompt_failed` marker, and `classify_pair` keys on that marker to label the pair
 `unexpected_prompt` (the per-pair `errors` disjunct in `classify_pair` is defensive only). Either way it
 still shows the NPC destination in the explanation when inferable from the before snapshot.

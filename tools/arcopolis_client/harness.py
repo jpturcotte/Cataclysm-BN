@@ -725,9 +725,9 @@ def classify_pair(pair, before_snap, after_snap):
     # backend fails loud rather than silently auto-cancelling it. In LIVE mode this is the RECOVERABLE
     # prompt_failed marker, which cmd_live anchors into its OWN export pair -- that is the path that
     # actually drives this branch. The pair["errors"] disjunct below is DEFENSIVE only: a NON-LIVE
-    # fail-loud aborts the run (done=true, no after-snapshot) so its error event forms NO export pair and
-    # is surfaced via run.exit_meaning / the top-level model["errors"], not here (classify_pair is not even
-    # reached in run mode). The snapshots can look identical to a genuine blocked_no_op (no move, no tick),
+    # fail-loud aborts the run (done=true, no after-snapshot) so its error event forms NO export pair: cmd_run
+    # emits only the run block (run.exit_meaning) and exits 1 BEFORE build_explain_model, so classify_pair
+    # (and model["errors"]) never run for it. The snapshots can look identical to a genuine blocked_no_op,
     # so the outcome is decided by the RECORDED EVENT, never the deltas alone. Checked BEFORE the delta
     # dispatch so a no-op fail-loud is never mislabeled blocked_no_op.
     unexpected = (any(e.get("kind") == "unexpected_prompt" for e in pair.get("errors", []))
