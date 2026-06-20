@@ -80,6 +80,13 @@ Mode surfacing:
   `unexpected_prompt` response (new `live_error_code::unexpected_prompt`) for that request and keeps serving —
   the command is NOT reported successful and the transcript marks it failed, but the session stays open
   (recoverable, because `query_once`'s fallback was a safe cancel/default the engine already handled).
+- **In-repo live consumer** (`tools/arcopolis_frontend/prototype_server.py`): because the live protocol's
+  recoverable-error set gained `unexpected_prompt`, the prototype bridge adds it to `RECOVERABLE_ERROR_CODES`.
+  Without that, `_op_backend_step` would treat the `ok=false`/`unexpected_prompt` as **fatal** — `reap()` the
+  backend and block waiting for an exit it deliberately does NOT make — falsely killing a still-serving session,
+  contradicting the recoverable contract above. (The Spike 9A client harness `tools/arcopolis_client/harness.py`
+  needs no change: it keeps no recoverable set, and its scripted live commands — wait/move + the `move_up`
+  negative probe — never reach an unarmed prompt.)
 
 ## 4. Why this adds no prompt support
 
@@ -148,6 +155,13 @@ makes that silent default **observable and fatal/visible** instead of hidden.
   `prompt_menu`) were not re-run this session; the unit tests + the static `uilist`-untouched fact (§6) cover
   their invariants. The `uilist` move-into-NPC `blocked_no_op` is unchanged by construction (no `src/ui.cpp`
   edit).
+- **Frontend bridge consumer fix (follow-up after the [#50](https://github.com/jpturcotte/Cataclysm-BN/pull/50)
+  review):** `tools/arcopolis_frontend/prototype_server.py` added `unexpected_prompt` to
+  `RECOVERABLE_ERROR_CODES` (see §3). `python -m py_compile` clean; `"unexpected_prompt" in
+  RECOVERABLE_ERROR_CODES` asserted by import; `frontend_prototype_regression.ps1` (run with `pwsh` against the
+  built exe) — **all 18 gates pass, exit 0** (the bridge change is non-breaking; the gate-10/13 recoverable
+  rejection paths still behave). The `[arcopolis]` unit suite was re-run after the fix: **903/141, exit 0**
+  (Python-only change; the C++ binary is unaffected).
 
 ### 7a. query_popup_regression result
 
