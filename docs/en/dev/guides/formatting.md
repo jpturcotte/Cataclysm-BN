@@ -93,6 +93,26 @@ curl -fsSL https://deno.land/install.sh | sh
 deno fmt
 ```
 
+> [!CAUTION]
+> `deno.jsonc` sets the `json.trailingCommas` fmt option, which requires **Deno 2.8.3 or newer**
+> (added in [denoland/deno#33383](https://github.com/denoland/deno/pull/33383)). Older Deno aborts
+> with `error: Failed to parse "fmt" configuration ... unknown field 'json.trailingCommas'` and
+> cannot format locally at all. The target version is pinned in `.dvmrc` (the
+> [dvm](https://github.com/justjavac/dvm) version file); CI installs the latest stable, which
+> satisfies it.
+
+### Frozen and generated data
+
+`deno fmt` rewrites every file under its `fmt.include` roots. Committed data that must stay
+**byte-for-byte identical** to what produced it — regression fixtures (e.g. the Arcopolis save
+worlds), generated snapshots, vendored blobs — has to be kept out of the formatter, or its bytes are
+rewritten and either break the `autofix` check or corrupt the input.
+
+Put such data under a `fixtures/` directory: any `fixtures/` directory is excluded automatically by
+the `**/fixtures/**` entry in `deno.jsonc`'s `fmt.exclude`, so new fixtures need no config change.
+Frozen or generated data that cannot live under `fixtures/` needs its own explicit `fmt.exclude`
+entry.
+
 ## Lua Formatting
 
 Lua files are formatted with [dprint](https://dprint.dev/) via Deno.
