@@ -660,18 +660,24 @@ TEST_CASE( "arcopolis unarmed uilist during a session fails loud (non-live)", "[
     // armed and there is no live_source, so this is the script/one-shot (non-live) path. Reported at query()
     // ONLY, so exactly ONE failure is recorded. Contrast: the cata_test case above (no session) records none.
     arcopolis::begin_backend_session( { .steps = {} } );  // non-live: no live_source, nothing armed
-    REQUIRE_FALSE( arcopolis::backend_uilist_transaction_active() );
-    REQUIRE_FALSE( arcopolis::backend_session_failure().has_value() );
+    const bool txn_active_before = arcopolis::backend_uilist_transaction_active();
+    const bool failure_before = arcopolis::backend_session_failure().has_value();
     const std::string msgs = capture_debugmsg_during( []() {
         uilist menu( "What to do with Edwardo Stovall?", { "Talk", "Attack" } );
         CHECK( menu.ret == UILIST_ERROR );    // safe default still returned (transport fallback)
     } );
-    CHECK_FALSE( msgs.empty() );
-    REQUIRE( arcopolis::backend_session_failure().has_value() );
-    CHECK( arcopolis::backend_session_failure()->kind ==
-           arcopolis::command_error_kind::unexpected_prompt );
-    CHECK( arcopolis::backend_input_done() );              // non-live: `done` set so the steps walk stops
+    // Capture state, THEN end the session, THEN assert -- so a failed assertion can never skip
+    // end_backend_session() and leak the static session into later tests (these are global-session tests).
+    const auto failure = arcopolis::backend_session_failure();
+    const bool done = arcopolis::backend_input_done();
     arcopolis::end_backend_session();
+
+    CHECK_FALSE( txn_active_before );
+    CHECK_FALSE( failure_before );
+    CHECK_FALSE( msgs.empty() );
+    REQUIRE( failure.has_value() );
+    CHECK( failure->kind == arcopolis::command_error_kind::unexpected_prompt );
+    CHECK( done );                                         // non-live: `done` set so the steps walk stops
 }
 
 TEST_CASE( "arcopolis unarmed uilist during a LIVE session is recoverable", "[arcopolis]" )
@@ -684,21 +690,29 @@ TEST_CASE( "arcopolis unarmed uilist during a LIVE session is recoverable", "[ar
     // query_popup live test.
     arcopolis::begin_backend_session( { .steps = {},
                                         .live_source = []() -> action_id { return ACTION_NULL; } } );
-    REQUIRE_FALSE( arcopolis::backend_uilist_transaction_active() );
+    const bool txn_active_before = arcopolis::backend_uilist_transaction_active();
     const std::string msgs = capture_debugmsg_during( []() {
         uilist menu( "What to do with Edwardo Stovall?", { "Talk", "Attack" } );
         CHECK( menu.ret == UILIST_ERROR );                           // safe default
     } );
-    CHECK_FALSE( msgs.empty() );
-    CHECK_FALSE( arcopolis::backend_session_failure().has_value() );  // NOT fatal in live mode
-    CHECK_FALSE(
-        arcopolis::backend_input_done() );                   // session stays open (recoverable)
+    // Capture state -- incl. BOTH takes (the first should yield the pending error, the second clear it) --
+    // THEN end the session, THEN assert, so a failed assertion can never leak the static session.
+    const bool failure_present =
+        arcopolis::backend_session_failure().has_value();  // NOT fatal in live mode
+    const bool done =
+        arcopolis::backend_input_done();                  // session stays open (recoverable)
     const auto taken = arcopolis::backend_take_unexpected_prompt_error();
+    const bool second_take_present =
+        arcopolis::backend_take_unexpected_prompt_error().has_value();  // cleared after the first take
+    arcopolis::end_backend_session();
+
+    CHECK_FALSE( txn_active_before );
+    CHECK_FALSE( msgs.empty() );
+    CHECK_FALSE( failure_present );
+    CHECK_FALSE( done );
     REQUIRE( taken.has_value() );
     CHECK( taken->kind == arcopolis::command_error_kind::unexpected_prompt );
-    CHECK_FALSE(
-        arcopolis::backend_take_unexpected_prompt_error().has_value() );  // cleared after the take
-    arcopolis::end_backend_session();
+    CHECK_FALSE( second_take_present );
 }
 
 TEST_CASE( "arcopolis backend uilist setup populates state but creates NO curses window",
