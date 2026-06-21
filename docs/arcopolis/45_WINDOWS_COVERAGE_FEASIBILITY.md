@@ -551,6 +551,9 @@ Import-Module (Join-Path $vsPath "Common7\Tools\Microsoft.VisualStudio.DevShell.
 Enter-VsDevShell -VsInstallPath $vsPath -SkipAutomaticLocation -DevCmdArguments "-arch=x64 -host_arch=x64"
 $env:VCPKG_ROOT = Join-Path $vsPath "VC\vcpkg"
 
+$RepoRoot = "<repo-root>"    # <-- set to your checkout; every relative path below assumes this is the cwd
+Set-Location $RepoRoot
+
 # scratch toolchain = copy of build-scripts/MSVC.cmake with:
 #   CMAKE_C/CXX_COMPILER = C:/Program Files/LLVM/bin/clang-cl.exe
 #   CMAKE_MSVC_DEBUG_INFORMATION_FORMAT ""                       # no debug info -> small build
@@ -558,7 +561,7 @@ $env:VCPKG_ROOT = Join-Path $vsPath "VC\vcpkg"
 #   + C:/PROGRA~1/LLVM/lib/clang/22/lib/windows/clang_rt.profile-x86_64.lib   # link (plain lib!)
 #   (PROGRA~1 assumes 8.3 short names are enabled; `22` = your installed LLVM major version)
 
-cmake -S <repo-root> -B <repo-root>\out\build\win-llvm-cov -G Ninja `
+cmake -S $RepoRoot -B $RepoRoot\out\build\win-llvm-cov -G Ninja `
   -DCMAKE_BUILD_TYPE=RelWithDebInfo `
   -DCMAKE_PROJECT_INCLUDE_BEFORE="...\build-scripts\windows-tiles-sounds-x64-msvc.cmake" `
   -DCMAKE_TOOLCHAIN_FILE="C:\tmp\arco-llvm-cov-toolchain.cmake" `
@@ -570,12 +573,12 @@ cmake -S <repo-root> -B <repo-root>\out\build\win-llvm-cov -G Ninja `
 New-Item -ItemType Directory -Force C:\tmp\arco-cov-shim | Out-Null
 $null | Set-Content C:\tmp\arco-cov-shim\cxxabi.h
 $env:INCLUDE = "C:\tmp\arco-cov-shim;$env:INCLUDE"
-cmake --build <repo-root>\out\build\win-llvm-cov --target cata_test-tiles -- -j4   # exit 0
+cmake --build $RepoRoot\out\build\win-llvm-cov --target cata_test-tiles -- -j4   # exit 0
 
 # --- run the suite under coverage (child cwd = repo root) ---
-$env:LLVM_PROFILE_FILE = "<repo-root>\out\coverage-llvm\arco-%p.profraw"
+$env:LLVM_PROFILE_FILE = "$RepoRoot\out\coverage-llvm\arco-%p.profraw"
 Start-Process ...\win-llvm-cov\tests\cata_test-tiles.exe -ArgumentList "[arcopolis]" `
-  -WorkingDirectory <repo-root> -NoNewWindow -Wait                          # 920 assertions pass
+  -WorkingDirectory $RepoRoot -NoNewWindow -Wait                          # 920 assertions pass
 
 # --- merge + report ---
 & "C:\Program Files\LLVM\bin\llvm-profdata.exe" merge -sparse out\coverage-llvm\arco-*.profraw `
@@ -594,21 +597,28 @@ $arco = (Get-ChildItem src\arcopolis_*.cpp).FullName   # PS does NOT glob native
 $env:CL = "/DARCO_COV_FLUSH"                                  # compile the guarded flush in
 cmake --build out\build\win-llvm-cov --target cataclysm-bn-tiles -- -j4    # game exe, exit 0
 
-Push-Location <repo-root>                             # child cwd = repo root (data/)
-foreach ($s in $nine_regressions) {                          # *_regression.ps1, -Exe = cov exe
+# (assumes cwd = $RepoRoot, set above; for a standalone run first: $RepoRoot = "<repo-root>"; Set-Location $RepoRoot)
+$nine_regressions = @(                                        # the nine fixture regressions run under coverage
+  'movement_regression.ps1', 'item_export_regression.ps1', 'npc_export_regression.ps1',
+  'monster_export_regression.ps1', 'examine_regression.ps1', 'prompt_menu_regression.ps1',
+  'query_popup_regression.ps1', 'script_prompt_regression.ps1', 'live_protocol_regression.ps1'
+)
+foreach ($s in $nine_regressions) {                          # -Exe = cov exe
   $env:LLVM_PROFILE_FILE = "out\coverage-llvm\regress-%p.profraw"
   pwsh -File docs\arcopolis\$s -Exe out\build\win-llvm-cov\src\cataclysm-bn-tiles.exe
-  llvm-profdata merge -sparse out\coverage-llvm\regress-*.profraw [regress.profdata] `
-    -o out\coverage-llvm\regress.profdata                     # incremental merge...
-  Remove-Item out\coverage-llvm\regress-*.profraw            # ...then delete raws (disk)
+  $prior = if (Test-Path out\coverage-llvm\regress.profdata) { 'out\coverage-llvm\regress.profdata' } else { @() }
+  llvm-profdata merge -sparse out\coverage-llvm\regress-*.profraw $prior `
+    -o out\coverage-llvm\regress.profdata                     # incremental merge (accumulate in place)
+  Remove-Item out\coverage-llvm\regress-*.profraw            # then delete raws (bound disk)
 }
 git checkout -- src\main.cpp                                  # REVERT the local flush hook
 
 # combined (Catch2 tests UNION regressions), reported vs the game binary:
 llvm-profdata merge -sparse out\coverage-llvm\arco.profdata out\coverage-llvm\regress.profdata `
   -o out\coverage-llvm\combined.profdata
+$arco = (Get-ChildItem src\arcopolis_*.cpp).FullName   # re-derive: §5.3 $arco may be out of scope here
 llvm-cov report out\build\win-llvm-cov\src\cataclysm-bn-tiles.exe `
-  -instr-profile=out\coverage-llvm\combined.profdata @arco    # @arco from the Get-ChildItem above
+  -instr-profile=out\coverage-llvm\combined.profdata @arco
 ```
 
 ## Appendix B — local artifacts not committed
