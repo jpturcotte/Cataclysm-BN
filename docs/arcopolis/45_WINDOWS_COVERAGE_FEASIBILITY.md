@@ -179,9 +179,10 @@ disk watchdog (abort if free `C:` < 3.5 GB) with `win-rel-deb` left untouched. O
   "Arcopolis coverage claims" block.
 - **No coverage artifacts tracked**: `git ls-files` for `*.profraw`/`*.profdata`/`*.coverage`/
   `out/*` is empty; `out/` is gitignored.
-- **No C++ source changed.** The `demangle.cpp` portability gap was handled with an empty
-  `cxxabi.h` shim on the build `INCLUDE` path (under `C:\tmp`), not a source edit. The clean
-  one-line fix is left as a recommended follow-up (Section 9).
+- **No C++ source changed** (in this spike's commit). The `demangle.cpp` portability gap was
+  handled with an empty `cxxabi.h` shim on the build `INCLUDE` path (under `C:\tmp`), not a
+  source edit. The clean one-line fix was left as a recommended follow-up (Section 9) and
+  **has since landed in PR #58**.
 - **No regression expectations changed**; no regression script modified.
 - **`win-rel-deb` not converted**: the coverage build is a separate `out/build/win-llvm-cov`
   dir; the normal build's exe mtime is unchanged. The main checkout has no tracked-file
@@ -306,10 +307,12 @@ preset, so the build reused the proven MSVC/vcpkg setup and only swapped the com
      `#if defined(__GNUC__) || defined(__clang__)`, but **clang-cl defines `__clang__` while
      using the MSVC STL, which has no `cxxabi.h`**. The actual `abi::__cxa_demangle` calls
      sit behind a `#if defined(_MSC_VER)`-first guard, so under clang-cl they are never
-     compiled — the header is unused. Fix used here: an **empty `cxxabi.h` shim** on the
-     build `INCLUDE` path (no source edit). The clean upstream fix is a one-line guard,
-     `#if (defined(__GNUC__) || defined(__clang__)) && !defined(_MSC_VER)` — recommended as
-     a tiny follow-up (Section 9), out of scope for this docs PR.
+     compiled — the header is unused. Fix used here (at spike time): an **empty `cxxabi.h`
+     shim** on the build `INCLUDE` path (no source edit). The clean one-line guard,
+     `#if (defined(__GNUC__) || defined(__clang__)) && !defined(_MSC_VER)`, **has since landed
+     in `src/demangle.cpp` (PR #58)** — so a clang-cl build now compiles `demangle.cpp`
+     directly and the shim is no longer required; it is kept here only as the spike's original
+     method.
 
 Build: `cmake --build out/build/win-llvm-cov --target cata_test-tiles -- -j4` → exit 0,
 `tests/cata_test-tiles.exe` (349 MB). `win-rel-deb` was untouched throughout (exe mtime
@@ -488,10 +491,11 @@ It also matches the project's existing clang CI toolchain, so the same instrumen
 flags port to Linux CI later with no surprises. Path A would require a VS Enterprise license
 or a third-party native tool (e.g. OpenCppCoverage) — both out of scope here.
 
-The only friction for Path B is two small, well-understood build-environment items, neither
-a tracked-source change: link the LLVM profile runtime lib (CMake invokes `lld-link`
-directly), and a one-line `demangle.cpp` include-guard fix (or the empty-`cxxabi.h` shim
-used here).
+The only friction for Path B is two small, well-understood items: link the LLVM profile
+runtime lib (a build-environment step — CMake invokes `lld-link` directly), and the
+`demangle.cpp` `<cxxabi.h>` include under clang-cl — **now fixed in tree by a one-line
+include guard (PR #58)**, so it no longer needs the empty-`cxxabi.h` shim used during the
+spike.
 
 ## 8. What this does not prove
 
@@ -519,7 +523,7 @@ used here).
 
 Recommended single next PR: **land the clang-cl coverage path as an optional local recipe.**
 
-1. **One-line source fix** so a clang-cl Windows build needs no shim:
+1. **One-line source fix — ✅ done (PR #58).** So a clang-cl Windows build needs no shim:
    `demangle.cpp:3` → `#if (defined(__GNUC__) || defined(__clang__)) && !defined(_MSC_VER)`.
    (Tiny, behavior-neutral; the MSVC stub path is already what `cl.exe` uses.)
 2. **Optional local coverage recipe**, not a CI gate: document the clang-cl toolchain
@@ -569,7 +573,8 @@ cmake -S $RepoRoot -B $RepoRoot\out\build\win-llvm-cov -G Ninja `
   -DCURSES=False -DLOCALIZE=True -DJSON_FORMAT=OFF -DDYNAMIC_LINKING=False `
   "-DVCPKG_INSTALL_OPTIONS=--x-buildtrees-root=C:/tmp/cbn-vb-cov;--x-packages-root=C:/tmp/cbn-vp-cov"
 
-# demangle.cpp shim (no source edit): create the dir + empty cxxabi.h, then prepend to INCLUDE:
+# demangle.cpp shim — NO LONGER NEEDED after the PR #58 include-guard fix; kept for the spike's record.
+# (Pre-#58 workaround: empty cxxabi.h on INCLUDE so clang-cl's unused <cxxabi.h> include resolves.)
 New-Item -ItemType Directory -Force C:\tmp\arco-cov-shim | Out-Null
 $null | Set-Content C:\tmp\arco-cov-shim\cxxabi.h
 $env:INCLUDE = "C:\tmp\arco-cov-shim;$env:INCLUDE"
@@ -624,7 +629,8 @@ llvm-cov report out\build\win-llvm-cov\src\cataclysm-bn-tiles.exe `
 ## Appendix B — local artifacts not committed
 
 All gitignored (`out/` via `.gitignore:91`) or outside the repo (`C:\tmp`). None are
-tracked; all are safe to delete to reclaim disk.
+tracked; all are safe to delete to reclaim disk. The `arco-cov-shim\cxxabi.h` row is now
+obsolete — after the PR #58 include-guard fix a clang-cl build no longer needs the shim.
 
 | Path                                      |    Size | Note                                        |
 | ----------------------------------------- | ------: | ------------------------------------------- |
