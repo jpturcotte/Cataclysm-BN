@@ -283,7 +283,8 @@ unexercised branch correctly flagged) and resolved the Windows source path. ~10 
 ### 5.2 Full instrumented `cata_test-tiles` build (clang-cl 22.1.7)
 
 clang on Windows is viable: `clang-cl` is a cl.exe-compatible driver and is the same
-compiler family already used in Linux CI (LLVM 22 — `.github/workflows/matrix.yml:81`).
+compiler family already used in Linux CI — the clang presets `ci-curses` and `ci-tiles`
+(`.github/workflows/matrix.yml:82,91`).
 The repo hardwires `cl.exe` for Windows (`build-scripts/MSVC.cmake:56-57`) with no clang
 preset, so the build reused the proven MSVC/vcpkg setup and only swapped the compiler:
 
@@ -312,7 +313,10 @@ preset, so the build reused the proven MSVC/vcpkg setup and only swapped the com
 
 Build: `cmake --build out/build/win-llvm-cov --target cata_test-tiles -- -j4` → exit 0,
 `tests/cata_test-tiles.exe` (349 MB). `win-rel-deb` was untouched throughout (exe mtime
-unchanged).
+unchanged). The instrumented binary also passes the **full** suite, not just `[arcopolis]`:
+`cata_test-tiles` with no filter → **957 test cases, 6,710,889 assertions, all passed**
+(exit 0), confirming the clang-cl coverage build is sound engine-wide (whole-suite coverage
+not collected — out of scope; the profile was routed to scratch and deleted).
 
 ### 5.3 Running `[arcopolis]` and the coverage result
 
@@ -320,7 +324,7 @@ unchanged).
 $env:LLVM_PROFILE_FILE = "...\out\coverage-llvm\arco-%p.profraw"
 # child cwd = repo root so SDL_GPU finds data/shaders + the lavapipe ICD
 Start-Process ...\win-llvm-cov\tests\cata_test-tiles.exe -ArgumentList "[arcopolis]" `
-  -WorkingDirectory C:\dev\Cataclysm-BN -Wait
+  -WorkingDirectory <repo-root> -Wait
 llvm-profdata merge -sparse out\coverage-llvm\arco-*.profraw -o out\coverage-llvm\arco.profdata
 llvm-cov report ...\win-llvm-cov\tests\cata_test-tiles.exe -instr-profile=...\arco.profdata <files>
 ```
@@ -466,15 +470,15 @@ edit was the local, reverted `main.cpp` flush hook of 6.2.)
 
 ## 7. Comparison and recommendation
 
-| Criterion                   | A. MSVC / VS coverage                            | B. Windows LLVM source-based                                    |
-| --------------------------- | ------------------------------------------------ | --------------------------------------------------------------- |
-| Available on this machine   | **No** — native collector absent on VS Community | **Yes** — proven end-to-end (clang-cl 22.1.7)                   |
-| Source-level usefulness     | none produced                                    | exact region/line/branch/function, per-file, + HTML             |
-| Disk cost                   | n/a (couldn't run)                               | one-time **3.96 GB** build (test + game) + ~270 MB artifacts    |
-| Setup friction              | needs VS **Enterprise** or a 3rd-party tool      | scratch clang-cl toolchain + 2 build-env fixes (below)          |
-| Repeatability               | blocked                                          | deterministic; identical flags to the Linux CI clang build      |
-| Compat with Arcopolis tests | vstest can't drive a Catch2 console exe          | both proven: `cata_test-tiles` directly + game exe via `-Exe`   |
-| Future CI portability       | Windows-only, Enterprise-gated                   | clang is **already** the CI compiler (`ci-tiles`, `linux-full`) |
+| Criterion                   | A. MSVC / VS coverage                            | B. Windows LLVM source-based                                   |
+| --------------------------- | ------------------------------------------------ | -------------------------------------------------------------- |
+| Available on this machine   | **No** — native collector absent on VS Community | **Yes** — proven end-to-end (clang-cl 22.1.7)                  |
+| Source-level usefulness     | none produced                                    | exact region/line/branch/function, per-file, + HTML            |
+| Disk cost                   | n/a (couldn't run)                               | one-time **3.96 GB** build (test + game) + ~270 MB artifacts   |
+| Setup friction              | needs VS **Enterprise** or a 3rd-party tool      | scratch clang-cl toolchain + 2 build-env fixes (below)         |
+| Repeatability               | blocked                                          | deterministic; identical flags to the Linux CI clang build     |
+| Compat with Arcopolis tests | vstest can't drive a Catch2 console exe          | both proven: `cata_test-tiles` directly + game exe via `-Exe`  |
+| Future CI portability       | Windows-only, Enterprise-gated                   | clang is **already** the CI compiler (`ci-curses`, `ci-tiles`) |
 
 **Recommendation: Path B — Windows LLVM 22.1.7 source-based coverage.** It is the only path
 that works on this machine, and it produced real, source-mapped, Arcopolis-scoped coverage
@@ -552,8 +556,9 @@ $env:VCPKG_ROOT = Join-Path $vsPath "VC\vcpkg"
 #   CMAKE_MSVC_DEBUG_INFORMATION_FORMAT ""                       # no debug info -> small build
 #   + /clang:-fprofile-instr-generate /clang:-fcoverage-mapping  # compile
 #   + C:/PROGRA~1/LLVM/lib/clang/22/lib/windows/clang_rt.profile-x86_64.lib   # link (plain lib!)
+#   (PROGRA~1 assumes 8.3 short names are enabled; `22` = your installed LLVM major version)
 
-cmake -S C:\dev\Cataclysm-BN -B C:\dev\Cataclysm-BN\out\build\win-llvm-cov -G Ninja `
+cmake -S <repo-root> -B <repo-root>\out\build\win-llvm-cov -G Ninja `
   -DCMAKE_BUILD_TYPE=RelWithDebInfo `
   -DCMAKE_PROJECT_INCLUDE_BEFORE="...\build-scripts\windows-tiles-sounds-x64-msvc.cmake" `
   -DCMAKE_TOOLCHAIN_FILE="C:\tmp\arco-llvm-cov-toolchain.cmake" `
@@ -561,20 +566,23 @@ cmake -S C:\dev\Cataclysm-BN -B C:\dev\Cataclysm-BN\out\build\win-llvm-cov -G Ni
   -DCURSES=False -DLOCALIZE=True -DJSON_FORMAT=OFF -DDYNAMIC_LINKING=False `
   "-DVCPKG_INSTALL_OPTIONS=--x-buildtrees-root=C:/tmp/cbn-vb-cov;--x-packages-root=C:/tmp/cbn-vp-cov"
 
-# demangle.cpp shim (no source edit): empty C:\tmp\arco-cov-shim\cxxabi.h, then:
+# demangle.cpp shim (no source edit): create the dir + empty cxxabi.h, then prepend to INCLUDE:
+New-Item -ItemType Directory -Force C:\tmp\arco-cov-shim | Out-Null
+$null | Set-Content C:\tmp\arco-cov-shim\cxxabi.h
 $env:INCLUDE = "C:\tmp\arco-cov-shim;$env:INCLUDE"
-cmake --build C:\dev\Cataclysm-BN\out\build\win-llvm-cov --target cata_test-tiles -- -j4   # exit 0
+cmake --build <repo-root>\out\build\win-llvm-cov --target cata_test-tiles -- -j4   # exit 0
 
 # --- run the suite under coverage (child cwd = repo root) ---
-$env:LLVM_PROFILE_FILE = "C:\dev\Cataclysm-BN\out\coverage-llvm\arco-%p.profraw"
+$env:LLVM_PROFILE_FILE = "<repo-root>\out\coverage-llvm\arco-%p.profraw"
 Start-Process ...\win-llvm-cov\tests\cata_test-tiles.exe -ArgumentList "[arcopolis]" `
-  -WorkingDirectory C:\dev\Cataclysm-BN -NoNewWindow -Wait                          # 920 assertions pass
+  -WorkingDirectory <repo-root> -NoNewWindow -Wait                          # 920 assertions pass
 
 # --- merge + report ---
 & "C:\Program Files\LLVM\bin\llvm-profdata.exe" merge -sparse out\coverage-llvm\arco-*.profraw `
   -o out\coverage-llvm\arco.profdata
+$arco = (Get-ChildItem src\arcopolis_*.cpp).FullName   # PS does NOT glob native-exe args — expand first
 & "C:\Program Files\LLVM\bin\llvm-cov.exe" report ...\win-llvm-cov\tests\cata_test-tiles.exe `
-  -instr-profile=out\coverage-llvm\arco.profdata src\arcopolis_*.cpp        # per-file table
+  -instr-profile=out\coverage-llvm\arco.profdata @arco        # per-file table
 & "C:\Program Files\LLVM\bin\llvm-cov.exe" show   ... -format=html -output-dir=out\coverage-llvm\html ...
 
 # --- Section 6: game-binary regression coverage (local, reverted main.cpp flush hook) ---
@@ -586,7 +594,7 @@ Start-Process ...\win-llvm-cov\tests\cata_test-tiles.exe -ArgumentList "[arcopol
 $env:CL = "/DARCO_COV_FLUSH"                                  # compile the guarded flush in
 cmake --build out\build\win-llvm-cov --target cataclysm-bn-tiles -- -j4    # game exe, exit 0
 
-Push-Location C:\dev\Cataclysm-BN                             # child cwd = repo root (data/)
+Push-Location <repo-root>                             # child cwd = repo root (data/)
 foreach ($s in $nine_regressions) {                          # *_regression.ps1, -Exe = cov exe
   $env:LLVM_PROFILE_FILE = "out\coverage-llvm\regress-%p.profraw"
   pwsh -File docs\arcopolis\$s -Exe out\build\win-llvm-cov\src\cataclysm-bn-tiles.exe
@@ -600,7 +608,7 @@ git checkout -- src\main.cpp                                  # REVERT the local
 llvm-profdata merge -sparse out\coverage-llvm\arco.profdata out\coverage-llvm\regress.profdata `
   -o out\coverage-llvm\combined.profdata
 llvm-cov report out\build\win-llvm-cov\src\cataclysm-bn-tiles.exe `
-  -instr-profile=out\coverage-llvm\combined.profdata src\arcopolis_*.cpp
+  -instr-profile=out\coverage-llvm\combined.profdata @arco    # @arco from the Get-ChildItem above
 ```
 
 ## Appendix B — local artifacts not committed
