@@ -176,6 +176,22 @@ Full catalog of the seven fixture worlds (`ArcopolisTest` + six clones) — thei
 generators, regression scripts, and spike docs — is in `docs/arcopolis/TEST_FIXTURES.md`, with refresh and
 override details in `docs/arcopolis/fixtures/README.md`.
 
+### Arcopolis coverage claims
+
+Do not claim measured line, branch, function, or whole-engine coverage unless an instrumented coverage build
+was actually run and a report was generated. Distinguish, and name which one you mean:
+
+- source-audited coverage;
+- Catch2 unit/seam tests;
+- fixture-backed PowerShell regressions;
+- live/client harness regressions;
+- measured coverage reports.
+
+Coverage work starts as **optional local measurement** scoped to Arcopolis-owned code and nearby engine seam
+files. Do not add a CI coverage gate or repo-wide percentage target without a separate explicit decision. The
+Windows-first measured path (clang-cl + LLVM source-based coverage; never reuse `out/build/win-rel-deb`) is in
+`docs/arcopolis/45_WINDOWS_COVERAGE_FEASIBILITY.md`.
+
 ## HARD CONSTRAINTS (NEVER VIOLATE)
 
 Before writing **ANY** code, verify:
