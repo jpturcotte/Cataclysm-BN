@@ -14,8 +14,10 @@ fallback.
 
 **Outcome in one line:** Path A is **not usable** on this machine (VS Community lacks the
 native C++ coverage collector); Path B **works end-to-end** — a clang-cl instrumented
-`cata_test-tiles` ran the `[arcopolis]` suite and produced real, source-mapped per-file
-coverage. **Path B is recommended.**
+`cata_test-tiles` ran the `[arcopolis]` suite, the instrumented **game** binary ran all nine
+fixture regressions, and together they produced real, source-mapped per-file coverage
+(**89.27% region / 86.75% line** on the Arcopolis-owned files, combined — Section 6).
+**Path B is recommended.**
 
 Tested checkout:
 
@@ -27,9 +29,10 @@ Tested checkout:
 Machine / tool constraints known to this spike:
 
 - Windows-first (PowerShell 7).
-- **Disk pressure is a first-class constraint**: ~18.0–21.3 GB free on `C:` across the
-  spike, against an existing normal build of **8.92 GB**. The Path B coverage build was
-  sized down to **3.09 GB** (debug info disabled) to fit; `win-rel-deb` was preserved.
+- **Disk pressure is a first-class constraint**: ~12–21.3 GB free on `C:` across the spike
+  (the ~12 GB floor was during the 47-launch regression batch), against an existing normal
+  build of **8.92 GB**. The Path B coverage build was sized to **3.96 GB** (debug info
+  disabled; test + game targets) to fit; `win-rel-deb` was preserved.
 - LLVM tools are installed at **22.1.7** (`clang`, `clang++`, `clang-cl`, `llvm-profdata`,
   `llvm-cov`) under `C:\Program Files\LLVM\bin`.
 - Visual Studio 2022 **Community** edition is installed.
@@ -59,9 +62,9 @@ regression expectations.
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | Worktree branch / commit             | `claude/magical-euler-417842` @ `8f1cc5c4bd` (off `arcopolis`)                                               |
 | Main checkout branch                 | `arcopolis`                                                                                                  |
-| Free disk on `C:` (spike window)     | floor ~18.0 GB, ceiling ~21.3 GB (coverage build drew ~3.3 GB; watchdog never neared 3.5 GB)                 |
+| Free disk on `C:` (spike window)     | floor ~12 GB (during the 47-launch regression batch), ceiling ~21.3 GB; watchdog floor 2.5 GB never tripped  |
 | Normal build size (`win-rel-deb`)    | **8.92 GB** (preserved — never reconfigured or rebuilt)                                                      |
-| Coverage build (`win-llvm-cov`)      | **3.09 GB** (clang-cl, debug info disabled) — separate dir, built this spike                                 |
+| Coverage build (`win-llvm-cov`)      | **3.96 GB** (clang-cl, debug info disabled; `cata_test-tiles` 3.09 GB + game `cataclysm-bn-tiles` target)    |
 | Other `out/` entries                 | `arco_*_regress` regression sandboxes only (small; not build dirs; not reclaimable)                          |
 | `clang` / `clang++` / `clang-cl`     | LLVM **22.1.7** — `C:\Program Files\LLVM\bin`                                                                |
 | `llvm-profdata` / `llvm-cov`         | LLVM **22.1.7** — `C:\Program Files\LLVM\bin`                                                                |
@@ -186,6 +189,20 @@ disk watchdog (abort if free `C:` < 3.5 GB) with `win-rel-deb` left untouched. O
 - **Formatting**: `deno fmt` (lineWidth 100, proseWrap preserve) was applied to both files
   via temp copies, because `.claude/worktrees` is in the deno fmt exclude (deno.jsonc:34).
 - **Continuing safe?** Yes — ready to finalize.
+
+### Checkpoint 6 — after the fixture-regression coverage run
+
+- **Game binary instrumented + 9 regressions run** under `$env:LLVM_PROFILE_FILE`; all exit 0
+  (47 launches). `regress.profdata` 21.5 MB; combined-with-tests `combined.profdata` 21.9 MB.
+  Real coverage produced (Section 6.3/6.4) — e.g. `arcopolis_export.cpp` 0% → 74.70% region.
+- **Local source edit reverted.** The `main.cpp` `__llvm_profile_write_file` flush hook (6.2)
+  was `git checkout`-reverted; the main checkout is verified clean (`git status --porcelain`
+  shows only the untracked `.claude/` worktree dir, no tracked changes). Nothing committed.
+- **No regression script or expectation changed.** Coverage came from the existing `-Exe`
+  hook plus the env var only.
+- **Disk:** coverage build now 3.96 GB; free `C:` floored ~12 GB during the batch (watchdog
+  floor 2.5 GB never tripped); per-regression raws were merged-then-deleted.
+- **Continuing safe?** Yes — Section 6 carries the measured numbers; only docs to commit.
 
 ## 4. MSVC / Visual Studio coverage probe
 
@@ -347,8 +364,9 @@ the split doc 44 described, now measured. The uncovered regions in `arcopolis_li
 - **Source / path mapping usable?** **Yes** — per-file region/line/branch/function on the
   real Windows source paths; a filtered HTML line-view was also generated
   (`out/coverage-llvm/html/index.html`).
-- **Disk / time:** build dir 3.09 GB; `out/coverage-llvm` 229 MB; the instrumented suite
-  itself reports 0.023 s (the rest of wall-clock is world load). `win-rel-deb` untouched.
+- **Disk / time:** build dir 3.09 GB at this point (the game target added in Section 6 brings
+  it to 3.96 GB); `out/coverage-llvm` 229 MB; the instrumented suite itself reports 0.023 s
+  (the rest of wall-clock is world load). `win-rel-deb` untouched.
 
 **Verdict: the Windows LLVM 22.1.7 source-based path WORKS end-to-end** and yields exactly
 the Arcopolis-scoped, source-mapped coverage this spike set out to test. This is the
@@ -356,33 +374,95 @@ recommended path (Section 7).
 
 ## 6. Fixture regression coverage probe
 
-**Not run under coverage in this spike** — but now clearly motivated and unblocked:
+**Run under coverage in this spike** (a follow-up the user directed after the initial probe).
+The original draft left this unrun; it was then carried out. The **game** binary
+`cataclysm-bn-tiles` was instrumented the same clang-cl way (Section 5.2), all nine
+PowerShell fixture regressions were run under `$env:LLVM_PROFILE_FILE`, and the profiles were
+merged. This fills the Catch2 blind spots Section 5.3 predicted — most importantly
+`arcopolis_export.cpp`, which is **0% under Catch2 but 74.70% region / 85.71% line** under the
+regressions.
 
-- **Why it matters (measured).** Section 5.3 shows `arcopolis_export.cpp` at **0%** under
-  the Catch2 `[arcopolis]` suite, and `pickup.cpp`/`handle_action.cpp` at 0%. Those paths
-  are exercised by the fixture regressions driving the **game** binary, so fixture-regression
-  coverage is exactly what would fill the Catch2 blind spots — not redundant with it.
-- **LLVM:** a fixture regression (e.g. `movement_regression.ps1`) launches the game binary
-  `cataclysm-bn-tiles.exe`, not `cata_test-tiles`. This spike instrumented the **test**
-  target (`cata_test-tiles`); collecting coverage from a regression additionally needs
-  `cataclysm-bn-tiles` built with `-fcoverage-mapping` (same toolchain, Section 5.2). That
-  game-binary build was not done here (scope/disk), so no regression was run under coverage.
-- **MSVC:** no native collector exists on this machine (Section 4), so wrapping `pwsh` /
-  the child game process to collect `.coverage` is not possible here either.
+### 6.1 What was run
 
-**Good news on the hook (no script change needed):** the regression scripts **already**
-take a `-Exe` parameter defaulting to
-`.\out\build\win-rel-deb\src\cataclysm-bn-tiles.exe`
-(`docs/arcopolis/movement_regression.ps1:40-41`), used for every `Start-Process`
-(`movement_regression.ps1:90`, `:165`). So a future coverage PR can point a regression at a
-coverage-built game exe with **no script edit** — just
-`pwsh -File .\docs\arcopolis\movement_regression.ps1 -Exe .\out\build\win-llvm-cov\src\cataclysm-bn-tiles.exe`
-wrapped in `$env:LLVM_PROFILE_FILE` (each `Start-Process` child writes its own
-`...-%p.profraw`; merge them afterwards). The only missing piece is the instrumented build
-itself, not a binary-selection mechanism.
+- **Game-binary instrumented build.** `cmake --build out/build/win-llvm-cov --target
+  cataclysm-bn-tiles` (same scratch toolchain, debug info off). Adding the game target grew
+  the shared build dir from 3.09 GB to **3.96 GB**. `win-rel-deb` was untouched.
+- **All nine regressions via the existing `-Exe` hook** — no script edited. Each ran as
+  `pwsh -File docs\arcopolis\<name>_regression.ps1 -Exe ...\win-llvm-cov\src\cataclysm-bn-tiles.exe`
+  from the repo root, under `$env:LLVM_PROFILE_FILE=...\regress-%p.profraw`. All passed
+  (exit 0); **47 game launches** total (movement 3, item_export 1, npc_export 2,
+  monster_export 1, examine 4, prompt_menu 18, query_popup 4, script_prompt 12,
+  live_protocol 2).
+- **Disk discipline.** Each launch writes a full ~206 MB `.profraw`; the batch merged each
+  regression's raws into `regress.profdata` immediately and deleted them, so peak extra disk
+  stayed ~3.7 GB (during the 18-launch prompt_menu) and free `C:` never dropped below ~12 GB
+  (watchdog floor 2.5 GB, never tripped).
 
-(No regression script was modified and no regression expectation was changed in this
-spike.)
+### 6.2 One local, reverted source edit was required (and why)
+
+The `--arcopolis-*` modes exit via `std::_Exit` (`src/main.cpp`), which **skips the LLVM
+profile writer's `atexit` handler** — so an unmodified instrumented game binary writes a
+**0-byte** `.profraw`. (LLVM's `%c` continuous-write marker does **not** fix this on Windows;
+that needs the build-time `-fprofile-continuous` flag, confirmed against the LLVM docs.) The
+minimal fix used was a **local, never-committed** edit to `src/main.cpp`: an explicit
+`__llvm_profile_write_file()` call before each `std::_Exit`, guarded by
+`#if defined( ARCO_COV_FLUSH )` and compiled only with `$env:CL="/DARCO_COV_FLUSH"`. It is
+behaviour-neutral in any normal build (the block compiles to nothing) and **was reverted
+immediately after the run** (`git checkout -- src/main.cpp`; main checkout verified clean).
+No runtime behavior was changed in any committed artifact. A committable, guarded flush hook
+is listed as a follow-up (Section 9) — a real decision, not taken in this docs PR.
+
+### 6.3 Regression-only coverage (game binary, `regress.profdata`)
+
+| File                        | Region | Function |   Line | Branch |
+| --------------------------- | -----: | -------: | -----: | -----: |
+| arcopolis_command.cpp       | 60.92% |  100.00% | 53.42% | 55.56% |
+| arcopolis_backend_input.cpp | 78.69% |   92.98% | 75.03% | 59.76% |
+| arcopolis_session_log.cpp   | 75.00% |   93.55% | 80.86% | 59.43% |
+| arcopolis_script.cpp        | 78.85% |   85.71% | 59.24% | 68.18% |
+| arcopolis_live.cpp          | 80.51% |   95.00% | 74.63% | 67.39% |
+| arcopolis_export.cpp        | 74.70% |  100.00% | 85.71% | 64.06% |
+| **TOTAL**                   | 77.26% |   94.12% | 73.91% | 62.89% |
+
+### 6.4 Combined coverage — Catch2 `[arcopolis]` ∪ fixture regressions
+
+`llvm-profdata merge -sparse arco.profdata regress.profdata` then `llvm-cov report` against
+the game binary. The cross-binary merge is **clean — no hash mismatch warnings**; the unit-
+test records attribute correctly onto the game binary (e.g. `arcopolis_command` rises from
+60.92% regress-only to 96.55% combined). Same file order as Section 5.3 for row-by-row
+comparison:
+
+| File                        | Region | Function |   Line | Branch |
+| --------------------------- | -----: | -------: | -----: | -----: |
+| arcopolis_command.cpp       | 96.55% |  100.00% | 95.65% | 95.83% |
+| arcopolis_backend_input.cpp | 90.80% |   98.25% | 88.17% | 78.05% |
+| arcopolis_session_log.cpp   | 90.44% |  100.00% | 92.99% | 82.08% |
+| arcopolis_script.cpp        | 91.35% |  100.00% | 79.62% | 85.71% |
+| arcopolis_live.cpp          | 87.22% |   95.00% | 83.28% | 80.43% |
+| arcopolis_export.cpp        | 74.70% |  100.00% | 85.71% | 64.06% |
+| **TOTAL**                   | 89.27% |   98.53% | 86.75% | 80.71% |
+
+Together the two modalities reach **89.27% region / 86.75% line / 98.53% function** on the
+Arcopolis-owned files (only 2 of 136 functions never reached).
+
+### 6.5 What the combination reveals
+
+The two test modalities are **complementary, not redundant** — now measured to be so
+(region %, Catch2-only → combined):
+
+- **Export is regression-only.** `arcopolis_export.cpp` 0.00% → 74.70%: export is reached
+  only by the game-driven fixture runs, never by the Catch2 suite.
+- **Command is mostly unit-test.** `arcopolis_command.cpp` Catch2 91.95% vs regressions
+  60.92% (combined 96.55%): the command parser is best exercised by direct unit tests.
+- **Live/script need real sessions.** `arcopolis_live.cpp` 38.02% → 87.22% and
+  `arcopolis_script.cpp` 63.94% → 91.35%: weak under Catch2, lifted by regressions driving
+  real game sessions.
+
+This is the split doc 44 predicted and Section 5.3 measured one half of — now measured on
+both halves.
+
+(No regression script was modified and no regression expectation was changed; the only source
+edit was the local, reverted `main.cpp` flush hook of 6.2.)
 
 ## 7. Comparison and recommendation
 
@@ -390,14 +470,16 @@ spike.)
 | --------------------------- | ------------------------------------------------ | --------------------------------------------------------------- |
 | Available on this machine   | **No** — native collector absent on VS Community | **Yes** — proven end-to-end (clang-cl 22.1.7)                   |
 | Source-level usefulness     | none produced                                    | exact region/line/branch/function, per-file, + HTML             |
-| Disk cost                   | n/a (couldn't run)                               | one-time **3.09 GB** build (debug info off) + 229 MB artifacts  |
+| Disk cost                   | n/a (couldn't run)                               | one-time **3.96 GB** build (test + game) + ~270 MB artifacts    |
 | Setup friction              | needs VS **Enterprise** or a 3rd-party tool      | scratch clang-cl toolchain + 2 build-env fixes (below)          |
 | Repeatability               | blocked                                          | deterministic; identical flags to the Linux CI clang build      |
-| Compat with Arcopolis tests | vstest can't drive a Catch2 console exe          | runs `cata_test-tiles` directly; game exe via existing `-Exe`   |
+| Compat with Arcopolis tests | vstest can't drive a Catch2 console exe          | both proven: `cata_test-tiles` directly + game exe via `-Exe`   |
 | Future CI portability       | Windows-only, Enterprise-gated                   | clang is **already** the CI compiler (`ci-tiles`, `linux-full`) |
 
 **Recommendation: Path B — Windows LLVM 22.1.7 source-based coverage.** It is the only path
-that works on this machine, and it produced real, source-mapped, Arcopolis-scoped coverage.
+that works on this machine, and it produced real, source-mapped, Arcopolis-scoped coverage
+for **both** test modalities — the Catch2 `[arcopolis]` suite (test binary) and all nine
+fixture regressions (game binary), merging to **89.27% region** (Section 6).
 It also matches the project's existing clang CI toolchain, so the same instrumentation
 flags port to Linux CI later with no surprises. Path A would require a VS Enterprise license
 or a third-party native tool (e.g. OpenCppCoverage) — both out of scope here.
@@ -409,18 +491,19 @@ used here).
 
 ## 8. What this does not prove
 
-- **Not whole-engine coverage.** The numbers are coverage of the listed files **by the
-  Catch2 `[arcopolis]` suite only**. No whole-engine percentage was computed (it would be
-  meaningless from this one suite).
+- **Not whole-engine coverage.** The numbers are coverage of the listed Arcopolis files by
+  the Catch2 `[arcopolis]` suite and the fixture regressions. No whole-engine percentage was
+  computed (it would be meaningless from these Arcopolis-scoped workloads).
 - **Seam-file %s are whole-file denominators.** `game.cpp` 0.97%, `handle_action.cpp` 0%,
   etc. measure seam-only hits against the entire file — not a statement about those files'
   overall testedness.
 - **Coverage ≠ backend equivalence.** Level-4 input equivalence is a separate,
   source-witnessed property; an executed line is not a proof of a faithful registered-input
   path. A high coverage % does not upgrade an equivalence claim.
-- **0% ≠ untested.** `arcopolis_export.cpp`, `pickup.cpp`, `handle_action.cpp` show 0% here
-  only because the **Catch2** suite doesn't reach them; they are witnessed by the fixture
-  regressions, which were **not** run under coverage in this spike.
+- **0% ≠ untested (now measured both ways).** `arcopolis_export.cpp` shows 0% under the
+  **Catch2** suite only; the fixture regressions reach it at **74.70% region / 85.71% line**
+  (Section 6). The `pickup.cpp` / `handle_action.cpp` seam files are likewise reached by the
+  regressions driving the game binary, not by the Catch2 suite.
 - **No CI gate, no global target.** Nothing was wired into CI; no repo-wide percentage was
   set or implied.
 - **Measurement build, not a shipping build.** The clang-cl build disables debug info and is
@@ -436,16 +519,17 @@ Recommended single next PR: **land the clang-cl coverage path as an optional loc
    `demangle.cpp:3` → `#if (defined(__GNUC__) || defined(__clang__)) && !defined(_MSC_VER)`.
    (Tiny, behavior-neutral; the MSVC stub path is already what `cl.exe` uses.)
 2. **Optional local coverage recipe**, not a CI gate: document the clang-cl toolchain
-   (debug-info off; link `clang_rt.profile-x86_64.lib`; coverage flags) and the
-   build → run `[arcopolis]` → `llvm-profdata merge` → `llvm-cov report` flow, scoped to
-   `src/arcopolis_*.cpp` + the seam files. Keep artifacts under `out/` (gitignored).
-3. **Note for a later follow-on (not this PR):** to cover export/pickup/dispatch, instrument
-   the **game** binary `cataclysm-bn-tiles` the same way and run a fixture regression with
-   `-Exe` pointed at it under `$env:LLVM_PROFILE_FILE`. The `-Exe` hook already exists; no
-   regression-script change is needed.
+   (debug-info off; link `clang_rt.profile-x86_64.lib`; coverage flags) and both flows —
+   build → run `[arcopolis]` → `llvm-profdata merge` → `llvm-cov report` for the test binary,
+   and the game-binary + fixture-regression flow of Section 6 — scoped to the
+   `src/arcopolis_*.cpp` files plus the seam files. Keep artifacts under `out/` (gitignored).
+3. **Guarded profile-flush hook (a real decision, deferred).** Capturing game-binary coverage
+   needed a local `__llvm_profile_write_file()` before each `std::_Exit` (Section 6.2). A
+   committable version would gate it behind a coverage-only build flag so normal builds stay
+   byte-identical; whether to carry that in tree is a separate call, not made here.
 
 Constraints to carry forward: no CI coverage gate, no repo-wide percentage target, gate the
-~3 GB measurement build on local free disk, and never reuse/mutate `out/build/win-rel-deb`.
+~4 GB measurement build on local free disk, and never reuse/mutate `out/build/win-rel-deb`.
 
 ## Appendix A — raw commands
 
@@ -492,6 +576,31 @@ Start-Process ...\win-llvm-cov\tests\cata_test-tiles.exe -ArgumentList "[arcopol
 & "C:\Program Files\LLVM\bin\llvm-cov.exe" report ...\win-llvm-cov\tests\cata_test-tiles.exe `
   -instr-profile=out\coverage-llvm\arco.profdata src\arcopolis_*.cpp        # per-file table
 & "C:\Program Files\LLVM\bin\llvm-cov.exe" show   ... -format=html -output-dir=out\coverage-llvm\html ...
+
+# --- Section 6: game-binary regression coverage (local, reverted main.cpp flush hook) ---
+# LOCAL main.cpp edit (reverted after the run): in the --arcopolis-* modes,
+#   extern "C" int __llvm_profile_write_file( void );        // declared at file scope
+#   #if defined( ARCO_COV_FLUSH )
+#     __llvm_profile_write_file();                            // flush before each std::_Exit
+#   #endif
+$env:CL = "/DARCO_COV_FLUSH"                                  # compile the guarded flush in
+cmake --build out\build\win-llvm-cov --target cataclysm-bn-tiles -- -j4    # game exe, exit 0
+
+Push-Location C:\dev\Cataclysm-BN                             # child cwd = repo root (data/)
+foreach ($s in $nine_regressions) {                          # *_regression.ps1, -Exe = cov exe
+  $env:LLVM_PROFILE_FILE = "out\coverage-llvm\regress-%p.profraw"
+  pwsh -File docs\arcopolis\$s -Exe out\build\win-llvm-cov\src\cataclysm-bn-tiles.exe
+  llvm-profdata merge -sparse out\coverage-llvm\regress-*.profraw [regress.profdata] `
+    -o out\coverage-llvm\regress.profdata                     # incremental merge...
+  Remove-Item out\coverage-llvm\regress-*.profraw            # ...then delete raws (disk)
+}
+git checkout -- src\main.cpp                                  # REVERT the local flush hook
+
+# combined (Catch2 tests UNION regressions), reported vs the game binary:
+llvm-profdata merge -sparse out\coverage-llvm\arco.profdata out\coverage-llvm\regress.profdata `
+  -o out\coverage-llvm\combined.profdata
+llvm-cov report out\build\win-llvm-cov\src\cataclysm-bn-tiles.exe `
+  -instr-profile=out\coverage-llvm\combined.profdata src\arcopolis_*.cpp
 ```
 
 ## Appendix B — local artifacts not committed
@@ -499,15 +608,19 @@ Start-Process ...\win-llvm-cov\tests\cata_test-tiles.exe -ArgumentList "[arcopol
 All gitignored (`out/` via `.gitignore:91`) or outside the repo (`C:\tmp`). None are
 tracked; all are safe to delete to reclaim disk.
 
-| Path                                     |    Size | Note                                    |
-| ---------------------------------------- | ------: | --------------------------------------- |
-| `out/build/win-llvm-cov/`                | 3.09 GB | instrumented clang-cl build (reusable)  |
-| `out/coverage-llvm/arco-<pid>.profraw`   |  197 MB | raw profile from the `[arcopolis]` run  |
-| `out/coverage-llvm/arco.profdata`        |   21 MB | merged profile                          |
-| `out/coverage-llvm/html/`                |   small | filtered HTML line-view                 |
-| `out/coverage-llvm/sample_coverage.*`    |  ~10 MB | the 5.1 toolchain pre-check sample      |
-| `out/coverage-msvc/`                     |   empty | created by the Path A probe (no output) |
-| `C:\tmp\arco-llvm-cov-toolchain.cmake`   |    tiny | scratch clang-cl toolchain              |
-| `C:\tmp\arco-cov-shim\cxxabi.h`          |    tiny | empty `demangle.cpp` build shim         |
-| `C:\tmp\cbn-vb-cov`, `C:\tmp\cbn-vp-cov` |    var. | vcpkg buildtrees/packages scratch       |
-| `C:\tmp\arco-cov-*.log`                  |   small | configure/build logs                    |
+| Path                                      |    Size | Note                                        |
+| ----------------------------------------- | ------: | ------------------------------------------- |
+| `out/build/win-llvm-cov/`                 | 3.96 GB | instrumented clang-cl build (test + game)   |
+| `out/coverage-llvm/arco-<pid>.profraw`    |  197 MB | raw profile from the `[arcopolis]` run      |
+| `out/coverage-llvm/arco.profdata`         |   21 MB | merged Catch2 `[arcopolis]` profile         |
+| `out/coverage-llvm/regress.profdata`      |   22 MB | merged 9-regression profile (Section 6)     |
+| `out/coverage-llvm/combined.profdata`     |   22 MB | tests ∪ regressions (Section 6.4)           |
+| `out/coverage-llvm/regress-<pid>.profraw` |    none | transient ~206 MB each; merged-then-deleted |
+| `out/coverage-llvm/html/`                 |   small | filtered HTML line-view                     |
+| `out/coverage-llvm/sample_coverage.*`     |  ~10 MB | the 5.1 toolchain pre-check sample          |
+| `out/coverage-msvc/`                      |   empty | created by the Path A probe (no output)     |
+| `C:\tmp\arco-llvm-cov-toolchain.cmake`    |    tiny | scratch clang-cl toolchain                  |
+| `C:\tmp\arco-cov-shim\cxxabi.h`           |    tiny | empty `demangle.cpp` build shim             |
+| `C:\tmp\arco-regress-coverage.ps1`        |    tiny | scratch 9-regression coverage batch         |
+| `C:\tmp\cbn-vb-cov`, `C:\tmp\cbn-vp-cov`  |    var. | vcpkg buildtrees/packages scratch           |
+| `C:\tmp\arco-cov-*.log`, `regr-*.log`     |   small | configure / build / regression logs         |
