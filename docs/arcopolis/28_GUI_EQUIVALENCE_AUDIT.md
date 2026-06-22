@@ -54,8 +54,10 @@ misleading name; export/snapshot modes are queries, not commands.
 
 ## Open items this audit records (so they are not silent)
 
-- **`move` vertical** (`move_up/down`): the `game::vertical_move` primitive — its own future command,
-  not a widening of planar move (it can open its own prompts: stair/ramp selection).
+- **`move` vertical** (`move_up/down`): **no longer a future item — implemented as the SEPARATE
+  `vertical_move` verb** (directions `down`/`up` → `ACTION_MOVE_DOWN`/`ACTION_MOVE_UP` → native
+  `game::vertical_move`), NOT a widening of planar `move` (Spike 24, matched-stair only, level 2/3; doc 49).
+  Other vertical paths (ramp/rope/climb/elevator) can still open their own prompts and stay deferred.
 - **menu interaction depth**: **pickup-as-an-action is now implemented** — the `pickup` command's
   level-4 prompt/menu transaction (Spike 12A, doc 30) builds doc 25's Option C for the old `"PICKUP"`
   menu, including **multi-entry selection** (one `RIGHT` per chosen entry; carry-both witnessed on the

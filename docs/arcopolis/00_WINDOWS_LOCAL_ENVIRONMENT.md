@@ -426,9 +426,8 @@ at cwd, SDL_GPU dies with `shader blob not found: data/shaders/test_compute.dxil
 `Terminated: SDL_GPU test initialization failed`.
 
 From a worktree session, do **NOT** `Set-Location` the shell into the main repo (then relative `Edit`/`Read`/
-`git status` start hitting the main checkout, and you lose the worktree edit anchor), and do **NOT** copy
-worktree sources into the main repo to build there (it leaves the main checkout DIRTY in those files). Run the
-root-built test exe with the **child's** cwd at the root repo, leaving the **shell's** cwd in the worktree:
+`git status` start hitting the main checkout, and you lose the worktree edit anchor). Run the root-built test
+exe with the **child's** cwd at the root repo, leaving the **shell's** cwd in the worktree:
 
 ```powershell
 $p = Start-Process -FilePath "C:\dev\Cataclysm-BN\out\build\win-rel-deb\tests\cata_test-tiles.exe" `
@@ -440,19 +439,69 @@ Get-Content "C:\tmp\test.out" -Tail 10
 ```
 
 The shell cwd remains the worktree (verify with `Get-Location` before and after), `SDL_GPU` finds its data, and
-the suite runs. If you copied files into the main repo by mistake, restore IMMEDIATELY in the same turn:
+the suite runs.
+
+### Building worktree changes — copy into the main checkout, build the ONE shared dir, restore (2026-06-22)
+
+> Supersedes the earlier "do NOT copy worktree sources into the main repo" line. With **one** shared build dir
+> (`out/build/win-rel-deb` lives in the main repo and compiles `CMAKE_HOME_DIRECTORY=C:/dev/Cataclysm-BN`,
+> **not** the worktree) and a **tight disk** (measured 2026-06-22: ~7.3 GB free vs a ~7.6 GB cold tree — a
+> second per-worktree dir does NOT fit), the **copy → build → restore** route into the main checkout is the
+> accepted way to build a worktree's changes. It is cheap because the build is **incremental** (the dir is
+> already built) and **ccache is path-independent** (`CCACHE_BASEDIR=C:/dev/Cataclysm-BN CCACHE_NOHASHDIR=true`
+> in `build.ninja`), so unchanged TUs are cache hits and only the touched TUs recompile (~a couple hundred MB,
+> fits the free disk). The one hazard is leaving the main checkout dirty — so **restore in the same turn**, and
+> verify `git -C <main> status` is clean afterward.
 
 ```powershell
-git -C C:\dev\Cataclysm-BN checkout -- <list of files>
+$main = "C:\dev\Cataclysm-BN"; $wt = (Get-Location).Path
+# 1. The files to copy = everything this branch changes vs the base the main checkout sits on. With
+#    uncommitted worktree edits on top of a clean main@arcopolis, that is the worktree's own diff; if the
+#    branch has commits ahead of the base, use `git -C $wt diff --name-only <base>..HEAD` and copy them ALL
+#    (the post-build restore reverts every copied file, so a partial copy leaves siblings at stale base).
+$files = git -C $wt diff --name-only          # tracked, modified
+$files += git -C $wt ls-files --others --exclude-standard | Where-Object { $_ -match '\.(cpp|h)$' }  # new src/tests
+$cpp = $files | Where-Object { $_ -match '^(src|tests)/.*\.(cpp|h)$' } | Sort-Object -Unique
+# 2. Copy into main, then BUMP mtimes — Copy-Item preserves the source mtime, so ninja would otherwise see
+#    "no work to do" and compile nothing.
+foreach( $f in $cpp ) {
+    $dst = Join-Path $main $f
+    Copy-Item (Join-Path $wt $f) $dst -Force
+    (Get-Item $dst).LastWriteTime = Get-Date
+}
+# 3. Build the ONE shared dir (game + tests share the cataclysm-bn-tiles-common OBJECT lib). DevShell must
+#    be active (see "Recommended PowerShell setup commands") + C:\dev\ccache on PATH. Build the two targets
+#    in SEPARATE invocations with -j1 (both gotchas verified 2026-06-22, Spike 24):
+#      * -j1, NOT -j4: parallel linking of the two ~70-80 MB /DEBUG exes hit `LINK : fatal error LNK1102:
+#        out of memory` and DELETED both exes. -j1 links them one at a time and fits memory (compiles are
+#        already ccache-cached, so serial costs little).
+#      * SEPARATE invocations: the game exe's cosmetic post-link tail runs `deno task docs:gen`, which fails
+#        ("The system cannot find the path specified") under an inline DevShell and makes ninja STOP — so a
+#        combined `--target cataclysm-bn-tiles cata_test-tiles` never reaches the test link. Build each alone.
+cmake --build "$main\out\build\win-rel-deb" --target cataclysm-bn-tiles -- -j1   # exit 1 from the cosmetic tail is OK
+cmake --build "$main\out\build\win-rel-deb" --target cata_test-tiles   -- -j1   # exit 1 from the cosmetic tail is OK
+# Verify the LINK succeeded by TIMESTAMP (the cosmetic-tail failure makes `cmake --build` exit 1 even when
+# link.exe wrote a fresh exe -- see "Cosmetic post-link packaging tail"):
+Get-ChildItem "$main\out\build\win-rel-deb\src\cataclysm-bn-tiles.exe",`
+              "$main\out\build\win-rel-deb\tests\cata_test-tiles.exe" | Select-Object Name,LastWriteTime
+# 4. Run the suite / regressions (child cwd = main so SDL_GPU finds data; see the run note above), then:
+# 5. RESTORE the main checkout immediately and confirm clean.
+git -C $main checkout -- $cpp
+git -C $main status --short    # must be empty
 ```
+
+(If the build adds a brand-new source file, `git -C $main checkout` cannot remove it — `Remove-Item` the
+copied new file from main by hand as part of step 5.)
 
 ### Running the FULL suite needs the llvmpipe software-GPU backend (vision/shadowcasting)
 
 **This is the canonical "how to run the tests" reference; other docs link here.**
 
 `CATA_TEST_COMPUTE_ACCELERATION=cpu` is the correct escape hatch **only for `[arcopolis]`** — those
-tests never touch the lightmap, so CPU compute is fine and gives `All tests passed (920 assertions
-in 143 test cases)`. For the **full** `cata_test-tiles` run, CPU is the **wrong** backend: the
+tests never touch the lightmap, so CPU compute is fine and gives `All tests passed (969 assertions
+in 152 test cases)` (measured 2026-06-22 on the Spike 24 worktree build; SECTION/GENERATE expand the
+assertion total beyond the raw TEST_CASE count, so re-derive it from an actual `[arcopolis]` run, not by
+counting `TEST_CASE`s). For the **full** `cata_test-tiles` run, CPU is the **wrong** backend: the
 `[vision]`/`[shadowcasting]` expected light grids are calibrated for the deterministic **llvmpipe**
 (Lavapipe software-Vulkan) compute path, so CPU compute fails exactly four vision cases —
 `vision_wall_obstructs_light`, `vision_single_tile_skylight`, `vision_see_out_of_vehicle`,
