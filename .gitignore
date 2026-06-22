@@ -257,3 +257,9 @@ __cmake_systeminformation/
 # Narrow: re-includes ONLY this one subtree. See docs/arcopolis/fixtures/README.md.
 !/docs/arcopolis/fixtures/
 !/docs/arcopolis/fixtures/**
+
+# Local Claude Code config + claudekit hooks + agent worktrees.
+# Kept local: not tracked upstream, and should not ride on the rebased
+# `arcopolis` branch or appear in PRs. See docs/agents/ for the committed
+# engineering-skill config (issue tracker / triage labels / domain docs).
+/.claude/
