@@ -352,3 +352,17 @@ rg -C2 -i 'speedway' lang/po/ko.po | rg -v '^(#:|--)' | head -n 20
 - When fixing a bug, preserve requested behavior and visible content unless the user explicitly asks to remove it; fix the underlying issue instead of suppressing the affected feature.
 - When reviewing PRs that stop tracking generated or externally pulled files, verify ignore rules by running the generator/pull command or checking `git status --ignored`; do not assume removed tracked files are ignored.
 - When generated or externally pulled files are removed from tracking, verify all CI and release consumers still receive required files or directories.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues on the fork `jpturcotte/Cataclysm-BN` (always pinned with `--repo`, since bare `gh` targets upstream cataclysmbn). External PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary — `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Multi-context — `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md` files (created lazily). See `docs/agents/domain.md`.
