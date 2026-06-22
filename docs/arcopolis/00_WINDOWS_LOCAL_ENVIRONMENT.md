@@ -459,13 +459,15 @@ $main = "C:\dev\Cataclysm-BN"; $wt = (Get-Location).Path
 #    uncommitted worktree edits on top of a clean main@arcopolis, that is the worktree's own diff; if the
 #    branch has commits ahead of the base, use `git -C $wt diff --name-only <base>..HEAD` and copy them ALL
 #    (the post-build restore reverts every copied file, so a partial copy leaves siblings at stale base).
-$files = git -C $wt diff --name-only          # tracked, modified
+$files = git -C $wt diff HEAD --name-only     # tracked, staged + unstaged (HEAD-relative; plain `diff` skips staged)
 $files += git -C $wt ls-files --others --exclude-standard | Where-Object { $_ -match '\.(cpp|h)$' }  # new src/tests
 $cpp = $files | Where-Object { $_ -match '^(src|tests)/.*\.(cpp|h)$' } | Sort-Object -Unique
 # 2. Copy into main, then BUMP mtimes — Copy-Item preserves the source mtime, so ninja would otherwise see
 #    "no work to do" and compile nothing.
 foreach( $f in $cpp ) {
     $dst = Join-Path $main $f
+    $parent = Split-Path $dst -Parent
+    if( -not (Test-Path $parent) ) { New-Item -ItemType Directory -Force $parent | Out-Null }  # new worktree subdir
     Copy-Item (Join-Path $wt $f) $dst -Force
     (Get-Item $dst).LastWriteTime = Get-Date
 }
@@ -491,7 +493,12 @@ git -C $main status --short    # must be empty
 ```
 
 (If the build adds a brand-new source file, `git -C $main checkout` cannot remove it — `Remove-Item` the
-copied new file from main by hand as part of step 5.)
+copied new file from main by hand as part of step 5. A brand-new **test** file needs one more step: after
+copying it in (step 2) and before building (step 3), force a CMake **reconfigure** — `cmake -S "$main" -B
+"$main\out\build\win-rel-deb" -G Ninja` (same flags as the original configure), or just bump
+`$main\tests\CMakeLists.txt`'s mtime — because `tests/CMakeLists.txt` globs its sources WITHOUT
+`CONFIGURE_DEPENDS` (unlike `src/CMakeLists.txt:5`), so `cmake --build` alone would silently leave the new
+`tests/*.cpp` uncompiled and unrun. New `src/*.cpp` files are picked up automatically.)
 
 ### Running the FULL suite needs the llvmpipe software-GPU backend (vision/shadowcasting)
 
