@@ -366,3 +366,7 @@ Default vocabulary — `needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 ### Domain docs
 
 Multi-context — `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md` files (created lazily). See `docs/agents/domain.md`.
+
+### Reusable agent skills
+
+Reusable skills live in `.agents/skills/<name>/SKILL.md` (Codex reads them directly; Claude Code loads project skills from `.claude/skills/`, so it needs a local bridge). See `docs/agents/agent-skills.md` — including the five `arcopolis-*` equivalence-claim governance skills.
