@@ -68,6 +68,20 @@ auto arcopolis::is_supported_move_direction( std::string_view ident ) -> bool
     return ranges::contains( planar, ident );
 }
 
+auto arcopolis::is_supported_vertical_direction( std::string_view ident ) -> bool
+{
+    using namespace std::string_view_literals;
+    namespace ranges = std::ranges;
+    // The TWO vertical directions the `vertical_move` verb accepts. Deliberately "down"/"up", NOT the
+    // planar `move_*` tokens (which `move` rejects as vertical) -- the distinct vocabulary keeps the
+    // planar vs vertical split unambiguous for an external frontend. command_to_action maps "down" ->
+    // ACTION_MOVE_DOWN and "up" -> ACTION_MOVE_UP, which handle_action()'s switch dispatches to the native
+    // game::vertical_move primitive (src/handle_action.cpp:2212,2307); the backend never calls
+    // vertical_move directly. Matched-stair only (Spike 24); any sub-prompt the engine raises fails loud.
+    static constexpr std::array vertical = { "down"sv, "up"sv };
+    return ranges::contains( vertical, ident );
+}
+
 auto arcopolis::is_supported_target_direction( std::string_view ident ) -> bool
 {
     namespace ranges = std::ranges;
@@ -160,6 +174,20 @@ std::expected<backend_command, command_error>
                                                        .detail = "unsupported pickup direction '" + direction +
                                                                "' (expected " + expected_target_directions + ")" } );
             }
+        } else if( command == "vertical_move" ) {
+            // Spike 24: the SEPARATE vertical verb -- distinct "down"/"up" vocabulary, NOT the planar
+            // move_* tokens (`move` stays strictly planar). Maps to ACTION_MOVE_DOWN/ACTION_MOVE_UP in
+            // command_to_action, dispatched to the native game::vertical_move primitive by handle_action().
+            if( !obj.has_string( "direction" ) ) {
+                return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                       .detail = "command 'vertical_move' requires a string 'direction'" } );
+            }
+            direction = obj.get_string( "direction" );
+            if( !is_supported_vertical_direction( direction ) ) {
+                return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                       .detail = "unsupported vertical_move direction '" + direction +
+                                                               "' (expected " + expected_vertical_directions + ")" } );
+            }
         }
         return backend_command{ .schema_version = version, .command = command, .direction = direction };
     } catch( const JsonError &err ) {
@@ -240,6 +268,30 @@ std::expected<action_id, command_error>
         }
         // The 'g' key: handle_action()'s ACTION_PICKUP case calls game::pickup() (the chooser overload).
         return ACTION_PICKUP;
+    }
+    if( cmd.command == "vertical_move" ) {
+        // Spike 24: the '<'/'>' keys. Same defense in depth as move/examine/pickup -- delegate the vocabulary
+        // to the single is_supported_vertical_direction() authority (the parsers already reject other tokens,
+        // but command_to_action is reachable directly and from tests), then map to the engine action_id
+        // directly (as wait/examine/pickup do): "down" -> ACTION_MOVE_DOWN, "up" -> ACTION_MOVE_UP.
+        // handle_action()'s switch then calls the native game::vertical_move primitive
+        // (src/handle_action.cpp:2212,2307) at the faithful input seam -- the backend never calls
+        // vertical_move itself, never mutates position, and never bypasses handle_action()/do_turn().
+        // Witnessed only for the matched-stair fast path; any sub-prompt vertical_move raises
+        // (ramp/rope/climb/lava/push-past) fails loud via the Spike 20/21 unexpected-prompt guards.
+        // Map each vertical direction EXPLICITLY -- no ternary "everything-not-down == up" assumption: a
+        // future vertical direction added to is_supported_vertical_direction() but not wired here fails
+        // loud (bad_schema) rather than silently mapping to ACTION_MOVE_UP. (Parsers already validate;
+        // this is the defense-in-depth re-validation, mirroring the move/examine/pickup branches.)
+        if( cmd.direction == "down" ) {
+            return ACTION_MOVE_DOWN;
+        }
+        if( cmd.direction == "up" ) {
+            return ACTION_MOVE_UP;
+        }
+        return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                               .detail = "unsupported vertical_move direction '" + cmd.direction +
+                                                       "' (expected " + expected_vertical_directions + ")" } );
     }
     return std::unexpected( command_error{ .kind = command_error_kind::unsupported_command,
                                            .detail = "unsupported command: '" + cmd.command + "'" } );
