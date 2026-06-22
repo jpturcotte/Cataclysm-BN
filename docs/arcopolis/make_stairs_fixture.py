@@ -296,6 +296,10 @@ def verify_world(world_dir):
             raise SystemExit("fatal: read-back failed -- %s is '%s' (expected '%s'), tiles=%d"
                              % (label, flat[wy * SEEX + wx] if wy * SEEX + wx < len(flat) else "?", want,
                                 len(flat)))
+    # Read-back also re-asserts the no-creature invariant on the DEST itself (not only the source), so a
+    # committed/regenerated world that drifted to carry a monster or a mid-transit stair_monster on either
+    # stair tile FAILS the read-back / regression gate rather than passing on terrain alone.
+    assert_no_creature(data, [[ax, ay, az], [ax, ay, az - 1]])
     print("read-back ok   : %s @ %s (z=0) + %s @ (%d,%d,%d) (z=-1)"
           % (STAIRS_DOWN_TER, [ax, ay, az], STAIRS_UP_TER, ax, ay, az - 1))
 
@@ -317,7 +321,12 @@ def main(argv=None):
     src = os.path.join(save_root, args.source_world)
     dst = os.path.join(save_root, args.dest_world)
     if not os.path.isdir(src):
-        raise SystemExit("fatal: source world not found: %s" % src)
+        raise SystemExit("fatal: source world not found: save/%s" % args.source_world)
+    # Refuse to overwrite the source world: a --dest-world equal to --source-world would rmtree the source
+    # below (under --force) and then fail the copytree, destroying the canonical base world.
+    if os.path.abspath(src) == os.path.abspath(dst):
+        raise SystemExit("fatal: --dest-world must differ from --source-world (refusing to overwrite the "
+                         "source world '%s')" % args.source_world)
 
     # Avatar abs_pos (read-only). The avatar's own tile becomes the down-stair; the tile directly below
     # becomes the up-stair. The avatar is NEVER moved (see the docstring's bubble-origin rationale).
@@ -325,7 +334,7 @@ def main(argv=None):
     ax, ay, az = data["player"]["abs_pos"]
     down_tile = [ax, ay, az]
     up_tile = [ax, ay, az - 1]
-    print("source world   : %s" % src)
+    print("source world   : save/%s" % args.source_world)  # fixture-root-relative (AGENTS.md:273 no-local-paths)
     print("avatar abs_pos : %s (unchanged -- stairs are written under the stationary avatar)" % [ax, ay, az])
     print("down-stair tile: abs %s -> %s" % (down_tile, STAIRS_DOWN_TER))
     print("up-stair tile  : abs %s -> %s" % (up_tile, STAIRS_UP_TER))
@@ -334,6 +343,10 @@ def main(argv=None):
     # creature on either tile. Fail loud on drift BEFORE cloning so a stale offset/world never produces a
     # broken witness.
     src_db = os.path.join(src, "map.sqlite3")
+    if not os.path.exists(src_db):
+        # Guard before any sqlite3.connect(): a missing source db would otherwise be implicitly CREATED as
+        # an empty file in the read-only source world, then fail with an opaque "no such table" error.
+        raise SystemExit("fatal: source map database not found: save/%s/map.sqlite3" % args.source_world)
     get_clean_floor_submap(src_db, ax, ay, az, EXPECTED_TER_Z0, "z=0 down-stair")
     get_clean_floor_submap(src_db, ax, ay, az - 1, EXPECTED_TER_ZM1, "z=-1 up-stair")
     assert_no_creature(data, [down_tile, up_tile])
@@ -370,7 +383,7 @@ def main(argv=None):
     # Read-back sanity on the produced world.
     verify_world(dst)
 
-    print("created world  : %s" % dst)
+    print("created world  : save/%s" % args.dest_world)  # fixture-root-relative (AGENTS.md:273 no-local-paths)
     print("next           : validate with docs/arcopolis/stairs_fixture_regression.ps1")
     return 0
 
