@@ -64,11 +64,9 @@ early-returns the aligned counterpart stair (descend: the `GOES_UP` tile directl
 ## Equivalence level — precisely level 3 (engine-action-reached), NOT level 4
 
 The compact "level 2/3" label resolves to **level 3** ("same engine action / finalization path"); level 2
-(same final state) also holds, witnessed by the round trip. It is **definitively not level 4**. (Verified
-by an adversarial audit — 6 independent/prosecutorial determinations + 6 cross-examinations, unanimous,
-judge verdict: level 3, claim honest, integrity holds, no required fixes.) The numbered levels are defined in
-`AGENTS.md:111-120`, restated at [ARCOPOLIS_STATE.md](ARCOPOLIS_STATE.md) §Terminology →
-"Equivalence levels (1–4)".
+(same final state) also holds, witnessed by the round trip. It is **definitively not level 4**. The numbered
+levels are defined in `AGENTS.md:111-120`, restated at [ARCOPOLIS_STATE.md](ARCOPOLIS_STATE.md)
+§Terminology → "Equivalence levels (1–4)".
 
 The decisive fork is in `game::handle_action()` (`src/handle_action.cpp:1842`):
 
@@ -141,12 +139,14 @@ reached through the real dispatch + tick).
 - `tests/arcopolis_command_test.cpp`, `tests/arcopolis_backend_input_test.cpp`,
   `tests/arcopolis_script_test.cpp` — the unit coverage above.
 - `docs/arcopolis/vertical_movement_regression.ps1` — the round-trip regression.
-- Docs: this file, `ARCOPOLIS_STATE.md`, `TEST_FIXTURES.md`, `47_…§9`.
+- Docs in this PR: this file, `TEST_FIXTURES.md`, `fixtures/README.md`.
+- Current-truth / strategy docs such as `ARCOPOLIS_STATE.md` and doc 47 §9 are updated in the companion
+  documentation PR (not this one).
 
 ## Live mode
 
-Live mode (`--arcopolis-live`) needs no dedicated plumbing: it shares the same parser and
-`command_to_action`, so `vertical_move` works there too. The witness for this spike is the non-live
-run-script regression; no live positive probe was added (no narrow existing pattern for one without
-broadening the spike). The existing live/frontend negative probes still send
-`{"command":"move","direction":"move_up"}`, which stays rejected because `move` remains planar.
+Live mode (`--arcopolis-live`) is expected to use the same parser and `command_to_action` plumbing, so no
+dedicated live-mode plumbing was added. **This PR's positive witness is the non-live run-script regression**;
+no live positive probe was added (no narrow existing pattern for one without broadening the spike). The
+existing live/frontend negative probes still send `{"command":"move","direction":"move_up"}`, which stays
+rejected because `move` remains planar — and still pass.

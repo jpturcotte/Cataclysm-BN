@@ -189,13 +189,17 @@ TEST_CASE( "arcopolis parse_script rejects a vertical_move step without a direct
 TEST_CASE( "arcopolis parse_script rejects a vertical_move step with a non-vertical direction",
            "[arcopolis]" )
 {
-    // "move_down" is a planar-style token, not the vertical vocabulary (down/up).
-    std::istringstream is( R"({ "schema_version": 1, "steps": [
-        { "op": "command", "command": "vertical_move", "direction": "move_down" }
-    ] })" );
-    const auto result = arcopolis::parse_script( is );
-    REQUIRE_FALSE( result.has_value() );
-    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+    // The vertical vocabulary is exactly down/up; planar-style tokens, the examine self-tile token, and ""
+    // all reject at the script layer (its own coverage, though is_supported_vertical_direction is shared).
+    for( const std::string &dir : { "move_down", "move_up", "move_n", "here", "" } ) {
+        const auto json = R"({ "schema_version": 1, "steps": [
+            { "op": "command", "command": "vertical_move", "direction": ")" + dir + R"(" }
+        ] })";
+        std::istringstream is( json );
+        const auto result = arcopolis::parse_script( is );
+        REQUIRE_FALSE( result.has_value() );
+        CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+    }
 }
 
 TEST_CASE( "arcopolis parse_script rejects malformed JSON", "[arcopolis]" )

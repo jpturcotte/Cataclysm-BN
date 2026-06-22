@@ -279,12 +279,19 @@ std::expected<action_id, command_error>
         // vertical_move itself, never mutates position, and never bypasses handle_action()/do_turn().
         // Witnessed only for the matched-stair fast path; any sub-prompt vertical_move raises
         // (ramp/rope/climb/lava/push-past) fails loud via the Spike 20/21 unexpected-prompt guards.
-        if( !is_supported_vertical_direction( cmd.direction ) ) {
-            return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
-                                                   .detail = "unsupported vertical_move direction '" + cmd.direction +
-                                                           "' (expected " + expected_vertical_directions + ")" } );
+        // Map each vertical direction EXPLICITLY -- no ternary "everything-not-down == up" assumption: a
+        // future vertical direction added to is_supported_vertical_direction() but not wired here fails
+        // loud (bad_schema) rather than silently mapping to ACTION_MOVE_UP. (Parsers already validate;
+        // this is the defense-in-depth re-validation, mirroring the move/examine/pickup branches.)
+        if( cmd.direction == "down" ) {
+            return ACTION_MOVE_DOWN;
         }
-        return cmd.direction == "down" ? ACTION_MOVE_DOWN : ACTION_MOVE_UP;
+        if( cmd.direction == "up" ) {
+            return ACTION_MOVE_UP;
+        }
+        return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                               .detail = "unsupported vertical_move direction '" + cmd.direction +
+                                                       "' (expected " + expected_vertical_directions + ")" } );
     }
     return std::unexpected( command_error{ .kind = command_error_kind::unsupported_command,
                                            .detail = "unsupported command: '" + cmd.command + "'" } );

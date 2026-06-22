@@ -75,8 +75,9 @@ TEST_CASE( "arcopolis command_to_action resolves vertical_move down and up", "[a
 TEST_CASE( "arcopolis command_to_action rejects bad vertical_move directions and raw passthrough",
            "[arcopolis]" )
 {
-    // vertical_move accepts only "down"/"up"; the planar-style move_* tokens and garbage are bad_schema.
-    for( const std::string &dir : { "move_down", "move_up", "move_n", "" } ) {
+    // vertical_move accepts only "down"/"up"; the planar-style move_* tokens, the examine self-tile token,
+    // a bare compass word, and garbage are bad_schema (matches the parser's breadth).
+    for( const std::string &dir : { "move_down", "move_up", "move_n", "here", "north", "" } ) {
         const auto bad = arcopolis::command_to_action( { .schema_version = 1, .command = "vertical_move", .direction = dir } );
         REQUIRE_FALSE( bad.has_value() );
         CHECK( bad.error().kind == arcopolis::command_error_kind::bad_schema );
