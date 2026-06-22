@@ -14,7 +14,9 @@ re-read corrected the audit itself. The authoritative current-state page remains
 > the docs' run-logs, not re-execution this session; the _source seams_ were verified, the _live passes_
 > were not re-run. Line numbers are current-tree at audit time; confirm by symbol name (they drift — that
 > is partly why this audit exists). Terminology (backend-input vs engine vs frontend equivalence) is the
-> three senses pinned in [doc 37](37_SPIKE17_CLAIM_AUDIT.md) §"Terminology" and `AGENTS.md:83-120`.
+> three senses pinned in [doc 37](37_SPIKE17_CLAIM_AUDIT.md) §"Terminology" and `AGENTS.md:83-120`. The
+> numbered **equivalence levels 1–4** are defined in `AGENTS.md:111-120`, restated at
+> [ARCOPOLIS_STATE.md](ARCOPOLIS_STATE.md) §Terminology → "Equivalence levels (1–4)".
 
 ## The question, and the one-paragraph honest answer
 

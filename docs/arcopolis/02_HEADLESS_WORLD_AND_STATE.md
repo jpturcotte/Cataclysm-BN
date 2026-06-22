@@ -11,11 +11,14 @@
 > **medium** = located via search/exploration but the exact line was not personally re-opened (verify
 > with the PowerShell checks at the end); **low** = inferred, needs inspection.
 >
-> **Validation status (2026-05-29):** every `file:line` in the _backbone_ sections (test bootstrap,
-> `game.cpp` load/setup paths, worldfactory, and the export accessors) was read directly this session
-> and is **high**. A handful of secondary references (map buffer / overmap internals, a couple of
-> descriptor fields, the `clear_avatar` test helper) are **medium** and called out inline. Line numbers
-> drift as the source evolves — re-run the PowerShell checks against a newer commit.
+> **Validation status:** the `file:line` references here were read directly on 2026-05-29 and have
+> **SINCE DRIFTED SUBSTANTIALLY** — `src/game.cpp` shifted by hundreds of lines in the load/setup/
+> `update_map` region (e.g. `init_global_game_state` is now `tests/test_main.cpp:174` not `:99`;
+> `game::load_static_data` ~`game.cpp:514` not `:440`; `game::setup` ~`:677` not `:603`; the `update_map`
+> overloads ~`:15074-15085`; `map::load` is `point_abs_sm` at `src/map.h:936`, and `map::get_abs_sub()`
+> returns a 2-D `point_abs_sm` at `~src/map.h:1961`). **Treat every line number here as approximate; cite/
+> verify by SYMBOL NAME and re-run the final-section PowerShell checks against the current commit.**
+> (2026-06-22 audit: numbers stale, conceptual load/state walkthrough still accurate.)
 
 ## Summary
 
@@ -518,8 +521,9 @@ Notes:
 
 ## Risks and unknowns
 
-- **Line-number drift.** All references are valid at the current commit (2026-05-29); re-run the
-  PowerShell checks below against newer commits.
+- **Line-number drift.** References were valid as of 2026-05-29 but have **since drifted substantially**
+  (see the header banner); treat all line numbers as approximate, cite by symbol, and re-run the
+  PowerShell checks below against the current commit.
 - **`setup()`'s `loading_ui( true )`** ([src/game.cpp:605](../../src/game.cpp)) — unverified whether it
   is fully inert under `test_mode` on the target Windows build. `load(world)` reaches `setup()`, so a
   headless Spike-0 flag must confirm this (the existing headless flags sidestep it by using

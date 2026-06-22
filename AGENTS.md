@@ -34,7 +34,7 @@ A previous attempt at GUI/overlay work suggested that bridging or replacing indi
 
 ### Current phase
 
-Implementing the backend boundary in small, validated spikes — Spikes 0–5 are merged. Changes now routinely include real `src/` / tests / tooling (scoped to the `--arcopolis-*` modes), not just docs. See `docs/arcopolis/ARCOPOLIS_STATE.md` for the current state and the deferred backlog.
+Implementing the backend boundary in small, validated spikes — many are merged (Spikes 0 through 24 as of this writing), routinely including real `src/` / tests / tooling (scoped to the `--arcopolis-*` modes), not just docs. See `docs/arcopolis/ARCOPOLIS_STATE.md` for the live frontier and the deferred backlog.
 
 ### Repository layout (branch model)
 

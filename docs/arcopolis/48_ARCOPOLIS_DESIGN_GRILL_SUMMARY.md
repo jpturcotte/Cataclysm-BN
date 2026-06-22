@@ -434,9 +434,9 @@ A movement witness that also has to discover or build its own vertical test loca
 
 The design-grill outcome implies this staged proof sequence:
 
-1. Minimal deterministic vertical fixture/generator.
-2. Vertical movement witness using that fixture.
-3. Package placement/pickup/export witness.
+1. Minimal deterministic vertical fixture/generator. — **DONE (Spike 23, `ArcopolisStairsTest`).**
+2. Vertical movement witness using that fixture. — **DONE (Spike 24, the `vertical_move` verb, matched-stair down→up round trip, level 2/3; doc 49).**
+3. Package placement/pickup/export witness. — **next.**
 4. Return/contact-area placeholder witness.
 5. Security drone/fight route witness.
 6. Sneak/alternate route witness.

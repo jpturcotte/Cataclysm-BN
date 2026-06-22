@@ -39,7 +39,9 @@ wrong).
 
 ## Terminology this audit enforces
 
-Three distinct senses, anchored by `AGENTS.md:83-120`:
+Three distinct senses, anchored by `AGENTS.md:83-120` (the numbered **equivalence levels 1–4** are defined
+at `AGENTS.md:111-120`, restated at [ARCOPOLIS_STATE.md](ARCOPOLIS_STATE.md) §Terminology →
+"Equivalence levels (1–4)"):
 
 1. **Backend-input-equivalent** — the backend serves registered actions that BN's real
    `input_context`/menu/UI loop consumes (e.g. `input_context("UILIST")::handle_input`,

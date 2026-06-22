@@ -9,8 +9,8 @@
 - **Purpose:** process startup, the per-turn pipeline, and input→action dispatch.
 - **Anchor files:** `src/main.cpp`, `src/game.cpp`, `src/game.h`, `src/handle_action.cpp`,
   `src/action.cpp`, `src/action.h`.
-- **Start here:** `src/main.cpp:1062` (`while( !g->do_turn() )`) → `src/game.cpp:1884`
-  (`game::do_turn`) → `src/handle_action.cpp:1763` (`game::handle_action`).
+- **Start here:** `src/main.cpp:1062` (`while( !g->do_turn() )`) → `src/game.cpp:1988`
+  (`game::do_turn`) → `src/handle_action.cpp:1842` (`game::handle_action`).
 
 ## 2. Arcopolis backend seam (fork-specific)
 
@@ -18,8 +18,8 @@
 - **Anchor files:** `src/arcopolis_backend_input.cpp/.h`, `src/arcopolis_command.cpp`,
   `src/arcopolis_export.cpp`, `src/arcopolis_live.cpp`, `src/arcopolis_script.cpp`,
   `src/arcopolis_session_log.cpp`.
-- **Start here:** the input hook `src/handle_action.cpp:1779` (`arcopolis::next_backend_action()`),
-  gated by `arcopolis::backend_session_active()` (`src/arcopolis_backend_input.cpp:528`).
+- **Start here:** the input hook `src/handle_action.cpp:1858` (`arcopolis::next_backend_action()`),
+  gated by `arcopolis::backend_session_active()` (`src/arcopolis_backend_input.cpp:535`).
 - **Risk:** must uphold the backend-UI invariant — see [`04_RISK_ZONES.md`](04_RISK_ZONES.md).
 
 ## 3. UI / input / prompt machinery
@@ -30,7 +30,7 @@
 - **Start here:** `input_context::handle_input` in `src/input.cpp`; menus go through `uilist` in
   `src/ui.cpp`; confirmations through `query_popup` in `src/popup.cpp`.
 - **Risk:** under backend `test_mode` these short-circuit (e.g. `uilist` → `UILIST_ERROR`,
-  `src/ui.cpp:935`) — see risk zones.
+  `src/ui.cpp:933`) — see risk zones.
 
 ## 4. Map / terrain / reality bubble
 

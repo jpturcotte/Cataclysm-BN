@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 16 non-live script prompt answers, 2026-06-18)
+# Arcopolis backend — current state (truth as of Spike 24 matched-stair vertical movement, 2026-06-22)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -14,9 +14,11 @@ page wins — or fix it.
 > hardcoded call site / one fixture** and per-transaction gated; the mechanism generalizes by **reuse** at
 > new sites, not a general UI abstraction — "one witnessed path is level 4" ≠ "the prompt class is
 > supported" (doc 38). **`move` itself is NOT level 4** (its `action_id` never enters `handle_input` — it
-> is engine/frontend-equivalent only); only the examine direction-chooser sub-prompt is. Everything else
-> fails loud or is honest backlog (see the **Known-unsupported / fail-loud** table below — which now notes
-> the one silent prompt-default: an unguarded `query_yn` via `examine`). The backend creates **no curses
+> is engine/frontend-equivalent only); only the examine direction-chooser sub-prompt is. **`vertical_move`
+> (Spike 24) is likewise NOT level 4** — engine-action-reached (level 2/3), matched-stair only. Everything
+> else fails loud or is honest backlog (see the **Known-unsupported / fail-loud** table below — every
+> unarmed `query_yn`/`query_popup`/`uilist` reached during an active session now **fails loud**
+> (`unexpected_prompt`) since Spike 20/21; no silent prompt-default remains). The backend creates **no curses
 > window and calls no render primitive in any build**. When an older `NN_SPIKE*.md` disagrees with this
 > page, this page wins.
 
@@ -196,11 +198,28 @@ or `here` (the avatar's own tile) — the complete planar target set the GUI exa
 (vertical excluded: `game::examine` passes `allow_vertical=false`). The examine direction is the answer
 to the engine's "Examine where?" prompt IF it asks (a keystroke mirror, served through the nested-input
 seam), never a commanded target tile; with the engine's autoselect option on, the engine may pick the
-target itself and the unconsumed answer is force-cleared + logged. For `move`, only **vertical**
-(`move_up`/`move_down`) stays rejected — the separate `game::vertical_move` primitive (stairs/ropes/climb),
-not a planar step; for examine, only vertical and garbage are rejected, with a typed error. The **browser
+target itself and the unconsumed answer is force-cleared + logged. For `move`, a **vertical direction**
+(`move_up`/`move_down`) stays rejected — `move` is strictly **planar**; for examine, only vertical and
+garbage are rejected, with a typed error. The **browser
 prototype** drives this whole planar surface 8-way (Spike 11B): click-to-move and the 3×3 d-pad reach all
 eight neighbors, and a Move/Examine mode selector sends `examine` in any of the eight directions plus `here`.
+
+**`vertical_move` + `direction` → `ACTION_MOVE_DOWN`/`ACTION_MOVE_UP` (Spike 24).** A SEPARATE verb from
+planar `move`, with a distinct vertical vocabulary `"down"`/`"up"` (NOT the planar `move_*` tokens). `down`
+→ `ACTION_MOVE_DOWN`, `up` → `ACTION_MOVE_UP`, returned directly (as `wait`/`examine`); `handle_action()`
+dispatches these to the native `game::vertical_move(-1/+1, false)` primitive for a non-mounted, non-vehicle
+avatar (`src/handle_action.cpp:2212,2307`) — the backend never calls `vertical_move` directly, never mutates
+position, and never bypasses `handle_action`/`do_turn`. **Equivalence level 2/3 — precisely level 3**
+(engine action reached), NOT registered-input level 4: the `action_id` is **injected at the `handle_action`
+seam** (`src/handle_action.cpp:1857-1858`, the `look_up_action`/`get_player_input` path skipped), so it
+never enters `input_context::handle_input` — exactly like planar `move`. (Adversarially audited; the level-4
+mechanism vs the injection seam is detailed in doc 49.)
+Witnessed ONLY for the **matched-stair fast path** (a `GOES_DOWN`/`GOES_UP` aligned pair, `ArcopolisStairsTest`):
+`find_stairs` early-returns the aligned counterpart with no fabrication/`query_yn` (`src/game.cpp:14840-14846`);
+any sub-prompt vertical_move could raise (ramp/rope/climb/lava/push-past) FAILS LOUD via the Spike 20/21
+unexpected-prompt guards. Not live-only (the clean path is prompt-free; runs in `--arcopolis-run-script`). NO
+generic vertical / ramp / elevator / ladder / multi-floor claim — see
+[49_SPIKE24_VERTICAL_MOVEMENT_WITNESS.md](49_SPIKE24_VERTICAL_MOVEMENT_WITNESS.md).
 
 **`pickup` + `direction` → `ACTION_PICKUP` (Spike 12A live; Spike 16 adds non-live script via declared
 `prompt_answers`)** — a GUI-equivalent prompt/menu transaction (doc 25's "Option C" for one prompt class). The "Pickup where?" chooser is answered like
@@ -331,7 +350,8 @@ _classification_ only; `blocked_by=terrain` is **not** asserted — a headless r
 
 ## Terminology (backend-input vs engine vs frontend equivalence)
 
-Anchored by `AGENTS.md:83-120`.
+Anchored by `AGENTS.md:83-120`; the **normative numbered equivalence ladder is `AGENTS.md:111-120`**,
+restated in the glossary below for convenience (if they ever disagree, AGENTS.md wins).
 
 **The project goal is GUI equivalence: a separate, mouse-first Arcopolis frontend that exposes the SAME
 meaningful choices and consequences a BN player has, while BN remains authoritative for all simulation.**
@@ -342,6 +362,30 @@ mechanism on a witnessed path is **necessary but not sufficient**: it does not m
 been built/validated for that path, nor that a whole prompt _class_ is supported. So on this page
 **"GUI-equivalent" / "level 4" mean the BACKEND-INPUT sense** (the proof), never visual/pixel equivalence and
 never a finished frontend.
+
+### Equivalence levels (1–4)
+
+The numbered ladder every Arcopolis claim is stated against. **Normative source: `AGENTS.md:111-120`** (this
+restates it for convenience on the read-this-first page; if they ever disagree, AGENTS.md wins). For
+player-action implementation spikes the **default required level is 4** unless explicitly approved
+(`AGENTS.md:119-120`).
+
+1. **Observation only** — exports/snapshots; no command driven, no equivalence claimed.
+2. **Same final state** — the world lands on identical state, by any route. Not, on its own, evidence of
+   input equivalence.
+3. **Same engine action / finalization path** — the same engine action / `do_turn` / finalization helper is
+   reached, but **not** necessarily through the player's registered input loop. _Planar `move` and Spike-24
+   `vertical_move` sit here ("level 2/3"): the `action_id` is injected at the `handle_action` seam and never
+   enters `input_context::handle_input`, so they are **NOT** level 4 — engine-equivalent only._
+4. **Same registered backend inputs consumed by the same active engine input loop/mechanism a player would
+   use** (e.g. `input_context::handle_input()`) — the backend serves the player's registered actions, in
+   order, into BN's OWN unmodified active loop, which produces the result. _The witnessed prompt paths —
+   examine direction-chooser, `pickup` menu, vehicle-source / secondary-capacity `uilist`, deployed-furniture
+   `query_yn` — are level 4._
+
+The three named senses below map onto that ladder: **backend-input-equivalent** = the level-4 mechanism;
+**engine-equivalent** = the level-3 property (the real engine caller mutates state); **frontend-equivalent**
+= an external frontend built on a level-4-proven path (the project goal).
 
 - **Backend-input-equivalent** — the backend serves registered actions that BN's real
   `input_context`/menu/UI loop consumes (e.g. `input_context("UILIST")::handle_input`,
@@ -401,6 +445,7 @@ behavior change; doc 40 carries the old→new name map).
 | 20    | **fail-loud for unexpected prompts:** an UNARMED `query_popup`/`query_yn` reached during an active session now reports `unexpected_prompt` (new error kind, exit 14 non-live; recoverable `ok=false` live) instead of silently defaulting to NO — closing the doc-38 silent-NO hole. NO new prompt support; cata_test/normal play unchanged; the `uilist` family (move-into-NPC) is audited but DEFERRED (resolved in Spike 21); doc 42                                                                                                                                                                       | ✅                                      |
 | 21    | **fail-loud for unarmed `uilist` (the deferred Spike 20 follow-up):** `uilist::query` now reports `unexpected_prompt` for the UNARMED case during an active session (reusing the Spike 20 channel, NO new error kind), so `move_n` AND `examine move_n` into the NPC Edwardo fail loud instead of silently auto-cancelling the npc_menu. The old move-into-NPC `blocked_no_op` baseline is retired; a genuine terrain block (`ArcopolisWallTest`, `t_wall`) is the replacement `blocked_no_op` witness. NO NPC-menu / generic-uilist / INVENTORY support; armed 13B/14/15 paths + cata_test unchanged; doc 43 | ✅                                      |
 | 23    | **aligned two-floor stair FIXTURE** (`ArcopolisStairsTest`): a clone of `ArcopolisTest` with a matched `t_stairs_down` (z=0, under the stationary avatar) / `t_stairs_up` (z=-1, directly below) pair, so a later `move_down` hits `find_stairs`'s deterministic fast path with no fabrication/`query_yn` (doc 47 §4). **Fixture-only — NO Arcopolis `move_up`/`move_down` command and NO vertical movement proven** (that is Spike 24, intentionally split per doc 48). No runtime/source change; built by `make_stairs_fixture.py`, gated by `stairs_fixture_regression.ps1`; doc 47 §9                     | ✅ fixture/docs only                    |
+| 24    | **matched-stair vertical movement** (`vertical_move` + `direction` `down`/`up` → `ACTION_MOVE_DOWN`/`ACTION_MOVE_UP` → native `game::vertical_move`): a SEPARATE verb from planar `move`; proves a down → up **matched-stair round trip** on `ArcopolisStairsTest` at **level 2/3** (engine action reached, like planar `move`), incl. the per-floor-observation snapshot witness. Command plumbing only — NO engine/seam change; any sub-prompt fails loud. NO generic-vertical / ramp / elevator / ladder / 5–6-floor claim. Gated by `vertical_movement_regression.ps1`; doc 49                            | ✅                                      |
 
 ## Source & tests
 
@@ -493,6 +538,10 @@ Fixture-driven
 regressions (need a loaded world, so not in CI; the fixture worlds themselves are cataloged in
 [TEST_FIXTURES.md](TEST_FIXTURES.md)):
 [`docs/arcopolis/movement_regression.ps1`](movement_regression.ps1) gates movement/NPC on **`ArcopolisTest`**,
+[`docs/arcopolis/vertical_movement_regression.ps1`](vertical_movement_regression.ps1) gates the **matched-stair
+`vertical_move` down → up round trip** on **`ArcopolisStairsTest`** (Spike 24, level 2/3, doc 49: before on
+`t_stairs_down` z 0 → after_down on `t_stairs_up` z −1 → after_up back on `t_stairs_down` z 0, x/y unchanged,
+turn advancing each leg, exit 0 / `session_end ok`),
 [`docs/arcopolis/npc_export_regression.ps1`](npc_export_regression.ps1) gates the **NPC export** on the same
 **`ArcopolisTest`** (the stock shelter NPC Edwardo is already in the radius-12 window, so it needs no save
 edit — `ArcopolisTest` is now **both** the movement/NPC-blocker fixture **and** the NPC-export witness; see
@@ -631,19 +680,21 @@ numbers are current-tree and may drift; confirm by symbol. Centralized here by t
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pickup` under `NEW_PICKUP_MENU=true` (live)                                                                                                                                                                                                                                                                                                                             | reject pre-flight, `unsupported_command`                                                                                                 | 6                                                                                                                    | `src/arcopolis_live.cpp`                                                                                                                                                                                   |
 | `pickup` under `NEW_PICKUP_MENU=true` (run-script)                                                                                                                                                                                                                                                                                                                       | post-load reject                                                                                                                         | 6                                                                                                                    | `src/arcopolis_script.cpp`                                                                                                                                                                                 |
-| one-shot `--arcopolis-command pickup` (no answer channel)                                                                                                                                                                                                                                                                                                                | reject pre-flight                                                                                                                        | 6                                                                                                                    | `src/arcopolis_export.cpp`; `is_live_only_command` `src/arcopolis_command.cpp:95-101`                                                                                                                      |
+| one-shot `--arcopolis-command pickup` (no answer channel)                                                                                                                                                                                                                                                                                                                | reject pre-flight                                                                                                                        | 6                                                                                                                    | `src/arcopolis_export.cpp`; `is_live_only_command` `src/arcopolis_command.cpp:109`                                                                                                                         |
 | `--arcopolis-run-script pickup` with NO `prompt_answers`                                                                                                                                                                                                                                                                                                                 | reject                                                                                                                                   | 6                                                                                                                    | `src/arcopolis_script.cpp`                                                                                                                                                                                 |
 | vehicle/secondary uilist with a transaction but NO uilist channel                                                                                                                                                                                                                                                                                                        | marked partial, CANCEL                                                                                                                   | 13 (run-script)                                                                                                      | `src/pickup.cpp:195-198`                                                                                                                                                                                   |
-| secondary capacity uilist with ANY disabled entry                                                                                                                                                                                                                                                                                                                        | refuse (`scrollby` would mis-navigate); marked partial; backstop `disabled_entry_unsupported`                                            | 13 (run-script)                                                                                                      | `src/pickup.cpp:285-288`; `src/arcopolis_backend_input.cpp:817`                                                                                                                                            |
+| secondary capacity uilist with ANY disabled entry                                                                                                                                                                                                                                                                                                                        | refuse (`scrollby` would mis-navigate); marked partial; backstop `disabled_entry_unsupported`                                            | 13 (run-script)                                                                                                      | `src/pickup.cpp:285-288`; `src/arcopolis_backend_input.cpp:934`                                                                                                                                            |
 | multi-tick resumed orphaned secondary                                                                                                                                                                                                                                                                                                                                    | report marks, sets NO outcome, CANCEL                                                                                                    | — (marked)                                                                                                           | `src/pickup.cpp:208-211`                                                                                                                                                                                   |
-| scripted answer missing/wrong-kind/title-mismatch/out-of-range/cancel-of-noncancelable/unused                                                                                                                                                                                                                                                                            | `script_prompt_failed` (first-failure-wins)                                                                                              | 13                                                                                                                   | `src/arcopolis_backend_input.cpp`; `src/arcopolis_command.cpp:269-270`                                                                                                                                     |
+| scripted answer missing/wrong-kind/title-mismatch/out-of-range/cancel-of-noncancelable/unused                                                                                                                                                                                                                                                                            | `script_prompt_failed` (first-failure-wins)                                                                                              | 13                                                                                                                   | `src/arcopolis_backend_input.cpp`; `src/arcopolis_command.cpp:318-319`                                                                                                                                     |
 | unarmed `query_popup`/`query_yn`/`popup()`/`popup_getkey()`/`PF_GET_KEY`, **during an active session** (incl. any `query_yn` ≠ the deployed-furniture witness, via the supported `examine` verb)                                                                                                                                                                         | **Spike 20:** `query_once` reports `unexpected_prompt` then returns the safe default as a transport fallback — **FAIL LOUD**, not silent | 14 (non-live) / `ok=false` (live)                                                                                    | `src/popup.cpp` `query_once` → `arcopolis::backend_report_unexpected_prompt`; surfaced `src/arcopolis_export.cpp` (one-shot) / `src/arcopolis_script.cpp` (post-loop) / `src/arcopolis_live.cpp` block (a) |
 | same prompts **outside** an Arcopolis session (cata_test / normal play)                                                                                                                                                                                                                                                                                                  | `query_once` test_mode abort `{false,"ERROR",{}}` → silent NO — **unchanged**                                                            | — (aborted)                                                                                                          | `src/popup.cpp` `query_once` (inert: `!backend_session_active()`)                                                                                                                                          |
 | unarmed `uilist` **during an active session** (the `game::npc_menu` reached by `move`/`examine` into an NPC; the vehicle `interact_with` "Select an action" `uilist` reached by `examine` of a vehicle tile; computer/monster menus) — **Spike 21:** `query` reports `unexpected_prompt` then returns `UILIST_ERROR` as a transport fallback — **FAIL LOUD**, not silent | 14 (non-live) / `ok=false` (live)                                                                                                        | `src/ui.cpp` `uilist::query` → `arcopolis::backend_report_unexpected_prompt`; surfaced as for `query_popup` (doc 43) |                                                                                                                                                                                                            |
 | same unarmed `uilist` **outside** an Arcopolis session (cata_test / normal play)                                                                                                                                                                                                                                                                                         | test_mode abort → `UILIST_ERROR` (silent) — **unchanged**                                                                                | — (aborted)                                                                                                          | `src/ui.cpp` `uilist::query` (inert: `!backend_session_active()`)                                                                                                                                          |
-| `pickup` under `NEW_PICKUP_MENU=true` / `inventory_selector` (NOT a `uilist`; no narrow `test_mode` abort to pierce — doc 39 §4)                                                                                                                                                                                                                                         | reject pre-flight, `unsupported_command`                                                                                                 | 6                                                                                                                    | `src/arcopolis_live.cpp:213-218` (live); `src/arcopolis_script.cpp:357-365` (run-script)                                                                                                                   |
+| `pickup` under `NEW_PICKUP_MENU=true` / `inventory_selector` (NOT a `uilist`; no narrow `test_mode` abort to pierce — doc 39 §4)                                                                                                                                                                                                                                         | reject pre-flight, `unsupported_command`                                                                                                 | 6                                                                                                                    | `src/arcopolis_live.cpp:224-230` (live); `src/arcopolis_script.cpp:375-380` (run-script)                                                                                                                   |
 
-**Still backlog (no driving claim):** vertical `move` (`<`/`>`); explicit `open`/`close`/`smash`; per-unit
+**Still backlog (no driving claim):** vertical movement BEYOND the matched-stair fast path —
+ramps/elevators/ladders/ropes/climb/falls (**matched-stair `vertical_move` down/up is DONE**, Spike 24,
+level 2/3); explicit `open`/`close`/`smash`; per-unit
 pickup quantity (whole-stack only); nested-container parent/child mark propagation (exposed but
 **unexercised**, `src/pickup.cpp:1107-1123`); NPC talk/attack/swap; monster menus; computer use; the
 examine auto-pickup tail (still ESC-cancels); the `inventory_selector` (`NEW_PICKUP_MENU=true`); multi-tick
@@ -681,9 +732,11 @@ resumed-activity secondary prompts; generic `popup()`/`query_popup` families.
   prompt-free bodies, plus the `moves -= 100` turn-economy witness — then smash), **NPC
   interaction (talk/attack/swap/push — needed to act on a creature-occupied destination, the
   move-into-NPC no-op in
-  [15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md](15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md))**, inventory, targeting, and
-  **vertical** movement (`move_up`/`move_down` → the separate `game::vertical_move` primitive, NOT a
-  planar step). **`pickup` as a user-selectable action is no longer deferred — IMPLEMENTED (Spike 12A's
+  [15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md](15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md))**, inventory, and targeting.
+  **Vertical movement is no longer fully deferred — the `vertical_move` verb (`down`/`up` → the separate
+  `game::vertical_move` primitive) is IMPLEMENTED for the matched-stair fast path (Spike 24, doc 49, level
+  2/3);** ramps/elevators/ladders/ropes/climb/falls and 5–6-floor traversal stay deferred. **`pickup` as a
+  user-selectable action is no longer deferred — IMPLEMENTED (Spike 12A's
   prompt/menu transaction, doc 30)** for the old `"PICKUP"` menu: doc 25's **Option C is now built for
   one prompt class** (NPC dialogue / computer menus still need it; the new inventory_selector, quantities,
   and nested containers stay deferred). The examine pickup tail still ESC-cancels (no transaction armed).

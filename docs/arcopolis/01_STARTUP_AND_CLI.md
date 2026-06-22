@@ -8,10 +8,12 @@
 > **medium** = located but exact line not personally re-opened (verify with the PowerShell checks below);
 > **low** = inferred, needs inspection.
 >
-> **Validation status:** every `file:line` reference below was confirmed by running the PowerShell
-> checks in the final section (2026-05-29) — all matched exactly. Items originally gathered indirectly
-> have been upgraded to **high**. Line numbers still drift as the source evolves; re-run the checks
-> against a newer commit.
+> **Validation status:** the `file:line` references below were last confirmed 2026-05-29 and have
+> **SINCE DRIFTED** as upstream evolved (notably `src/main.cpp` grew ~90 lines near the top — the
+> first-pass arg array is now `arg_handler, 22` at `src/main.cpp:284`, not `, 15` at `:241`). **Treat
+> every line number here as approximate; cite/verify by SYMBOL NAME, and re-run the PowerShell checks in
+> the final section against the current commit before relying on a number.** (2026-06-22 audit: the
+> per-flag tables and load-sequence cites in this doc are stale; the conceptual flow remains accurate.)
 
 ## Summary
 
@@ -104,7 +106,7 @@ BN uses a **custom, table-driven parser** — no `getopt`/`getopt_long`, no thir
   `std::function<int( int, const char** )>`. The handler returns how many parameters it consumed, or
   `-1` for a missing required argument. **(high)**
 - **Two passes**, because some flags depend on earlier ones:
-  - `first_pass_arguments` — `std::array<arg_handler, 15>` at [src/main.cpp:241](../../src/main.cpp). **(high)**
+  - `first_pass_arguments` — `std::array<arg_handler, 22>` at [src/main.cpp:284](../../src/main.cpp) (was `, 15` at `:241` when written; upstream + the Arcopolis flags grew it — see AGENTS.md on the `<arg_handler, N>` sync gotcha). **(high)**
   - `second_pass_arguments` — `std::array<arg_handler, 8>` at [src/main.cpp:454](../../src/main.cpp). **(high)**
 - **First-pass dispatch loop**: [src/main.cpp:566](../../src/main.cpp). `--help` (567), `--version`
   (571), and `--paths` (574) are matched inline before the table loop; unknown args are skipped (597). **(high)**
@@ -323,7 +325,11 @@ headless, an Arcopolis flag should set `test_mode` itself and load earlier (see 
 
 ## Candidate insertion points for Arcopolis flags
 
-> Design only. **Nothing here is implemented.** This section identifies _where_ future work would go.
+> **Superseded — now implemented.** This was the original feasibility sketch; the Arcopolis CLI flags it
+> proposed have since shipped (Spikes 0–24) as `--arcopolis-export-current-view`,
+> `--arcopolis-run-script`, `--arcopolis-export-dir`, `--arcopolis-command`, and `--arcopolis-live` (added
+> as new `arg_handler` entries, exactly as predicted). The section is kept as the design rationale; see
+> `docs/arcopolis/ARCOPOLIS_STATE.md` for the shipped flag set.
 
 Both proposed flags follow the existing three-step pattern:
 
@@ -367,11 +373,11 @@ Both proposed flags follow the existing three-step pattern:
 
 ## Risks and unknowns
 
-- **Line numbers validated (2026-05-29)**: the `src/init.cpp`, `src/options.cpp`, and
-  `src/filesystem.cpp` line numbers originally gathered indirectly were confirmed via the PowerShell
-  checks below — all matched exactly. The only item not re-checked individually is
-  `DynamicDataLoader::load_all_from_json` (~526). Line numbers still drift as the source changes, so
-  re-run the checks when working against a newer commit.
+- **Line numbers were validated 2026-05-29 but have since DRIFTED** (see the header banner): the
+  `src/main.cpp` cites in particular are stale (the first-pass arg array is now `arg_handler, 22` at
+  `:284`). The `src/init.cpp`, `src/options.cpp`, and `src/filesystem.cpp` numbers were confirmed at that
+  time. Treat all line numbers as approximate and verify by symbol; re-run the PowerShell checks below
+  against the current commit before relying on a number.
 - **`--world` is not headless on its own**: it loads after UI init, so it cannot serve as a headless
   template without also setting `test_mode`.
 - **Export scope is undefined**: what "current view" means (a screen of tiles? the reality bubble? the
