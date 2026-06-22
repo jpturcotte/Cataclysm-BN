@@ -446,6 +446,46 @@ the suite runs. If you copied files into the main repo by mistake, restore IMMED
 git -C C:\dev\Cataclysm-BN checkout -- <list of files>
 ```
 
+### Running the FULL suite needs the llvmpipe software-GPU backend (vision/shadowcasting)
+
+**This is the canonical "how to run the tests" reference; other docs link here.**
+
+`CATA_TEST_COMPUTE_ACCELERATION=cpu` is the correct escape hatch **only for `[arcopolis]`** — those
+tests never touch the lightmap, so CPU compute is fine and gives `All tests passed (920 assertions
+in 143 test cases)`. For the **full** `cata_test-tiles` run, CPU is the **wrong** backend: the
+`[vision]`/`[shadowcasting]` expected light grids are calibrated for the deterministic **llvmpipe**
+(Lavapipe software-Vulkan) compute path, so CPU compute fails exactly four vision cases —
+`vision_wall_obstructs_light`, `vision_single_tile_skylight`, `vision_see_out_of_vehicle`,
+`vision_see_into_vehicle` (a handful of light cells off by 1–2). **That is not a regression — it is
+the wrong compute backend.** Do not chase it in source.
+
+Run the full suite on llvmpipe instead. `src/compute/gpu_platform.cpp`
+(`pin_lavapipe_icd_for_software_mode()`) honours a pre-set `VK_ICD_FILENAMES` / `VK_DRIVER_FILES`;
+otherwise it searches candidate paths, and on this Intel-UHD box that search can miss ("no Lavapipe
+ICD manifest was found"), after which SDL_GPU rejects every hardware device under its
+software-required policy. So pin the ICD explicitly and leave `CATA_TEST_COMPUTE_ACCELERATION`
+**unset**:
+
+```powershell
+$env:VK_ICD_FILENAMES = "C:\dev\Cataclysm-BN\out\build\win-rel-deb\tests\mesa\x64\lvp_icd.x86_64.json"
+Remove-Item Env:\CATA_TEST_COMPUTE_ACCELERATION -ErrorAction SilentlyContinue
+# child cwd = repo root so SDL_GPU finds data/shaders + the ICD (see the worktree note above)
+$p = Start-Process -FilePath "C:\dev\Cataclysm-BN\out\build\win-rel-deb\tests\cata_test-tiles.exe" `
+     -WorkingDirectory "C:\dev\Cataclysm-BN" -NoNewWindow -Wait -PassThru `
+     -RedirectStandardOutput "C:\tmp\test.out" -RedirectStandardError "C:\tmp\test.err"
+Write-Output "TEST_EXIT=$($p.ExitCode)"
+Get-Content "C:\tmp\test.out" -Tail 6
+```
+
+A correct run logs `Compute backend selected: sdl_gpu_software` / `device=llvmpipe`. Whole-suite
+green is `All tests passed (6,711,175 assertions in 1,000 test cases)`, exit 0 (verified 2026-06-21
+on the MSVC `win-rel-deb` build right after the upstream sync; the same all-pass on llvmpipe is in
+[45_WINDOWS_COVERAGE_FEASIBILITY.md](45_WINDOWS_COVERAGE_FEASIBILITY.md) §5 for the clang-cl
+coverage build). `lvp_icd.x86_64.json` + its sibling `vulkan_lvp.dll` live in `tests\mesa\x64`,
+copied there by the link tail's `cmake -E copy_directory build-data\mesa\x64 …`; if that cosmetic
+tail failed (next section) and the dir is absent, copy it by hand first, or point
+`VK_ICD_FILENAMES` at the source `build-data\mesa\x64\lvp_icd.x86_64.json`.
+
 ### Cosmetic post-link packaging tail
 
 A successful incremental build can still end `BUILD_EXIT=1` because the link command's `&&` tail

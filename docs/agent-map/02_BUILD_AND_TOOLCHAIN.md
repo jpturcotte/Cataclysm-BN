@@ -78,8 +78,13 @@ and vcpkg, building into `out/build/win-rel-deb`. See `AGENTS.md:147-167` for th
 
 - The Catch2 binaries are run **from the repo root** (working dir must contain `data/`), with
   `--rng-seed time` (`tests/CMakeLists.txt:21-24`). The test exe locates `data/shaders/...` and the
-  Lavapipe ICD relative to its CWD — see `AGENTS.md:159-165` for the Windows `Start-Process` pattern.
+  Lavapipe ICD relative to its CWD.
 - Filter example (Arcopolis tag): `cata_test-tiles "[arcopolis]"`.
+- **Full-suite gotcha:** `[arcopolis]` passes on CPU compute, but the **full** suite must run on the
+  llvmpipe software-GPU backend (`[vision]`/`[shadowcasting]` are calibrated for it). Canonical run
+  procedure (pin `VK_ICD_FILENAMES`, leave `CATA_TEST_COMPUTE_ACCELERATION` unset) + the Windows
+  `Start-Process` pattern: [../arcopolis/00_WINDOWS_LOCAL_ENVIRONMENT.md](../arcopolis/00_WINDOWS_LOCAL_ENVIRONMENT.md)
+  → "Running the FULL suite needs the llvmpipe software-GPU backend".
 
 ## Formatting & linting (pointers)
 
