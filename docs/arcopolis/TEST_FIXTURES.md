@@ -134,6 +134,37 @@ consumer's `seen` guard.) Built reproducibly by [`docs/arcopolis/make_wall_fixtu
 [`docs/arcopolis/client_harness_regression.ps1`](client_harness_regression.ps1). See
 [43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md](43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md).
 
+## `ArcopolisStairsTest` — aligned two-floor stair fixture (Spike 23)
+
+A clone of `ArcopolisTest` with a **matched stair pair** written into the avatar's column WITHOUT moving
+the avatar: the avatar's own z=0 tile becomes `t_stairs_down` (flag `GOES_DOWN`, was `t_floor`), and the
+tile **directly below** at z=-1 (same x,y) becomes `t_stairs_up` (flag `GOES_UP`, was `t_linoleum_white` in
+the already-saved basement). Both submaps already exist in `ArcopolisTest`'s saved bubble, so this is two
+terrain edits — no submap synthesis, no avatar move, no bubble-origin shift (the loader recomputes the
+bubble origin from `player.abs_pos`, so moving the avatar would risk edge mapgen — `src/savegame.cpp:350-352`).
+
+**What it provides:** the deterministic setup for a vertical-movement witness. The avatar **stands on**
+`t_stairs_down`, so the intended first witness is a single **`move_down`** — `find_stairs`'s fast path
+(`src/game.cpp:14840-14846`) returns the `GOES_UP` tile directly below, with no fabrication and no `query_yn`
+(doc 47 §4: a matched aligned pair + no creature on either tile avoids both `find_or_make_stairs` fabrication
+and the push-past prompt). `move_up` is a **later follow-up** (a sibling fixture or the resulting lower-floor
+position), deliberately **not** presented as equally ready.
+
+**What it does NOT prove:** vertical movement itself. Spike 23 is **fixture-only** — it adds **no** Arcopolis
+`move_up` / `move_down` command support. The `move_down` backend-input witness is **Spike 24** (deliberately
+split from the fixture per [48_ARCOPOLIS_DESIGN_GRILL_SUMMARY.md](48_ARCOPOLIS_DESIGN_GRILL_SUMMARY.md):
+build/validate the fixture first, prove movement second). Labeled **NATIVE-BN** (stock `t_stairs_down` /
+`t_stairs_up`, `terrain-zlevel-transitions.json:119,142`) until Spike 24 drives it through.
+
+Built reproducibly by [`docs/arcopolis/make_stairs_fixture.py`](make_stairs_fixture.py) (save-edit of two
+submap `terrain` RLEs, no GUI/build; `--check-only` / `--force`), gated by
+[`docs/arcopolis/stairs_fixture_regression.ps1`](stairs_fixture_regression.ps1) (five gates: clean load +
+`session_end ok`; `avatar.z == 0`; `avatar.pos_abs == [6301,6421,0]` unmoved; the `is_avatar` tile is
+`t_stairs_down`; and the generator `--check-only` re-asserts the z=-1 `t_stairs_up` the single-z snapshot
+cannot observe). The fixture asserts no monster on either stair tile and `stair_monsters == []`; it does not
+scan NPCs (they live in overmap files), which is sufficient here because the z=0 stair is the avatar's own
+tile (never the shelter NPC Edwardo, one tile north) and the z=-1 stair is in a basement no NPC visits.
+
 ## Spike 16 — non-live run-script reuse of the prompt fixtures
 
 **Spike 16 reuses all four prompt fixtures (`ArcopolisTest`, `ArcopolisVehicleCargoTest`,

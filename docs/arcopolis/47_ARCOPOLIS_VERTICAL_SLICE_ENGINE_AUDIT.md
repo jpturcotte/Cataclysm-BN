@@ -264,10 +264,23 @@ A must not claim "the player sneaked past undetected" from the snapshot alone.
 
 ## 9. Minimal Stage A proof plan
 
-Two narrow spikes. Spike 1 is the load-bearing vertical-movement seam (next coding spike). Spike 2 is the
-carried/return signal (a real Stage A gap; a Stage-A→B bridge, not a Spike-1 add-on).
+> **Numbering note.** "Spike 1" and "Spike 2" below are Stage A's two LOCAL steps, not the project's
+> global spike counter. Stage A Step 1 (originally written here as one bundled fixture-plus-movement
+> spike) is now **split across two global spikes**: **Spike 23** creates the 2-floor aligned-stair
+> fixture (`ArcopolisStairsTest`, built by `make_stairs_fixture.py`), and **Spike 24** will add the
+> `move_up` / `move_down` witness that drives it. "Spike 2" below maps to whatever later global spike
+> ships the carried/return signal. See
+> [48_ARCOPOLIS_DESIGN_GRILL_SUMMARY.md](48_ARCOPOLIS_DESIGN_GRILL_SUMMARY.md) for the proof order
+> (fixture before movement).
 
-### Spike 1 — vertical movement command + 2-floor stair fixture
+Two narrow steps. Stage A Step 1 is the load-bearing vertical-movement seam (split across global
+Spikes 23–24). Stage A Step 2 is the carried/return signal (a real Stage A gap; a Stage-A→B bridge,
+not a Step-1 add-on).
+
+### Stage A Step 1 — vertical fixture and movement witness, split across global Spikes 23–24
+
+Spike 23 creates the fixture only (`ArcopolisStairsTest`); Spike 24 proves Arcopolis-driven vertical
+movement through that fixture.
 
 **Equivalence level (conservative).** `ACTION_MOVE_UP/DOWN` reach the engine through `handle_action`'s real
 dispatch, but `vertical_move` is **not** an `input_context::handle_input` prompt/menu loop. Per `AGENTS.md`
@@ -318,10 +331,10 @@ vertical regression. Run with **`pwsh`** (PS7, not `powershell` 5.1).
 **Optional local coverage:** Windows LLVM / clang-cl per doc 45 (separate `out/build/win-llvm-cov`, never
 reuse `win-rel-deb`). Not a gate; coverage is not equivalence.
 
-### Spike 2 — package carried / returned signal
+### Stage A Step 2 — package carried / returned signal
 
-Do this **after** Spike 1, only if Stage A needs "retrieved **and returned**." Three honest designs; **the
-choice is a product decision for the maintainer, not an audit recommendation** (Q3 §13):
+Do this **after** Stage A Step 1, only if Stage A needs "retrieved **and returned**." Three honest designs;
+**the choice is a product decision for the maintainer, not an audit recommendation** (Q3 §13):
 
 | Design                             | What it proves                                                     | Cost / risk                                                                                            |
 | ---------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
@@ -399,7 +412,7 @@ pick one.
 - **No "drivable now" without "but unwitnessed"** for ramps, door-auto-open, bump-melee, and route
   compositions — all are _reachable through_ the witnessed `move` command but have no fixture of their own.
 
-## 12. Stage A recipe after Spike 1
+## 12. Stage A recipe after Stage A Step 1
 
 1. **Two-floor traversal:** `move_down` on aligned stairs → assert new floor → planar-move to a visible
    ground package → `pickup` → planar-move back → `move_up` → assert original floor.
