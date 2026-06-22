@@ -10,7 +10,7 @@
   state mutation. Violating this silently breaks the fidelity/equivalence contract.
 - **Where:** `AGENTS.md:56` and `AGENTS.md:61-128`; full rules in
   `docs/arcopolis/40_SPIKE19_BACKEND_UI_BOUNDARY.md`; the seam guard `backend_session_active()`
-  (`src/arcopolis_backend_input.cpp:528`) and the per-transaction un-abort gates referenced from
+  (`src/arcopolis_backend_input.cpp:535`) and the per-transaction un-abort gates referenced from
   `src/arcopolis_backend_input.h`.
 - **Before editing:** read `docs/arcopolis/ARCOPOLIS_STATE.md` and the Spike 19 boundary doc; gate any
   new un-abort on its **own** per-transaction predicate, never a sibling's.
@@ -20,8 +20,8 @@
 - **Danger:** the backend runs in `test_mode` with no interface initialized. `catacurses::newwin`
   is the **real ncurses `::newwin`** in curses builds (`src/ncurses_def.cpp:71-74`) and is fatal
   before `initscr`. `uilist` short-circuits to `UILIST_ERROR` under test_mode
-  (`src/ui.cpp:935`, constant at `src/ui.h:25`), so a nested-input guard can never see it.
-- **Where:** `src/ncurses_def.cpp:71-74`, `src/ui.cpp:935`, `AGENTS.md:56`.
+  (`src/ui.cpp:933`, constant at `src/ui.h:25`), so a nested-input guard can never see it.
+- **Where:** `src/ncurses_def.cpp:71-74`, `src/ui.cpp:933`, `AGENTS.md:56`.
 - **Before editing:** when un-aborting a `test_mode`-gated UI loop, run data population but **skip
   window creation**; a tiles-only regression will not catch a curses-build `newwin` crash.
 
@@ -99,7 +99,7 @@
 - **Danger:** the fork inserts backend hooks at the head of several engine dispatch paths; these
   recur as merge conflicts (and one literal silently mis-merges) on upstream sync.
 - **Where:** `AGENTS.md:46` — `src/main.cpp` (CLI arg array), `src/handle_action.cpp` (the backend
-  input branch — guard at `src/handle_action.cpp:1778`, call at `:1779`), `src/input.cpp`
+  input branch — guard at `src/handle_action.cpp:1857`, call at `:1858`), `src/input.cpp`
   (nested-input hook); the `do_turn`
   clean-park in `src/game.cpp`. The Spike 13B/14/15 hooks add more: the Spike 15
   `query_popup_witness_guard` in `iexamine::deployed_furniture` (`src/iexamine.cpp`) and the gated
