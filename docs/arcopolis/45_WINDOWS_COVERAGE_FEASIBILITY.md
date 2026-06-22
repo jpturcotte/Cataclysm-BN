@@ -335,6 +335,14 @@ llvm-cov report ...\win-llvm-cov\tests\cata_test-tiles.exe -instr-profile=...\ar
 Run: **143 test cases, 920 assertions, all passed** (exit 0); one 197 MB `.profraw` merged
 to a 21 MB `.profdata`.
 
+> **Running the suite headless (llvmpipe vs CPU).** The `[arcopolis]` subset passes on either
+> compute backend, but the **full** `cata_test-tiles` suite must run on the llvmpipe software-GPU
+> backend — `CATA_TEST_COMPUTE_ACCELERATION=cpu` fails the `[vision]`/`[shadowcasting]` cases (their
+> light grids are calibrated for llvmpipe). The canonical run procedure (pin `VK_ICD_FILENAMES`,
+> leave `CATA_TEST_COMPUTE_ACCELERATION` unset) lives in
+> [00_WINDOWS_LOCAL_ENVIRONMENT.md](00_WINDOWS_LOCAL_ENVIRONMENT.md) → "Running the FULL suite needs
+> the llvmpipe software-GPU backend".
+
 **Arcopolis-owned coverage** (`llvm-cov report`, real numbers):
 
 | File                        | Region | Function |   Line | Branch |
