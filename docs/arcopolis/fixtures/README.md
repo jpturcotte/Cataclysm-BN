@@ -13,7 +13,7 @@ agents, CI, and contributors.
 ```
 docs/arcopolis/fixtures/arcopolis_user/
   config/options.json          # the one config file the scripts read/patch (see "Why config/options.json")
-  save/<World>/                # the seven canonical worlds
+  save/<World>/                # the eight canonical worlds
 ```
 
 ## Fixture root resolution (default + override)
@@ -54,10 +54,11 @@ witness-role write-up lives in [`docs/arcopolis/TEST_FIXTURES.md`](../TEST_FIXTU
 | `ArcopolisCapacityTest` | driven secondary-capacity/wield `uilist` (Spike 14) | `make_capacity_fixture.py` |
 | `ArcopolisDeployedFurnitureTest` | driven `query_popup` / `query_yn` (Spike 15) | `make_furniture_fixture.py` |
 | `ArcopolisWallTest` | genuine terrain `blocked_no_op` (Spike 21) | `make_wall_fixture.py` |
+| `ArcopolisStairsTest` | aligned two-floor stair fixture (Spike 23) | `make_stairs_fixture.py` |
 
 ## Refreshing / regenerating a generated world
 
-The five `make_*_fixture.py` generators each clone `ArcopolisTest` and apply one deterministic save-edit
+The six `make_*_fixture.py` generators each clone `ArcopolisTest` and apply one deterministic save-edit
 (no GUI, no build). With the repo-local default they refresh the committed world **in place**:
 
 ```powershell
@@ -66,6 +67,7 @@ python .\docs\arcopolis\make_vehicle_fixture.py     # rewrites save/ArcopolisVeh
 python .\docs\arcopolis\make_capacity_fixture.py    # rewrites save/ArcopolisCapacityTest
 python .\docs\arcopolis\make_furniture_fixture.py   # rewrites save/ArcopolisDeployedFurnitureTest
 python .\docs\arcopolis\make_wall_fixture.py        # rewrites save/ArcopolisWallTest
+python .\docs\arcopolis\make_stairs_fixture.py      # rewrites save/ArcopolisStairsTest
 ```
 
 Pass `--fixture-root <path>` (or set `ARCO_FIXTURE_ROOT`) to read/write a different root. `ArcopolisTest`
@@ -87,7 +89,7 @@ Keep this pack minimal and clean. **Do not commit:**
 - screenshots or any images;
 - crash dumps (`*.dmp`), crash logs, or diagnostic logs (`config/debug.log`, `config/crash.log`);
 - temp/cache/editor/OS files;
-- experimental or unrelated save worlds (only the seven worlds above belong here);
+- experimental or unrelated save worlds (only the eight worlds above belong here);
 - user/profile config not needed to load the worlds (`fonts.json`, `base_colors.json`, `lastworld.json`,
   `templates/`);
 - anything containing local absolute paths, usernames, or other personal data.
@@ -98,7 +100,7 @@ structure and carry no personal/local-path data.
 
 ## Size
 
-~8.9 MB across the seven worlds (each ~1.27 MB, dominated by a 1.2 MB `map.sqlite3`) plus a 63 KB
+~10.2 MB across the eight worlds (each ~1.27 MB, dominated by a 1.2 MB `map.sqlite3`) plus a 63 KB
 `options.json`. Normal Git — **no Git LFS**.
 
 ## When to change fixture data
