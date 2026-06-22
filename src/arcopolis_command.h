@@ -16,22 +16,27 @@ namespace arcopolis
 /// The accepted direction tokens, as a human-readable slash list for parser error details. Shared
 /// across the command and script parsers (both translation units) so the list lives in exactly one
 /// place. `expected_target_directions` is the move list plus "here" (the self tile) -- the planar
-/// target set the `examine`/`pickup` adjacent chooser offers. Keep these in sync with
-/// is_supported_move_direction() / is_supported_target_direction().
+/// target set the `examine`/`pickup` adjacent chooser offers. `expected_vertical_directions` is the
+/// SEPARATE vertical vocabulary the `vertical_move` verb accepts (Spike 24) -- deliberately "down"/"up",
+/// NOT the planar `move_*` tokens, so the planar vs vertical split is unambiguous. Keep these in sync
+/// with is_supported_move_direction() / is_supported_target_direction() / is_supported_vertical_direction().
 inline constexpr char expected_move_directions[] =
     "move_n/move_s/move_e/move_w/move_ne/move_nw/move_se/move_sw";
 inline constexpr char expected_target_directions[] =
     "move_n/move_s/move_e/move_w/move_ne/move_nw/move_se/move_sw/here";
+inline constexpr char expected_vertical_directions[] = "down/up";
 
 /// One decoded backend command. Supports "wait" (Spike 1), "move" + a planar direction (Spike 3; eight
-/// planar directions since the GUI-equivalence fix), "examine" + a direction (Spike 11A), and "pickup"
-/// + a direction (Spike 12A; the prompt/menu transaction, live mode only).
+/// planar directions since the GUI-equivalence fix), "examine" + a direction (Spike 11A), "pickup"
+/// + a direction (Spike 12A; the prompt/menu transaction, live mode only), and "vertical_move" + a
+/// vertical direction ("down"/"up") (Spike 24; matched-stair up/down via game::vertical_move).
 struct backend_command {
     int schema_version = 0;  ///< must equal the supported schema version (1)
-    std::string command;     ///< command verb, e.g. "wait", "move", "examine" or "pickup"
+    std::string
+    command;     ///< command verb, e.g. "wait", "move", "examine", "pickup" or "vertical_move"
     std::string
     direction;   ///< planar ident: the 8 (move_n/s/e/w + move_ne/nw/se/sw) for "move"; those 8 plus
-    ///< "here" for "examine"/"pickup"; empty otherwise
+    ///< "here" for "examine"/"pickup"; "down"/"up" for "vertical_move"; empty otherwise
 };
 
 /// Why a command file could not be read, validated, or applied. Mapped to a distinct
@@ -97,6 +102,14 @@ auto exit_code_for( command_error_kind kind ) -> int;
 /// separate game::vertical_move primitive (stairs/ropes/climb), not a planar step. Shared by the
 /// command/script parsers and command_to_action to gate "move".
 auto is_supported_move_direction( std::string_view ident ) -> bool;
+
+/// True iff `ident` is a direction the "vertical_move" verb accepts: exactly "down" or "up" (Spike 24).
+/// Deliberately a DISTINCT vocabulary from the planar move_* tokens (which `move` rejects as vertical),
+/// so the planar vs vertical split is unambiguous. command_to_action maps "down" -> ACTION_MOVE_DOWN and
+/// "up" -> ACTION_MOVE_UP, which handle_action() dispatches to the native game::vertical_move primitive;
+/// the backend never calls vertical_move directly. Shared by the command/script parsers and
+/// command_to_action to gate "vertical_move".
+auto is_supported_vertical_direction( std::string_view ident ) -> bool;
 
 /// True iff `ident` is a direction the "examine"/"pickup" verbs accept: the EIGHT planar directions the
 /// GUI adjacent chooser registers (the four cardinals plus the four diagonals

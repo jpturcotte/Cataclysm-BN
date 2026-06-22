@@ -45,16 +45,16 @@ snapshots and writes an options.json BOM, causing spurious gate failures on unch
 `ArcopolisTest` is the base world; the rest are clones, each adding one deterministic element. The full
 witness-role write-up lives in [`docs/arcopolis/TEST_FIXTURES.md`](../TEST_FIXTURES.md); summary:
 
-| World | Witnesses | Refresh |
-| --- | --- | --- |
-| `ArcopolisTest` | base: movement / NPC-export / item-export / live-protocol; driven WIELD capacity (Spike 14) | base world (GUI-created); not regenerated |
-| `ArcopolisNearMonsterTest` | monster-export (`mon_fungal_wall` in the r12 window) | `make_monster_fixture.py` |
-| `ArcopolisBackpackTest` | multi-item carry-both (Spike 12A); avatar wears a `backpack` | base + worn backpack (GUI); not regenerated |
-| `ArcopolisVehicleCargoTest` | driven vehicle-source `uilist` (Spike 13B) + vehicle-`examine` fail-loud (Spike 21) | `make_vehicle_fixture.py` |
-| `ArcopolisCapacityTest` | driven secondary-capacity/wield `uilist` (Spike 14) | `make_capacity_fixture.py` |
-| `ArcopolisDeployedFurnitureTest` | driven `query_popup` / `query_yn` (Spike 15) | `make_furniture_fixture.py` |
-| `ArcopolisWallTest` | genuine terrain `blocked_no_op` (Spike 21) | `make_wall_fixture.py` |
-| `ArcopolisStairsTest` | aligned two-floor stair fixture (Spike 23) | `make_stairs_fixture.py` |
+| World                            | Witnesses                                                                                               | Refresh                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `ArcopolisTest`                  | base: movement / NPC-export / item-export / live-protocol; driven WIELD capacity (Spike 14)             | base world (GUI-created); not regenerated   |
+| `ArcopolisNearMonsterTest`       | monster-export (`mon_fungal_wall` in the r12 window)                                                    | `make_monster_fixture.py`                   |
+| `ArcopolisBackpackTest`          | multi-item carry-both (Spike 12A); avatar wears a `backpack`                                            | base + worn backpack (GUI); not regenerated |
+| `ArcopolisVehicleCargoTest`      | driven vehicle-source `uilist` (Spike 13B) + vehicle-`examine` fail-loud (Spike 21)                     | `make_vehicle_fixture.py`                   |
+| `ArcopolisCapacityTest`          | driven secondary-capacity/wield `uilist` (Spike 14)                                                     | `make_capacity_fixture.py`                  |
+| `ArcopolisDeployedFurnitureTest` | driven `query_popup` / `query_yn` (Spike 15)                                                            | `make_furniture_fixture.py`                 |
+| `ArcopolisWallTest`              | genuine terrain `blocked_no_op` (Spike 21)                                                              | `make_wall_fixture.py`                      |
+| `ArcopolisStairsTest`            | aligned two-floor stair fixture (Spike 23); matched-stair `vertical_move` down→up round trip (Spike 24) | `make_stairs_fixture.py`                    |
 
 ## Refreshing / regenerating a generated world
 

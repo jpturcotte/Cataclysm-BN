@@ -84,8 +84,11 @@ TEST_CASE( "arcopolis parse_command accepts all eight planar move directions", "
 
 TEST_CASE( "arcopolis parse_command rejects vertical and garbage move directions", "[arcopolis]" )
 {
-    // Vertical (move_up/move_down) is the separate game::vertical_move primitive, not a planar step;
-    // "east" is not an engine ident; "" is empty. (Diagonals are now ACCEPTED -- see above.)
+    // Vertical (move_up/move_down) is the separate game::vertical_move primitive driven by the
+    // `vertical_move` verb (Spike 24), NOT a planar `move` step; "east" is not an engine ident; "" is
+    // empty. (Diagonals are now ACCEPTED -- see above.) This is the executable guard that the
+    // planar/vertical split holds: `move` stays strictly planar, so the old planar-direction negative
+    // probes (live/frontend recoverability) keep rejecting move_up/move_down.
     for( const std::string &dir : { "move_up", "move_down", "east", "move_nene", "" } ) {
         const auto json = R"({ "schema_version": 1, "command": "move", "direction": ")" + dir + R"(" })";
         std::istringstream is( json );
@@ -238,5 +241,57 @@ TEST_CASE( "arcopolis is_live_only_command flags only pickup", "[arcopolis]" )
     CHECK_FALSE( arcopolis::is_live_only_command( "wait" ) );
     CHECK_FALSE( arcopolis::is_live_only_command( "move" ) );
     CHECK_FALSE( arcopolis::is_live_only_command( "examine" ) );
+    // vertical_move's matched-stair fast path is prompt-free, so it needs no answer channel: it runs in
+    // --arcopolis-run-script (and one-shot) without prompt_answers, NOT live-only (Spike 24).
+    CHECK_FALSE( arcopolis::is_live_only_command( "vertical_move" ) );
     CHECK_FALSE( arcopolis::is_live_only_command( "" ) );
+}
+
+TEST_CASE( "arcopolis parse_command accepts vertical_move down and up", "[arcopolis]" )
+{
+    // The SEPARATE vertical verb (Spike 24): a distinct "down"/"up" vocabulary, kept apart from the
+    // planar move_* tokens so a frontend never confuses planar and vertical movement.
+    for( const std::string &dir : { "down", "up" } ) {
+        const auto json = R"({ "schema_version": 1, "command": "vertical_move", "direction": ")" + dir +
+                          R"(" })";
+        std::istringstream is( json );
+        const auto result = arcopolis::parse_command( is );
+        REQUIRE( result.has_value() );
+        CHECK( result->command == "vertical_move" );
+        CHECK( result->direction == dir );
+    }
+}
+
+TEST_CASE( "arcopolis parse_command rejects a vertical_move without a direction", "[arcopolis]" )
+{
+    std::istringstream is( R"({ "schema_version": 1, "command": "vertical_move" })" );
+    const auto result = arcopolis::parse_command( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
+TEST_CASE( "arcopolis parse_command rejects non-vertical vertical_move directions", "[arcopolis]" )
+{
+    // The vertical vocabulary is exactly "down"/"up". The planar-style "move_down"/"move_up" tokens, a
+    // planar cardinal, the examine self-tile token "here", a bare compass word, and "" are all rejected --
+    // the parser half of the planar/vertical split.
+    for( const std::string &dir : { "move_down", "move_up", "move_n", "here", "north", "" } ) {
+        const auto json = R"({ "schema_version": 1, "command": "vertical_move", "direction": ")" + dir +
+                          R"(" })";
+        std::istringstream is( json );
+        const auto result = arcopolis::parse_command( is );
+        REQUIRE_FALSE( result.has_value() );
+        CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+    }
+}
+
+TEST_CASE( "arcopolis is_supported_vertical_direction accepts only down and up", "[arcopolis]" )
+{
+    CHECK( arcopolis::is_supported_vertical_direction( "down" ) );
+    CHECK( arcopolis::is_supported_vertical_direction( "up" ) );
+    // The planar-style move_* tokens, a planar cardinal, and "" are NOT vertical directions.
+    CHECK_FALSE( arcopolis::is_supported_vertical_direction( "move_down" ) );
+    CHECK_FALSE( arcopolis::is_supported_vertical_direction( "move_up" ) );
+    CHECK_FALSE( arcopolis::is_supported_vertical_direction( "move_n" ) );
+    CHECK_FALSE( arcopolis::is_supported_vertical_direction( "" ) );
 }

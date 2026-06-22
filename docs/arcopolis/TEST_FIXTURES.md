@@ -134,7 +134,7 @@ consumer's `seen` guard.) Built reproducibly by [`docs/arcopolis/make_wall_fixtu
 [`docs/arcopolis/client_harness_regression.ps1`](client_harness_regression.ps1). See
 [43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md](43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md).
 
-## `ArcopolisStairsTest` — aligned two-floor stair fixture (Spike 23)
+## `ArcopolisStairsTest` — aligned two-floor stair fixture (Spike 23) + vertical-movement witness (Spike 24)
 
 A clone of `ArcopolisTest` with a **matched stair pair** written into the avatar's column WITHOUT moving
 the avatar: the avatar's own z=0 tile becomes `t_stairs_down` (flag `GOES_DOWN`, was `t_floor`), and the
@@ -144,17 +144,23 @@ terrain edits — no submap synthesis, no avatar move, no bubble-origin shift (t
 bubble origin from `player.abs_pos`, so moving the avatar would risk edge mapgen — `src/savegame.cpp:350-352`).
 
 **What it provides:** the deterministic setup for a vertical-movement witness. The avatar **stands on**
-`t_stairs_down`, so the intended first witness is a single **`move_down`** — `find_stairs`'s fast path
-(`src/game.cpp:14840-14846`) returns the `GOES_UP` tile directly below, with no fabrication and no `query_yn`
-(doc 47 §4: a matched aligned pair + no creature on either tile avoids both `find_or_make_stairs` fabrication
-and the push-past prompt). `move_up` is a **later follow-up** (a sibling fixture or the resulting lower-floor
-position), deliberately **not** presented as equally ready.
+`t_stairs_down`, so a single **`vertical_move` down** hits `find_stairs`'s fast path
+(`src/game.cpp:14840-14846`) — it returns the `GOES_UP` tile directly below, with no fabrication and no
+`query_yn` (doc 47 §4: a matched aligned pair + no creature on either tile avoids both `find_or_make_stairs`
+fabrication and the push-past prompt). After descending the avatar stands on `t_stairs_up`, so the
+**`vertical_move` up** return leg hits the symmetric fast path (the `GOES_DOWN` tile directly above) — the
+round trip is deterministic in both directions.
 
-**What it does NOT prove:** vertical movement itself. Spike 23 is **fixture-only** — it adds **no** Arcopolis
-`move_up` / `move_down` command support. The `move_down` backend-input witness is **Spike 24** (deliberately
-split from the fixture per [48_ARCOPOLIS_DESIGN_GRILL_SUMMARY.md](48_ARCOPOLIS_DESIGN_GRILL_SUMMARY.md):
-build/validate the fixture first, prove movement second). Labeled **NATIVE-BN** (stock `t_stairs_down` /
-`t_stairs_up`, `terrain-zlevel-transitions.json:119,142`) until Spike 24 drives it through.
+**Spike 24 now DRIVES it (PROVEN, level 2/3).** The `vertical_move` command (`down`/`up` →
+`ACTION_MOVE_DOWN`/`ACTION_MOVE_UP` → native `game::vertical_move`) proves a **matched-stair down → up round
+trip** on this fixture, gated by
+[`docs/arcopolis/vertical_movement_regression.ps1`](vertical_movement_regression.ps1): `before` on
+`t_stairs_down` (z 0) → `after_down` on `t_stairs_up` (z −1, x/y unchanged, turn advanced) → `after_up` back
+on `t_stairs_down` (z 0, turn advanced again), exit 0, `session_end ok` (no unexpected prompt). The
+after-down snapshot is also the **per-floor-observation** witness doc 47 §4 flagged as LIKELY-but-unwitnessed
+(the snapshot re-windows on the new z). This is a **matched-stair round trip only** — it proves nothing about
+ramps/elevators/ladders/ropes/climbing/falling/generic vertical, 5–6 floor traversal, or simultaneous
+multi-z export. See [49_SPIKE24_VERTICAL_MOVEMENT_WITNESS.md](49_SPIKE24_VERTICAL_MOVEMENT_WITNESS.md).
 
 Built reproducibly by [`docs/arcopolis/make_stairs_fixture.py`](make_stairs_fixture.py) (save-edit of two
 submap `terrain` RLEs, no GUI/build; `--check-only` / `--force`), gated by
