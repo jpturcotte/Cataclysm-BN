@@ -226,6 +226,21 @@ std::expected<std::vector<script_step>, command_error>
                                                                .detail = at + "unsupported pickup direction '" + direction +
                                                                        "' (expected " + expected_target_directions + ")" } );
                     }
+                } else if( command == "vertical_move" ) {
+                    // Spike 24: the separate vertical verb (distinct "down"/"up" vocabulary, NOT the planar
+                    // move_* tokens). The pre-flight command_to_action resolve loop maps it to
+                    // ACTION_MOVE_DOWN/ACTION_MOVE_UP; it is prompt-free on the matched-stair fast path and is
+                    // NOT live-only, so it runs in --arcopolis-run-script with no prompt_answers channel.
+                    if( !e.has_string( "direction" ) ) {
+                        return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                               .detail = at + "command 'vertical_move' requires a string 'direction'" } );
+                    }
+                    direction = e.get_string( "direction" );
+                    if( !is_supported_vertical_direction( direction ) ) {
+                        return std::unexpected( command_error{ .kind = command_error_kind::bad_schema,
+                                                               .detail = at + "unsupported vertical_move direction '" + direction +
+                                                                       "' (expected " + expected_vertical_directions + ")" } );
+                    }
                 }
                 // Spike 16: optional prompt answers (pickup/examine only) -- structurally validated +
                 // canonicalized here; semantically matched against the real opened prompt at runtime.

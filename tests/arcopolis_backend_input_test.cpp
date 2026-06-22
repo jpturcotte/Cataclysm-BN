@@ -62,6 +62,33 @@ TEST_CASE( "arcopolis command_to_action rejects unsupported commands and bad dir
     }
 }
 
+TEST_CASE( "arcopolis command_to_action resolves vertical_move down and up", "[arcopolis]" )
+{
+    // Spike 24: the vertical verb maps to the native ACTION_MOVE_DOWN / ACTION_MOVE_UP the GUI '<'/'>'
+    // keys dispatch; handle_action() then calls game::vertical_move (src/handle_action.cpp:2212,2307).
+    CHECK( arcopolis::command_to_action( { .schema_version = 1, .command = "vertical_move", .direction = "down" } )
+           .value_or( ACTION_NULL ) == ACTION_MOVE_DOWN );
+    CHECK( arcopolis::command_to_action( { .schema_version = 1, .command = "vertical_move", .direction = "up" } )
+           .value_or( ACTION_NULL ) == ACTION_MOVE_UP );
+}
+
+TEST_CASE( "arcopolis command_to_action rejects bad vertical_move directions and raw passthrough",
+           "[arcopolis]" )
+{
+    // vertical_move accepts only "down"/"up"; the planar-style move_* tokens, the examine self-tile token,
+    // a bare compass word, and garbage are bad_schema (matches the parser's breadth).
+    for( const std::string &dir : { "move_down", "move_up", "move_n", "here", "north", "" } ) {
+        const auto bad = arcopolis::command_to_action( { .schema_version = 1, .command = "vertical_move", .direction = dir } );
+        REQUIRE_FALSE( bad.has_value() );
+        CHECK( bad.error().kind == arcopolis::command_error_kind::bad_schema );
+    }
+    // No raw BN-action passthrough verb exists (Spike 24 explicitly rejected option D): an "action"
+    // command is just an unsupported verb, not a generic action_id passthrough.
+    const auto passthrough = arcopolis::command_to_action( { .schema_version = 1, .command = "action", .direction = "" } );
+    REQUIRE_FALSE( passthrough.has_value() );
+    CHECK( passthrough.error().kind == arcopolis::command_error_kind::unsupported_command );
+}
+
 TEST_CASE( "arcopolis backend gate is inert without an active session", "[arcopolis]" )
 {
     // Normal gameplay path: no backend session has begun, so BOTH halves of the do_turn clean-stop guard
