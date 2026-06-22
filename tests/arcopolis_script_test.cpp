@@ -159,6 +159,45 @@ TEST_CASE( "arcopolis parse_script rejects a move step with a vertical direction
     CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
 }
 
+TEST_CASE( "arcopolis parse_script accepts vertical_move steps (down and up)", "[arcopolis]" )
+{
+    // Spike 24: the separate vertical verb is a normal command step (distinct down/up vocabulary), so it
+    // parses in --arcopolis-run-script -- the matched-stair round-trip witness drives exactly this.
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "vertical_move", "direction": "down" },
+        { "op": "command", "command": "vertical_move", "direction": "up" }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE( result.has_value() );
+    REQUIRE( result->size() == 2 );
+    CHECK( ( *result )[0].command == "vertical_move" );
+    CHECK( ( *result )[0].direction == "down" );
+    CHECK( ( *result )[1].command == "vertical_move" );
+    CHECK( ( *result )[1].direction == "up" );
+}
+
+TEST_CASE( "arcopolis parse_script rejects a vertical_move step without a direction",
+           "[arcopolis]" )
+{
+    std::istringstream is(
+        R"({ "schema_version": 1, "steps": [ { "op": "command", "command": "vertical_move" } ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
+TEST_CASE( "arcopolis parse_script rejects a vertical_move step with a non-vertical direction",
+           "[arcopolis]" )
+{
+    // "move_down" is a planar-style token, not the vertical vocabulary (down/up).
+    std::istringstream is( R"({ "schema_version": 1, "steps": [
+        { "op": "command", "command": "vertical_move", "direction": "move_down" }
+    ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
 TEST_CASE( "arcopolis parse_script rejects malformed JSON", "[arcopolis]" )
 {
     std::istringstream is( "{ not valid json" );
