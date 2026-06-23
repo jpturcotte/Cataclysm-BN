@@ -120,7 +120,10 @@ def terrain_id_at(world_dir, x, y, z):
         path = "maps/%d.%d.%d/%d.%d.%d.map" % (fx // 32, fy // 32, z, fx, fy, z)
         db = os.path.join(world_dir, "map.sqlite3")
         if not os.path.exists(db):
-            return None  # don't let sqlite3.connect() create a stray empty db
+            # Don't let sqlite3.connect() create a stray empty db. This best-effort reader returns None
+            # (the caller skips its soft warning) rather than raise() like the tuple-returning
+            # read_submap_file in the other generators -- an intentional per-file shape difference.
+            return None
         con = sqlite3.connect(db)
         try:
             row = con.execute("SELECT data FROM files WHERE path=?", (path,)).fetchone()

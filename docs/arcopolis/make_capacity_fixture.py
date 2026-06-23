@@ -95,6 +95,10 @@ def map_file_path(sx, sy, z):
 def read_submap_file(db, path):
     """Return ``(was_compressed, submap_list)`` for a .map row, or ``(None, None)`` if absent. The row is
     a JSON LIST of (up to four) submap objects; the blob is zlib-compressed in this save format."""
+    if not os.path.exists(db):
+        # Guard before sqlite3.connect(): a missing/mis-pathed db would otherwise be implicitly CREATED as
+        # an empty file, then fail with an opaque "no such table: files" rather than naming the real cause.
+        raise SystemExit("fatal: map database not found: %s" % db)
     con = sqlite3.connect(db)
     try:
         row = con.execute("SELECT data FROM files WHERE path=?", (path,)).fetchone()
