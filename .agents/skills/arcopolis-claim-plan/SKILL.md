@@ -19,6 +19,30 @@ equivalence level, witnessing against the wrong mechanism, or generalizing one p
 into prompt-class support. Surfacing the impact map and false-green risks up front is
 what keeps the change small and the review cheap.
 
+## Triage mode (what-next)
+
+When the task is "what should we do next" (not yet a single spike), produce a sourced
+OPTIONS BRIEF before any plan — 3-5 candidates, each one line:
+
+- native-authority class — A action-fidelity · B prompt/menu-fidelity ·
+  C predicate-fidelity · D display-observability · S simulation-state (raw
+  authoritative world state — neither a computed predicate nor a display proxy).
+  Derive the class from the DOWNSTREAM consumer (what ultimately reads the surface /
+  what the goal needs), not the author's framing. Item 4's three observation
+  categories map straight across: engine-computed-predicate → C, display-state → D,
+  simulation-state → S.
+- evidence label — PROVEN / NATIVE-BN / LIKELY / UNKNOWN / NOT FOUND / NEEDS NEW SEAM /
+  STAGE B (cite the source).
+- unblocks / appetite — what it proves, and a rough size.
+
+Forcing rule: a Class-C option MUST name the candidate engine call (predicate) at
+selection time; a Class-D or Class-S option MUST NOT cite a predicate/possession/mission
+goal (labeling a possession surface S or D to skip the predicate body-read is the
+Spike-25 dodge — item 4's domain trigger still owes the read whatever the letter). The
+picked option's class is binding — a later plan that answers a Class-C goal with a
+display or raw-state proxy contradicts its own brief (the Spike-25 trap). The human
+picks by appetite/tradeoff, not by re-deriving context.
+
 ## Required output
 
 1. **Task classification** — one of:
@@ -47,6 +71,10 @@ what keeps the change small and the review cheap.
      A registered action (`ACTION_*`) is NOT a mechanism, and "`do_turn` finalizes it" is
      NOT a mechanism. L4 = the named registered input consumed by the named active loop a
      player would use.
+   - Seam identity, not just naming: cite the LINE where that loop consumes the input
+     and show your call site IS that point — not a leaf it calls before/after. Driving
+     `avatar_action::move` before `do_turn` instead of inside `handle_action` names the
+     loop honestly yet inverts the seam (the Spike-3 defect).
 
 4. **Consumer + native mechanism (observation claims)** — for any OBSERVATION
    claim, classify the real consumer — display-state vs simulation-state vs
@@ -54,8 +82,23 @@ what keeps the change small and the review cheap.
    never a convenient JSON proxy. For the engine-computed-predicate case, NAME
    the consuming engine call and its scope, and expose THAT predicate (or its
    result) — never a consumer-side reconstruction from a partial view.
-   - Catch question: name the engine predicate the goal will actually call, and
-     show this surface feeds it.
+   - Domain trigger (unconditional): if the goal is possession / mission / objective /
+     state-check adjacent, NAME the engine predicate that goal calls and run the
+     body-read below — whatever class you assigned. The goal domain, not your label,
+     decides whether the predicate-read is owed (classifying a possession surface as
+     display was the Spike-25 escape).
+   - Falsify from the source, don't confirm: read the predicate's engine call BODY
+     (cite file:line) and state its traversal SHAPE — flat, or recursing /
+     aggregating / scoped. A surface whose REACH is narrower than the body's is
+     AUTOMATICALLY INSUFFICIENT — a flat surface against a recursing or child-walking
+     body, OR an on-person/top-level surface against a body that aggregates or scopes
+     wider (off-person, crafting reach, map tiles) — expose the predicate result.
+     Treat the surface as sufficient ONLY after reading the body and confirming the
+     surface's reach MATCHES it at the leaf; "I could not think of a divergence" is
+     not proof there is none.
+   - If sufficiency cannot be shown from the body, the claim is
+     display/observation-only — downgrade it, drop the predicate goal, and SAY you
+     tripped this (a Class-C goal must not be silently abandoned).
 
 5. **Witness plan** — the smallest fixture/script/Catch2/doc witness:
    - what it proves
@@ -92,7 +135,9 @@ what keeps the change small and the review cheap.
 Claim type · Equivalence level · Active engine mechanism · Registered backend
 input/action · Real engine caller · Witness · Witness scope · False-green risk ·
 Fail-loud · Unsupported adjacent path · Per-transaction gate · No generic
-prompt-class support.
+prompt-class support · Native-authority class (A action / B prompt-menu /
+C predicate / D display / S simulation-state) · Goal-fit (sufficient-for vs
+consistent-with) · Counterexample / divergence witness.
 
 Avoid vague terms unless immediately defined: "works", "equivalent enough", "same
 result", "GUI equivalent", "supports prompt class".
