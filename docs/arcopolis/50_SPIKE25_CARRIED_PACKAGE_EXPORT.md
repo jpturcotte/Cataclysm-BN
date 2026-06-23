@@ -99,13 +99,17 @@ export(after)`. The pickup + both exports already existed; this spike adds gates
 - **Witnessed:** the `worn` source (clothing) and the `inventory` source (the picked package). The unarmed
   `ArcopolisTest` avatar produces no wielded entries, so the **`wielded`** branch is **code-present but
   unwitnessed** — stated, not claimed.
-- **Count-delta scope = loose-item pickup only.** The proof holds because the witnessed pickup routes the
-  loose item through `i_add` → flat `inv` (`src/pickup.cpp` `i_add` at the loose-pickup calls, e.g.
-  `pickup.cpp:489,521`). A pickup routed instead into a worn container (`i_add_to_container`,
-  `src/pickup.cpp:399`) would land **nested** in that container's pockets — which this top-level export does
-  **not** descend into — so it would _not_ appear as a `location:"inventory"` entry. That is the
-  nested-container case deferred above, not counter-evidence to carried visibility; a future container-routed
-  witness must not be read as proving (or disproving) this export.
+- **Count-delta scope = loose non-ammo pickup only.** The proof holds because the witnessed pickup routes the
+  loose `glass_shard` (a non-ammo item) through `i_add` → flat `inv` (`src/pickup.cpp` `i_add` at the
+  loose-pickup calls, e.g. `pickup.cpp:489,521`), so it shows as a `location:"inventory"` entry. The one
+  pickup-time route that nests-and-hides is **narrow and ammo-only**: `Character::i_add_to_container`
+  (`src/pickup.cpp:399`) **early-returns unless `is_ammo()`** (`src/character.cpp`) and merges only into a
+  pre-existing worn `is_ammo_container`, so picked-up **ammo** can vanish into that container's pocket —
+  nested, and so enumerated by neither a flat `inv` entry nor this top-level export. A **non-ammo** package
+  does **not** take this path; "picked up into a backpack pocket" is _not_ a real pickup route for it (see
+  [`51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md`](51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md)). More fundamentally,
+  possession is BN's container-recursing `has_amount`/`has_charges` verdict while `carried_items[]` is flat,
+  so this export must not be read as a possession check.
 - **Not exported (deferred):** nested-container contents, vehicle cargo (`vehicle::get_items`), NPC
   inventory, and weight/volume/damage/rot/per-item state. Carried items are top-level only.
 - **Not added:** any objective/"returned" completion state; any new prompt/menu support; per-unit
