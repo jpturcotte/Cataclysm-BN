@@ -48,7 +48,16 @@ what keeps the change small and the review cheap.
      NOT a mechanism. L4 = the named registered input consumed by the named active loop a
      player would use.
 
-4. **Witness plan** — the smallest fixture/script/Catch2/doc witness:
+4. **Consumer + native mechanism (observation claims)** — for any OBSERVATION
+   claim, classify the real consumer — display-state vs simulation-state vs
+   engine-computed-predicate — and expose the NATIVE mechanism for that category,
+   never a convenient JSON proxy. If the consumer is an engine-computed predicate,
+   NAME the consuming engine call and its scope, and expose THAT predicate (or its
+   result), not a proxy a consumer re-derives from a partial view.
+   - Catch question: name the engine predicate the goal will actually call, and
+     show this surface feeds it.
+
+5. **Witness plan** — the smallest fixture/script/Catch2/doc witness:
    - what it proves
    - what it does NOT prove (witness scope)
    - false-green risks
@@ -56,13 +65,13 @@ what keeps the change small and the review cheap.
      by themselves prove L4 prompt/menu equivalence — that needs a transcript/path
      witness showing the registered actions consumed by the active loop, plus scope.
 
-5. **Impact map**:
+6. **Impact map**:
    - exact files/functions likely touched
    - exact tests/regressions/docs likely touched
    - evidence label per item: PROVEN / NATIVE-BN / LIKELY / UNKNOWN / NOT FOUND /
      NEEDS NEW SEAM / STAGE B
 
-6. **Stop conditions** — what discovery aborts implementation, and what must stay
+7. **Stop conditions** — what discovery aborts implementation, and what must stay
    fail-loud.
 
 ## Hard rules
