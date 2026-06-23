@@ -59,13 +59,21 @@ construction** — no descent into container contents:
 
 Every accessor is `const`; nothing is moved, equipped, unequipped, or otherwise mutated.
 
-### Why a top-level export proves the carried package (the linchpin)
+### What the top-level export shows (and what it does NOT prove)
 
-A picked-up loose item lands in the **flat top-level `Character::inv`** — `pickup`'s `pick_one_up` calls
+A picked-up **loose** item lands in the **flat top-level `Character::inv`** — `pickup`'s `pick_one_up` calls
 `u.i_add(...)` (`src/pickup.cpp`), and `Character::i_add` stores via `inv.add_item(...)`
-(`src/character.cpp`). It is **not** nested inside a worn container's pockets. So a top-level-only export
-shows the carried package with **no** nested-container traversal — the v0 contract is sufficient, and the
-audit's Stop Condition ("if proving the package needs nested-container export, stop") is **not** triggered.
+(`src/character.cpp`). So a top-level-only export **displays** that picked item as a `location:"inventory"`
+entry without descending into any container. That is the export's real value: **display visibility** of what
+was just picked up.
+
+What it does **NOT** do is **answer possession** — and the original "the v0 contract is sufficient to prove
+the carried package" framing was the wrong-primitive error logged in
+[`51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md`](51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md). "Does the character
+have the package" is BN's own verdict via its container-recursing `has_amount` / `has_charges` predicates
+(`visitable<Character>`; real callers `condition.cpp`, `mission.cpp`), which recurse into container contents.
+A flat top-level export cannot mirror that recursion, so it is **not** a possession check and does **not**
+resolve the audit's Stage A Step 2 blocker.
 
 ## Witness
 

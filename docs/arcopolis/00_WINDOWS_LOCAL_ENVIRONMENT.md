@@ -529,7 +529,7 @@ Rewriting only `file` is INSUFFICIENT — it breaks `tests/*.cpp` (a quote-inclu
 main-repo header, missing your edits). `compile_commands.json` is gitignored, so it never pollutes git:
 
 ```powershell
-$main='C:\dev\Cataclysm-BN'; $wt=(Get-Location).Path
+$main='<repo-root>'; $wt=(Get-Location).Path   # <repo-root> = your main Cataclysm-BN checkout (adapt to your layout)
 $raw = Get-Content -Raw "$main\out\build\win-rel-deb\compile_commands.json"
 $m = $main.Replace('\','\\'); $w = $wt.Replace('\','\\')   # JSON-escaped backslashes
 $raw = $raw.Replace("$m\\src","$w\\src").Replace("$m\\tests","$w\\tests")   # NOT \\out

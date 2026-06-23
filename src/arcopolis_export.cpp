@@ -87,8 +87,11 @@ auto write_backend( JsonOut &json ) -> void
 /// gives the "location" tag for free and is top-level BY CONSTRUCTION - nothing nested inside a container is
 /// traversed (nested-container contents, vehicle cargo, and NPC inventory all stay deferred). A picked-up
 /// loose item lands in the flat Character::inv via i_add (src/character.cpp i_add -> inv.add_item, reached at
-/// src/pickup.cpp), so it appears here as a "inventory" entry - this is what makes "returned with package"
-/// composable from a snapshot. v0 fields match entities.items (ground) minus pos_local/pos_abs (a carried
+/// src/pickup.cpp), so it appears here as an "inventory" entry. This export is DISPLAY-ONLY and does NOT
+/// answer possession: "does the character have item X" is BN's own verdict via its container-recursing
+/// has_amount / has_charges predicates (visitable<Character>; real callers condition.cpp, mission.cpp). A
+/// flat top-level export cannot mirror that recursion - see 51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md. v0
+/// fields match entities.items (ground) minus pos_local/pos_abs (a carried
 /// item has no tile) plus the "location" tag. This is a read-only authoritative export, NOT a drop/use/wear
 /// surface: nothing is moved, equipped, unequipped, or otherwise mutated; every accessor is const.
 auto write_carried_items( JsonOut &json, const snapshot_ctx &ctx ) -> void
