@@ -16,13 +16,31 @@ namespace arcopolis
 constexpr auto live_protocol_version = 1;
 
 /// One decoded live-protocol request: a single JSON object read from one stdin line (Spike 9B).
+///
+/// FUTURE DIRECTION (not load-bearing for Spike 26A): with four ops today the flat struct stays
+/// readable, but the per-op field clusters (export's `name`; command's `command`/`direction`; query's
+/// `query_kind`/`query_item`/`query_count`) are starting to imply a tagged-union shape. If a fifth or
+/// sixth op lands (e.g. Spike 26B's `crafting_has_item` extending query, or a future `subscribe` op),
+/// reshape this as a `std::variant<live_export_request, live_command_request, live_query_request,
+/// live_quit_request>` -- the parser already structurally validates per-op, so the variant fits the
+/// dispatch shape without losing the single-rejection-point design. Deferred deliberately: the
+/// refactor would touch the parser, the response formatters, AND every caller of `live_request`
+/// field accessors, well beyond Spike 26A's scope.
 struct live_request {
     std::optional<int> id;  ///< client correlation id, echoed in the response; nullopt when absent
-    std::string op;         ///< "export" | "command" | "quit"
+    std::string op;         ///< "export" | "command" | "quit" | "query"
     std::string command;    ///< command verb for op == "command" ("wait" / "move"); empty otherwise
     std::string direction;  ///< direction ident for command "move"; empty otherwise
     std::string
     name;       ///< export label for op == "export"/"command" ("snapshot" when omitted)
+    // --- Spike 26A: op == "query" fields. Empty / default for every other op. The query is a
+    // parameterized read-only observation of an engine predicate (no engine action, no per-transaction
+    // gate, no transcript engine event). v0 accepts kind == "has_item" only; the kind discriminator
+    // exists so Spike 26B can add "crafting_has_item" additively without re-shaping the wire. ---
+    std::string
+    query_kind; ///< query kind for op == "query" (v0: "has_item"); empty otherwise
+    std::string query_item; ///< itype_id string for op == "query"; empty otherwise
+    int query_count = 1;    ///< requested quantity (>= 1) for op == "query"; defaults to 1 when omitted
 };
 
 /// Machine-readable live-protocol error codes (the response's error.code). The first three are
@@ -108,6 +126,18 @@ struct live_error_response {
     std::string message;
 };
 auto write_error_response_line( std::ostream &out, const live_error_response &ev ) -> void;
+
+/// Spike 26A: a successful query response. v0 always reports kind == "has_item" and scope ==
+/// "on_person_dialogue_predicate" — the scope string is a load-bearing labeling guard repeated
+/// VERBATIM across the doc 52 spike doc, the ARCOPOLIS_STATE row, and the Catch2 test name, so a
+/// future doc-or-code drift cannot silently re-claim mission-completion scope without touching every
+/// coordinated site. See docs/arcopolis/52_SPIKE26A_DIALOGUE_PREDICATE_QUERY.md (claim labeling).
+struct live_query_response {
+    std::optional<int> id;  ///< the request's id (JSON null when the request omitted it)
+    bool has = false;       ///< the engine predicate's verbatim answer
+    std::string scope;      ///< "on_person_dialogue_predicate" for v0 has_item kind
+};
+auto write_query_response_line( std::ostream &out, const live_query_response &ev ) -> void;
 
 // --- Spike 12A pickup prompt/menu transaction wire format. A command that reaches a real in-action menu
 // emits a `prompt` event (its terminal response is deferred until the prompt is answered), the client

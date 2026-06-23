@@ -12,12 +12,14 @@
 #include "arcopolis_command.h"  // command_to_action, command_error_kind, exit_code_for
 #include "arcopolis_export.h"   // current_snapshot_summary (final-state fields for the transcript)
 #include "arcopolis_session_log.h"  // begin/end_session_log, session_log_command, session_log_error
+#include "avatar.h"             // avatar, get_avatar() (Spike 26A: query predicate consults the avatar)
 #include "color.h"              // init_colors()
 #include "filesystem.h"         // assure_dir_exist()
 #include "game.h"               // g, game::load(world), game::do_turn()
 #include "get_version.h"        // getVersionString()
 #include "json.h"               // JsonIn, JsonOut, JsonObject, JsonError
 #include "options.h"            // get_option<float>, get_options() (the in-memory AUTOSAVE override)
+#include "type_id.h"            // itype_id (Spike 26A: validate the query's item via string_id::is_valid)
 
 namespace
 {
@@ -204,6 +206,39 @@ auto live_next_action() -> action_id
             continue;
         }
 
+        // Spike 26A: op == "query" is a parameterized read-only observation of an engine predicate.
+        // No engine action runs, no per-transaction gate is armed, no transcript engine event is emitted.
+        // It is served in the same dispatch slot as `export` (between turns / outside prompts); while a
+        // prompt is open the top-level pump is unreachable (the prompt-source readers own stdin via their
+        // own getline loops, and parse_prompt_answer already rejects any non-prompt_answer/prompt_cancel
+        // op as bad_request -- mid-prompt invariant preserved by existing code).
+        //
+        // The handler delegates VERBATIM to BN's dialogue-predicate disjunction
+        // `has_charges(id, count) || has_amount(id, count)` (`condition.cpp` `set_has_items`) on
+        // `get_avatar()` and returns the boolean. The response carries the literal scope string
+        // "on_person_dialogue_predicate" -- a load-bearing labeling guard repeated VERBATIM across the
+        // doc 52 spike doc, the ARCOPOLIS_STATE row, and the Catch2 test name so a future doc/code drift
+        // cannot silently re-claim mission-completion scope (Spike 26B's crafting_inventory() reach)
+        // without touching every coordinated site. See docs/arcopolis/52_SPIKE26A_DIALOGUE_PREDICATE_QUERY.md.
+        if( req->op == "query" ) {
+            const itype_id item_id( req->query_item );
+            if( !item_id.is_valid() ) {
+                send_error( { .id = req->id, .op = "query",
+                              .code = arcopolis::live_error_code::bad_request,
+                              .message = "unknown itype_id: '" + req->query_item + "'" } );
+                continue;
+            }
+            const auto &av = get_avatar();
+            const bool has = av.has_charges( item_id, req->query_count ) ||
+                             av.has_amount( item_id, req->query_count );
+            arcopolis::write_query_response_line( std::cout, { .id = req->id,
+                                                  .has = has,
+                                                  .scope = std::string( "on_person_dialogue_predicate" )
+                                                             } );
+            std::cout.flush();
+            continue;
+        }
+
         if( req->op == "command" ) {
             const auto resolved = arcopolis::command_to_action( { .schema_version = 1,
                                   .command = req->command, .direction = req->direction } );
@@ -261,7 +296,7 @@ auto live_next_action() -> action_id
             return *resolved;
         }
 
-        // op == "quit" (the parser guarantees one of the three ops).
+        // op == "quit" (the parser guarantees one of the four ops: export / query / command / quit).
         arcopolis::write_quit_response_line( std::cout, { .id = req->id } );
         std::cout.flush();
         pump.quit = true;
@@ -566,9 +601,46 @@ std::expected<live_request, live_error>
         if( op == "quit" ) {
             return live_request{ .id = id, .op = op };
         }
+        // Spike 26A: op == "query" is a parameterized read-only observation of an engine predicate.
+        // Validation here is the SINGLE rejection point for kind/item/count -- the dispatcher only has to
+        // re-check string_id::is_valid() on the item once the world is loaded (unknown id -> bad_request).
+        if( op == "query" ) {
+            if( !obj.has_string( "kind" ) ) {
+                return std::unexpected( live_error{ .code = live_error_code::bad_request,
+                                                    .message = "op 'query' requires a string 'kind' (v0: \"has_item\")", .id = id } );
+            }
+            const auto kind = obj.get_string( "kind" );
+            if( kind != "has_item" ) {
+                return std::unexpected( live_error{ .code = live_error_code::bad_request,
+                                                    .message = "unknown query kind '" + kind + "' (v0 accepts only \"has_item\")",
+                                                    .id = id } );
+            }
+            if( !obj.has_string( "item" ) ) {
+                return std::unexpected( live_error{ .code = live_error_code::bad_request,
+                                                    .message = "op 'query' requires a string 'item' (an itype_id)", .id = id } );
+            }
+            const auto item = obj.get_string( "item" );
+            if( item.empty() ) {
+                return std::unexpected( live_error{ .code = live_error_code::bad_request,
+                                                    .message = "'item' must be a non-empty itype_id", .id = id } );
+            }
+            int count = 1;
+            if( obj.has_member( "count" ) ) {
+                if( !obj.has_int( "count" ) ) {
+                    return std::unexpected( live_error{ .code = live_error_code::bad_request,
+                                                        .message = "non-int 'count'", .id = id } );
+                }
+                count = obj.get_int( "count" );
+                if( count < 1 ) {
+                    return std::unexpected( live_error{ .code = live_error_code::bad_request,
+                                                        .message = "'count' must be >= 1", .id = id } );
+                }
+            }
+            return live_request{ .id = id, .op = op, .query_kind = kind, .query_item = item, .query_count = count };
+        }
         if( op != "export" && op != "command" ) {
             return std::unexpected( live_error{ .code = live_error_code::bad_request,
-                                                .message = "unknown op '" + op + "' (expected 'export', 'command' or 'quit')",
+                                                .message = "unknown op '" + op + "' (expected 'export', 'command', 'query' or 'quit')",
                                                 .id = id } );
         }
 
@@ -747,6 +819,25 @@ auto arcopolis::write_quit_response_line( std::ostream &out, const live_quit_res
     json.member( "ok", true );
     json.member( "op", std::string( "quit" ) );
     json.member( "status", std::string( "session_end" ) );
+    json.end_object();
+    out << '\n';
+}
+
+auto arcopolis::write_query_response_line( std::ostream &out,
+        const live_query_response &ev ) -> void
+{
+    // Spike 26A: v0 always reports kind "has_item"; the scope string carried verbatim from the caller is
+    // the labeling guard (the run_live arm sets it to "on_person_dialogue_predicate"). Future Spike 26B
+    // will reuse this formatter with kind "crafting_has_item" and scope "crafting_inventory".
+    JsonOut json( out, /*pretty_print=*/false );
+    json.start_object();
+    json.member( "type", std::string( "response" ) );
+    write_id_member( json, ev.id );
+    json.member( "ok", true );
+    json.member( "op", std::string( "query" ) );
+    json.member( "kind", std::string( "has_item" ) );
+    json.member( "has", ev.has );
+    json.member( "scope", ev.scope );
     json.end_object();
     out << '\n';
 }
