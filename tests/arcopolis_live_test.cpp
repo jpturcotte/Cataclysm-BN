@@ -42,8 +42,12 @@ auto with_protocol_line( const std::string &line, Check check ) -> void
 
 } // namespace
 
-TEST_CASE( "arcopolis live request parser accepts the three ops", "[arcopolis]" )
+TEST_CASE( "arcopolis live request parser accepts the four ops", "[arcopolis]" )
 {
+    // Spike 26A added "query" alongside the original export/command/quit; the structural-coverage cases
+    // for the new op live in their own labeled TEST_CASE ("arcopolis op:query observes on-person
+    // dialogue predicate; does NOT answer MGOAL_FIND_ITEM mission completion") so this case stays
+    // focused on the three original command-shape ops.
     SECTION( "export with id and name" ) {
         const auto req = arcopolis::parse_live_request( R"({"id":1,"op":"export","name":"start"})" );
         REQUIRE( req.has_value() );
@@ -73,6 +77,14 @@ TEST_CASE( "arcopolis live request parser accepts the three ops", "[arcopolis]" 
         REQUIRE( req.has_value() );
         CHECK( req->op == "quit" );
         CHECK( req->id == std::optional<int>( 4 ) );
+    }
+    SECTION( "query (covered in depth by its own TEST_CASE; this case pins the four-op acceptance)" ) {
+        const auto req = arcopolis::parse_live_request(
+                             R"({"id":5,"op":"query","kind":"has_item","item":"glass_shard"})" );
+        REQUIRE( req.has_value() );
+        CHECK( req->op == "query" );
+        CHECK( req->query_kind == "has_item" );
+        CHECK( req->query_item == "glass_shard" );
     }
 }
 
@@ -359,6 +371,32 @@ TEST_CASE( "arcopolis parse_prompt_answer rejects bad/missing prompt_id, out-of-
     CHECK( malformed.error().code == arcopolis::live_error_code::malformed_json );
 }
 
+TEST_CASE( "arcopolis parse_prompt_answer rejects mid-prompt op:\"query\" as bad_request (Spike 26A parser-level mid-prompt witness)",
+           "[arcopolis]" )
+{
+    // Spike 26A mid-prompt invariant: while a prompt is open, the prompt-source readers own stdin
+    // and forward incoming lines through parse_prompt_answer; an out-of-order `op:"query"` (the new
+    // live op) must be REJECTED as bad_request here, with the prompt left OPEN. The structural
+    // rejection is the existing "expected op 'prompt_answer' or 'prompt_cancel'" branch
+    // (arcopolis_live.cpp ~644-646); this case pins it with the VERBATIM `query` op string. The
+    // companion live-transcript witness is Gate 8 in spike26a_dialogue_predicate_regression.ps1
+    // (drives a real Spike 12A pickup PICKUP menu and submits the mid-prompt query for real).
+    // Promoted to its own TEST_CASE (was a SECTION) so the case name describes what it actually
+    // tests -- the SECTION was buried inside a "wrong-op and malformed" cluster, which obscured the
+    // role of this specific case in the labeling-guard story.
+    const auto query_mid_prompt = arcopolis::parse_prompt_answer(
+                                      R"({ "op": "query", "prompt_id": 1, "kind": "has_item", "item": "glass_shard" })", 3 );
+    REQUIRE_FALSE( query_mid_prompt.has_value() );
+    CHECK( query_mid_prompt.error().code == arcopolis::live_error_code::bad_request );
+
+    // Defense in depth: even without a kind/item payload (a malformed query, missing the body the
+    // live parser would require), the op string alone is enough for the rejection.
+    const auto query_op_only = arcopolis::parse_prompt_answer(
+                                   R"({ "op": "query", "prompt_id": 1 })", 3 );
+    REQUIRE_FALSE( query_op_only.has_value() );
+    CHECK( query_op_only.error().code == arcopolis::live_error_code::bad_request );
+}
+
 TEST_CASE( "arcopolis live prompt event carries the real choices", "[arcopolis]" )
 {
     std::ostringstream out;
@@ -404,5 +442,121 @@ TEST_CASE( "arcopolis live prompt ack reports the chosen index/indices or a canc
         obj.allow_omitted_members();
         CHECK( obj.get_bool( "ok" ) );
         CHECK( obj.get_bool( "cancelled" ) );
+    } );
+}
+
+// --- Spike 26A: live op == "query" with kind == "has_item" ----------------------------------------
+//
+// The TEST_CASE name carries the load-bearing labeling guard verbatim
+// ("on_person_dialogue_predicate; does NOT answer MGOAL_FIND_ITEM mission completion") so the same
+// string appears in the spike doc 52, the ARCOPOLIS_STATE row, and the live response payload — a
+// future doc/code drift would have to change all four coordinated sites to silently re-claim broader
+// scope. The handler itself (run_live in arcopolis_live.cpp) needs a loaded world and is covered by the
+// pwsh regression spike26a_dialogue_predicate_regression.ps1; the pure layer (parser + formatter +
+// labeling-guard string) is covered here.
+
+TEST_CASE( "arcopolis op:query observes on-person dialogue predicate; does NOT answer MGOAL_FIND_ITEM mission completion",
+           "[arcopolis]" )
+{
+    SECTION( "well-formed has_item with explicit count" ) {
+        const auto req = arcopolis::parse_live_request(
+                             R"({"id":10,"op":"query","kind":"has_item","item":"glass_shard","count":2})" );
+        REQUIRE( req.has_value() );
+        CHECK( req->op == "query" );
+        CHECK( req->id == std::optional<int>( 10 ) );
+        CHECK( req->query_kind == "has_item" );
+        CHECK( req->query_item == "glass_shard" );
+        CHECK( req->query_count == 2 );
+        // The query op carries none of the command/export fields.
+        CHECK( req->command.empty() );
+        CHECK( req->direction.empty() );
+    }
+    SECTION( "count defaults to 1 when omitted" ) {
+        const auto req = arcopolis::parse_live_request(
+                             R"({"id":11,"op":"query","kind":"has_item","item":"glass_shard"})" );
+        REQUIRE( req.has_value() );
+        CHECK( req->query_count == 1 );
+    }
+    SECTION( "missing kind is bad_request" ) {
+        const auto req = arcopolis::parse_live_request(
+                             R"({"id":12,"op":"query","item":"glass_shard"})" );
+        REQUIRE_FALSE( req.has_value() );
+        CHECK( req.error().code == arcopolis::live_error_code::bad_request );
+        CHECK( req.error().id == std::optional<int>( 12 ) );
+    }
+    SECTION( "unknown kind is bad_request (no silent fall-through)" ) {
+        const auto req = arcopolis::parse_live_request(
+                             R"({"id":13,"op":"query","kind":"has_quality","item":"butchering"})" );
+        REQUIRE_FALSE( req.has_value() );
+        CHECK( req.error().code == arcopolis::live_error_code::bad_request );
+    }
+    SECTION( "missing item is bad_request" ) {
+        const auto req = arcopolis::parse_live_request(
+                             R"({"id":14,"op":"query","kind":"has_item"})" );
+        REQUIRE_FALSE( req.has_value() );
+        CHECK( req.error().code == arcopolis::live_error_code::bad_request );
+    }
+    SECTION( "empty item is bad_request" ) {
+        const auto req = arcopolis::parse_live_request(
+                             R"({"id":15,"op":"query","kind":"has_item","item":""})" );
+        REQUIRE_FALSE( req.has_value() );
+        CHECK( req.error().code == arcopolis::live_error_code::bad_request );
+    }
+    SECTION( "non-int count is bad_request" ) {
+        const auto req = arcopolis::parse_live_request(
+                             R"({"id":16,"op":"query","kind":"has_item","item":"glass_shard","count":"two"})" );
+        REQUIRE_FALSE( req.has_value() );
+        CHECK( req.error().code == arcopolis::live_error_code::bad_request );
+    }
+    SECTION( "count <= 0 is bad_request" ) {
+        const auto req = arcopolis::parse_live_request(
+                             R"({"id":17,"op":"query","kind":"has_item","item":"glass_shard","count":0})" );
+        REQUIRE_FALSE( req.has_value() );
+        CHECK( req.error().code == arcopolis::live_error_code::bad_request );
+    }
+}
+
+TEST_CASE( "arcopolis live query response carries the verbatim scope labeling guard",
+           "[arcopolis]" )
+{
+    // The literal string "on_person_dialogue_predicate" is the labeling guard — it must appear in the
+    // response payload BYTE-FOR-BYTE. Any future change to the scope label is the visible signal of a
+    // scope-claim change (which would have to be reflected in the spike doc, the STATE row, AND this
+    // assertion).
+    std::ostringstream out;
+    arcopolis::write_query_response_line( out, { .id = std::optional<int>( 10 ),
+                                          .kind = std::string( "has_item" ),
+                                          .has = true,
+                                          .scope = std::string( "on_person_dialogue_predicate" )
+                                               } );
+    with_protocol_line( out.str(), []( const auto & obj ) {
+        CHECK( obj.get_string( "type" ) == "response" );
+        CHECK( obj.get_int( "id" ) == 10 );
+        CHECK( obj.get_bool( "ok" ) );
+        CHECK( obj.get_string( "op" ) == "query" );
+        CHECK( obj.get_string( "kind" ) == "has_item" );
+        CHECK( obj.get_bool( "has" ) );
+        CHECK( obj.get_string( "scope" ) == "on_person_dialogue_predicate" );
+    } );
+}
+
+TEST_CASE( "arcopolis live query response with has=false carries the same scope label",
+           "[arcopolis]" )
+{
+    // The scope label is independent of the boolean — it is a property of the OP, not of the answer.
+    std::ostringstream out;
+    arcopolis::write_query_response_line( out, { .id = std::nullopt,
+                                          .kind = std::string( "has_item" ),
+                                          .has = false,
+                                          .scope = std::string( "on_person_dialogue_predicate" )
+                                               } );
+    with_protocol_line( out.str(), []( const auto & obj ) {
+        REQUIRE( obj.has_member( "id" ) );
+        CHECK( obj.has_null( "id" ) );
+        CHECK( obj.get_bool( "ok" ) );
+        CHECK( obj.get_string( "op" ) == "query" );
+        CHECK( obj.get_string( "kind" ) == "has_item" );
+        CHECK_FALSE( obj.get_bool( "has" ) );
+        CHECK( obj.get_string( "scope" ) == "on_person_dialogue_predicate" );
     } );
 }
