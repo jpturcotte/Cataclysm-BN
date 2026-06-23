@@ -129,7 +129,7 @@ Future Arcopolis plan reviews MUST reject designs that:
 
 ### Native-authority class (the consumer taxonomy)
 
-The equivalence *level* above says how strongly a path is proven. The native-authority *class* says what
+The equivalence _level_ above says how strongly a path is proven. The native-authority _class_ says what
 KIND of authority a surface or action answers to — derived from the DOWNSTREAM consumer (what ultimately
 reads the surface, or what the goal needs), never from the author's framing. Every Arcopolis surface or
 action belongs to exactly one:
