@@ -128,6 +128,8 @@ export(after)`. The pickup + both exports already existed; this spike adds gates
 
 - **No nested-container / vehicle-cargo / NPC-inventory export** — top-level carried only.
 - **No `wielded`-location claim** — code-present but unwitnessed (the witness avatar is unarmed).
-- **No "package returned"** from the export alone — the consumer composes it from position + carried package.
+- **No "package returned" / possession** from the export alone — possession is **BN's verdict** via its
+  container-recursing `has_amount`/`has_charges` predicates, **not** a consumer composition from this
+  display-only field (see [`51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md`](51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md)).
 - **No new level-4 / prompt-class support** — observation only; the level-4 pickup it rides is the existing
   Spike 12A/16 witness, not new.

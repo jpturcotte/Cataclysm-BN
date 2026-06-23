@@ -85,10 +85,10 @@ The code rows stand. The doc rows over-claimed and are corrected.
 
 `carried_items[]` enumerates the avatar's carried items as **three flat top-level sources** and **never
 descends into container contents** (`write_carried_items`: `wielded_items()`, `worn`, `inv_const_slice()`
-top-level stacks; comment "never descending into contents"). Doc 50 §"Why a top-level export proves the
-carried package (the linchpin)" argues a picked-up loose item lands in flat top-level `Character::inv` via
-`i_add` → `inv.add_item`, so a top-level-only export is _sufficient_ to show the carried package. That
-argument is correct **for the loose-pickup path only**.
+top-level stacks; comment "never descending into contents"). Doc 50's original §"Why a top-level export
+proves the carried package" (since retitled to display-only framing) argued a picked-up loose item lands in
+flat top-level `Character::inv` via `i_add` → `inv.add_item`, so a top-level-only export was framed as
+_sufficient_ to show the carried package. That argument is correct **for the loose-pickup path only**.
 
 ### What is actually true
 
