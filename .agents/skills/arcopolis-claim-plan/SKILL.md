@@ -25,19 +25,23 @@ When the task is "what should we do next" (not yet a single spike), produce a so
 OPTIONS BRIEF before any plan — 3-5 candidates, each one line:
 
 - native-authority class — A action-fidelity · B prompt/menu-fidelity ·
-  C predicate-fidelity · D display-observability. Derive the class from the
-  DOWNSTREAM consumer (what ultimately reads the surface / what the goal needs), not
-  the author's framing; for observation options, C/D are item 4's predicate/display
-  categories.
+  C predicate-fidelity · D display-observability · S simulation-state (raw
+  authoritative world state — neither a computed predicate nor a display proxy).
+  Derive the class from the DOWNSTREAM consumer (what ultimately reads the surface /
+  what the goal needs), not the author's framing. Item 4's three observation
+  categories map straight across: engine-computed-predicate → C, display-state → D,
+  simulation-state → S.
 - evidence label — PROVEN / NATIVE-BN / LIKELY / UNKNOWN / NOT FOUND / NEEDS NEW SEAM /
   STAGE B (cite the source).
 - unblocks / appetite — what it proves, and a rough size.
 
-Forcing rule: a Class C option MUST name the candidate engine call (predicate) at
-selection time; a Class D option MUST NOT cite a predicate/possession/mission goal. The
+Forcing rule: a Class-C option MUST name the candidate engine call (predicate) at
+selection time; a Class-D or Class-S option MUST NOT cite a predicate/possession/mission
+goal (labeling a possession surface S or D to skip the predicate body-read is the
+Spike-25 dodge — item 4's domain trigger still owes the read whatever the letter). The
 picked option's class is binding — a later plan that answers a Class-C goal with a
-display proxy contradicts its own brief (the Spike-25 trap). The human picks by
-appetite/tradeoff, not by re-deriving context.
+display or raw-state proxy contradicts its own brief (the Spike-25 trap). The human
+picks by appetite/tradeoff, not by re-deriving context.
 
 ## Required output
 
@@ -85,10 +89,13 @@ appetite/tradeoff, not by re-deriving context.
      display was the Spike-25 escape).
    - Falsify from the source, don't confirm: read the predicate's engine call BODY
      (cite file:line) and state its traversal SHAPE — flat, or recursing /
-     aggregating / scoped. A flat surface against a recursing or child-walking body
-     is AUTOMATICALLY INSUFFICIENT — expose the predicate result. Treat the surface
-     as sufficient ONLY after reading the body non-recursing at the leaf; "I could
-     not think of a divergence" is not proof there is none.
+     aggregating / scoped. A surface whose REACH is narrower than the body's is
+     AUTOMATICALLY INSUFFICIENT — a flat surface against a recursing or child-walking
+     body, OR an on-person/top-level surface against a body that aggregates or scopes
+     wider (off-person, crafting reach, map tiles) — expose the predicate result.
+     Treat the surface as sufficient ONLY after reading the body and confirming the
+     surface's reach MATCHES it at the leaf; "I could not think of a divergence" is
+     not proof there is none.
    - If sufficiency cannot be shown from the body, the claim is
      display/observation-only — downgrade it, drop the predicate goal, and SAY you
      tripped this (a Class-C goal must not be silently abandoned).
@@ -129,8 +136,8 @@ Claim type · Equivalence level · Active engine mechanism · Registered backend
 input/action · Real engine caller · Witness · Witness scope · False-green risk ·
 Fail-loud · Unsupported adjacent path · Per-transaction gate · No generic
 prompt-class support · Native-authority class (A action / B prompt-menu /
-C predicate / D display) · Goal-fit (sufficient-for vs consistent-with) ·
-Counterexample / divergence witness.
+C predicate / D display / S simulation-state) · Goal-fit (sufficient-for vs
+consistent-with) · Counterexample / divergence witness.
 
 Avoid vague terms unless immediately defined: "works", "equivalent enough", "same
 result", "GUI equivalent", "supports prompt class".
