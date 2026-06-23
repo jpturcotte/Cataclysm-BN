@@ -80,6 +80,57 @@ auto write_backend( JsonOut &json ) -> void
     json.end_object();
 }
 
+/// Spike 25: the avatar's TOP-LEVEL carried items, read-only, written inside the avatar object as
+/// avatar.carried_items[]. Three sources are enumerated explicitly in the SAME order BN's own
+/// visitable<Character>::visit_items roots them (src/visitable.cpp): the wielded weapon, every worn item,
+/// then each top-level inventory stack's items. Enumerating the sources directly (rather than visit_items)
+/// gives the "location" tag for free and is top-level BY CONSTRUCTION - nothing nested inside a container is
+/// traversed (nested-container contents, vehicle cargo, and NPC inventory all stay deferred). A picked-up
+/// loose item lands in the flat Character::inv via i_add (src/character.cpp i_add -> inv.add_item, reached at
+/// src/pickup.cpp), so it appears here as an "inventory" entry. This export is DISPLAY-ONLY and does NOT
+/// answer possession: "does the character have item X" is BN's own verdict via its container-recursing
+/// has_amount / has_charges predicates (visitable<Character>; real callers condition.cpp, mission.cpp). A
+/// flat top-level export cannot mirror that recursion - see 51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md. v0
+/// fields match entities.items (ground) minus pos_local/pos_abs (a carried
+/// item has no tile) plus the "location" tag. This is a read-only authoritative export, NOT a drop/use/wear
+/// surface: nothing is moved, equipped, unequipped, or otherwise mutated; every accessor is const.
+auto write_carried_items( JsonOut &json, const snapshot_ctx &ctx ) -> void
+{
+    json.member( "carried_items" );
+    json.start_array();
+    auto item_index = 0;
+    const auto emit = [&]( const item & it, const std::string & location ) {
+        json.start_object();
+        json.member( "index", item_index++ );  // export-local, 0-based across all three sources
+        json.member( "type_id", it.typeId().str() );
+        json.member( "name", it.display_name() );  // same look/pickup display name as ground items
+        json.member( "symbol", it.symbol() );
+        json.member( "location", location );  // "wielded" | "worn" | "inventory"
+        // charges is only semantically meaningful when count_by_charges() is true (ammo/liquids/stackables);
+        // for everything else a consumer should treat the item as a single unit (mirrors entities.items).
+        json.member( "charges", it.charges );
+        json.member( "count_by_charges", it.count_by_charges() );
+        json.end_object();
+    };
+    // wielded_items() is the documented-preferred accessor (returns only limb-held items, empty when
+    // unarmed) - it avoids primary_weapon()'s legacy null-item hack, so no null/"fists" entry is emitted.
+    for( const item *it : ctx.u.wielded_items() ) {
+        emit( *it, "wielded" );
+    }
+    for( const item *it :
+         ctx.u.worn ) {  // location_vector<item>; const_iterator yields item* const (read-only)
+        emit( *it, "worn" );
+    }
+    // inv_const_slice() groups identical items into stacks; emit one entry per physical top-level item so the
+    // granularity matches entities.items (one entry per ground item), never descending into contents.
+    for( const auto *stack : ctx.u.inv_const_slice() ) {
+        for( const item *it : *stack ) {
+            emit( *it, "inventory" );
+        }
+    }
+    json.end_array();
+}
+
 auto write_avatar( JsonOut &json, const snapshot_ctx &ctx ) -> void
 {
     const auto pos_local = ctx.u.bub_pos();  // tripoint_bub_ms - reality-bubble milestone coords
@@ -114,6 +165,8 @@ auto write_avatar( JsonOut &json, const snapshot_ctx &ctx ) -> void
     json.member( "fatigue", ctx.u.get_fatigue() );
     json.member( "stored_kcal", ctx.u.get_stored_kcal() );
     json.member( "kcal_percent", ctx.u.get_kcal_percent() );  // float
+    write_carried_items( json,
+                         ctx );  // Spike 25: read-only top-level carried items (avatar.carried_items[])
     json.end_object();
 }
 

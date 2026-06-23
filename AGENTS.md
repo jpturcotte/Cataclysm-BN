@@ -144,6 +144,17 @@ Get-Content .\AGENTS.md -TotalCount 160
 New-Item -ItemType Directory -Force .\docs\arcopolis
 ```
 
+**In a `.claude/worktrees/*` session, set up clangd BEFORE editing C++.** A worktree has **no `out/` dir** of
+its own, so clangd finds no `compile_commands.json` and floods FALSE diagnostics (`no template named
+'optional'/'expected' in namespace 'std'`, `inline variables are a C++17 extension`) that hide real ones —
+do **not** dismiss the whole flood as noise, **fix it first**. Generate the worktree-local DB by copying the
+main build's `compile_commands.json` and rewriting the `\\src`/`\\tests` roots to the worktree (leave
+`\\out\\build` vcpkg/generated headers on the main repo); it is gitignored. The exact one-liner, the
+one-time machine-local `Index: Background: Skip` index-balloon guard, and how to verify safely
+(`clangd --check`, cross-checking a surprising error count with `clang-cl -fsyntax-only`) are in
+[00_WINDOWS_LOCAL_ENVIRONMENT.md](docs/arcopolis/00_WINDOWS_LOCAL_ENVIRONMENT.md) → "clangd in a
+`.claude/worktrees/*` session". Once the DB exists, trust in-file `(clang)` diagnostics.
+
 ### Arcopolis Windows build route
 
 The known-good build-backed route here is Visual Studio 2022 DevShell + MSVC + Ninja + vcpkg, with ccache
