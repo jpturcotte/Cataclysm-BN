@@ -49,6 +49,14 @@ reproducing the end state by a shortcut.
 - No fixture/baseline changes unless they are explicitly part of the approved plan.
 - Don't rewrite historical `NN_SPIKE*.md` docs; update current-truth docs
   (`ARCOPOLIS_STATE.md`) only.
+- A counterexample/divergence state named in the plan must be EXERCISED by the
+  witness, not just asserted. For a predicate / goal-fit claim, the witness must be
+  the engine-real-path behavioral one the equivalence level demands — a Catch2 test
+  over a contrived structure proves backend logic, not engine equivalence (cf. the L4
+  "Catch2 alone does not prove" rule). If exercising the divergence needs a fixture
+  that does not exist (e.g. a nested-container entry), the claim is NOT proven this
+  session — downgrade and file the defect; never ship the predicate goal on a
+  happy-path witness.
 
 ## Validation — use the narrowest proof
 
