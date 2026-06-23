@@ -83,6 +83,21 @@ TEST_CASE( "arcopolis parse_script rejects unsupported examine directions", "[ar
     CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
 }
 
+TEST_CASE( "arcopolis parse_script rejects op:\"query\" as bad_schema (Spike 26A: query is a live-only op)",
+           "[arcopolis]" )
+{
+    // Spike 26A added op:"query" to the LIVE protocol parser (arcopolis_live.cpp parse_live_request)
+    // but NOT to the script step parser (arcopolis_script.cpp ~:178-182, which accepts op == "export"
+    // and op == "command" only). A scripted "query" step must therefore be rejected at parse time as
+    // bad_schema -- there is no scalar-response channel in script mode, so silently accepting it would
+    // be a hidden no-op. This case pins the symmetric rejection that the doc 52 spike doc calls out.
+    std::istringstream is(
+        R"({ "schema_version": 1, "steps": [ { "op": "query", "kind": "has_item", "item": "glass_shard" } ] })" );
+    const auto result = arcopolis::parse_script( is );
+    REQUIRE_FALSE( result.has_value() );
+    CHECK( result.error().kind == arcopolis::command_error_kind::bad_schema );
+}
+
 TEST_CASE( "arcopolis parse_script rejects an unsupported schema_version", "[arcopolis]" )
 {
     std::istringstream is( R"({ "schema_version": 2, "steps": [] })" );

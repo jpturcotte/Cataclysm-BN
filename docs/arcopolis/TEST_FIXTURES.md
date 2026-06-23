@@ -58,7 +58,26 @@ A clone of `ArcopolisTest` whose avatar additionally wears a `backpack`, giving 
 (`prompt_menu_regression.ps1` Scenario F). Gated by
 [`docs/arcopolis/prompt_menu_regression.ps1`](prompt_menu_regression.ps1). See
 [30_SPIKE12A_PROMPT_MENU_TRANSACTION.md](30_SPIKE12A_PROMPT_MENU_TRANSACTION.md) and
-[34_SPIKE14_SECONDARY_PICKUP_UILIST.md](34_SPIKE14_SECONDARY_PICKUP_UILIST.md).
+[34_SPIKE14_SECONDARY_PICKUP_UILIST.md](34_SPIKE14_SECONDARY_PICKUP_UILIST.md). **`ArcopolisBackpackTest`
+is GUI-created** (no committed generator script) and is the source-of-truth clone-parent for
+`ArcopolisCarriedNestedTest` below.
+
+## `ArcopolisCarriedNestedTest` — L1 on-person dialogue-predicate witness (Spike 26A)
+
+A clone of `ArcopolisBackpackTest` (NOT regenerated; inherits its committed save shape) with three
+save-edited witness items pinning the on-person dialogue predicate's scope: one `glass_shard` nested
+inside the existing worn backpack's pocket (the **load-bearing container-recursion witness** — proves
+`visit_internal` recurses via `contents.visit_contents` into worn pockets, where `carried_items[]`
+structurally cannot reach), one `rock` wielded as `player.weapon`, and one `feather` dropped on the
+AVATAR'S OWN tile in the `.map` (the **load-bearing anti-`crafting_inventory()` scope-pin** — Spike
+26B's broader predicate would flip this to `has:true`, while the on-person predicate excludes it).
+The fixture also exercises an absent-but-valid id (`wooden_kitchen_spoon`, NOT placed) and a garbage
+`itype_id` (queried directly, not placed). Built reproducibly by
+[`docs/arcopolis/make_carried_nested_fixture.py`](make_carried_nested_fixture.py) (stdlib-only, no GUI,
+no build). Gated by
+[`docs/arcopolis/spike26a_dialogue_predicate_regression.ps1`](spike26a_dialogue_predicate_regression.ps1)
+(seven hard gates including the scope-pinning ground negative and the labeling-guard string assertion).
+See [52_SPIKE26A_DIALOGUE_PREDICATE_QUERY.md](52_SPIKE26A_DIALOGUE_PREDICATE_QUERY.md).
 
 ## `ArcopolisVehicleCargoTest` — vehicle-source `uilist` witness (Spike 13B `pickup`); vehicle `examine` "Select an action" fail-loud witness (Spike 21)
 
