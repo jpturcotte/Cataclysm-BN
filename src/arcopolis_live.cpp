@@ -232,6 +232,7 @@ auto live_next_action() -> action_id
             const bool has = av.has_charges( item_id, req->query_count ) ||
                              av.has_amount( item_id, req->query_count );
             arcopolis::write_query_response_line( std::cout, { .id = req->id,
+                                                  .kind = req->query_kind,
                                                   .has = has,
                                                   .scope = std::string( "on_person_dialogue_predicate" )
                                                              } );
@@ -826,16 +827,17 @@ auto arcopolis::write_quit_response_line( std::ostream &out, const live_quit_res
 auto arcopolis::write_query_response_line( std::ostream &out,
         const live_query_response &ev ) -> void
 {
-    // Spike 26A: v0 always reports kind "has_item"; the scope string carried verbatim from the caller is
-    // the labeling guard (the run_live arm sets it to "on_person_dialogue_predicate"). Future Spike 26B
-    // will reuse this formatter with kind "crafting_has_item" and scope "crafting_inventory".
+    // Spike 26A: both `kind` and `scope` are carried verbatim from the caller (the run_live arm sets
+    // kind "has_item" / scope "on_person_dialogue_predicate"). The scope string is the labeling guard.
+    // Echoing `kind` rather than hardcoding it lets Spike 26B reuse this formatter unchanged with kind
+    // "crafting_has_item" and scope "crafting_inventory".
     JsonOut json( out, /*pretty_print=*/false );
     json.start_object();
     json.member( "type", std::string( "response" ) );
     write_id_member( json, ev.id );
     json.member( "ok", true );
     json.member( "op", std::string( "query" ) );
-    json.member( "kind", std::string( "has_item" ) );
+    json.member( "kind", ev.kind );
     json.member( "has", ev.has );
     json.member( "scope", ev.scope );
     json.end_object();

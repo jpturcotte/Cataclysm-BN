@@ -127,13 +127,17 @@ struct live_error_response {
 };
 auto write_error_response_line( std::ostream &out, const live_error_response &ev ) -> void;
 
-/// Spike 26A: a successful query response. v0 always reports kind == "has_item" and scope ==
-/// "on_person_dialogue_predicate" — the scope string is a load-bearing labeling guard repeated
-/// VERBATIM across the doc 52 spike doc, the ARCOPOLIS_STATE row, and the Catch2 test name, so a
-/// future doc-or-code drift cannot silently re-claim mission-completion scope without touching every
-/// coordinated site. See docs/arcopolis/52_SPIKE26A_DIALOGUE_PREDICATE_QUERY.md (claim labeling).
+/// Spike 26A: a successful query response. v0 only accepts kind == "has_item" (the parser rejects any
+/// other) and always reports scope == "on_person_dialogue_predicate" — the scope string is a
+/// load-bearing labeling guard repeated VERBATIM across the doc 52 spike doc, the ARCOPOLIS_STATE row,
+/// and the Catch2 test name, so a future doc-or-code drift cannot silently re-claim mission-completion
+/// scope without touching every coordinated site. `kind` is echoed from the request rather than
+/// hardcoded so Spike 26B can reuse this formatter for kind "crafting_has_item" (scope
+/// "crafting_inventory") without a wire change. See docs/arcopolis/52_SPIKE26A_DIALOGUE_PREDICATE_QUERY.md.
 struct live_query_response {
     std::optional<int> id;  ///< the request's id (JSON null when the request omitted it)
+    std::string
+    kind;       ///< query kind echoed back (v0: "has_item"); set from the request's query_kind
     bool has = false;       ///< the engine predicate's verbatim answer
     std::string scope;      ///< "on_person_dialogue_predicate" for v0 has_item kind
 };

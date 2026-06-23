@@ -525,6 +525,7 @@ TEST_CASE( "arcopolis live query response carries the verbatim scope labeling gu
     // assertion).
     std::ostringstream out;
     arcopolis::write_query_response_line( out, { .id = std::optional<int>( 10 ),
+                                          .kind = std::string( "has_item" ),
                                           .has = true,
                                           .scope = std::string( "on_person_dialogue_predicate" )
                                                } );
@@ -545,13 +546,16 @@ TEST_CASE( "arcopolis live query response with has=false carries the same scope 
     // The scope label is independent of the boolean — it is a property of the OP, not of the answer.
     std::ostringstream out;
     arcopolis::write_query_response_line( out, { .id = std::nullopt,
+                                          .kind = std::string( "has_item" ),
                                           .has = false,
                                           .scope = std::string( "on_person_dialogue_predicate" )
                                                } );
     with_protocol_line( out.str(), []( const auto & obj ) {
         REQUIRE( obj.has_member( "id" ) );
         CHECK( obj.has_null( "id" ) );
+        CHECK( obj.get_bool( "ok" ) );
         CHECK( obj.get_string( "op" ) == "query" );
+        CHECK( obj.get_string( "kind" ) == "has_item" );
         CHECK_FALSE( obj.get_bool( "has" ) );
         CHECK( obj.get_string( "scope" ) == "on_person_dialogue_predicate" );
     } );

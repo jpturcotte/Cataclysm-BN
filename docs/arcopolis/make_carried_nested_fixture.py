@@ -117,7 +117,15 @@ def map_file_path(sx, sy, z):
 
 
 def read_submap_file(db, path):
-    """Return ``(was_compressed, submap_list)`` for a .map row, or ``(None, None)`` if absent."""
+    """Return ``(was_compressed, submap_list)`` for a .map row, or ``(None, None)`` if the row is absent.
+
+    Fails loud if the database FILE itself is missing: ``sqlite3.connect`` would otherwise silently
+    create an empty database at ``db`` (polluting the fixture dir) and the SELECT below would then raise
+    a confusing ``no such table`` instead of naming the real problem. Consistent with the generator's
+    fail-loud-on-drift contract.
+    """
+    if not os.path.exists(db):
+        raise SystemExit("fatal: map database not found: %s" % db)
     con = sqlite3.connect(db)
     try:
         row = con.execute("SELECT data FROM files WHERE path=?", (path,)).fetchone()

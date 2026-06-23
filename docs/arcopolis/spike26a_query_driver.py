@@ -52,8 +52,11 @@ def _read_line_json(p, expected_type=None):
         raise SystemExit("fatal: backend closed stdout unexpectedly")
     try:
         obj = json.loads(line.decode("utf-8"))
-    except json.JSONDecodeError as e:
-        raise SystemExit("fatal: non-JSON stdout line: %r (%s)" % (line[:200], e))
+    except (UnicodeDecodeError, json.JSONDecodeError) as e:
+        # Invalid UTF-8 is a genuine stdout-purity violation, not a normal condition -- fail loud with a
+        # readable diagnostic rather than masking corrupt bytes (errors="replace") or crashing with an
+        # unhandled traceback. The stdout-purity invariant (Spike 9B) means any such line is a bug.
+        raise SystemExit("fatal: non-JSON/non-UTF-8 stdout line: %r (%s)" % (line[:200], e))
     if expected_type is not None and obj.get("type") != expected_type:
         raise SystemExit("fatal: expected type=%r, got %r" % (expected_type, obj))
     return obj
