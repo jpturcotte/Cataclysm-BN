@@ -147,6 +147,44 @@ function Count-ItemsAt {
     }).Count
 }
 
+# --- Spike 25: carried-item export (avatar.carried_items[]) helpers -----------------------------------------
+# True if the avatar object carries the additive carried_items block at all (an empty [] still counts as
+# present -- check the PSObject property, not truthiness, so "absent" (a bug) is distinct from "empty").
+function Has-CarriedBlock {
+    param($Snap)
+    return ( $Snap -and $Snap.avatar -and $null -ne $Snap.avatar.PSObject.Properties['carried_items'] )
+}
+# Effective QUANTITY of an item-export entry: charges for a count_by_charges item (ammo/liquids/stackables),
+# else 1. Pickup moves the WHOLE stack, so quantity-delta is robust to both stacking and charge merges.
+function Item-Qty { param($It) if( $It.count_by_charges ) { return [int]$It.charges } else { return 1 } }
+# Total ground quantity of one type_id at a LOCAL tile.
+function Ground-QtyOfTypeAt {
+    param($Snap, [string]$Tid, [int]$X, [int]$Y, [int]$Z)
+    if( -not $Snap -or -not $Snap.entities -or -not $Snap.entities.items ) { return 0 }
+    $sum = 0
+    foreach( $it in @($Snap.entities.items | Where-Object {
+                $_.type_id -eq $Tid -and $_.pos_local[0] -eq $X -and $_.pos_local[1] -eq $Y -and $_.pos_local[2] -eq $Z }) ) {
+        $sum += (Item-Qty $it)
+    }
+    return $sum
+}
+# Total carried quantity of one type_id at a given location ("wielded"|"worn"|"inventory").
+function Carried-QtyOfTypeLoc {
+    param($Snap, [string]$Tid, [string]$Loc)
+    if( -not $Snap -or -not $Snap.avatar -or -not $Snap.avatar.carried_items ) { return 0 }
+    $sum = 0
+    foreach( $it in @($Snap.avatar.carried_items | Where-Object { $_.type_id -eq $Tid -and $_.location -eq $Loc }) ) {
+        $sum += (Item-Qty $it)
+    }
+    return $sum
+}
+# Count carried entries at a given location (e.g. how many "worn" items the avatar enumerates).
+function Carried-CountByLoc {
+    param($Snap, [string]$Loc)
+    if( -not $Snap -or -not $Snap.avatar -or -not $Snap.avatar.carried_items ) { return 0 }
+    return @($Snap.avatar.carried_items | Where-Object { $_.location -eq $Loc }).Count
+}
+
 function Get-FurnAt {
     param($Snap, [int]$X, [int]$Y, [int]$Z)
     if( -not $Snap -or -not $Snap.tiles ) { return "" }
@@ -200,6 +238,40 @@ if( $b1 -and $a1 ) {
         "prompt_completed/failed wrong: completed=$($completed | ConvertTo-Json -Compress) failed=$($failed.Count)"
     Gate ($bN -eq 7 -and $aN -eq 6) "south pile 7 -> 6 (the chosen item left the ground -- engine state change)" `
         "south pile $bN -> $aN (expected 7 -> 6)"
+
+    # --- Spike 25: the chosen item is now CARRIED (avatar.carried_items[], location=inventory) ---
+    # The pickup put the chosen item into the avatar's flat top-level inventory (i_add -> inv.add_item); the
+    # new read-only export must show it. Prove it by QUANTITY-DELTA on the picked type_id (NOT mere presence:
+    # the avatar could already carry that type), so this proves THIS pickup became carried.
+    $sx = $av[0]; $sy = $av[1] + 1; $sz = $av[2]
+    Gate (Has-CarriedBlock $a1) "avatar.carried_items[] present in the after snapshot (additive field round-trips)" `
+        "avatar.carried_items missing on the after snapshot"
+    # The picked type_id = the one whose south-tile ground quantity dropped (here glass shard, choice 6).
+    $picked = $null; $delta = 0
+    foreach( $tid in (@($b1.entities.items | Where-Object { $_.pos_local[0] -eq $sx -and $_.pos_local[1] -eq $sy -and $_.pos_local[2] -eq $sz } | ForEach-Object { $_.type_id }) | Sort-Object -Unique) ) {
+        $d = (Ground-QtyOfTypeAt $b1 $tid $sx $sy $sz) - (Ground-QtyOfTypeAt $a1 $tid $sx $sy $sz)
+        if( $d -gt 0 ) { $picked = $tid; $delta = $d; break }
+    }
+    Gate ($null -ne $picked -and $delta -ge 1) "identified the picked type_id '$picked' (ground -$delta)" `
+        "could not identify a type_id whose south-tile ground quantity dropped"
+    if( $picked ) {
+        $cBefore = Carried-QtyOfTypeLoc $b1 $picked "inventory"
+        $cAfter  = Carried-QtyOfTypeLoc $a1 $picked "inventory"
+        Gate (($cAfter - $cBefore) -eq $delta) `
+            "'$picked' carried(inventory) +$delta ($cBefore -> $cAfter) == ground -$delta (THIS pickup is now carried)" `
+            "carried(inventory) qty $cBefore -> $cAfter (delta $($cAfter - $cBefore)) != ground drop $delta"
+    }
+    # The clothed avatar's worn items prove the 'worn' source enumerates (present before any pickup).
+    $wornBefore = Carried-CountByLoc $b1 "worn"
+    Gate ($wornBefore -ge 1) "worn source enumerated: $wornBefore worn item(s) in carried_items before pickup" `
+        "no worn items in avatar.carried_items before pickup (worn source not enumerated?)"
+    # Honesty: exit-0 + no prompt_failed does NOT exclude a silent cancel / forced-cancel / marked-partial.
+    $unexpected  = @(Of-Type $w1.Transcript "unexpected_prompt").Count
+    $forceCancel = @(Of-Type $w1.Transcript "prompt_force_cancelled").Count   # carries the partial/forced_cancel marker
+    $cancelled   = @(Of-Type $w1.Transcript "prompt_cancelled").Count
+    Gate ($unexpected -eq 0 -and $forceCancel -eq 0 -and $cancelled -eq 0) `
+        "clean transcript: no unexpected_prompt / prompt_force_cancelled / prompt_cancelled" `
+        "dirty transcript: unexpected_prompt=$unexpected prompt_force_cancelled=$forceCancel prompt_cancelled=$cancelled"
 } else { Gate $false "" "missing before/after snapshot for W1" }
 
 # =============================================================================
