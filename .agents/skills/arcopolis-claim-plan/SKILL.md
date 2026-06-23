@@ -11,6 +11,22 @@ inspection and planning only.
 
 Do not edit files. Do not implement. Stop at the plan and wait for approval.
 
+## Incoming Task Statement Card
+
+If the incoming task statement is a Task Statement Card from `arcopolis-design-interrogate`:
+
+- a `CLASS UNVERIFIED` flag in Open unknowns is a mandatory resolution point at the
+  "Consumer + native mechanism" step (item 4) — not a passable warning. Do not advance
+  past that step until the consumer is anchored to a named engine caller or observing
+  surface. If it cannot be resolved, stop and output `AUDIT ONLY` with the same
+  inspection-guidance format `arcopolis-design-interrogate` uses.
+- a `FALSIFICATION UNKNOWN` flag must be resolved before any witness is chosen (item 5) —
+  name the observable behavioral divergence first; an unfalsifiable claim does not get a
+  witness.
+
+A card carrying neither flag opens directly at the equivalence-claim and registered-input
+steps. Absent a card, plan as normal.
+
 ## Why plan-first
 
 Arcopolis fidelity is defined by _backend input behavior_, not by final state, so the
