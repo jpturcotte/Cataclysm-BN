@@ -23,7 +23,7 @@ review bots and verify subagents.
 - docs/PR text claim support broader than the fixture/protocol witness;
 - the capability is only CONSISTENT WITH the cited goal, not SUFFICIENT FOR it (e.g.
   a flat/top-level observation surface offered as proof of a predicate the engine
-  evaluates by a deeper/recursing mechanism);
+  evaluates by a deeper, recursing mechanism);
 - backend/headless code depends on curses/window/render behavior in any build;
 - baseline/fixture files are changed without explicit approval;
 - tests, fixtures, or baselines are weakened, deleted, or rewritten to make a green

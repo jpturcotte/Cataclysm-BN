@@ -51,9 +51,9 @@ what keeps the change small and the review cheap.
 4. **Consumer + native mechanism (observation claims)** — for any OBSERVATION
    claim, classify the real consumer — display-state vs simulation-state vs
    engine-computed-predicate — and expose the NATIVE mechanism for that category,
-   never a convenient JSON proxy. If the consumer is an engine-computed predicate,
-   NAME the consuming engine call and its scope, and expose THAT predicate (or its
-   result), not a proxy a consumer re-derives from a partial view.
+   never a convenient JSON proxy. For the engine-computed-predicate case, NAME
+   the consuming engine call and its scope, and expose THAT predicate (or its
+   result) — never a consumer-side reconstruction from a partial view.
    - Catch question: name the engine predicate the goal will actually call, and
      show this surface feeds it.
 
