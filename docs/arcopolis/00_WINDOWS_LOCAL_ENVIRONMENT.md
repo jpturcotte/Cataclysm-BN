@@ -500,6 +500,65 @@ copying it in (step 2) and before building (step 3), force a CMake **reconfigure
 `CONFIGURE_DEPENDS` (unlike `src/CMakeLists.txt:5`), so `cmake --build` alone would silently leave the new
 `tests/*.cpp` uncompiled and unrun. New `src/*.cpp` files are picked up automatically.)
 
+### clangd in a `.claude/worktrees/*` session — generate the DB FIRST, before editing (2026-06-22)
+
+A fresh worktree has **no `out/` dir** (the Ninja build lives in the main repo), so clangd — rooted at the
+worktree — finds **no `compile_commands.json`** and floods FALSE C++ errors (`no template named
+'optional'/'expected' in namespace 'std'`, `inline variables are a C++17 extension`). The tracked `.clangd`
+sets no `CompileFlags`/`CompilationDatabase`, so nothing supplies `-std`/`-I`/`-D`. **Generate a
+worktree-local DB at the START of the session, before editing**, so you get REAL diagnostics while you work
+instead of a flood you have to mentally filter and that hides genuine errors.
+
+**One-time machine setup** (already on this box — verify once): scope clangd's whole-project background
+index OFF for this tree, else cold-indexing the ~648 TUs is a multi-GB RAM/pagefile spike that can freeze a
+16 GB box. Write `%LocalAppData%\clangd\config.yaml` (the machine-local config — NOT the tracked `.clangd`)
+**with PowerShell** (the sandbox Write tool targets an FS clangd does not read). Per-file diagnostics/hover/
+go-to-def in OPEN files still work; only cross-file workspace-symbol/find-refs is dropped:
+
+```yaml
+If:
+  PathMatch: .*Cataclysm-BN.*
+Index:
+  Background: Skip
+```
+
+**Per-worktree** (re-run whenever the main repo reconfigures / adds files): copy the main Ninja DB and
+rewrite the `\\src` and `\\tests` roots to the worktree — **leave `\\out\\build`** (vcpkg/generated headers)
+and `directory` on the main repo so third-party/system/generated headers + the compiler still resolve.
+Rewriting only `file` is INSUFFICIENT — it breaks `tests/*.cpp` (a quote-include falls through `-I` to the
+main-repo header, missing your edits). `compile_commands.json` is gitignored, so it never pollutes git:
+
+```powershell
+$main='C:\dev\Cataclysm-BN'; $wt=(Get-Location).Path
+$raw = Get-Content -Raw "$main\out\build\win-rel-deb\compile_commands.json"
+$m = $main.Replace('\','\\'); $w = $wt.Replace('\','\\')   # JSON-escaped backslashes
+$raw = $raw.Replace("$m\\src","$w\\src").Replace("$m\\tests","$w\\tests")   # NOT \\out
+[IO.File]::WriteAllText("$wt\compile_commands.json", $raw, (New-Object Text.UTF8Encoding($false)))
+```
+
+**Verify SAFELY** with the standalone LLVM clangd (`C:\Program Files\LLVM\bin\clangd.exe`, v22 — NOT the
+older VS-bundled one) via `--check`, a one-shot that parses ONE TU and exits (zero index-balloon risk):
+
+```powershell
+& "C:\Program Files\LLVM\bin\clangd.exe" "--check=$wt\src\<file>.cpp" --log=verbose 2>&1 |
+  Out-File C:\tmp\clangd_check.log
+# the flood markers ("no template named 'optional'") must be ABSENT; it logs the loaded compile_commands.json.
+```
+
+**Reading the result honestly.** Trust diagnostics that point INTO the file you edited — those are real.
+But `clangd --check`'s aggregate `"N errors"` can include clangd's analysis layer (clang-tidy / IncludeCleaner)
+on heavy pre-existing headers that the COMPILER does not treat as errors: a header-light file
+(`arcopolis_command.cpp`) reports `0`, a header-heavy one (`arcopolis_export.cpp`) reported `4` — **none in
+the `.cpp` itself** (2026-06-22). For a DEFINITIVE compiler check, run the real front-end syntax-only with
+the file's own command (it matches the MSVC build — both gave **0 errors** on the Spike 25 change):
+
+```powershell
+# clang-cl with the file's compile_commands command + -fsyntax-only  → exit 0 / no ": error:" == clean.
+```
+
+So: DB-flood gone ⇒ believe in-file `(clang)` errors; cross-check a surprising aggregate count with
+`clang-cl -fsyntax-only` (and the MSVC build) before chasing it.
+
 ### Running the FULL suite needs the llvmpipe software-GPU backend (vision/shadowcasting)
 
 **This is the canonical "how to run the tests" reference; other docs link here.**
