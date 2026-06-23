@@ -24,6 +24,20 @@ review bots and verify subagents.
 - the capability is only CONSISTENT WITH the cited goal, not SUFFICIENT FOR it (e.g.
   a flat/top-level observation surface offered as proof of a predicate the engine
   evaluates by a deeper, recursing mechanism);
+- a PROXY surface (one re-derived from a partial or top-level view, NOT the engine
+  predicate's own returned result) is offered as proof of an engine-computed predicate
+  with no named state where proxy and predicate DISAGREE (a counterexample), OR that
+  counterexample is asserted but never exercised by the witness — a happy-path-only
+  "divergence" filed as a footnote is the Spike-25 failure. Exposing the predicate's
+  OWN result is the correct fix and needs no counterexample (it cannot diverge from
+  itself); the exemption does NOT cover a surface merely ASSERTED equal to the
+  predicate;
+- a surface a CITED goal consumes as an engine-computed predicate is classified
+  display/observation-only — or its consuming goal is left unnamed — to dodge the
+  divergence test; the class follows the downstream consumer's authority, not the
+  author's framing. (A surface with NO cited predicate consumer is legitimately
+  display-only — do not invent a "foreseeable" one to block honest display work;
+  Spike 25's resolution was that a carried-items list IS fine AS display);
 - backend/headless code depends on curses/window/render behavior in any build;
 - baseline/fixture files are changed without explicit approval;
 - tests, fixtures, or baselines are weakened, deleted, or rewritten to make a green
@@ -32,6 +46,24 @@ review bots and verify subagents.
   as if it were committed, reproducible repo evidence;
 - after an upstream sync, `main.cpp`'s `<arg_handler, N>` literal or the array entry
   count is wrong.
+
+## Adversarial pass (any equivalence or goal-fit claim)
+
+A single read is not a review. Run at least THREE INDEPENDENT refute-lenses — this is
+what caught the failures a routine pass missed (docs/arcopolis/ 28/37/38), never one
+skill read.
+
+- Each lens DEFAULTS to "refuted / insufficient" and tries to CONSTRUCT a divergence
+  (a state where the claim's surface/path and the engine's real mechanism disagree).
+- Use DISTINCT lenses, not three identical: e.g. goal-fit/sufficiency,
+  seam/active-mechanism, fail-loud/silent-default, witness-scope/leaf-citation.
+- Verify at the DECISIVE leaf, not a convenient one: the load-bearing line is the
+  predicate's traversal body (recursing vs flat) or the action's call-site placement
+  (the seam line the loop consumes, vs a leaf called before/after). Verifying a
+  faithful-looking sibling leaf while missing the decisive one is how a reviewer who
+  shares the author's conflation passes a broken claim. Confident file:line/existence
+  claims (incl. review bots and verify subagents) are often false — open it.
+- The claim survives only if no lens constructs a divergence the witness does not cover.
 
 ## Required output
 
@@ -49,4 +81,6 @@ confident prose.
 Claim type · Equivalence level · Active engine mechanism · Registered backend
 input/action · Real engine caller · Witness · Witness scope · False-green risk ·
 Fail-loud · Unsupported adjacent path · Per-transaction gate · No generic
-prompt-class support.
+prompt-class support · Native-authority class (A action / B prompt-menu /
+C predicate / D display / S simulation-state) · Goal-fit (sufficient-for vs
+consistent-with) · Counterexample / divergence witness.
