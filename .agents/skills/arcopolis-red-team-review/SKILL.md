@@ -50,9 +50,12 @@ what caught the failures a routine pass missed (docs 28/37/38), never one skill 
   (a state where the claim's surface/path and the engine's real mechanism disagree).
 - Use DISTINCT lenses, not three identical: e.g. goal-fit/sufficiency,
   seam/active-mechanism, fail-loud/silent-default, witness-scope/leaf-citation.
-- Verify at the leaf: open the cited file/line or run the witness yourself — confident
-  file:line/existence claims (including from review bots and verify subagents) are
-  often false.
+- Verify at the DECISIVE leaf, not a convenient one: the load-bearing line is the
+  predicate's traversal body (recursing vs flat) or the action's call-site placement
+  (the seam line the loop consumes, vs a leaf called before/after). Verifying a
+  faithful-looking sibling leaf while missing the decisive one is how a reviewer who
+  shares the author's conflation passes a broken claim. Confident file:line/existence
+  claims (incl. review bots and verify subagents) are often false — open it.
 - The claim survives only if no lens constructs a divergence the witness does not cover.
 
 ## Required output

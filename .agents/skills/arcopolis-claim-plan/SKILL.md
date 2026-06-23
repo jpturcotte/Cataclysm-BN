@@ -67,6 +67,10 @@ appetite/tradeoff, not by re-deriving context.
      A registered action (`ACTION_*`) is NOT a mechanism, and "`do_turn` finalizes it" is
      NOT a mechanism. L4 = the named registered input consumed by the named active loop a
      player would use.
+   - Seam identity, not just naming: cite the LINE where that loop consumes the input
+     and show your call site IS that point — not a leaf it calls before/after. Driving
+     `avatar_action::move` before `do_turn` instead of inside `handle_action` names the
+     loop honestly yet inverts the seam (the Spike-3 defect).
 
 4. **Consumer + native mechanism (observation claims)** — for any OBSERVATION
    claim, classify the real consumer — display-state vs simulation-state vs
@@ -74,6 +78,11 @@ appetite/tradeoff, not by re-deriving context.
    never a convenient JSON proxy. For the engine-computed-predicate case, NAME
    the consuming engine call and its scope, and expose THAT predicate (or its
    result) — never a consumer-side reconstruction from a partial view.
+   - Domain trigger (unconditional): if the goal is possession / mission / objective /
+     state-check adjacent, NAME the engine predicate that goal calls and run the
+     body-read below — whatever class you assigned. The goal domain, not your label,
+     decides whether the predicate-read is owed (classifying a possession surface as
+     display was the Spike-25 escape).
    - Falsify from the source, don't confirm: read the predicate's engine call BODY
      (cite file:line) and state its traversal SHAPE — flat, or recursing /
      aggregating / scoped. A flat surface against a recursing or child-walking body
