@@ -5,8 +5,8 @@ description: >
   Use BEFORE arcopolis-claim-plan whenever the user has a vague design impulse.
   Trigger when ANY of the following is true: (1) the impulse names no engine artifact
   (function, file, registered action, or seam); (2) the impulse names an artifact but
-  does not classify the downstream consumer (A/B/C/D/S); (3) the impulse names an artifact
-  and a class but the class is not anchored to a cited engine caller or observing surface.
+  its downstream consumer/class is not yet derived; (3) the impulse touches possession /
+  mission / objective / inventory state and has not had its engine consumer named.
   Do NOT trigger if a Task Statement Card already exists for this impulse, or if
   arcopolis-claim-plan is already in progress with a well-formed equivalence claim.
   Produces a Task Statement Card that arcopolis-claim-plan can open with directly.
@@ -19,24 +19,41 @@ disable-model-invocation: true
 
 Read `AGENTS.md` and `docs/arcopolis/ARCOPOLIS_STATE.md` before running any pass.
 The native-authority class vocabulary (`AGENTS.md` → "Native-authority class") and the
-live capability state are required inputs to Pass 2. Do not run from memory.
+live capability state are required inputs. Do not run from memory.
 
-This skill does one thing: adversarial scope reduction. It turns a vague design impulse
-into a scoped, falsifiable Task Statement Card. It does not generate implementation
-options, evaluate feasibility, survey the backlog, or propose architecture.
+**Who decides what.** YOU (the user) supply the INTENT and the BOUNDARIES — what you want,
+roughly who/what consumes it, and what must not change — in plain language. The AGENT
+derives the native-authority class, the authority target, the scope, and the likely
+mechanism from `AGENTS.md`, `ARCOPOLIS_STATE.md`, and a grounded read of the named engine
+source. The agent asks you ONLY intent questions ("do you want the frontend to SHOW this,
+or does the engine EVALUATE a condition over it?") — never "which class is this?" or "walk
+the call path." You are the intent oracle; the agent is the classification engine; the
+rules are the safety net.
 
-Depth is not uniform across the passes. Passes 1, 4, and 5 plus the `AUDIT ONLY` exit are
-the general, class-agnostic spine — they reduce scope for any impulse. Pass 2's domain
-override and Pass 3's proxy-substitution check are a risk-targeted **C-class
-(possession/predicate) sub-procedure**: they exist to catch the Spike-25 trap and are
-largely inert for a plain A/B/D/S impulse, which is carried mostly by the spine. Do not
-mistake that machinery for uniform interrogation depth.
+**Floor, not seal (the Spike-25 honesty rule).** This skill's in-loop gates RAISE THE
+FLOOR — they catch the common, lexically-marked possession/objective trap and force the
+consumer-naming + source-citation discipline. They do NOT, and cannot, SEAL the Spike-25
+failure. The originating impulse — "what can a frontend show about what the avatar is
+holding?" — was a possession goal the agent read as display, and every in-loop
+standardized gate scored 0% catch; the only real catch came from OUTSIDE the loop (a human
+"equivalent to WHAT?" question, an external review, a cross-model adversarial critic). A
+second pass by the SAME model shares the same prior and modally repeats the error. So any
+possession / mission / objective / Stage-blocking card is marked `External-seal required:
+YES` and is NOT plan-ready until an independent check — a human GUI-equivalence
+confirmation, or a cross-model adversarial pass (`arcopolis-red-team-review` /
+`/code-review ultra` run by a different reasoner) — names the concrete engine consumer and
+reads its body. Do NOT represent any in-loop pass, including this skill's own, as that
+seal.
 
-**One follow-up question per pass, no exceptions.** If the user's answer after the
-follow-up is still insufficient, log the appropriate flag and advance. Do not ask a
-third time. Do not rephrase and retry. A logged flag is the correct output for an
-unanswerable pass — it is information for `arcopolis-claim-plan`, not a failure of
-this skill.
+This skill turns a vague design impulse into a scoped, falsifiable Task Statement Card. It
+does not generate implementation options, evaluate feasibility, survey the backlog, or
+propose architecture.
+
+**One follow-up question TO THE USER per pass, no exceptions.** The agent may inspect
+source freely; what is bounded is questions to the user. If the user's answer after the
+follow-up is still insufficient, log the appropriate flag and advance. Do not ask a third
+time. A logged flag is the correct output for an unanswerable pass — it is information for
+`arcopolis-claim-plan`, not a failure of this skill.
 
 ## Pass 1 — Impulse capture
 
@@ -71,7 +88,7 @@ already shipped by an existing display or raw-state field — e.g. `avatar.carri
 exists but does NOT satisfy a possession check (BN answers possession with a
 container-recursing predicate, `has_amount` / `has_charges`; see `ARCOPOLIS_STATE.md`).
 If the goal is possession/predicate-adjacent, do NOT take this exit — fall through to Pass
-2's domain override and let it force Class C. Likewise, an impulse signaling stronger
+2 and let the domain override force Class C. Likewise, an impulse signaling stronger
 fidelity than the existing capability provides — registered-input / "like a key press" /
 "as a player would" / level-4 intent against a capability shipped only at a lower level —
 is NOT already shipped: produce the card and carry the level question as an Open unknown
@@ -85,101 +102,121 @@ own section headings — never one you pick for the user), log `TARGET UNKNOWN` 
 to Pass 2 using the frontier as a loose scope anchor only; if it yields neither, log
 `TARGET UNKNOWN` and proceed.
 
-## Pass 2 — Native-authority classification (Classifier)
+## Pass 2 — Native-authority classification (agent derives; you confirm intent)
 
-_Failure mode addressed:_ Spike 25 — a display/raw-state export offered as proof of a
-possession predicate; no gate caught the consumer misclassification before the plan was
-written.
+_Failure mode addressed:_ Spike 25 — a display/raw-state surface offered as proof of a
+possession predicate. The root cause was a MISSING consumer check: the agent inherited the
+goal's display framing and never re-asked which engine consumer answers "has the package."
 
-**Class-based split check.** Before asking the user to classify, evaluate whether the
-impulse could receive two distinct native-authority assignments. If yes and the user
-answered "no" to the Pass 1 natural-language split check: "On reflection, this may
-involve both [X]-class and [Y]-class behavior. Should we split?" Apply the split if
-confirmed. If declined: log `SPLIT DECLINED` and continue with the user's unified framing.
+Do NOT ask the user to choose A/B/C/D/S or to name the consuming call. The agent derives
+the class from grounded inspection. Read the class definitions from `AGENTS.md` now (do
+not enumerate from memory; the set is A/B/C/D/S and may grow).
 
-**Classification.** Read the class definitions from `AGENTS.md` now — do not enumerate
-or paraphrase from memory (`AGENTS.md` → "Native-authority class"; the set is A/B/C/D/S
-and may grow). Present the classes exactly as that doc defines them. Ask: "Which class
-does the downstream consumer of this capability belong to? Name the consuming engine call
-or the observing frontend surface."
+**Primary gate — name the concrete consumer (the load-bearing floor).** For EVERY card,
+the agent must answer, from `AGENTS.md` / `ARCOPOLIS_STATE.md` / a grounded source read:
+WHO or WHAT consumes this surface/action, and is that consumer a player-visible DISPLAY
+(D), a raw SNAPSHOT reader (S), a registered ACTION path (A), an active MENU/INPUT loop
+(B), or an engine PREDICATE/CONDITION (C)? Name the exact engine call, display surface, or
+state field that is authoritative. If the concrete consumer cannot be named from
+docs/source, output `AUDIT ONLY` — do not guess a class. This is the "equivalent to WHAT?"
+question the Spike-25 loop never asked; it is the floor, not a seal (see the external-seal
+rule above).
 
-**Anchor validation.** A valid anchor is a named function, a named call site, or a
-cited line in `AGENTS.md` or `ARCOPOLIS_STATE.md`. Category names do not qualify:
-"the condition evaluator," "the movement system," and "the frontend" are not anchors.
-If the assignment is unanchored: log `CLASS UNVERIFIED`. This is a risk flag, not a
-blocker.
+**Possession-surface over-trigger (cheap backstop, NOT the guarantee).** As a cheap first
+filter, scan the impulse for any reference to the avatar's/character's items or possession
+state — by stem (hold/held/holding, carry/carried/carrying, have/has, possess, inventory,
+on-person, package/parcel/item, deliver/delivered, acquire/acquired, complete/met,
+checkmark/indicator/status, mission/quest/objective/MGOAL/Stage/goal/condition/predicate)
+OR a named possession surface (`carried_items[]`, inventory). If any fires, set
+`Possession-surface: touched` and default `Predicate-read owed: YES`. Deliberately
+over-inclusive — a needless body-read is cheap; a missed one reopened the spike. **This is
+a backstop only.** It catches the lexically-MARKED case; it does NOT catch an
+abstraction-routed unmarked goal (e.g. "expose the courier job's completion flag" — no
+stem, yet `mission::is_complete` → `crafting_inventory().has_amount`). The unmarked case is
+caught — if at all — by the consumer-naming gate and the external seal, NOT by the stem
+list. Never advertise the keyword scan as the mechanical guarantee.
 
-**Domain override (unconditional — the Spike-25 gate).** The goal DOMAIN, not the surface
-named, decides the class for a possession/predicate goal. If the impulse's goal is
-possession / mission / objective / state-check adjacent, the class is **C** regardless of
-any display (D) or raw-state (S) surface named, and Pass 3 runs the mechanism probe. This
-fires:
+**Domain override.** A possession / mission / objective / state-check goal is Class C
+regardless of the display (D) or raw (S) surface it rides on, and owes the predicate
+body-read. The displayed value of an objective CONDITION RESULT — a checkmark, an
+"acquired"/"complete"/"met" indicator, a button enablement, an eligibility/gate decision —
+IS the predicate's result → C, even when phrased "show"/"render"/"scan…for"/"grey-out".
+Carve-out (lifts C-forcing; does NOT auto-classify D): a goal that renders a raw ITEM LIST
+is not forced to C ONLY when no downstream consumer evaluates membership, completion,
+button-state, mission/quest status, or any objective decision over the list — a list shown
+purely for a human to read. A raw list that escapes C-forcing is then classified D or S by
+its consumer (GUI display = D; raw authoritative snapshot = S) — "not forced C" does NOT
+mean "therefore D." Ambiguous → C.
 
-- structurally, with no extra question, when the stated purpose names a possession /
-  mission / objective check or a Stage gate ("would BN consider…", "confirm / validate /
-  verify that the player has…"); OR
-- after one disambiguating question when the impulse only HINTS at it through a predicate
-  verb ("has," "holds," "returns true when") over a display-looking surface: ask "Is the
-  downstream goal a display question (what can the frontend show?) or a possession /
-  validation question (would the engine consider this condition met)?" — validation → C;
-  display → keep the stated class. This counts as Pass 2's one follow-up. The keyword only
-  TRIGGERS the question; it does not decide — the user's answer does, and a possession
-  DOMAIN is C even when the wording is innocent.
+**Intent disambiguation (the only USER question in Pass 2, asked only when needed).** When
+the consumer is genuinely ambiguous between display and condition, ask ONE plain-language
+intent question: "Is this meant to SHOW a raw/display item list, or to expose whether the
+ENGINE considers an objective/possession/condition satisfied?" A raw-list answer only
+lifts the C-forcing; it does not by itself decide D vs S. You answer intent; the agent
+decides the class.
 
-The structural trigger keys on a yes/no condition the engine would evaluate — a
-possession/objective CHECK or Stage GATE ("does the player have X?"). It FIRES (to Class
-C) whenever the goal exposes a CONDITION RESULT — a checkmark, an "acquired" / "complete"
-/ "met" / "delivered" indicator, or any quest/objective/mission STATUS whose truth comes
-from a possession/objective predicate — even when phrased as "show" / "render" / "light
-up" / "scan … for": the displayed value IS the predicate's result, so the authority is
-the predicate, not the display surface. The carve-out is NARROW: only a goal that renders
-a raw ITEM LIST (the inventory contents themselves, with NO condition evaluated) is
-genuine D. When a goal touches a mission / quest / objective / Stage surface and is not
-unambiguously a raw list, the disambiguating question is OWED (not optional) and the
-default is C; a possession/objective DOMAIN is C even when phrased as an export or a
-checkmark (the Spike-25 rule, not an escape from it).
+**Class-based split check.** If the impulse plausibly carries two distinct
+native-authority assignments, announce the split and produce one card per goal; else log
+`SPLIT DECLINED` if the user declined an offered split.
 
-Naming a D- or S-class surface does not exempt a possession goal from the predicate
-body-read; that relabel is the Spike-25 dodge. (This mirrors `arcopolis-claim-plan`
-item 4's unconditional domain trigger.)
+If no class can be derived after the consumer-naming gate + one intent question: output
+`AUDIT ONLY — no classifiable consumer identified.` Stop. If the consumer is named but not
+yet anchored to a cited caller/surface, log `CLASS UNVERIFIED` (a risk flag, not a stop).
 
-If the user cannot assign any class after one follow-up: output `AUDIT ONLY —
-impulse not actionable. No classifiable consumer identified.` Stop.
+## Pass 3 — Authority target + discriminating source-citation (agent identifies)
 
-## Pass 3 — Mechanism probe (Prober)
+_Failure mode addressed:_ the "convenient JSON proxy" (a flat surface substituted for the
+recursing/scoped predicate that answers the goal) AND the wrong-SCOPE sibling (a real
+predicate of the wrong reach cited for the goal — `set_has_items` on-person vs
+`MGOAL_FIND_ITEM` over `crafting_inventory()`).
 
-_Failure mode addressed:_ The "convenient JSON proxy" pattern from doc 51 — a surface
-consistent with the goal substituted for the native mechanism that answers it.
+Do NOT ask the user to walk the call path. The agent identifies the authority target from
+docs/source and writes it to the card ONLY with a cited `file:function`.
 
-**D/S-class skip.** If the goal is D-class or S-class AND the Pass-2 domain override did
-NOT fire, skip Pass 3. Log `PASS 3 SKIPPED — D-class` or `PASS 3 SKIPPED — S-class` on
-the card and continue to Pass 4. (Observation of a display view or of raw world state has
-no engine-computed mechanism to probe.) A possession/predicate goal can never reach this
-skip — the domain override has already forced it to C.
+**Authority target by class:**
 
-**Mechanism question (A, B, C-class).** Ask: "What would the engine do, step by step,
-if this capability did not exist? Walk the call path." If the user can walk it: name
-the mechanism as file:function.
+```
+A → the registered action + its handler path
+B → the active prompt/menu/input loop
+C → the predicate-returning engine call (condition/mission body)
+D → the native GUI/display surface
+S → the raw authoritative state field
+```
 
-**Proxy-substitution check.** Verify class–mechanism consistency. A C-class goal
-requires a predicate-returning engine call. A B-class goal requires an active input loop.
-If the walked path names a D- or S-class surface (display export, JSON field, raw-state
-dump, observation-only output) as the mechanism for a B- or C-class goal: log
-`PROXY SUBSTITUTION` and treat as `MECHANISM UNKNOWN`. This is the Spike 25 failure
-reproduced inside the interrogation — do not pass it through.
+**Discriminating source-citation (C / `Predicate-read owed` cards).** Citing "a predicate"
+is not enough. Open the named consumer's BODY and SHOW, on the same engine state, whether
+it RECURSES / aggregates / scopes wider (→ C predicate authority — a flat surface cannot
+mirror it) or is FLAT / top-level (→ the goal may be genuine D/S display). Cite the
+decisive line (e.g. `has_amount` recurses via `visitable.cpp` `visit_internal`;
+`write_carried_items` enumerates flat top-level sources only). A `Predicate-read owed` card
+with no such body-read is NOT discharged.
 
-The proxy keyword filter (predicate verb over a display surface) is a cheap first pass
-only; the Pass-2 domain override is the real backstop, because it fires on the goal
-DOMAIN regardless of wording. Do not treat a clean keyword scan as proof of goal-fit.
+**Scope-binding (the wrong-sibling fix).** A real predicate of the WRONG scope is still
+wrong. Record BOTH the goal's REQUIRED scope and the cited predicate's ACTUAL scope (proven
+by its body). On mismatch — e.g. on-person `set_has_items` cited for a goal needing
+`MGOAL_FIND_ITEM`'s `crafting_inventory()` reach — output `AUDIT ONLY` (`SCOPE MISMATCH`);
+do not write the wrong-scope predicate confidently.
+
+**Proxy substitution.** If the only surface the agent can cite for a B/C goal is a D/S
+display/raw export (no predicate/loop exposed) → log `PROXY SUBSTITUTION` and treat as
+`MECHANISM UNKNOWN`. This is the Spike 25 failure reproduced inside the interrogation.
+
+**Citation threshold.** Never write a confident-but-unverified, or wrong-scope, mechanism
+to the card. If the authority cannot be cited at `file:function` with a confirmed signature
+AND a matching scope → `AUDIT ONLY` with a Required Source Inspection block. An honest
+"cannot identify" beats a plausible wrong symbol that seeds `claim-plan`'s body-read on the
+wrong anchor.
+
+**D/S skip (only when not forced C).** A genuine D or S goal (the carve-out lifted the
+C-forcing; no `Predicate-read owed`) has no engine-computed predicate to probe — log
+`PASS 3 SKIPPED — D/S` and continue. A possession/objective goal never reaches this skip.
 
 **Resolution by class:**
 
 ```
-MECHANISM UNKNOWN / PROXY SUBSTITUTION:
-  A-class     → log MECHANISM UNKNOWN, continue to Pass 4
-  B-class     → AUDIT ONLY with Required Source Inspection block, stop
-  C-class     → AUDIT ONLY with Required Source Inspection block, stop
-  D / S-class → cannot reach (skipped this pass, unless the domain override forced C)
+A-class     → MECHANISM UNKNOWN: log, continue to Pass 4
+B / C-class → MECHANISM UNKNOWN / PROXY SUBSTITUTION / SCOPE MISMATCH: AUDIT ONLY, stop
+D / S-class → no predicate to probe (skipped), unless the domain override forced C
 ```
 
 ## Pass 4 — Scope bounding (Bounder)
@@ -223,6 +260,9 @@ implementation were wrong." A C-class predicate may have no GUI player action at
 e.g. a dialogue/mission condition; the authority is the engine call's returned value, not
 a keypress. Do not demand a GUI-action witness, and do not mark `FALSIFICATION UNKNOWN`
 merely because no player action exists — compare result to predicate on the same state.
+The divergence state should exercise the SCOPE the goal requires (e.g. an item nested in a
+worn container, or off-person within crafting reach) so a flat or wrong-scope surface is
+caught.
 
 **For D-class goals:** "Name a game state where the export would diverge from what the
 GUI would actually DISPLAY for that field — the native display mechanism, formatted /
@@ -248,47 +288,66 @@ address it before any witness is chosen.
 ### Task Statement Card (actionable impulse)
 
 ```
-Task:              [one sentence, active verb, names the engine artifact]
-Native-auth class: [A / B / C / D / S — with cited consumer, or UNVERIFIED]
-Target mechanism:  [file:function — or UNKNOWN]
-Must NOT touch:    [named surface, seam, or capability — or UNBOUNDED]
-Falsification:     [observable behavioral divergence from engine state — or UNKNOWN]
-Open unknowns:     [all logged flags — or NONE]
+Task:                  [one sentence, active verb, names the engine artifact]
+Downstream consumer:   [named consumer — display / snapshot / action / menu-loop / predicate — or UNKNOWN]
+Native-auth class:     [A / B / C / D / S — agent-derived, CLAIMED not proven — or UNVERIFIED]
+Goal-required scope:   [on-person / container-deep / crafting reach / map / GUI display / raw field / UNKNOWN]
+Authority target:      [cited file:function / display surface / raw field — or UNKNOWN]
+Authority scope:       [scope proven by the cited body — or UNKNOWN]
+Predicate-read owed:   [YES (with trigger basis) / NO]
+External-seal required:[YES (possession/objective/Stage-blocking) / NO]
+Must NOT touch:        [named surface, seam, or capability — or UNBOUNDED]
+Falsification:         [C: vs engine predicate result on the same state · D: vs GUI display · S: vs raw state · A: engine-state/seam divergence — or UNKNOWN]
+Open unknowns:         [all logged flags — or NONE]
 ```
 
-The Task Statement Card is the only artifact this skill produces for actionable impulses.
-Three of its fields — **Native-auth class**, **Target mechanism**, and **Must NOT touch** —
-are the user's CLAIMED values, not verified findings: `arcopolis-claim-plan` re-derives and
-checks them at its Consumer/mechanism step (item 4, including the predicate body-read at
-`file:line`), its registered-input step (item 3), and its impact map (item 6). The card
-front-loads them as guesses to focus the plan, NOT as discharged work — a fully-filled card
-is well-FORMED, not proven TRUE. The card's own load-bearing contributions are the
-**Falsification** criterion (a behavioral divergence named before any witness exists) and
-the **Open unknowns** flags `arcopolis-claim-plan` must resolve.
+The agent-derived fields (Downstream consumer, Native-auth class, Goal-required scope,
+Authority target, Authority scope) are the agent's CLAIMED values from a grounded read,
+NOT verified findings: `arcopolis-claim-plan` re-derives and checks them at its
+Consumer/mechanism step (item 4 — including the predicate body-read and the goal-required
+vs authority vs surface scope comparison) and its registered-input step (item 3). The card
+front-loads them to focus the plan; a fully-filled card is well-FORMED, not proven TRUE.
+**A card with `External-seal required: YES` is NOT plan-ready until the external check (next
+section) clears.** The card's own load-bearing contributions are the consumer-naming, the
+`Falsification` criterion, and the `Open unknowns` flags `arcopolis-claim-plan` must resolve.
+
+### External seal (possession / objective / Stage-blocking cards)
+
+Any card with `External-seal required: YES` — any possession / mission / objective /
+state-check / Stage-blocking goal — is NOT plan-ready on this skill's output alone. The
+seal (name the concrete engine consumer, read its body, discriminate predicate C from
+display D on the same state) must be performed or adjudicated by a reasoner that does NOT
+share this agent's prior: a human "equivalent to WHAT?" GUI-equivalence confirmation, an
+external review, or a cross-model adversarial pass (`arcopolis-red-team-review` /
+`/code-review ultra` run by a different reasoner). This skill's in-loop gates raise the
+floor; they are NOT the seal — every in-loop standardized gate scored 0% catch on the
+canonical failure. Record `EXTERNAL-SEAL: required` on the card; `arcopolis-claim-plan`
+must not advance a possession/objective card to a Stage-blocking witness until it is cleared.
 
 ### AUDIT ONLY output (non-actionable stop)
 
 ```
 AUDIT ONLY — [reason]
-Class:          [stated class, or UNKNOWN]
+Class:          [derived class, or UNKNOWN]
 Artifact named: [named artifact, or UNKNOWN]
 Flags:          [all logged flags]
 Required source inspection before next interrogation:
   - Read [artifact] in [file if known, otherwise: search for artifact symbol]
   - Identify [the engine call that consumes this predicate / the active input loop /
-    the registered handler] at runtime
+    the registered handler] at runtime; for a possession/objective goal, read the
+    predicate body and state its scope (on-person container-deep vs crafting/map reach)
   - Name the specific function (e.g. uilist::query, input_context::handle_input,
-    condition.cpp::set_has_items)
-Return with that function name to restart from Pass [2 or 3].
+    condition.cpp::set_has_items, mission.cpp MGOAL_FIND_ITEM)
+Return with that function name (and its proven scope) to restart from Pass [2 or 3].
 ```
 
-The inspection block must be specific to the named artifact and stated class. A generic
+The inspection block must be specific to the named artifact and derived class. A generic
 "go read the code" is not a valid AUDIT ONLY output.
 
 `AUDIT ONLY` fires on:
 
-- Pass 2: unclassifiable consumer (no class after one follow-up)
-- Pass 3: B- or C-class with unknown or proxy-substituted mechanism
+- Pass 2: no classifiable consumer (no consumer nameable after the gate + one intent question)
+- Pass 3: B- or C-class with unknown / proxy-substituted / wrong-scope mechanism
 
 Pass 4 self-contradictory scope is a SEPARATE terminal stop, not an `AUDIT ONLY`: it emits
 its own `SELF-CONTRADICTORY SCOPE` line and is resolved by redefining the goal/non-goal,
@@ -300,10 +359,13 @@ the impulse is not yet actionable is better than a fabricated task statement.
 ## Integration with `arcopolis-claim-plan`
 
 `arcopolis-claim-plan`'s preamble carries the downstream enforcement for the flags this
-skill emits — see its **`## Incoming Task Statement Card`** block (added when this skill
-was deployed). That block makes a `CLASS UNVERIFIED` flag a mandatory resolution point at
-the "Consumer + native mechanism" step (item 4), and requires a `FALSIFICATION UNKNOWN`
-flag to be resolved before any witness is chosen (item 5).
+skill emits — see its **`## Incoming Task Statement Card`** block. That block makes a
+`CLASS UNVERIFIED` flag a mandatory resolution point at the "Consumer + native mechanism"
+step (item 4); runs item 4's consumer re-derivation + predicate body-read + the
+goal-required vs authority vs surface scope comparison for every observation/predicate
+card; requires a `FALSIFICATION UNKNOWN` flag to be resolved before any witness (item 5);
+and treats `External-seal required: YES` as a hard block on a Stage-blocking witness until
+an independent (human / cross-model) check clears it.
 
 The authoritative wording lives in `arcopolis-claim-plan` — do not duplicate it here, to
 avoid drift. These flags have downstream enforcement only while that block is present; if
@@ -311,47 +373,50 @@ it is removed, they become inert.
 
 ## Hard rules
 
-- Do not generate implementation options. That is `arcopolis-claim-plan`.
-- Do not select what to work on next. This skill produces ONE card per impulse; it does
-  not survey the backlog or prioritize (that is `arcopolis-claim-plan`'s Triage mode).
-  `ARCOPOLIS_STATE.md` is a state reference, not a prioritization queue. The user drives
-  which impulse to interrogate. (Using the frontier section headings to help the user
-  anchor a `TARGET UNKNOWN` impulse is not selection — it is anchoring.)
-- Do not evaluate feasibility or assign equivalence levels. Those belong in
-  `arcopolis-claim-plan`.
-- Do not run the adversarial multi-lens pass. That belongs in `arcopolis-red-team-review`.
-- Do not accept category-level answers for artifact names, consumer anchors, or
-  non-goal surfaces at any pass. Require symbol names, file references, or cited lines
-  from `AGENTS.md` or `ARCOPOLIS_STATE.md`.
-- One follow-up per pass. Flag and advance on failure.
+- The AGENT derives class, consumer, authority target, and scope from grounded inspection.
+  Do NOT quiz the user on classification or call paths; ask only intent questions.
+- The possession-surface keyword scan is a cheap over-trigger, NOT the mechanical
+  guarantee. The floor is consumer-naming + the discriminating body-read; the SEAL is the
+  external (human / cross-model) check. Never call an in-loop pass the seal.
+- A possession / mission / objective / state-check card is `External-seal required: YES`
+  and is not plan-ready on this skill alone.
+- Do not generate implementation options, evaluate feasibility, or assign equivalence
+  levels. Those belong in `arcopolis-claim-plan`.
+- Do not select what to work on next (that is `arcopolis-claim-plan`'s Triage mode).
+  `ARCOPOLIS_STATE.md` is a state reference, not a prioritization queue.
+- Do not write a confident-but-unverified or wrong-scope mechanism to the card; an honest
+  AUDIT ONLY beats a plausible wrong symbol.
+- One follow-up question to the user per pass. Flag and advance on failure.
 
 ## Shared vocabulary
 
-- **Native-authority class:** as defined in `AGENTS.md` → "Native-authority class" — read
-  that doc for the current authoritative list (A/B/C/D/S, and the set may grow). Do not
-  enumerate classes from memory.
-- **Goal-fit:** whether a capability answers the question the goal actually poses
-  (predicate, state, action, or display), as distinct from being internally consistent
-  with it or observationally plausible.
-- **Task Statement Card:** the output artifact of this skill; the input artifact of
-  `arcopolis-claim-plan`.
-- **Proxy substitution:** naming a D- or S-class surface (display export, JSON field,
-  raw-state dump) as the mechanism for a B- or C-class goal. Logs `PROXY SUBSTITUTION`;
-  treated as `MECHANISM UNKNOWN`.
-- **Classifier / Prober / Bounder:** the interrogation functions of Passes 2, 3, and 4.
-  Not multi-agent roles — sequential functions this skill performs.
-- **`ARTIFACT UNVERIFIED`:** proposed symbol not found in `ARCOPOLIS_STATE.md` or
-  `AGENTS.md`. Does not stop the interrogation; appears on the card as an open unknown.
-- **`CLASS UNVERIFIED`:** class stated but not anchored to a named caller or surface.
-  Risk flag, not a stop.
-- **`SPLIT DECLINED`:** user declined a class-based split. Logged on card.
-- **`PROXY SUBSTITUTION`:** D- or S-class surface offered as B/C-class mechanism. Hard
-  stop for B/C; see Pass 3 resolution table.
-- **`SCOPE UNBOUNDED`:** no specific non-goal surface named in Pass 4. Yellow flag for
-  `arcopolis-claim-plan`.
+- **Native-authority class:** as defined in `AGENTS.md` → "Native-authority class" (A/B/C/D/S,
+  may grow). Do not enumerate from memory.
+- **Floor vs seal:** in-loop gates (consumer-naming, body-read, scope-binding, the keyword
+  over-trigger) RAISE THE FLOOR; the SEAL for possession/objective claims is an independent
+  external check (human GUI-equivalence question or cross-model adversarial review). The
+  skill forces the external check; it does not internally close Spike-25.
+- **Downstream consumer:** the named engine consumer of the surface/action (display /
+  snapshot / action / menu-loop / predicate). Naming it is Pass 2's primary gate.
+- **Goal-required scope / Authority scope:** the reach the goal needs (on-person /
+  container-deep / crafting reach / map / GUI / raw) vs the reach proven by the cited body.
+  A mismatch is `SCOPE MISMATCH` → AUDIT ONLY.
+- **`Predicate-read owed`:** a possession/objective surface owes the discriminating
+  body-read before a class is final.
+- **`External-seal required`:** a possession/objective/Stage-blocking card needs an
+  independent (human / cross-model) check before it is plan-ready.
+- **Proxy substitution:** a D/S surface offered as the B/C mechanism. `AUDIT ONLY`.
+- **Classifier / Prober / Bounder:** the functions of Passes 2, 3, 4 — sequential, not
+  multi-agent roles.
+- **`ARTIFACT UNVERIFIED`:** proposed symbol not found in `ARCOPOLIS_STATE.md` / `AGENTS.md`.
+  Open unknown, not a stop.
+- **`CLASS UNVERIFIED`:** consumer named but not anchored to a cited caller/surface. Risk flag.
+- **`SPLIT DECLINED`:** user declined a class-based split.
+- **`SCOPE MISMATCH`:** cited predicate's scope ≠ goal-required scope. `AUDIT ONLY`.
+- **`SCOPE UNBOUNDED`:** no specific non-goal surface named in Pass 4. Yellow flag.
 - **`FALSIFICATION UNKNOWN`:** no behavioral divergence stated in Pass 5. `arcopolis-claim-plan`
-  must resolve before any witness is chosen.
+  must resolve before any witness.
 - **`SELF-CONTRADICTORY SCOPE`:** goal and non-goal name the same artifact. A separate
   terminal stop after Pass 4 (not an `AUDIT ONLY`); resolved by redefining the scope.
-- **`TARGET UNKNOWN`:** user cannot name any artifact or frontier area. Proceed using
-  frontier as loose anchor; logged on card.
+- **`TARGET UNKNOWN`:** user cannot name any artifact or frontier area. Proceed using the
+  frontier as a loose anchor; logged on card.

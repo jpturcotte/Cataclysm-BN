@@ -23,13 +23,22 @@ If the incoming task statement is a Task Statement Card from `arcopolis-design-i
 - a `FALSIFICATION UNKNOWN` flag must be resolved before any witness is chosen (item 5) —
   name the observable behavioral divergence first; an unfalsifiable claim does not get a
   witness.
+- an `External-seal required: YES` card (any possession / mission / objective / state-check
+  / Stage-blocking goal) is a HARD BLOCK on a Stage-blocking witness until an INDEPENDENT
+  check clears it — a human "equivalent to WHAT?" GUI-equivalence confirmation or a
+  cross-model adversarial review (`arcopolis-red-team-review` / `/code-review ultra` run by
+  a different reasoner). A same-model in-loop re-read does NOT clear it: the canonical
+  Spike-25 failure was caught only from outside the loop, and the in-loop gates scored 0%.
 
-A card carrying neither flag still has its consumer re-derived at item 4 — the
-native-consumer classification and, for any observation/predicate card, the predicate
-body-read at `file:line`. The card's class and mechanism are the interrogator's CLAIMED
-values, not findings, so item 4 runs for every observation/predicate card regardless of
-which flags are present; the card only lets the plan OPEN faster (artifact, scope, and
-falsification already named), it does not discharge item 4. Absent a card, plan as normal.
+A card carrying no blocking flag still has its consumer re-derived at item 4 — the
+native-consumer classification, the predicate body-read at `file:line`, AND a three-way
+scope comparison (the card's `Goal-required scope` vs the cited `Authority scope` vs the
+exported/surface reach): a real predicate of the WRONG scope (e.g. on-person `set_has_items`
+for a goal needing `MGOAL_FIND_ITEM`'s `crafting_inventory()` reach) is rejected, not only a
+flat surface against a recursing body. The card's class, mechanism, and scope are the
+interrogator's CLAIMED values, not findings, so item 4 runs for every observation/predicate
+card regardless of which flags are present; the card only lets the plan OPEN faster, it does
+not discharge item 4. Absent a card, plan as normal.
 
 ## Why plan-first
 

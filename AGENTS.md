@@ -140,7 +140,9 @@ action belongs to exactly one:
   loop/mechanism (`input_context::handle_input()`, `uilist::query()`, `query_popup`/`query_yn`).
 - **C — predicate-fidelity.** An engine-COMPUTED predicate's result — e.g. a possession/mission check such
   as `condition.cpp`'s `set_has_items`. The authority is the value the engine call returns, not a
-  re-derivation of it from a partial view.
+  re-derivation of it from a partial view. A predicate's SCOPE is part of its identity: a real predicate of
+  the wrong reach (on-person `set_has_items` vs `MGOAL_FIND_ITEM` over `crafting_inventory()`) is still the
+  wrong authority — match the goal's required scope, not just predicate-ness.
 - **D — display-observability.** What the GUI would DISPLAY for a tile/field — a formatted or filtered
   view, which may lag or differ from raw state.
 - **S — simulation-state.** Raw authoritative world state (entity positions, item contents) — neither a
