@@ -40,7 +40,9 @@ this skill.
 
 ## Pass 1 — Impulse capture
 
-Quote the user's request verbatim. Do not paraphrase or restate it.
+Quote the user's request verbatim. Do not paraphrase or restate it — but redact any
+sensitive value (a home-directory path, token, or private environment value) with the
+repo's `<user-profile>` / `<repo-root>` convention before echoing it.
 
 **Split check (natural language).** Ask: "Does this describe more than one thing you
 want the engine to do?" If yes, announce the split: "This impulse contains two goals:
@@ -59,11 +61,21 @@ reference. If a name is provided, check it against `ARCOPOLIS_STATE.md` and `AGE
 If it does not appear in either: note `ARTIFACT UNVERIFIED` and proceed.
 
 **Already-satisfied check.** The grounding read includes `ARCOPOLIS_STATE.md`'s export
-contract and capability state. If the behavior or field the impulse asks for ALREADY
-EXISTS there — an avatar/monster field already in the snapshot, or a capability already
-witnessed by a spike — do not interrogate it into a card: emit `ALREADY SHIPPED — see
-<doc:line>; no card needed` and stop. An interrogation that finds the impulse is already
-met is a successful outcome, not a failure.
+contract and capability state. Take this exit ONLY when an existing capability satisfies
+the SAME downstream consumer the impulse needs — same class and scope, not merely a field
+of the same name: emit `ALREADY SHIPPED — see <doc:line>; no card needed` and stop.
+Existence is not sufficiency. A possession / mission / objective / state-check goal is NOT
+already shipped by an existing display or raw-state field — e.g. `avatar.carried_items[]`
+exists but does NOT satisfy a possession check (BN answers possession with a
+container-recursing predicate, `has_amount` / `has_charges`; see `ARCOPOLIS_STATE.md`).
+If the goal is possession/predicate-adjacent, do NOT take this exit — fall through to Pass
+2's domain override and let it force Class C. Likewise, an impulse signaling stronger
+fidelity than the existing capability provides — registered-input / "like a key press" /
+"as a player would" / level-4 intent against a capability shipped only at a lower level —
+is NOT already shipped: produce the card and carry the level question as an Open unknown
+for `arcopolis-claim-plan` (this skill assigns no equivalence levels; it only declines the
+exit when the implied level is unmet). An interrogation that finds the impulse genuinely
+met (same consumer and level) is a successful outcome, not a failure.
 
 If the user cannot name any artifact: ask which area of `ARCOPOLIS_STATE.md`'s frontier
 this is connected to, using the doc's own section headings. Do not select a frontier
@@ -192,9 +204,16 @@ can be answered correctly on the happy path even when the claim is wrong.
 action fires, if the implementation were wrong? Name the observable engine-state
 divergence."
 
-**For B- and C-class goals:** "How would you know the implementation is wrong — not
-incomplete, wrong? What observable behavior would diverge from what the engine does for
-the same action in the GUI?"
+**For B-class goals:** "How would you know the implementation is wrong — not incomplete,
+wrong? What observable behavior would diverge from what the engine does for the same
+prompt/menu action in the GUI?"
+
+**For C-class goals:** "Name a game state where the exposed or queried predicate result
+would DIVERGE from the engine predicate's own result on the same engine state, if the
+implementation were wrong." A C-class predicate may have no GUI player action at all —
+e.g. a dialogue/mission condition; the authority is the engine call's returned value, not
+a keypress. Do not demand a GUI-action witness, and do not mark `FALSIFICATION UNKNOWN`
+merely because no player action exists — compare result to predicate on the same state.
 
 **For D-class goals:** "Name a game state where the displayed value would diverge from
 the engine's in-memory value for the same field, if the implementation were wrong."
@@ -257,7 +276,10 @@ The inspection block must be specific to the named artifact and stated class. A 
 
 - Pass 2: unclassifiable consumer (no class after one follow-up)
 - Pass 3: B- or C-class with unknown or proxy-substituted mechanism
-- Pass 4: self-contradictory scope (goal and non-goal name the same artifact)
+
+Pass 4 self-contradictory scope is a SEPARATE terminal stop, not an `AUDIT ONLY`: it emits
+its own `SELF-CONTRADICTORY SCOPE` line and is resolved by redefining the goal/non-goal,
+not by reading code — it does not use the inspection template above.
 
 `AUDIT ONLY` is a valid, successful outcome. A well-run interrogation that concludes
 the impulse is not yet actionable is better than a fabricated task statement.
@@ -316,7 +338,7 @@ it is removed, they become inert.
   `arcopolis-claim-plan`.
 - **`FALSIFICATION UNKNOWN`:** no behavioral divergence stated in Pass 5. `arcopolis-claim-plan`
   must resolve before any witness is chosen.
-- **`SELF-CONTRADICTORY SCOPE`:** goal and non-goal name the same artifact. AUDIT ONLY
-  stop after Pass 4.
+- **`SELF-CONTRADICTORY SCOPE`:** goal and non-goal name the same artifact. A separate
+  terminal stop after Pass 4 (not an `AUDIT ONLY`); resolved by redefining the scope.
 - **`TARGET UNKNOWN`:** user cannot name any artifact or frontier area. Proceed using
   frontier as loose anchor; logged on card.

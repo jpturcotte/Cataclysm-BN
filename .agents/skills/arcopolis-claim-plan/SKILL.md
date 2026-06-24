@@ -24,8 +24,12 @@ If the incoming task statement is a Task Statement Card from `arcopolis-design-i
   name the observable behavioral divergence first; an unfalsifiable claim does not get a
   witness.
 
-A card carrying neither flag opens directly at the equivalence-claim and registered-input
-steps. Absent a card, plan as normal.
+A card carrying neither flag still has its consumer re-derived at item 4 — the
+native-consumer classification and, for any observation/predicate card, the predicate
+body-read at `file:line`. The card's class and mechanism are the interrogator's CLAIMED
+values, not findings, so item 4 runs for every observation/predicate card regardless of
+which flags are present; the card only lets the plan OPEN faster (artifact, scope, and
+falsification already named), it does not discharge item 4. Absent a card, plan as normal.
 
 ## Why plan-first
 
