@@ -127,11 +127,17 @@ fires:
   DOMAIN is C even when the wording is innocent.
 
 The structural trigger keys on a yes/no condition the engine would evaluate — a
-possession/objective CHECK or Stage GATE ("does the player have X?") — not on a goal that
-merely renders mission- or objective-related items for DISPLAY; the latter is genuine D,
-not a check. When the line is unclear the disambiguating question decides, and a
-possession yes/no DOMAIN is C even when phrased as an export (the Spike-25 rule, not an
-escape from it).
+possession/objective CHECK or Stage GATE ("does the player have X?"). It FIRES (to Class
+C) whenever the goal exposes a CONDITION RESULT — a checkmark, an "acquired" / "complete"
+/ "met" / "delivered" indicator, or any quest/objective/mission STATUS whose truth comes
+from a possession/objective predicate — even when phrased as "show" / "render" / "light
+up" / "scan … for": the displayed value IS the predicate's result, so the authority is
+the predicate, not the display surface. The carve-out is NARROW: only a goal that renders
+a raw ITEM LIST (the inventory contents themselves, with NO condition evaluated) is
+genuine D. When a goal touches a mission / quest / objective / Stage surface and is not
+unambiguously a raw list, the disambiguating question is OWED (not optional) and the
+default is C; a possession/objective DOMAIN is C even when phrased as an export or a
+checkmark (the Spike-25 rule, not an escape from it).
 
 Naming a D- or S-class surface does not exempt a possession goal from the predicate
 body-read; that relabel is the Spike-25 dodge. (This mirrors `arcopolis-claim-plan`
