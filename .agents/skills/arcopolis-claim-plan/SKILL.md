@@ -35,10 +35,13 @@ native-consumer classification, the predicate body-read at `file:line`, AND a th
 scope comparison (the card's `Goal-required scope` vs the cited `Authority scope` vs the
 exported/surface reach): a real predicate of the WRONG scope (e.g. on-person `set_has_items`
 for a goal needing `MGOAL_FIND_ITEM`'s `crafting_inventory()` reach) is rejected, not only a
-flat surface against a recursing body. The card's class, mechanism, and scope are the
-interrogator's CLAIMED values, not findings, so item 4 runs for every observation/predicate
-card regardless of which flags are present; the card only lets the plan OPEN faster, it does
-not discharge item 4. Absent a card, plan as normal.
+flat surface against a recursing body. If item 4 re-derives the incoming card as possession
+/ mission / objective / state-check / Stage-blocking, SET `External-seal required: YES`
+immediately — even if the card omitted the flag or marked it `NO`; the external-seal block is
+DERIVED from claim-plan's own re-read, never trusted from the card. The card's class,
+mechanism, and scope are the interrogator's CLAIMED values, not findings, so item 4 runs for
+every observation/predicate card regardless of which flags are present; the card only lets
+the plan OPEN faster, it does not discharge item 4. Absent a card, plan as normal.
 
 ## Why plan-first
 

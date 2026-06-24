@@ -146,7 +146,10 @@ is not forced to C ONLY when no downstream consumer evaluates membership, comple
 button-state, mission/quest status, or any objective decision over the list — a list shown
 purely for a human to read. A raw list that escapes C-forcing is then classified D or S by
 its consumer (GUI display = D; raw authoritative snapshot = S) — "not forced C" does NOT
-mean "therefore D." Ambiguous → C.
+mean "therefore D." Ambiguous → C. A pure raw/display list may set `Predicate-read owed:
+NO` only AFTER the consumer-naming gate establishes that no downstream consumer evaluates
+membership, completion, button state, mission/quest status, or any objective decision over
+the list.
 
 **Intent disambiguation (the only USER question in Pass 2, asked only when needed).** When
 the consumer is genuinely ambiguous between display and condition, ask ONE plain-language
@@ -184,12 +187,15 @@ S → the raw authoritative state field
 ```
 
 **Discriminating source-citation (C / `Predicate-read owed` cards).** Citing "a predicate"
-is not enough. Open the named consumer's BODY and SHOW, on the same engine state, whether
-it RECURSES / aggregates / scopes wider (→ C predicate authority — a flat surface cannot
-mirror it) or is FLAT / top-level (→ the goal may be genuine D/S display). Cite the
-decisive line (e.g. `has_amount` recurses via `visitable.cpp` `visit_internal`;
-`write_carried_items` enumerates flat top-level sources only). A `Predicate-read owed` card
-with no such body-read is NOT discharged.
+is not enough. Open the named consumer's BODY and determine whether the authority is an
+engine PREDICATE/CONDITION result (→ C) or a DISPLAY/RAW surface (→ D/S). If the cited body
+is a predicate it remains C even when FLAT / top-level — flatness affects only SCOPE
+(whether a flat proxy can mirror it), NOT class. The goal is D/S only when the cited
+authority is a display/raw export rather than an engine predicate result. Cite the decisive
+line AND state the body's traversal SHAPE (recurses / aggregates / scopes-wider vs flat /
+top-level) for the scope comparison — e.g. `has_amount` recurses via `visitable.cpp`
+`visit_internal`; `write_carried_items` enumerates flat top-level sources only (a display
+export, not a predicate). A `Predicate-read owed` card with no such body-read is NOT discharged.
 
 **Scope-binding (the wrong-sibling fix).** A real predicate of the WRONG scope is still
 wrong. Record BOTH the goal's REQUIRED scope and the cited predicate's ACTUAL scope (proven
@@ -296,6 +302,8 @@ Authority target:      [cited file:function / display surface / raw field — or
 Authority scope:       [scope proven by the cited body — or UNKNOWN]
 Predicate-read owed:   [YES (with trigger basis) / NO]
 External-seal required:[YES (possession/objective/Stage-blocking) / NO]
+External-seal status:  [not required / required (pending) / cleared by human / cleared by cross-model / blocked]
+External-seal evidence:[link, quote, or reviewer-output summary — or NONE]
 Must NOT touch:        [named surface, seam, or capability — or UNBOUNDED]
 Falsification:         [C: vs engine predicate result on the same state · D: vs GUI display · S: vs raw state · A: engine-state/seam divergence — or UNKNOWN]
 Open unknowns:         [all logged flags — or NONE]
@@ -321,8 +329,17 @@ share this agent's prior: a human "equivalent to WHAT?" GUI-equivalence confirma
 external review, or a cross-model adversarial pass (`arcopolis-red-team-review` /
 `/code-review ultra` run by a different reasoner). This skill's in-loop gates raise the
 floor; they are NOT the seal — every in-loop standardized gate scored 0% catch on the
-canonical failure. Record `EXTERNAL-SEAL: required` on the card; `arcopolis-claim-plan`
-must not advance a possession/objective card to a Stage-blocking witness until it is cleared.
+canonical failure. Record the seal state on the card; `arcopolis-claim-plan` must not
+advance a possession/objective card to a Stage-blocking witness until it is cleared.
+
+**The external-seal input must be BLIND.** Give the second reader ONLY the raw user impulse,
+relevant repo context pointers, and the forcing question — "name the concrete downstream
+engine consumer; is it a predicate/condition, a display, raw state, an action, or a
+menu/input loop?" Do NOT provide the first Task Statement Card, the proposed class,
+authority target, scope, or rationale until AFTER the second reader has answered; otherwise
+the reviewer is anchored by the first agent's framing, which is the circularity the seal
+exists to break. If the second reader disagrees, names a different consumer/scope, or
+returns UNKNOWN: `AUDIT ONLY`.
 
 ### AUDIT ONLY output (non-actionable stop)
 
