@@ -52,8 +52,10 @@ card, then begin goal B. Do not interleave questions across goals. A "no" answer
 not bypass the class-based split check in Pass 2.
 
 **Artifact identification.** Identify what, if anything, names an existing engine
-artifact (function, file, registered action). If nothing is named, ask once: "What
-specific behavior in the engine or codebase is this connected to, by name?"
+artifact (function, file, registered action). If nothing is named, ask **the single
+Pass-1 follow-up** (one question, both anchors): "What specific engine behavior,
+function, or file is this connected to, by name — or, if it isn't tied to one yet, which
+`ARCOPOLIS_STATE.md` frontier area does it touch?"
 
 Do not accept category-level answers. "The movement system," "the UI layer," and
 "the inventory logic" are not artifact names. Require a symbol name or file:function
@@ -77,10 +79,11 @@ for `arcopolis-claim-plan` (this skill assigns no equivalence levels; it only de
 exit when the implied level is unmet). An interrogation that finds the impulse genuinely
 met (same consumer and level) is a successful outcome, not a failure.
 
-If the user cannot name any artifact: ask which area of `ARCOPOLIS_STATE.md`'s frontier
-this is connected to, using the doc's own section headings. Do not select a frontier
-area. If the user cannot connect the impulse to any frontier area: log `TARGET UNKNOWN`
-and proceed to Pass 2 using the frontier as a loose scope anchor only.
+Disposition of that one follow-up (do NOT ask again — one follow-up per pass): if it
+yields a named artifact, treat it as above; if it yields only a frontier area (the doc's
+own section headings — never one you pick for the user), log `TARGET UNKNOWN` and proceed
+to Pass 2 using the frontier as a loose scope anchor only; if it yields neither, log
+`TARGET UNKNOWN` and proceed.
 
 ## Pass 2 — Native-authority classification (Classifier)
 
@@ -215,8 +218,12 @@ e.g. a dialogue/mission condition; the authority is the engine call's returned v
 a keypress. Do not demand a GUI-action witness, and do not mark `FALSIFICATION UNKNOWN`
 merely because no player action exists — compare result to predicate on the same state.
 
-**For D-class goals:** "Name a game state where the displayed value would diverge from
-the engine's in-memory value for the same field, if the implementation were wrong."
+**For D-class goals:** "Name a game state where the export would diverge from what the
+GUI would actually DISPLAY for that field — the native display mechanism, formatted /
+filtered / lagged exactly as the GUI renders it — if the implementation were wrong."
+(D's authority is the GUI display, not raw state: a view that intentionally formats,
+filters, or lags raw state is CORRECT when it matches the GUI — comparing to the raw
+in-memory value is the S-class test, not D's.)
 
 **For S-class goals:** "Name a game state where the exported raw value would diverge from
 the engine's in-memory authoritative value for the same field, if the implementation were
