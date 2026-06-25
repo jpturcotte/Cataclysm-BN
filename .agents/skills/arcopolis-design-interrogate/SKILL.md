@@ -161,9 +161,10 @@ probe.)
   the exact engine field/mechanism read and confirm it is AUTHORITATIVE for the stated
   consumer — not a cached, derived, or display copy that can lag or differ (e.g. a
   monster's raw `hp` vs an effective-after-bonuses value vs what the GUI renders). If the
-  named field is a derived/display copy standing in for the authoritative value, say so and
-  record it; do not classify S on a display proxy (this carries into Pass 3 — see the D/S
-  skip note there).
+  named field is a derived/display copy standing in for the authoritative value, or you
+  cannot confirm it authoritative, log `AUTHORITY UNVERIFIED` to the card's `Open unknowns`;
+  do not classify S on a display proxy (this carries into Pass 3 — see the D/S skip note
+  there).
 
 **Possession-surface over-trigger (cheap backstop, NOT the guarantee).** As a cheap first
 filter, scan the impulse for any reference to the avatar's/character's items or possession
@@ -270,7 +271,8 @@ C-forcing; no `Predicate-read owed`) has no engine-computed predicate to probe �
 `PASS 3 SKIPPED — D/S` and continue. A possession/objective goal never reaches this skip.
 The skip waives only the predicate body-read, NOT the Pass-2 authoritativeness probe: still
 name the exported field and confirm it is the authoritative value (or the GUI-faithful
-display copy the consumer wants), not a cached/derived copy substituted for it.
+display copy the consumer wants), not a cached/derived copy substituted for it — log
+`AUTHORITY UNVERIFIED` to `Open unknowns` if it cannot be confirmed.
 
 **Resolution by class:**
 
@@ -501,6 +503,10 @@ it is removed, they become inert.
 - **`ARTIFACT UNVERIFIED`:** proposed symbol not found in `ARCOPOLIS_STATE.md` / `AGENTS.md`.
   Open unknown, not a stop.
 - **`CLASS UNVERIFIED`:** consumer named but not anchored to a cited caller/surface. Risk flag.
+- **`AUTHORITY UNVERIFIED`:** a D/S field is a derived / cached / display copy (or cannot be
+  confirmed authoritative for the stated consumer), not the authoritative value — the Pass-2
+  AUTHORITATIVE-vs-DERIVED probe. Logged to `Open unknowns` for `arcopolis-claim-plan` to
+  resolve at its consumer re-derivation (item 4).
 - **`SPLIT DECLINED`:** user declined a class-based split.
 - **`SCOPE MISMATCH`:** cited predicate's scope ≠ goal-required scope. `AUDIT ONLY`.
 - **`SCOPE UNBOUNDED`:** no specific non-goal surface named in Pass 4. Yellow flag.

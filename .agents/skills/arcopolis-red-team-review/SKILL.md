@@ -77,9 +77,12 @@ Draw the reframe lens(es) from these families (pick the axes the claim actually 
   authority, NOT the field shape or author wording — a possession / mission / objective
   surface is C whatever it is labelled (the Spike-25 trap).
 - **Active-mechanism lens.** Reframe "same final state" / "same `do_turn`" as "WHICH active
-  engine loop/mechanism consumed the registered input, at which line?" — an action injected
-  at the `handle_action` seam that never enters `input_context::handle_input` is not L4 (the
-  Spike-3 seam inversion).
+  engine loop/mechanism consumed the registered input, at which line?" — an action merely
+  injected at the `handle_action` seam that never enters `input_context::handle_input` is
+  level 3, NOT L4 (the _accepted_ planar-move / Spike-24 design, not a defect); the Spike-3
+  _failure_ was the distinct turn-ordering inversion — driving `avatar_action::move` BEFORE
+  `do_turn` instead of letting the seam consume the action (`docs/arcopolis/08`,
+  `arcopolis-claim-plan` item 3).
 - **Witness-divergence lens.** Reframe "the test passed" as "what DIVERGENCE state would
   falsify this, and did the witness actually EXERCISE it?" — a happy-path-only counterexample
   filed as a footnote is the Spike-25 failure.
