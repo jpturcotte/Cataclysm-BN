@@ -49,7 +49,10 @@ user to `arcopolis-design-interrogate` (user-invoked), or route to `arcopolis-cl
    it changes — route, downstream consumer, native-authority class guess, active mechanism,
    witness, stop condition, or scope. At least one candidate OR one explicitly rejected
    framing must be orthogonal to the user's proposed direction, and must name which of those
-   axes it changes. A "reframe" that changes none of
+   axes it changes. When the prompt is open-ended with NO proposed direction (e.g. "what
+   should we do next?"), reframe instead against the INERTIAL next step — the obvious /
+   most-likely candidate the current state invites — and name that baseline. A "reframe" that
+   changes none of
    those is the same task restated, not an orthogonal one — this is the cheap counter to
    anchoring on the prompt's framing, the pattern behind the Spike-25 miss, where "what can a
    frontend SHOW about carried items?" (display, D) was never flipped to "what engine
@@ -157,8 +160,9 @@ The skill fails if it:
 - has no handoff impulse;
 - replaces `arcopolis-design-interrogate` instead of feeding it;
 - leaves broad "what-next" routing ambiguous with `arcopolis-claim-plan`;
-- offers only smaller-or-larger variants of the user's proposed direction, with no
-  candidate or rejected framing orthogonal to it (no orthogonal reframing pass);
+- offers only smaller-or-larger variants of the user's proposed direction (or, for an
+  open-ended prompt, of the inertial next step), with no candidate or rejected framing
+  orthogonal to it (no orthogonal reframing pass);
 - states an "orthogonal reframe" that names no change to any of the reframe axes (route,
   downstream consumer, native-authority class guess, active mechanism, witness, stop
   condition, or scope) — a same-task restatement, not a reframe.

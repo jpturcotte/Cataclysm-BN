@@ -45,7 +45,12 @@ review bots and verify subagents.
 - a PR/commit/doc cites local-only or manual evidence (e.g. an uncommitted benchmark)
   as if it were committed, reproducible repo evidence;
 - after an upstream sync, `main.cpp`'s `<arg_handler, N>` literal or the array entry
-  count is wrong.
+  count is wrong;
+- a local spec, user instruction, or per-skill specialization is followed faithfully but
+  WEAKENS a canonical Arcopolis invariant — especially the native-authority class /
+  downstream-consumer / active-mechanism axes (omitting, narrowing, or contradicting one;
+  additive specialization that drops nothing is fine). "Matches the spec" is not a defense
+  when the spec is the object under review (see "Spec-frame challenge").
 
 ## Author-frame removal + orthogonal reframe lenses
 
@@ -54,8 +59,10 @@ framing is the single most expensive review failure in this repo's record (the S
 0%-catch loop), so this section is mandatory, not optional.
 
 **Restate the claim from ground truth, not the author's framing.** Before reviewing,
-re-derive what is ACTUALLY claimed from the DIFF, the WITNESS, the named downstream
-consumer, and `AGENTS.md`/`ARCOPOLIS_STATE.md` — never from the PR title/body's framing.
+re-derive what is ACTUALLY claimed from the DIFF (or, for a plan/prompt review with no patch
+yet, the proposed plan/prompt text), the WITNESS, the named downstream consumer, and
+`AGENTS.md`/`ARCOPOLIS_STATE.md` — never from the PR title/body's framing (or the author's
+pitch).
 The title/body is the author's frame; reviewing inside it is how a reviewer who shares the
 author's conflation passes a broken claim.
 
@@ -93,6 +100,31 @@ Draw the reframe lens(es) from these families (pick the axes the claim actually 
   proves, reading only its title/body/docs — the gap between that belief and what the witness
   actually exercises is the overclaim to flag.
 
+## Spec-frame challenge
+
+Author-frame removal strips the PR title/body. This strips the next layer: the SPEC itself.
+When reviewing a plan, skill edit, prompt, or PR, do NOT treat the author's / user's stated
+spec, step, or instruction as ground truth merely because the patch faithfully follows it —
+the spec is the object under review. Spike 25 was this failure one level down: faithfulness
+to the local instruction laundered the wrong frame.
+
+Before accepting "matches the spec" as evidence, ask:
+
+1. What cross-skill invariant or Arcopolis rule is this spec meant to preserve?
+2. Does the spec preserve the canonical reframe axis set and the downstream-consumer
+   discipline?
+3. Is the patch faithful to the spec yet still able to reproduce a Spike-3 or Spike-25
+   FAILURE SHAPE (seam inversion; display-D laundered as predicate-C)?
+4. Did the author / user carve a per-skill exception that WEAKENS the shared invariant?
+
+If the patch matches the local spec but the spec OMITS, NARROWS, or CONTRADICTS a canonical
+invariant, grade `needs revision` or stronger. Do NOT downgrade because a downstream skill
+"stops conservatively" — conservative stop behaviour does not repair a missing or weakened
+detection axis. NOT a trigger: a per-skill specialization that ADDS detail without dropping
+or narrowing a canonical axis (e.g. build's labelled equivalence-level / audit-only
+CONSEQUENCES on top of the full 7 axes) is legitimate — challenge a spec that weakens, not
+one that merely extends.
+
 ## Adversarial pass (any equivalence or goal-fit claim)
 
 A single read is not a review. Run at least THREE INDEPENDENT refute-lenses — this is
@@ -129,6 +161,13 @@ break; it has two ASYMMETRIC directions — do not conflate them.
   its own. A lone refuting lens is NOT "outvoted" by lenses that found nothing — convergence
   of the OTHER lenses never downgrades a flag to "safe" (absence of a constructed divergence
   is not proof of equivalence, only failure to construct one).
+- Monotonicity binds to the EVENT, not the label. Once a lens CONSTRUCTS a divergence the
+  witness does not cover, that finding IS a flag — it may not be filed as a NOTE /
+  non-blocking to slip past the REFUTE rule above. "It stops conservatively downstream" and
+  "the axes loosely subsume each other" are NOT downgrades: neither covers the divergence nor
+  re-verifies it at the leaf. A constructed divergence on a canonical / Spike-25 axis
+  (native-authority class, downstream-consumer, active-mechanism) grades `needs revision` or
+  stronger by default.
 - To ADOPT a non-blocking disposition (safe-to-proceed / downgrade): require the claim to
   SURVIVE the ground-truth facts — the divergence re-checked at the DECISIVE leaf against the
   cited source body and the A/B/C/D/S class — AND ≥2 INDEPENDENT lenses to converge on it. Do
@@ -147,17 +186,25 @@ break; it has two ASYMMETRIC directions — do not conflate them.
 1. **Verdict** — safe to proceed / needs plan revision / block merge / audit-only.
 2. **Equivalence claim status** — proven / downgraded / not proven / overclaimed.
 3. **Strongest evidence** — cite `file:line` or the exact witness.
-4. **Orthogonal reframe tested** — name the axis you reframed the claim onto (consumer /
+4. **Orthogonal reframe tested** — name the lens family you reframed the claim onto (consumer /
    class / mechanism / witness / stage-scope / future-reader) and whether any reframe
    constructed a divergence the witness does not cover. If NO orthogonal reframe changes the
    verdict, say so EXPLICITLY and explain why — which axes you flipped and why each left the
    claim standing. Silence here reads as "not attempted," not "nothing found."
-5. **Biggest false-green risk — including the reframed false-green risk** (the strongest
-   divergence any reframe surfaced, even if it is non-blocking).
-6. **Required next action.**
+5. **Spec-frame challenge** — did the reviewed SPEC itself preserve the canonical invariant
+   (the 7-axis reframe set + downstream-consumer discipline), or was it merely FOLLOWED
+   faithfully? "Matches the spec" is not evidence when the spec is the object under review.
+6. **Biggest false-green risk — including the reframed false-green risk** (the strongest
+   divergence any reframe surfaced). A genuinely minor divergence may be reported here as
+   non-blocking; a constructed divergence on a canonical / Spike-25 axis (native-authority
+   class / downstream-consumer / active-mechanism) is NOT minor — grade it `needs revision`
+   or stronger per the adjudication rule, never filed here as a NOTE to escape that grade.
+7. **Required next action.**
 
 Keep hedges and witness-scoping intact; do not polish an uncertain claim into
-confident prose.
+confident prose. A downstream relay or summary of this review may NOT soften a graded
+verdict — report the grade as graded; do not re-narrate a `needs revision` finding as an
+optional "judgment call" or polish.
 
 ## Shared vocabulary
 

@@ -23,6 +23,10 @@ If the incoming task statement is a Task Statement Card from `arcopolis-design-i
 - a `FALSIFICATION UNKNOWN` flag must be resolved before any witness is chosen (item 5) —
   name the observable behavioral divergence first; an unfalsifiable claim does not get a
   witness.
+- an `AUTHORITY UNVERIFIED` flag (a D/S field that may be a derived / cached / display copy,
+  not the authoritative value) is discharged by item 4's consumer re-derivation — confirm the
+  exported field is authoritative for the named consumer (or the GUI-faithful display copy it
+  wants), not a proxy substituted for it; no separate resolution path is added.
 - an `External-seal required: YES` card (any possession / mission / objective / state-check
   / Stage-blocking goal) is a HARD BLOCK on a Stage-blocking witness until an INDEPENDENT
   check clears it — a human "equivalent to WHAT?" GUI-equivalence confirmation or a

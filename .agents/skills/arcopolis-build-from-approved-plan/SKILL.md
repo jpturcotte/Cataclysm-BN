@@ -22,8 +22,9 @@ plan is approved. If no approved plan exists, stop and run `arcopolis-claim-plan
    kind changes the axis, not the size of the change; the class guess is named explicitly
    because Spike 25 was a class drift — display-D masquerading as predicate-C — and build is
    the last line before code is written.) If YES on any axis, STOP and return to planning
-   (`arcopolis-claim-plan`); do not silently rebuild around the new frame. If NO, do not
-   reopen strategy — build the smallest approved change.
+   (`arcopolis-claim-plan`); do not silently rebuild around the new frame, and do not soften
+   the drift into an optional note — a graded drift is a STOP, reported as graded. If NO, do
+   not reopen strategy — build the smallest approved change.
 3. Implement the **smallest** change consistent with the claim. Match surrounding
    code; follow the C++23 conventions in AGENTS.md (trailing returns, `auto`,
    `std::ranges`/`std::views`, options structs, designated initializers).
