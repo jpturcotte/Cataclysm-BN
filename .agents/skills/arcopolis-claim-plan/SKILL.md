@@ -11,6 +11,44 @@ inspection and planning only.
 
 Do not edit files. Do not implement. Stop at the plan and wait for approval.
 
+## Incoming Task Statement Card
+
+If the incoming task statement is a Task Statement Card from `arcopolis-design-interrogate`:
+
+- a `CLASS UNVERIFIED` flag in Open unknowns is a mandatory resolution point at the
+  "Consumer + native mechanism" step (item 4) — not a passable warning. Do not advance
+  past that step until the consumer is anchored to a named engine caller or observing
+  surface. If it cannot be resolved, stop and output `AUDIT ONLY` with the same
+  inspection-guidance format `arcopolis-design-interrogate` uses.
+- a `FALSIFICATION UNKNOWN` flag must be resolved before any witness is chosen (item 5) —
+  name the observable behavioral divergence first; an unfalsifiable claim does not get a
+  witness.
+- an `External-seal required: YES` card (any possession / mission / objective / state-check
+  / Stage-blocking goal) is a HARD BLOCK on a Stage-blocking witness until an INDEPENDENT
+  check clears it — a human "equivalent to WHAT?" GUI-equivalence confirmation or a
+  cross-model adversarial review (`arcopolis-red-team-review` / `/code-review ultra` run by
+  a different reasoner). A same-model in-loop re-read does NOT clear it: the canonical
+  Spike-25 failure was caught only from outside the loop, and the in-loop gates scored 0%.
+
+A card carrying no blocking flag still has its consumer re-derived at item 4 — the
+native-consumer classification, the predicate body-read at `file:line`, AND a three-way
+scope comparison (the card's `Goal-required scope` vs the cited `Authority scope` vs the
+exported/surface reach): a real predicate of the WRONG scope (e.g. on-person `set_has_items`
+for a goal needing `MGOAL_FIND_ITEM`'s `crafting_inventory()` reach) is rejected, not only a
+flat surface against a recursing body. If item 4 re-derives the incoming card as possession
+/ mission / objective / state-check / Stage-blocking, SET `External-seal required: YES`
+immediately — even if the card omitted the flag or marked it `NO`; the external-seal block is
+DERIVED from claim-plan's own re-read, never trusted from the card. But this item-4
+re-derivation is itself an in-loop SAME-MODEL floor: a re-derived `External-seal required:
+NO` is a floor pass, not proof that no abstraction-routed possession/predicate domain
+exists. So when the goal is possession / mission / objective / state-check ADJACENT but item
+4 re-derived `NO`, do NOT trust that `NO` — set `External-seal required: YES` and route the
+blind external (human / cross-model) check anyway; downgrade to `NO` only after that
+independent reader confirms no predicate consumer exists. The card's class,
+mechanism, and scope are the interrogator's CLAIMED values, not findings, so item 4 runs for
+every observation/predicate card regardless of which flags are present; the card only lets
+the plan OPEN faster, it does not discharge item 4. Absent a card, plan as normal.
+
 ## Why plan-first
 
 Arcopolis fidelity is defined by _backend input behavior_, not by final state, so the
