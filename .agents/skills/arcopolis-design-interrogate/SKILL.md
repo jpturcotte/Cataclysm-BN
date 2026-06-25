@@ -3,6 +3,9 @@ name: arcopolis-design-interrogate
 description: >
   Pre-classification skill for Arcopolis (Cataclysm-BN simulation-backend) work.
   Use BEFORE arcopolis-claim-plan whenever the user has a vague design impulse.
+  If the request is still broad roadmap/options/design exploration and no single
+  actionable impulse exists, use arcopolis-design-explore first; do not turn
+  broad "what should we do next?" questions directly into Task Statement Cards.
   Trigger when ANY of the following is true: (1) the impulse names no engine artifact
   (function, file, registered action, or seam); (2) the impulse names an artifact but
   its downstream consumer/class is not yet derived; (3) the impulse touches possession /
@@ -20,6 +23,20 @@ disable-model-invocation: true
 Read `AGENTS.md` and `docs/arcopolis/ARCOPOLIS_STATE.md` before running any pass.
 The native-authority class vocabulary (`AGENTS.md` → "Native-authority class") and the
 live capability state are required inputs. Do not run from memory.
+
+**Routing boundary.** If the user request is still broad roadmap/options/design
+exploration and no single actionable impulse exists, run `arcopolis-design-explore`
+first. Use this skill only after exploration has narrowed the request to one candidate
+impulse. Do not turn broad "what should we do next?" questions directly into a Task
+Statement Card.
+
+**Why user-invoked.** This skill is `disable-model-invocation: true` by design: the model
+must never launch the interrogation itself. The USER invokes it, so the multi-pass
+interview is always user-initiated and user-answered — a hard guarantee that the model
+cannot run the interrogation autonomously. Skills that hand work here produce an impulse
+the user runs `arcopolis-design-interrogate` with; they do not auto-route to it. (Removing
+the flag would downgrade this to a soft, discipline-only property — do not remove it
+without an explicit decision to change that guarantee.)
 
 **Who decides what.** YOU (the user) supply the INTENT and the BOUNDARIES — what you want,
 roughly who/what consumes it, and what must not change — in plain language. The AGENT
@@ -416,8 +433,10 @@ it is removed, they become inert.
   and is not plan-ready on this skill alone.
 - Do not generate implementation options, evaluate feasibility, or assign equivalence
   levels. Those belong in `arcopolis-claim-plan`.
-- Do not select what to work on next (that is `arcopolis-claim-plan`'s Triage mode).
-  `ARCOPOLIS_STATE.md` is a state reference, not a prioritization queue.
+- Do not select what to work on next. Broad roadmap/options selection belongs in
+  `arcopolis-design-explore`; already-narrowed implementation/audit planning belongs in
+  `arcopolis-claim-plan`. `ARCOPOLIS_STATE.md` is a state reference, not a
+  prioritization queue.
 - Do not write a confident-but-unverified or wrong-scope mechanism to the card; an honest
   AUDIT ONLY beats a plausible wrong symbol.
 - One follow-up question to the user per pass. Flag and advance on failure.
