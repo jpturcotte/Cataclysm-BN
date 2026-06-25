@@ -408,4 +408,4 @@ Multi-context — `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md
 
 ### Reusable agent skills
 
-Reusable skills live in `.agents/skills/<name>/SKILL.md` (Codex reads them directly; Claude Code loads project skills from `.claude/skills/`, so it needs a local bridge). See `docs/agents/agent-skills.md` — including the five `arcopolis-*` equivalence-claim governance skills.
+Reusable skills live in `.agents/skills/<name>/SKILL.md` (Codex reads them directly; Claude Code loads project skills from `.claude/skills/`, so it needs a local bridge). See `docs/agents/agent-skills.md` — including the five `arcopolis-*` equivalence-claim governance skills, plus the two design-stage skills (`arcopolis-design-interrogate` and `arcopolis-design-explore`).
