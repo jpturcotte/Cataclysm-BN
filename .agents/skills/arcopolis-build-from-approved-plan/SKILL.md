@@ -16,9 +16,12 @@ plan is approved. If no approved plan exists, stop and run `arcopolis-claim-plan
    plan or the approved witness becomes impossible — then stop and return to planning.
 2. **Reframe drift check.** After restating the plan, ask whether source inspection while
    implementing has revealed a DIFFERENT decision axis than the approved plan assumed — a
-   different downstream consumer, active engine mechanism, witness requirement, equivalence
-   level, or an audit-only result. (An **orthogonal reframe** of this kind changes the
-   axis, not the size of the change.) If YES on any axis, STOP and return to planning
+   different route, downstream consumer, native-authority class guess, active mechanism,
+   witness, stop condition, or scope — or a derived build-time consequence such as a
+   different equivalence level or an audit-only result. (An **orthogonal reframe** of this
+   kind changes the axis, not the size of the change; the class guess is named explicitly
+   because Spike 25 was a class drift — display-D masquerading as predicate-C — and build is
+   the last line before code is written.) If YES on any axis, STOP and return to planning
    (`arcopolis-claim-plan`); do not silently rebuild around the new frame. If NO, do not
    reopen strategy — build the smallest approved change.
 3. Implement the **smallest** change consistent with the claim. Match surrounding
