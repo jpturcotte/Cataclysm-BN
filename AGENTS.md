@@ -127,6 +127,34 @@ Future Arcopolis plan reviews MUST reject designs that:
 - silently auto-cancel unsupported prompts while claiming success.
 - hide unsupported GUI behavior behind vague wording.
 
+### Native-authority class (the consumer taxonomy)
+
+The equivalence _level_ above says how strongly a path is proven. The native-authority _class_ says what
+KIND of authority a surface or action answers to — derived from the DOWNSTREAM consumer (what ultimately
+reads the surface, or what the goal needs), never from the author's framing. Every Arcopolis surface or
+action belongs to exactly one:
+
+- **A — action-fidelity.** A registered player action driven through the engine's own active input loop
+  (e.g. `ACTION_MOVE_*` consumed by `game::handle_action()`).
+- **B — prompt/menu-fidelity.** An interactive prompt/menu answered through the real active input
+  loop/mechanism (`input_context::handle_input()`, `uilist::query()`, `query_popup`/`query_yn`).
+- **C — predicate-fidelity.** An engine-COMPUTED predicate's result — e.g. a possession/mission check such
+  as `condition.cpp`'s `set_has_items`. The authority is the value the engine call returns, not a
+  re-derivation of it from a partial view. A predicate's SCOPE is part of its identity: a real predicate of
+  the wrong reach (on-person `set_has_items` vs `MGOAL_FIND_ITEM` over `crafting_inventory()`) is still the
+  wrong authority — match the goal's required scope, not just predicate-ness.
+- **D — display-observability.** What the GUI would DISPLAY for a tile/field — a formatted or filtered
+  view, which may lag or differ from raw state.
+- **S — simulation-state.** Raw authoritative world state (entity positions, item contents) — neither a
+  computed predicate nor a display proxy; the ground truth the other classes derive from.
+
+Goal-fit binds class to consumer: a goal whose consumer is an engine-computed predicate (**C**) is NOT
+answered by a display (**D**) or raw-state (**S**) surface that merely looks consistent with it — expose
+the predicate's own result. A possession / mission / objective / state-check goal is **C** whatever surface
+it rides on; classifying it **D** or **S** to skip the predicate body-read is the Spike-25 failure.
+(Procedural detail lives in the `arcopolis-*` governance skills; this is the canonical class list they
+defer to.)
+
 ### Backend documentation
 
 **Read first (current truth):** `docs/arcopolis/ARCOPOLIS_STATE.md` — a single-page checkpoint of the backend's current architecture (the input-seam design), the snapshot/transcript contract, capabilities by spike, and the deferred backlog. The numbered `NN_SPIKE*.md` files are the chronological record (including the failed Spike 3); list the live set with `Get-ChildItem docs/arcopolis`.
