@@ -66,12 +66,15 @@ me alternatives", or any equivalent broad strategy question with no single actio
 impulse, stop and route to `arcopolis-design-explore` first. Do not produce a claim-plan
 or Task Statement Card directly from those prompts.
 
-Keep this skill's options/triage behavior only when one of these is true:
-
-- the input is already a narrowed candidate impulse;
-- the input is a Task Statement Card from `arcopolis-design-interrogate`;
-- the user explicitly asks for an implementation plan after exploration has already
-  narrowed the direction.
+Keep this skill's options/triage behavior only when the input is an already-narrowed
+candidate impulse for which the downstream consumer/class is not yet derived AND no Task
+Statement Card exists. A Task Statement Card from `arcopolis-design-interrogate`, or an
+explicit implementation-plan request after exploration has already narrowed the direction,
+MUST bypass Triage and open the plan directly: via the "Incoming Task Statement Card"
+preamble when a card exists, otherwise via the preamble's own "Absent a card, plan as
+normal" path (item 4 + Required output run either way). A narrowed possession / mission /
+objective / inventory impulse whose engine consumer is not yet named is NOT a keep case —
+route it to `arcopolis-design-interrogate` first to derive the consumer.
 
 For already-narrowed triage, produce a sourced OPTIONS BRIEF before any plan — 3-5
 candidates, each one line:

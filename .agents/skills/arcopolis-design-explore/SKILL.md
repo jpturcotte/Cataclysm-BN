@@ -46,7 +46,9 @@ to `arcopolis-design-interrogate`, `arcopolis-claim-plan`, or
 5. Give exactly one recommendation and exactly one anti-recommendation.
 6. Name intent forks only at the product/intent level; do not ask the user to classify engine
    authority, choose equivalence levels, or walk call paths.
-7. End with one narrowed handoff impulse for `arcopolis-design-interrogate`.
+7. End with one narrowed handoff impulse the user can paste into a new
+   `arcopolis-design-interrogate` session (interrogate is user-invoked and requires
+   per-pass user answers).
 8. Explicitly state that the workflow should not proceed to implementation from this brief.
 
 ## Evidence Labels
@@ -81,8 +83,9 @@ Appetite
 Next skill
 ```
 
-Use `Next skill: arcopolis-design-interrogate` for the candidate that could become the
-narrowed handoff impulse. Use `Next skill: arcopolis-design-interrogate if selected` for
+Use `Next skill (for the user to invoke): arcopolis-design-interrogate` for the candidate
+that could become the narrowed handoff impulse. Use
+`Next skill (for the user to invoke): arcopolis-design-interrogate if selected` for
 unselected viable candidates. Use `Next skill: defer` for anti-recommended or Stage B
 directions.
 
@@ -97,7 +100,7 @@ Candidate directions
 Recommendation
 Anti-recommendation
 Intent forks for the user
-Handoff impulse for arcopolis-design-interrogate
+Handoff impulse for the user to invoke arcopolis-design-interrogate with
 Do not proceed to implementation
 ```
 
@@ -130,8 +133,9 @@ The skill fails if it:
 - claims L1-L4 engine equivalence;
 - asks the user to classify A/B/C/D/S;
 - skips current-state anchors;
-- gives options without recommending one;
-- recommends one without an anti-recommendation;
+- produces fewer than 3 or more than 5 candidate directions;
+- does not recommend exactly one direction;
+- does not provide exactly one anti-recommendation;
 - has no handoff impulse;
 - replaces `arcopolis-design-interrogate` instead of feeding it;
 - leaves broad "what-next" routing ambiguous with `arcopolis-claim-plan`.
