@@ -74,7 +74,8 @@ MUST bypass Triage and open the plan directly: via the "Incoming Task Statement 
 preamble when a card exists, otherwise via the preamble's own "Absent a card, plan as
 normal" path (item 4 + Required output run either way). A narrowed possession / mission /
 objective / inventory impulse whose engine consumer is not yet named is NOT a keep case —
-route it to `arcopolis-design-interrogate` first to derive the consumer.
+tell the user to run `arcopolis-design-interrogate` first to derive the consumer (it is
+user-invoked).
 
 For already-narrowed triage, produce a sourced OPTIONS BRIEF before any plan — 3-5
 candidates, each one line:

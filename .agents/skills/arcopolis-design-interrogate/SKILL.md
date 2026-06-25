@@ -30,6 +30,14 @@ first. Use this skill only after exploration has narrowed the request to one can
 impulse. Do not turn broad "what should we do next?" questions directly into a Task
 Statement Card.
 
+**Why user-invoked.** This skill is `disable-model-invocation: true` by design: the model
+must never launch the interrogation itself. The USER invokes it, so the multi-pass
+interview is always user-initiated and user-answered — a hard guarantee that the model
+cannot run the interrogation autonomously. Skills that hand work here produce an impulse
+the user runs `arcopolis-design-interrogate` with; they do not auto-route to it. (Removing
+the flag would downgrade this to a soft, discipline-only property — do not remove it
+without an explicit decision to change that guarantee.)
+
 **Who decides what.** YOU (the user) supply the INTENT and the BOUNDARIES — what you want,
 roughly who/what consumes it, and what must not change — in plain language. The AGENT
 derives the native-authority class, the authority target, the scope, and the likely

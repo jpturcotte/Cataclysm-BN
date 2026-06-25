@@ -29,9 +29,9 @@ Run this skill when the user asks broad questions such as:
 - "Which direction should we take?"
 
 Do not run this skill when the request is already a single actionable impulse, a Task
-Statement Card, an approved implementation plan, or an explicit build instruction. Route those
-to `arcopolis-design-interrogate`, `arcopolis-claim-plan`, or
-`arcopolis-build-from-approved-plan` as appropriate.
+Statement Card, an approved implementation plan, or an explicit build instruction. Point the
+user to `arcopolis-design-interrogate` (user-invoked), or route to `arcopolis-claim-plan` /
+`arcopolis-build-from-approved-plan`, as appropriate.
 
 ## Procedure
 
@@ -156,7 +156,7 @@ Expected:
 - Produce 3-5 candidate directions.
 - Give one recommendation.
 - Give one anti-recommendation.
-- End with a handoff impulse for `arcopolis-design-interrogate`.
+- End with a handoff impulse for the user to run `arcopolis-design-interrogate` with.
 - Do not produce a Task Statement Card.
 - Do not produce an implementation plan.
 - Do not ask the user to choose A/B/C/D/S.
@@ -176,7 +176,7 @@ Expected:
   NPC/dialogue interaction.
 - Recommend treating NPC validation as likely predicate-fidelity for later interrogation.
 - Warn that `avatar.carried_items[]` does not satisfy engine possession validation.
-- Hand off a narrowed impulse to `arcopolis-design-interrogate`.
+- Hand the user a narrowed impulse to run `arcopolis-design-interrogate` with.
 - Do not collapse directly into "extend carried_items."
 
 ### V3 - Alternatives / Pushback
@@ -207,7 +207,7 @@ Expose BN's own possession predicate result for whether the avatar has a given i
 Expected:
 
 - Do not run `arcopolis-design-explore`, or explicitly route past it.
-- Route to `arcopolis-design-interrogate`.
+- Tell the user to run `arcopolis-design-interrogate` (it is user-invoked).
 - Do not produce a 3-5 option roadmap unless the user asks for alternatives.
 
 ### V5 - Approved Plan

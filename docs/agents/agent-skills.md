@@ -51,4 +51,5 @@ The design-stage skills `arcopolis-design-interrogate` (Task Statement Card prod
 a single narrowed impulse) and `arcopolis-design-explore` (Exploration Brief for broad
 strategy/roadmap questions before there is a narrowed impulse) precede the
 equivalence-claim suite — they shape and classify a vague design impulse into something
-the governance suite can act on.
+the governance suite can act on; `arcopolis-design-interrogate` is user-invoked by design
+(the model must not launch the interactive interrogation itself).
