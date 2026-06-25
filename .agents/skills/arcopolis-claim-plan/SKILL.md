@@ -1,6 +1,6 @@
 ---
 name: arcopolis-claim-plan
-description: Plan-only skill for non-trivial Arcopolis (Cataclysm-BN simulation-backend) coding tasks. Use BEFORE editing whenever the user asks for a spike plan, implementation plan, public-API-shape decision, source-backed feasibility audit, "what should the agent do next", or "run this as plan/build". Inspect the repo, classify the equivalence claim, name the active engine mechanism, choose the smallest witness, map impact, and STOP before editing. Do not use to implement an already-approved plan (use arcopolis-build-from-approved-plan) or to review existing work (use arcopolis-red-team-review).
+description: Plan-only skill for non-trivial Arcopolis (Cataclysm-BN simulation-backend) coding tasks. Use BEFORE editing whenever the user asks for a spike plan, implementation plan, public-API-shape decision, source-backed feasibility audit, or "run this as plan/build" for an already-narrowed candidate impulse or Task Statement Card. Broad roadmap/options/"what should we do next?"/"what would the design look like if X?" prompts route to arcopolis-design-explore first. Inspect the repo, classify the equivalence claim, name the active engine mechanism, choose the smallest witness, map impact, and STOP before editing. Do not use to implement an already-approved plan (use arcopolis-build-from-approved-plan) or to review existing work (use arcopolis-red-team-review).
 ---
 
 # Arcopolis Claim Plan
@@ -57,10 +57,24 @@ equivalence level, witnessing against the wrong mechanism, or generalizing one p
 into prompt-class support. Surfacing the impact map and false-green risks up front is
 what keeps the change small and the review cheap.
 
-## Triage mode (what-next)
+## Triage mode (already narrowed only)
 
-When the task is "what should we do next" (not yet a single spike), produce a sourced
-OPTIONS BRIEF before any plan — 3-5 candidates, each one line:
+Broad roadmap/options prompts belong to `arcopolis-design-explore`, not this skill. If the
+user asks "what should we do next?", "what are the possible next steps?", "what would the
+roadmap look like?", "what would the design look like if I wanted X?", "push back and give
+me alternatives", or any equivalent broad strategy question with no single actionable
+impulse, stop and route to `arcopolis-design-explore` first. Do not produce a claim-plan
+or Task Statement Card directly from those prompts.
+
+Keep this skill's options/triage behavior only when one of these is true:
+
+- the input is already a narrowed candidate impulse;
+- the input is a Task Statement Card from `arcopolis-design-interrogate`;
+- the user explicitly asks for an implementation plan after exploration has already
+  narrowed the direction.
+
+For already-narrowed triage, produce a sourced OPTIONS BRIEF before any plan — 3-5
+candidates, each one line:
 
 - native-authority class — A action-fidelity · B prompt/menu-fidelity ·
   C predicate-fidelity · D display-observability · S simulation-state (raw
