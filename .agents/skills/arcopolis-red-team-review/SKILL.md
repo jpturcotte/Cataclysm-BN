@@ -62,8 +62,39 @@ skill read.
   (the seam line the loop consumes, vs a leaf called before/after). Verifying a
   faithful-looking sibling leaf while missing the decisive one is how a reviewer who
   shares the author's conflation passes a broken claim. Confident file:line/existence
-  claims (incl. review bots and verify subagents) are often false — open it.
+  claims (incl. review bots and verify subagents) are often false — open it. This holds
+  for your OWN flags too: when an ABSENCE is the load-bearing reason for a flag or
+  downgrade — a "missing" / "unwitnessed" / "not-landed" test, fixture, or capability —
+  it is itself an existence claim. You cannot "open" what you say isn't there, so refute
+  it by grep / `git ls-files` before you headline it, or you may flag a witness already
+  committed. (Binds only to an absence that DRIVES the verdict; a non-decisive "deferred
+  / out-of-scope / not-yet-built" note no flag rests on needs no search.)
 - The claim survives only if no lens constructs a divergence the witness does not cover.
+
+## Combining the lenses (adjudication)
+
+The adversarial pass is monotone, not a vote — its unit is the LENS, and in the common
+single-reviewer / single-model run the ≥3 required lenses serve as the independent
+verdicts (a floor — see the same-model caveat below). There is no symmetric tally to
+break; it has two ASYMMETRIC directions — do not conflate them.
+
+- To REFUTE / flag / block: ONE constructed divergence the witness does not cover
+  is decisive (the survival rule above), and any single `Reject or flag if` trigger fires on
+  its own. A lone refuting lens is NOT "outvoted" by lenses that found nothing — convergence
+  of the OTHER lenses never downgrades a flag to "safe" (absence of a constructed divergence
+  is not proof of equivalence, only failure to construct one).
+- To ADOPT a non-blocking disposition (safe-to-proceed / downgrade): require the claim to
+  SURVIVE the ground-truth facts — the divergence re-checked at the DECISIVE leaf against the
+  cited source body and the A/B/C/D/S class — AND ≥2 INDEPENDENT lenses to converge on it. Do
+  not adopt on ONE lens's say-so, including a confident review bot or verify subagent. A panel
+  of same-model lenses is a FLOOR you may act within while LABELING it a floor, not a seal;
+  the floor/seal doctrine and the Spike-25 0% basis are owned by `arcopolis-design-interrogate`
+  ("Floor, not seal") — see there, do not restate them here.
+- This skill is review-only: adjudicate the VERDICT and required next action, never author or
+  ratify remedy wording.
+- If lenses genuinely conflict on whether a divergence holds, re-verify that ONE disputed
+  leaf against the source body once; if still unresolved, resolve to flag/refute (the refute
+  default) — do not re-run the full pass.
 
 ## Required output
 
@@ -83,4 +114,7 @@ input/action · Real engine caller · Witness · Witness scope · False-green ri
 Fail-loud · Unsupported adjacent path · Per-transaction gate · No generic
 prompt-class support · Native-authority class (A action / B prompt-menu /
 C predicate / D display / S simulation-state) · Goal-fit (sufficient-for vs
-consistent-with) · Counterexample / divergence witness.
+consistent-with) · Counterexample / divergence witness · Floor vs seal /
+judge-independence (same-model lenses = floor, labeled; cross-substrate convergence =
+seal; weight by independence + decisive-leaf verification, not confidence; authoritative
+floor/seal rule in `arcopolis-design-interrogate`).
