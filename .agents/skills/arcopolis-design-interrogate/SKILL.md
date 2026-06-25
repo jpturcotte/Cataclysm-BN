@@ -187,15 +187,24 @@ S → the raw authoritative state field
 ```
 
 **Discriminating source-citation (C / `Predicate-read owed` cards).** Citing "a predicate"
-is not enough. Open the named consumer's BODY and determine whether the authority is an
-engine PREDICATE/CONDITION result (→ C) or a DISPLAY/RAW surface (→ D/S). If the cited body
-is a predicate it remains C even when FLAT / top-level — flatness affects only SCOPE
-(whether a flat proxy can mirror it), NOT class. The goal is D/S only when the cited
-authority is a display/raw export rather than an engine predicate result. Cite the decisive
-line AND state the body's traversal SHAPE (recurses / aggregates / scopes-wider vs flat /
-top-level) for the scope comparison — e.g. `has_amount` recurses via `visitable.cpp`
-`visit_internal`; `write_carried_items` enumerates flat top-level sources only (a display
-export, not a predicate). A `Predicate-read owed` card with no such body-read is NOT discharged.
+is not enough. Open the named consumer's BODY and decide whether the authority is an engine
+PREDICATE/CONDITION result (→ C), a DISPLAY/observability view (→ D), or RAW state emitted
+verbatim (→ S). If the cited body is a predicate it remains C even when FLAT / top-level —
+flatness affects only SCOPE (whether a flat proxy can mirror it), NOT class. **The
+discriminator is the CONSUMER's QUESTION, not whether a verdict is computed:** a verdict
+computed to answer a possession / mission / objective / condition / state-check question —
+returned to an engine/eligibility consumer — is C even when it reads raw fields and returns
+one flat bool; a verdict computed purely to drive what the GUI SHOWS (a tile-visibility
+filter, an HP-bar "is low" colour, an "over capacity" highlight) is D, not C; S is only a raw
+field emitted verbatim with no computed verdict. A flat `carried_items_contains(id)` scan of
+`carried_items[]`, offered for "does the engine consider the avatar to HAVE the package?", is
+a `PROXY SUBSTITUTION` from a partial view — not a licence to route the goal D/S; the
+authority stays the engine predicate (`has_amount` / `has_charges` or the mission condition).
+A checkmark / "complete" / "met" indicator is a CONDITION RESULT → C (the Pass-2 domain
+override), never D. Cite the decisive line AND state the body's traversal SHAPE (recurses /
+aggregates / scopes-wider vs flat / top-level) for the scope comparison — e.g. `has_amount`
+recurses via `visitable.cpp` `visit_internal`; `write_carried_items` enumerates flat
+top-level sources only. A `Predicate-read owed` card with no such body-read is NOT discharged.
 
 **Scope-binding (the wrong-sibling fix).** A real predicate of the WRONG scope is still
 wrong. Record BOTH the goal's REQUIRED scope and the cited predicate's ACTUAL scope (proven
@@ -338,8 +347,16 @@ engine consumer; is it a predicate/condition, a display, raw state, an action, o
 menu/input loop?" Do NOT provide the first Task Statement Card, the proposed class,
 authority target, scope, or rationale until AFTER the second reader has answered; otherwise
 the reviewer is anchored by the first agent's framing, which is the circularity the seal
-exists to break. If the second reader disagrees, names a different consumer/scope, or
-returns UNKNOWN: `AUDIT ONLY`.
+exists to break. The repo pointers are agent-selected, so constrain them to NEUTRALITY:
+point at BOTH any display/raw surface AND any suspected predicate/condition source the
+impulse could touch (or grant the reviewer independent repo grep), never only the first
+agent's preferred surface; and ask the forcing question WITHOUT naming the suspected class,
+the authority target, or the word "predicate." (Driving the seal through a TOOL channel —
+`arcopolis-red-team-review` / `/code-review ultra` — is a LIMITATION, not yet a procedure:
+those tools rate an EXISTING claim rather than classify from scratch, so the blind-input
+shape for a tool channel is deferred to issue #73; a human "equivalent to WHAT?" read and a
+neutral grep/source pointer are the sanctioned blind channels.) If the second reader
+disagrees, names a different consumer/scope, or returns UNKNOWN: `AUDIT ONLY`.
 
 ### AUDIT ONLY output (non-actionable stop)
 

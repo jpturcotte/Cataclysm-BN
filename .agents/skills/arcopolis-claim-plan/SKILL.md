@@ -38,7 +38,13 @@ for a goal needing `MGOAL_FIND_ITEM`'s `crafting_inventory()` reach) is rejected
 flat surface against a recursing body. If item 4 re-derives the incoming card as possession
 / mission / objective / state-check / Stage-blocking, SET `External-seal required: YES`
 immediately — even if the card omitted the flag or marked it `NO`; the external-seal block is
-DERIVED from claim-plan's own re-read, never trusted from the card. The card's class,
+DERIVED from claim-plan's own re-read, never trusted from the card. But this item-4
+re-derivation is itself an in-loop SAME-MODEL floor: a re-derived `External-seal required:
+NO` is a floor pass, not proof that no abstraction-routed possession/predicate domain
+exists. So when the goal is possession / mission / objective / state-check ADJACENT but item
+4 re-derived `NO`, do NOT trust that `NO` — set `External-seal required: YES` and route the
+blind external (human / cross-model) check anyway; downgrade to `NO` only after that
+independent reader confirms no predicate consumer exists. The card's class,
 mechanism, and scope are the interrogator's CLAIMED values, not findings, so item 4 runs for
 every observation/predicate card regardless of which flags are present; the card only lets
 the plan OPEN faster, it does not discharge item 4. Absent a card, plan as normal.
