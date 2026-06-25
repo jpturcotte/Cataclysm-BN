@@ -47,6 +47,49 @@ review bots and verify subagents.
 - after an upstream sync, `main.cpp`'s `<arg_handler, N>` literal or the array entry
   count is wrong.
 
+## Author-frame removal + orthogonal reframe lenses
+
+Run this FIRST; it sets up what the adversarial pass refutes. Anchoring on the author's
+framing is the single most expensive review failure in this repo's record (the Spike-25
+0%-catch loop), so this section is mandatory, not optional.
+
+**Restate the claim from ground truth, not the author's framing.** Before reviewing,
+re-derive what is ACTUALLY claimed from the DIFF, the WITNESS, the named downstream
+consumer, and `AGENTS.md`/`ARCOPOLIS_STATE.md` — never from the PR title/body's framing.
+The title/body is the author's frame; reviewing inside it is how a reviewer who shares the
+author's conflation passes a broken claim.
+
+**Reframe on a different axis than the author used.** The adversarial pass below requires at
+least THREE independent refute-lenses; AT LEAST ONE of them must explicitly REFRAME the
+claim on a different decision _axis_ than the author argued. An **orthogonal reframe**
+changes the axis, not the size of the claim, and must name what it changes: route,
+downstream consumer, native-authority class guess, active mechanism, witness, stop
+condition, or scope. One constructed divergence from ANY reframe is decisive (the survival
+rule below). A "reframe" that changes none of those axes is the author's frame restated, not
+a lens.
+
+Draw the reframe lens(es) from these families (pick the axes the claim actually rides):
+
+- **Downstream-consumer lens.** Reframe "what was built?" as "WHO or WHAT consumes this, and
+  what question are they asking?" (a display to show · a predicate to evaluate · an action to
+  drive · a menu to answer · raw state to read).
+- **Authority-class lens.** Reframe the A/B/C/D/S class from the downstream consumer's
+  authority, NOT the field shape or author wording — a possession / mission / objective
+  surface is C whatever it is labelled (the Spike-25 trap).
+- **Active-mechanism lens.** Reframe "same final state" / "same `do_turn`" as "WHICH active
+  engine loop/mechanism consumed the registered input, at which line?" — an action injected
+  at the `handle_action` seam that never enters `input_context::handle_input` is not L4 (the
+  Spike-3 seam inversion).
+- **Witness-divergence lens.** Reframe "the test passed" as "what DIVERGENCE state would
+  falsify this, and did the witness actually EXERCISE it?" — a happy-path-only counterexample
+  filed as a footnote is the Spike-25 failure.
+- **Stage/scope lens.** Reframe the product ambition as Stage A proof vs Stage B deferral vs
+  audit-only vs an unsupported adjacent path — and flag any claim that quietly widens one
+  witnessed path into prompt-class support.
+- **Future-reader lens.** Ask what a future agent or reviewer would FALSELY believe this PR
+  proves, reading only its title/body/docs — the gap between that belief and what the witness
+  actually exercises is the overclaim to flag.
+
 ## Adversarial pass (any equivalence or goal-fit claim)
 
 A single read is not a review. Run at least THREE INDEPENDENT refute-lenses — this is
@@ -101,8 +144,14 @@ break; it has two ASYMMETRIC directions — do not conflate them.
 1. **Verdict** — safe to proceed / needs plan revision / block merge / audit-only.
 2. **Equivalence claim status** — proven / downgraded / not proven / overclaimed.
 3. **Strongest evidence** — cite `file:line` or the exact witness.
-4. **Biggest false-green risk.**
-5. **Required next action.**
+4. **Orthogonal reframe tested** — name the axis you reframed the claim onto (consumer /
+   class / mechanism / witness / stage-scope / future-reader) and whether any reframe
+   constructed a divergence the witness does not cover. If NO orthogonal reframe changes the
+   verdict, say so EXPLICITLY and explain why — which axes you flipped and why each left the
+   claim standing. Silence here reads as "not attempted," not "nothing found."
+5. **Biggest false-green risk — including the reframed false-green risk** (the strongest
+   divergence any reframe surfaced, even if it is non-blocking).
+6. **Required next action.**
 
 Keep hedges and witness-scoping intact; do not polish an uncertain claim into
 confident prose.
@@ -114,7 +163,10 @@ input/action · Real engine caller · Witness · Witness scope · False-green ri
 Fail-loud · Unsupported adjacent path · Per-transaction gate · No generic
 prompt-class support · Native-authority class (A action / B prompt-menu /
 C predicate / D display / S simulation-state) · Goal-fit (sufficient-for vs
-consistent-with) · Counterexample / divergence witness · Floor vs seal /
+consistent-with) · Counterexample / divergence witness · Orthogonal reframe (change the
+decision axis — route / consumer / class / mechanism / witness / stop-condition / scope —
+not the task size) · Author-frame removal (restate the claim from diff + witness + consumer,
+not the PR title/body) · Floor vs seal /
 judge-independence (same-model lenses = floor, labeled; cross-substrate convergence =
 seal; weight by independence + decisive-leaf verification, not confidence; authoritative
 floor/seal rule in `arcopolis-design-interrogate`).

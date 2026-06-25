@@ -49,6 +49,33 @@ mechanism, and scope are the interrogator's CLAIMED values, not findings, so ite
 every observation/predicate card regardless of which flags are present; the card only lets
 the plan OPEN faster, it does not discharge item 4. Absent a card, plan as normal.
 
+## Plan-frame sanity check
+
+Run this once after opening the card (or, absent a card, after fixing the impulse's frame)
+and BEFORE witness planning (item 5). It is a frame-consistency check, NOT a reopening of
+options: with a Task Statement Card present, do not reopen broad directions — that belongs
+to `arcopolis-design-explore`.
+
+An **orthogonal reframe** changes the decision _axis_, not the size of the task, and must
+state what it changes (route, downstream consumer, native-authority class guess, active
+mechanism, witness, stop condition, or scope). Here you are not generating one — you are
+checking that the card's frame still matches the downstream consumer and the planned witness
+on each axis:
+
+- display (D) vs predicate (C) vs raw simulation state (S);
+- action (A) vs prompt/menu (B);
+- implementation vs audit-only;
+- same final state vs same active engine mechanism (L2/L3 vs L4).
+
+If the check CONTRADICTS the card — the consumer the source names sits on a different axis
+than the card claims (e.g. a card framed display-D for a goal an engine predicate-C
+consumes, the Spike-25 shape; or a card claiming L4 for an action injected at the
+`handle_action` seam, never consumed by `input_context::handle_input`) — STOP; do not paper
+over it in the plan. For a wrong class/consumer, tell the user to run
+`arcopolis-design-interrogate` (it is user-invoked) to re-derive it; for a suspected wrong
+frame to adjudicate, route to `arcopolis-red-team-review`. If the frame SURVIVES, continue
+directly to the Required output below; this check produces no options brief.
+
 ## Why plan-first
 
 Arcopolis fidelity is defined by _backend input behavior_, not by final state, so the
