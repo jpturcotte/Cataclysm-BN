@@ -87,23 +87,23 @@ function Stop-WithCode {
 
 # --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=harness, 8=viewer). ---
 if( -not (Test-Path $Exe) ) {
-    Stop-WithCode "Binary not found: $Exe  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
+    Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
 if( -not (Test-Path $FixtureSrc) ) {
-    Stop-WithCode "Fixture source directory not found: $FixtureSrc  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4
+    Stop-WithCode "Fixture source directory not found: $(Format-ArcoPath $FixtureSrc)  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4
 }
 $fixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $World)
 if( -not (Test-Path $fixtureWorld) ) {
-    Stop-WithCode "Fixture world '$World' not found at $fixtureWorld -- copy the canonical ArcopolisTest fixture. See AGENTS.md (Arcopolis test world fixture)." 5
+    Stop-WithCode "Fixture world '$World' not found at $(Format-ArcoPath $fixtureWorld) -- copy the canonical ArcopolisTest fixture. See AGENTS.md (Arcopolis test world fixture)." 5
 }
 if( -not (Get-Command python -ErrorAction SilentlyContinue) ) {
     Stop-WithCode "python not found on PATH (needed to run the client harness and the offline viewer). See 00_WINDOWS_LOCAL_ENVIRONMENT.md." 6
 }
 if( -not (Test-Path $Harness) ) {
-    Stop-WithCode "Client harness not found: $Harness" 7
+    Stop-WithCode "Client harness not found: $(Format-ArcoPath $Harness)" 7
 }
 if( -not (Test-Path $Viewer) ) {
-    Stop-WithCode "Offline viewer not found: $Viewer (needed for the consumer cross-check gate)" 8
+    Stop-WithCode "Offline viewer not found: $(Format-ArcoPath $Viewer) (needed for the consumer cross-check gate)" 8
 }
 
 # Refresh the gitignored sandbox world from the external fixture. `Copy-Item -Recurse` nests the
@@ -134,8 +134,10 @@ $liveDir = Join-Path $OutRoot "live"
 if( Test-Path $liveDir ) { Remove-Item $liveDir -Recurse -Force }
 $liveJson = Join-Path $OutRoot "live_result.json"
 $liveErr  = Join-Path $OutRoot "live_stderr.txt"
-$pl = Invoke-PyTool -ToolArgs @($Harness, 'live', '--exe', $Exe, '--world', $World, '--userdir', $UserDir,
-    '--out', $liveDir, '--commands', 'move_n,move_s,wait', '--json') `
+# Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+# a space (a spaced checkout/binary) would otherwise reach python's argparse split into broken tokens.
+$pl = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'live', '--exe', "`"$Exe`"", '--world', $World, '--userdir', "`"$UserDir`"",
+    '--out', "`"$liveDir`"", '--commands', 'move_n,move_s,wait', '--json') `
     -StdoutPath $liveJson -StderrPath $liveErr
 
 # --- Hard gate 1: the live probe exits 0 (0=clean; 2=contract discrepancies; 1=fatal/protocol). ---
@@ -269,7 +271,7 @@ if( -not $hasLog -or $snapFiles.Count -ne 5 ) {
 
 # --- Hard gate 11: the Spike 4 viewer agrees (two independent consumers, one live session). ---
 $report = Join-Path $liveDir "report.html"
-$pview = Invoke-PyTool -ToolArgs @($Viewer, '--session-dir', $liveDir, '--output', $report) `
+$pview = Invoke-PyTool -ToolArgs @("`"$Viewer`"", '--session-dir', "`"$liveDir`"", '--output', "`"$report`"") `
     -StdoutPath (Join-Path $OutRoot "viewer_stdout.txt") -StderrPath (Join-Path $OutRoot "viewer_stderr.txt")
 if( $pview.ExitCode -ne 0 ) {
     Write-Host "  FAIL: viewer exited $($pview.ExitCode) (0=clean; 2=discrepancies; 1=fatal) on the live session." -ForegroundColor Red
@@ -279,7 +281,7 @@ if( $pview.ExitCode -ne 0 ) {
 }
 
 # --- Hard gate 12: standalone explain agrees with the in-process explain. ---
-$pe = Invoke-PyTool -ToolArgs @($Harness, 'explain', '--session-dir', $liveDir, '--json') `
+$pe = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'explain', '--session-dir', "`"$liveDir`"", '--json') `
     -StdoutPath (Join-Path $OutRoot "explain_stdout.json") -StderrPath (Join-Path $OutRoot "explain_stderr.txt")
 if( $pe.ExitCode -ne 0 ) {
     Write-Host "  FAIL: standalone explain exited $($pe.ExitCode) (expected 0) on the live session." -ForegroundColor Red
@@ -295,8 +297,8 @@ $negDir = Join-Path $OutRoot "negative"
 if( Test-Path $negDir ) { Remove-Item $negDir -Recurse -Force }
 $negJson = Join-Path $OutRoot "negative_result.json"
 $negErr  = Join-Path $OutRoot "negative_stderr.txt"
-$pn = Invoke-PyTool -ToolArgs @($Harness, 'live', '--exe', $Exe, '--world', $World, '--userdir', $UserDir,
-    '--out', $negDir, '--commands', 'wait', '--negative-probe', '--json') `
+$pn = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'live', '--exe', "`"$Exe`"", '--world', $World, '--userdir', "`"$UserDir`"",
+    '--out', "`"$negDir`"", '--commands', 'wait', '--negative-probe', '--json') `
     -StdoutPath $negJson -StderrPath $negErr
 
 # --- Hard gate 13: the negative scenario end-to-end. ---
