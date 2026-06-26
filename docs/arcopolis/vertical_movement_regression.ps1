@@ -64,14 +64,14 @@ function Stop-WithCode {
 
 # --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world). ---
 if( -not (Test-Path $Exe) ) {
-    Stop-WithCode "Binary not found: $Exe  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
+    Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
 if( -not (Test-Path $FixtureSrc) ) {
-    Stop-WithCode "Fixture source directory not found: $FixtureSrc  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4
+    Stop-WithCode "Fixture source directory not found: $(Format-ArcoPath $FixtureSrc)  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4
 }
 $fixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $World)
 if( -not (Test-Path $fixtureWorld) ) {
-    Stop-WithCode "Stair fixture world '$World' not found at $fixtureWorld -- create it first: python docs/arcopolis/make_stairs_fixture.py (clones ArcopolisTest and writes a matched t_stairs_down/t_stairs_up pair). See docs/arcopolis/TEST_FIXTURES.md." 5
+    Stop-WithCode "Stair fixture world '$World' not found at $(Format-ArcoPath $fixtureWorld) -- create it first: python docs/arcopolis/make_stairs_fixture.py (clones ArcopolisTest and writes a matched t_stairs_down/t_stairs_up pair). See docs/arcopolis/TEST_FIXTURES.md." 5
 }
 
 # Refresh the gitignored sandbox userdir from the fixture. `Copy-Item -Recurse` nests the source INSIDE the
@@ -99,11 +99,13 @@ $scriptPath = Join-Path $dir "script.json"
 
 # cataclysm-bn-tiles is a GUI / WINDOWS-subsystem exe, so a bare `& $exe` does NOT wait for it and leaves
 # $LASTEXITCODE empty. Start-Process -Wait -PassThru waits and captures the real exit code.
+# Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+# a space (a spaced checkout/binary) would otherwise reach the exe's parser split into broken tokens.
 $p = Start-Process -FilePath $Exe -ArgumentList @(
     '--world', $World,
-    '--arcopolis-run-script', $scriptPath,
-    '--arcopolis-export-dir', $dir,
-    '--userdir', $UserDir
+    '--arcopolis-run-script', "`"$scriptPath`"",
+    '--arcopolis-export-dir', "`"$dir`"",
+    '--userdir', "`"$UserDir`""
 ) -NoNewWindow -Wait -PassThru `
     -RedirectStandardOutput (Join-Path $dir "stdout.txt") -RedirectStandardError (Join-Path $dir "stderr.txt")
 
@@ -118,7 +120,7 @@ if( $p.ExitCode -ne 0 ) {
 # Gate 1b: session.jsonl session_end status == "ok" (no unexpected_prompt, no silent default).
 $sessionLog = Join-Path $dir "session.jsonl"
 if( -not (Test-Path $sessionLog) ) {
-    Write-Host "  FAIL: no session.jsonl produced in $dir." -ForegroundColor Red
+    Write-Host "  FAIL: no session.jsonl produced in $(Format-ArcoPath $dir)." -ForegroundColor Red
     $fail++
 } else {
     $endLine = Get-Content $sessionLog | Where-Object { $_ -match '"session_end"' } | Select-Object -Last 1
@@ -189,7 +191,7 @@ $afterDown = Get-Snapshot "after_down"
 $afterUp   = Get-Snapshot "after_up"
 
 if( -not $before -or -not $afterDown -or -not $afterUp ) {
-    Write-Host "  FAIL: missing one of the before/after_down/after_up snapshots in $dir." -ForegroundColor Red
+    Write-Host "  FAIL: missing one of the before/after_down/after_up snapshots in $(Format-ArcoPath $dir)." -ForegroundColor Red
     $fail++
 } else {
     # before: standing ON the down-stair at z 0 (the Spike 23 fixture baseline).

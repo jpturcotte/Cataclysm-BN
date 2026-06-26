@@ -108,31 +108,31 @@ function Stop-WithCode {
 
 # --- Prereqs (3=exe, 4=fixture, 5=world, 6=python, 7=driver, 8=harness). ---
 if( -not (Test-Path $Exe) ) {
-    Stop-WithCode "Binary not found: $Exe  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
+    Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
-if( -not (Test-Path $FixtureSrc) ) { Stop-WithCode "Fixture source directory not found: $FixtureSrc  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4 }
+if( -not (Test-Path $FixtureSrc) ) { Stop-WithCode "Fixture source directory not found: $(Format-ArcoPath $FixtureSrc)  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4 }
 $fixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $World)
 if( -not (Test-Path $fixtureWorld) ) {
-    Stop-WithCode "Fixture world '$World' not found at $fixtureWorld -- copy the canonical ArcopolisTest fixture (AGENTS.md, Arcopolis test world fixture)." 5
+    Stop-WithCode "Fixture world '$World' not found at $(Format-ArcoPath $fixtureWorld) -- copy the canonical ArcopolisTest fixture (AGENTS.md, Arcopolis test world fixture)." 5
 }
 $fixtureBackpackWorld = Join-Path $FixtureSrc (Join-Path "save" $BackpackWorld)
 if( -not (Test-Path $fixtureBackpackWorld) ) {
-    Stop-WithCode "Fixture world '$BackpackWorld' not found at $fixtureBackpackWorld -- the carry-both multi-select witness needs the backpack-avatar fixture (a copy of $World with a backpack added to worn; see the fixtures README)." 5
+    Stop-WithCode "Fixture world '$BackpackWorld' not found at $(Format-ArcoPath $fixtureBackpackWorld) -- the carry-both multi-select witness needs the backpack-avatar fixture (a copy of $World with a backpack added to worn; see the fixtures README)." 5
 }
 $fixtureVehicleWorld = Join-Path $FixtureSrc (Join-Path "save" $VehicleWorld)
 if( -not (Test-Path $fixtureVehicleWorld) ) {
-    Stop-WithCode "Fixture world '$VehicleWorld' not found at $fixtureVehicleWorld -- the vehicle-submenu fail-loud witness needs the cargo-vehicle fixture (a copy of $World with a folding_wagon injected onto the ground-item pile; build it with docs/arcopolis/make_vehicle_fixture.py)." 5
+    Stop-WithCode "Fixture world '$VehicleWorld' not found at $(Format-ArcoPath $fixtureVehicleWorld) -- the vehicle-submenu fail-loud witness needs the cargo-vehicle fixture (a copy of $World with a folding_wagon injected onto the ground-item pile; build it with docs/arcopolis/make_vehicle_fixture.py)." 5
 }
 $fixtureCapacityWorld = Join-Path $FixtureSrc (Join-Path "save" $CapacityWorld)
 if( -not (Test-Path $fixtureCapacityWorld) ) {
-    Stop-WithCode "Fixture world '$CapacityWorld' not found at $fixtureCapacityWorld -- the Spike 14 multi-entry secondary-capacity uilist witness needs a copy of $World with one over-volume ARMOR item (jacket_leather) injected onto the ground-item pile; build it with docs/arcopolis/make_capacity_fixture.py." 5
+    Stop-WithCode "Fixture world '$CapacityWorld' not found at $(Format-ArcoPath $fixtureCapacityWorld) -- the Spike 14 multi-entry secondary-capacity uilist witness needs a copy of $World with one over-volume ARMOR item (jacket_leather) injected onto the ground-item pile; build it with docs/arcopolis/make_capacity_fixture.py." 5
 }
 if( -not (Get-Command python -ErrorAction SilentlyContinue) ) {
     Stop-WithCode "python not found on PATH (needed to run the live driver). See 00_WINDOWS_LOCAL_ENVIRONMENT.md." 6
 }
-if( -not (Test-Path $Driver) ) { Stop-WithCode "Pickup prompt live driver not found: $Driver" 7 }
+if( -not (Test-Path $Driver) ) { Stop-WithCode "Pickup prompt live driver not found: $(Format-ArcoPath $Driver)" 7 }
 if( -not (Test-Path (Join-Path $HarnessDir "harness.py")) ) {
-    Stop-WithCode "Client harness not found under: $HarnessDir (the driver imports its LiveSession)" 8
+    Stop-WithCode "Client harness not found under: $(Format-ArcoPath $HarnessDir) (the driver imports its LiveSession)" 8
 }
 
 # Refresh the gitignored sandbox userdir from the external fixture.
@@ -173,9 +173,11 @@ function Invoke-LiveScenario {
     $resultPath = Join-Path $OutRoot "$Name.result.json"
     $stdout = Join-Path $OutRoot "$Name.driver_stdout.txt"
     $stderr = Join-Path $OutRoot "$Name.driver_stderr.txt"
-    $p = Start-Process -FilePath "python" -ArgumentList @($Driver, '--exe', $Exe, '--world', $ScenarioWorld,
-        '--userdir', $UserDir, '--out', $dir, '--requests', $reqPath, '--timeout', $TimeoutSec,
-        '--result', $resultPath) -NoNewWindow -Wait -PassThru `
+    # Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+    # a space (a spaced checkout/binary) would otherwise reach python's argparse split into broken tokens.
+    $p = Start-Process -FilePath "python" -ArgumentList @("`"$Driver`"", '--exe', "`"$Exe`"", '--world', $ScenarioWorld,
+        '--userdir', "`"$UserDir`"", '--out', "`"$dir`"", '--requests', "`"$reqPath`"", '--timeout', $TimeoutSec,
+        '--result', "`"$resultPath`"") -NoNewWindow -Wait -PassThru `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr
     $result = $null
     if( Test-Path $resultPath ) { $result = Get-Content $resultPath -Raw | ConvertFrom-Json }
@@ -804,8 +806,10 @@ $expectedNonLiveExit = 6
 $scriptPath = Join-Path $nonLiveDir "pickup_script.json"
 Set-Content -Path $scriptPath -Value '{"schema_version":1,"steps":[{"op":"command","command":"pickup","direction":"move_s"}]}' -Encoding ascii
 $scriptErr = Join-Path $nonLiveDir "script_err.txt"
-$ps = Start-Process -FilePath $Exe -ArgumentList @('--world', $World, '--arcopolis-run-script', $scriptPath,
-    '--arcopolis-export-dir', (Join-Path $nonLiveDir "script_out"), '--userdir', $UserDir) -NoNewWindow -Wait -PassThru `
+# Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+# a space (a spaced checkout/binary) would otherwise reach the binary's argparse split into broken tokens.
+$ps = Start-Process -FilePath $Exe -ArgumentList @('--world', $World, '--arcopolis-run-script', "`"$scriptPath`"",
+    '--arcopolis-export-dir', "`"$(Join-Path $nonLiveDir "script_out")`"", '--userdir', "`"$UserDir`"") -NoNewWindow -Wait -PassThru `
     -RedirectStandardError $scriptErr -RedirectStandardOutput (Join-Path $nonLiveDir "script_out.txt")
 $scriptErrText = (Get-Content $scriptErr -Raw -ErrorAction SilentlyContinue)
 # (b) one-shot mode
@@ -813,8 +817,10 @@ $cmdPath = Join-Path $nonLiveDir "pickup_cmd.json"
 Set-Content -Path $cmdPath -Value '{"schema_version":1,"command":"pickup","direction":"move_s"}' -Encoding ascii
 $oneshotSnap = Join-Path $nonLiveDir "oneshot.json"
 $oneshotErr = Join-Path $nonLiveDir "oneshot_err.txt"
-$po = Start-Process -FilePath $Exe -ArgumentList @('--world', $World, '--arcopolis-export-current-view', $oneshotSnap,
-    '--arcopolis-command', $cmdPath, '--userdir', $UserDir) -NoNewWindow -Wait -PassThru `
+# Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+# a space (a spaced checkout/binary) would otherwise reach the binary's argparse split into broken tokens.
+$po = Start-Process -FilePath $Exe -ArgumentList @('--world', $World, '--arcopolis-export-current-view', "`"$oneshotSnap`"",
+    '--arcopolis-command', "`"$cmdPath`"", '--userdir', "`"$UserDir`"") -NoNewWindow -Wait -PassThru `
     -RedirectStandardError $oneshotErr -RedirectStandardOutput (Join-Path $nonLiveDir "oneshot_out.txt")
 $oneshotErrText = (Get-Content $oneshotErr -Raw -ErrorAction SilentlyContinue)
 $gNonLive = ($ps.ExitCode -eq $expectedNonLiveExit) -and ($po.ExitCode -eq $expectedNonLiveExit) -and
