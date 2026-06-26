@@ -14,13 +14,24 @@ plan is approved. If no approved plan exists, stop and run `arcopolis-claim-plan
    lines. If the work has drifted from what was approved, stop and re-plan. Do not
    reopen strategy mid-implementation unless source inspection contradicts the approved
    plan or the approved witness becomes impossible — then stop and return to planning.
-2. Implement the **smallest** change consistent with the claim. Match surrounding
+2. **Reframe drift check.** After restating the plan, ask whether source inspection while
+   implementing has revealed a DIFFERENT decision axis than the approved plan assumed — a
+   different route, downstream consumer, native-authority class guess, active mechanism,
+   witness, stop condition, or scope — or a derived build-time consequence such as a
+   different equivalence level or an audit-only result. (An **orthogonal reframe** of this
+   kind changes the axis, not the size of the change; the class guess is named explicitly
+   because Spike 25 was a class drift — display-D masquerading as predicate-C — and build is
+   the last line before code is written.) If YES on any axis, STOP and return to planning
+   (`arcopolis-claim-plan`); do not silently rebuild around the new frame, and do not soften
+   the drift into an optional note — a graded drift is a STOP, reported as graded. If NO, do
+   not reopen strategy — build the smallest approved change.
+3. Implement the **smallest** change consistent with the claim. Match surrounding
    code; follow the C++23 conventions in AGENTS.md (trailing returns, `auto`,
    `std::ranges`/`std::views`, options structs, designated initializers).
-3. Preserve every non-goal and all fail-loud behavior.
-4. Add/update only the minimum tests/regressions/docs the witness needs.
-5. Run the narrowest relevant validation (see below) and report it honestly.
-6. State whether the witness proves the claim or forces a downgrade. A downgrade is a
+4. Preserve every non-goal and all fail-loud behavior.
+5. Add/update only the minimum tests/regressions/docs the witness needs.
+6. Run the narrowest relevant validation (see below) and report it honestly.
+7. State whether the witness proves the claim or forces a downgrade. A downgrade is a
    reportable result, not a failure to hide.
 
 ## Guardrails

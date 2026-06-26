@@ -45,7 +45,94 @@ review bots and verify subagents.
 - a PR/commit/doc cites local-only or manual evidence (e.g. an uncommitted benchmark)
   as if it were committed, reproducible repo evidence;
 - after an upstream sync, `main.cpp`'s `<arg_handler, N>` literal or the array entry
-  count is wrong.
+  count is wrong;
+- a local spec, user instruction, or per-skill specialization is followed faithfully but
+  WEAKENS a canonical Arcopolis invariant — especially the native-authority class /
+  downstream-consumer / active-mechanism axes (omitting, narrowing, or contradicting one;
+  additive specialization that drops nothing is fine). "Matches the spec" is not a defense
+  when the spec is the object under review (see "Spec-frame challenge").
+
+## Author-frame removal + orthogonal reframe lenses
+
+Run this FIRST; it sets up what the adversarial pass refutes. Anchoring on the author's
+framing is the single most expensive review failure in this repo's record (the Spike-25
+0%-catch loop), so this section is mandatory, not optional.
+
+**Restate the claim from ground truth, not the author's framing.** Before reviewing,
+re-derive what is ACTUALLY claimed from the DIFF (or, for a plan/prompt review with no patch
+yet, the proposed plan/prompt text), the WITNESS, the named downstream consumer, and
+`AGENTS.md`/`ARCOPOLIS_STATE.md` — never from the PR title/body's framing (or the author's
+pitch).
+The title/body is the author's frame; reviewing inside it is how a reviewer who shares the
+author's conflation passes a broken claim.
+
+**Reframe on a different axis than the author used.** The adversarial pass below requires at
+least THREE independent refute-lenses; AT LEAST ONE of them must explicitly REFRAME the
+claim on a different decision _axis_ than the author argued. An **orthogonal reframe**
+changes the axis, not the size of the claim, and must name what it changes: route,
+downstream consumer, native-authority class guess, active mechanism, witness, stop
+condition, or scope. One constructed divergence from ANY reframe is decisive (the survival
+rule below). A "reframe" that changes none of those axes is the author's frame restated, not
+a lens.
+
+Draw the reframe lens(es) from these families (pick the axes the claim actually rides):
+
+- **Downstream-consumer lens.** Reframe "what was built?" as "WHO or WHAT consumes this, and
+  what question are they asking?" (a display to show · a predicate to evaluate · an action to
+  drive · a menu to answer · raw state to read).
+- **Authority-class lens.** Reframe the A/B/C/D/S class from the downstream consumer's
+  authority, NOT the field shape or author wording — a possession / mission / objective
+  surface is C whatever it is labelled (the Spike-25 trap).
+- **Active-mechanism lens.** Reframe "same final state" / "same `do_turn`" as "WHICH active
+  engine loop/mechanism consumed the registered input, at which line?" — an action merely
+  injected at the `handle_action` seam that never enters `input_context::handle_input` is
+  level 3, NOT L4 (the _accepted_ planar-move / Spike-24 design, not a defect); the Spike-3
+  _failure_ was the distinct turn-ordering inversion — driving `avatar_action::move` BEFORE
+  `do_turn` instead of letting the seam consume the action (`docs/arcopolis/08`,
+  `arcopolis-claim-plan` item 3).
+- **Witness-divergence lens.** Reframe "the test passed" as "what DIVERGENCE state would
+  falsify this, and did the witness actually EXERCISE it?" — a happy-path-only counterexample
+  filed as a footnote is the Spike-25 failure.
+- **Stage/scope lens.** Reframe the product ambition as Stage A proof vs Stage B deferral vs
+  audit-only vs an unsupported adjacent path — and flag any claim that quietly widens one
+  witnessed path into prompt-class support.
+- **Future-reader lens.** Ask what a future agent or reviewer would FALSELY believe this PR
+  proves, reading only its title/body/docs — the gap between that belief and what the witness
+  actually exercises is the overclaim to flag.
+
+## Spec-frame challenge
+
+Author-frame removal strips the PR title/body. This strips the next layer: the SPEC itself.
+When reviewing a plan, skill edit, prompt, or PR, do NOT treat the author's / user's stated
+spec, step, or instruction as ground truth merely because the patch faithfully follows it —
+the spec is the object under review. Spike 25 was this failure one level down: faithfulness
+to the local instruction laundered the wrong frame.
+
+Before accepting "matches the spec" as evidence, ask:
+
+1. What cross-skill invariant or Arcopolis rule is this spec meant to preserve?
+2. Does the spec preserve the canonical reframe axis set and the downstream-consumer
+   discipline?
+3. Is the patch faithful to the spec yet still able to reproduce a Spike-3 or Spike-25
+   FAILURE SHAPE (seam inversion; display-D laundered as predicate-C)?
+4. Did the author / user carve a per-skill exception that WEAKENS the shared invariant?
+
+If the patch matches the local spec but the spec OMITS, NARROWS, or CONTRADICTS a canonical
+invariant, grade `needs revision` or stronger. Do NOT downgrade because a downstream skill
+"stops conservatively" — conservative stop behaviour does not repair a missing or weakened
+detection axis. NOT a trigger: a per-skill specialization that ADDS detail without dropping
+or narrowing a canonical axis (e.g. build's labelled equivalence-level / audit-only
+CONSEQUENCES on top of the full 7 axes) is legitimate — challenge a spec that weakens, not
+one that merely extends.
+
+**When the spec under review DEFINES a canonical invariant** — the orthogonal-reframe axis set
+(`AGENTS.md` "Orthogonal-reframe axes"), the native-authority taxonomy, or the floor/seal rule
+itself — your in-loop verdict is a FLOOR, not a seal: it keys on the same judgment the edit could
+get wrong (the PR #79 axis-drop was graded a NOTE by every same-model gate and escalated only
+by a cross-model reviewer). Confirm the mechanical floor still passes
+(`deno test --allow-read .agents/arcopolis_reframe_axes_test.ts`), then require an external /
+cross-model seal before merge (`docs/arcopolis/reframe_axis_external_seal_prompt.md`). Do not
+self-ratify a change to the canonical set.
 
 ## Adversarial pass (any equivalence or goal-fit claim)
 
@@ -83,6 +170,13 @@ break; it has two ASYMMETRIC directions — do not conflate them.
   its own. A lone refuting lens is NOT "outvoted" by lenses that found nothing — convergence
   of the OTHER lenses never downgrades a flag to "safe" (absence of a constructed divergence
   is not proof of equivalence, only failure to construct one).
+- Monotonicity binds to the EVENT, not the label. Once a lens CONSTRUCTS a divergence the
+  witness does not cover, that finding IS a flag — it may not be filed as a NOTE /
+  non-blocking to slip past the REFUTE rule above. "It stops conservatively downstream" and
+  "the axes loosely subsume each other" are NOT downgrades: neither covers the divergence nor
+  re-verifies it at the leaf. A constructed divergence on a canonical / Spike-25 axis
+  (native-authority class, downstream-consumer, active-mechanism) grades `needs revision` or
+  stronger by default.
 - To ADOPT a non-blocking disposition (safe-to-proceed / downgrade): require the claim to
   SURVIVE the ground-truth facts — the divergence re-checked at the DECISIVE leaf against the
   cited source body and the A/B/C/D/S class — AND ≥2 INDEPENDENT lenses to converge on it. Do
@@ -101,11 +195,24 @@ break; it has two ASYMMETRIC directions — do not conflate them.
 1. **Verdict** — safe to proceed / needs plan revision / block merge / audit-only.
 2. **Equivalence claim status** — proven / downgraded / not proven / overclaimed.
 3. **Strongest evidence** — cite `file:line` or the exact witness.
-4. **Biggest false-green risk.**
-5. **Required next action.**
+4. **Orthogonal reframe tested** — name the lens family you reframed the claim onto (consumer /
+   class / mechanism / witness / stage-scope / future-reader) and whether any reframe
+   constructed a divergence the witness does not cover. If NO orthogonal reframe changes the
+   verdict, say so EXPLICITLY and explain why — which axes you flipped and why each left the
+   claim standing. Silence here reads as "not attempted," not "nothing found."
+5. **Spec-frame challenge** — did the reviewed SPEC itself preserve the canonical invariant
+   (the 7-axis reframe set + downstream-consumer discipline), or was it merely FOLLOWED
+   faithfully? "Matches the spec" is not evidence when the spec is the object under review.
+6. **Biggest false-green risk — including the reframed false-green risk** (the strongest
+   divergence any reframe surfaced). Grade it per the adjudication rule above — a genuinely
+   minor divergence may be reported non-blocking, but a constructed divergence on a canonical
+   / Spike-25 axis is not a NOTE.
+7. **Required next action.**
 
 Keep hedges and witness-scoping intact; do not polish an uncertain claim into
-confident prose.
+confident prose. A downstream relay or summary of this review may NOT soften a graded
+verdict — report the grade as graded; do not re-narrate a `needs revision` finding as an
+optional "judgment call" or polish.
 
 ## Shared vocabulary
 
@@ -114,7 +221,10 @@ input/action · Real engine caller · Witness · Witness scope · False-green ri
 Fail-loud · Unsupported adjacent path · Per-transaction gate · No generic
 prompt-class support · Native-authority class (A action / B prompt-menu /
 C predicate / D display / S simulation-state) · Goal-fit (sufficient-for vs
-consistent-with) · Counterexample / divergence witness · Floor vs seal /
+consistent-with) · Counterexample / divergence witness · Orthogonal reframe (change the
+decision axis — route / consumer / class / mechanism / witness / stop-condition / scope —
+not the task size) · Author-frame removal (restate the claim from diff + witness + consumer,
+not the PR title/body) · Floor vs seal /
 judge-independence (same-model lenses = floor, labeled; cross-substrate convergence =
 seal; weight by independence + decisive-leaf verification, not confidence; authoritative
 floor/seal rule in `arcopolis-design-interrogate`).

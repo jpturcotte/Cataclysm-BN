@@ -139,6 +139,33 @@ docs/source, output `AUDIT ONLY` — do not guess a class. This is the "equivale
 question the Spike-25 loop never asked; it is the floor, not a seal (see the external-seal
 rule above).
 
+**Reframe-before-classifying probes (agent-derived; no new user question).** Before
+assigning a class, REFRAME — flip the frame the impulse arrived in, on these three axes,
+and answer each from a grounded source read rather than inheriting the impulse's wording.
+These are agent reasoning steps, NOT extra user questions: the one-follow-up-per-pass rule
+is unchanged. (Partially addresses issue #73's A-vs-B seam probe and S/D authoritativeness
+probe.)
+
+- **SHOW vs EVALUATE.** Is this for a frontend to DISPLAY/observe (→ D/S), or does an
+  engine consumer EVALUATE a condition over it (→ C)? An "acquired"/"complete"/"met"
+  indicator, an eligibility / button-enable decision, or a mission/quest/objective status
+  is an EVALUATE result → C, however the impulse phrases it ("show", "render",
+  "scan…for"). This is the Spike-25 flip. When genuinely ambiguous between the two, the one
+  Pass-2 intent question below settles INTENT (the agent still decides the class).
+- **ACTION vs PROMPT/MENU.** Is the deliverable a registered ACTION consumed at
+  `game::handle_action` (→ A, e.g. an `ACTION_*` keypress), or a nested menu / prompt /
+  selector choice answered through an active input loop (→ B, e.g. `uilist::query`,
+  `input_context::handle_input`, `query_popup`/`query_yn`)? If the impulse carries both
+  (e.g. the key-press AND the menu it opens), run the class-based split check below.
+- **AUTHORITATIVE STATE vs DERIVED/DISPLAY COPY.** For a candidate that looks D or S, name
+  the exact engine field/mechanism read and confirm it is AUTHORITATIVE for the stated
+  consumer — not a cached, derived, or display copy that can lag or differ (e.g. a
+  monster's raw `hp` vs an effective-after-bonuses value vs what the GUI renders). If the
+  named field is a derived/display copy standing in for the authoritative value, or you
+  cannot confirm it authoritative, log `AUTHORITY UNVERIFIED` to the card's `Open unknowns`;
+  do not classify S on a display proxy (this carries into Pass 3 — see the D/S skip note
+  there).
+
 **Possession-surface over-trigger (cheap backstop, NOT the guarantee).** As a cheap first
 filter, scan the impulse for any reference to the avatar's/character's items or possession
 state — by stem (hold/held/holding, carry/carried/carrying, have/has, possess, inventory,
@@ -242,6 +269,10 @@ wrong anchor.
 **D/S skip (only when not forced C).** A genuine D or S goal (the carve-out lifted the
 C-forcing; no `Predicate-read owed`) has no engine-computed predicate to probe — log
 `PASS 3 SKIPPED — D/S` and continue. A possession/objective goal never reaches this skip.
+The skip waives only the predicate body-read, NOT the Pass-2 authoritativeness probe: still
+name the exported field and confirm it is the authoritative value (or the GUI-faithful
+display copy the consumer wants), not a cached/derived copy substituted for it — log
+`AUTHORITY UNVERIFIED` to `Open unknowns` if it cannot be confirmed.
 
 **Resolution by class:**
 
@@ -445,6 +476,14 @@ it is removed, they become inert.
 
 - **Native-authority class:** as defined in `AGENTS.md` → "Native-authority class" (A/B/C/D/S,
   may grow). Do not enumerate from memory.
+- **Orthogonal reframe:** changing the decision _axis_ before accepting the user's or
+  author's framing — not a larger or smaller version of the same task. A valid reframe must
+  state what it changes: route, downstream consumer, native-authority class guess, active
+  mechanism, witness, stop condition, or scope. In this skill the reframe is internal: the
+  three **reframe-before-classifying probes** (SHOW vs EVALUATE, ACTION vs PROMPT/MENU,
+  AUTHORITATIVE vs DERIVED/DISPLAY) flip the impulse's frame so the class follows the
+  consumer, not the wording. Broad option/axis reframing at the product level belongs to
+  `arcopolis-design-explore`.
 - **Floor vs seal:** in-loop gates (consumer-naming, body-read, scope-binding, the keyword
   over-trigger) RAISE THE FLOOR; the SEAL for possession/objective claims is an independent
   external check (human GUI-equivalence question or cross-model adversarial review). The
@@ -464,6 +503,10 @@ it is removed, they become inert.
 - **`ARTIFACT UNVERIFIED`:** proposed symbol not found in `ARCOPOLIS_STATE.md` / `AGENTS.md`.
   Open unknown, not a stop.
 - **`CLASS UNVERIFIED`:** consumer named but not anchored to a cited caller/surface. Risk flag.
+- **`AUTHORITY UNVERIFIED`:** a D/S field is a derived / cached / display copy (or cannot be
+  confirmed authoritative for the stated consumer), not the authoritative value — the Pass-2
+  AUTHORITATIVE-vs-DERIVED probe. Logged to `Open unknowns` for `arcopolis-claim-plan` to
+  resolve at its consumer re-derivation (item 4).
 - **`SPLIT DECLINED`:** user declined a class-based split.
 - **`SCOPE MISMATCH`:** cited predicate's scope ≠ goal-required scope. `AUDIT ONLY`.
 - **`SCOPE UNBOUNDED`:** no specific non-goal surface named in Pass 4. Yellow flag.
