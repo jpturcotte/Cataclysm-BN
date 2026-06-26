@@ -462,6 +462,20 @@ behavior change; doc 40 carries the old→new name map).
 | 25    | **carried-package observability v0** (`avatar.carried_items[]`): read-only export of the avatar's **top-level** carried items (wielded weapon / worn / top-level inventory stacks, each tagged `location`), additive to the avatar block (`schema_version` unchanged). **Level 1 — observation only**: no new input behavior, NO new level-4 claim; it reuses the Spike 12A/16 pickup to _create_ a carried item, then observes it. Proves the picked type enters `location:"inventory"` via a count-delta — but this is **display-only**, **NOT** the possession predicate (BN's `has_amount` recurses into worn containers, which this flat export omits by design); BN's own possession predicate (a follow-up query) is what answers Stage A possession, not this flat export. NO objective/mission state. NO nested-container / vehicle-cargo / NPC-inventory export; `wielded` is code-present but unwitnessed (unarmed `ArcopolisTest` avatar). One source file (`src/arcopolis_export.cpp`), no fixture change; witnessed by the extended W1 in `script_prompt_regression.ps1`; **process-failed (wrong primitive) — see postmortem doc 51**; doc 50                                                                                                                         | ✅                                      |
 | 26A   | **L1 on-person possession query** — observation of the on-person possession predicate as used by BN's DIALOGUE consumer (`condition.cpp` `set_has_items`). It does NOT answer `MGOAL_FIND_ITEM` mission completion (the mission consumer uses `crafting_inventory()`, broader scope — see Spike 26B). New live op `op:"query", kind:"has_item"` forwards verbatim to `get_avatar().has_charges(id,count) \|\| get_avatar().has_amount(id,count)` and returns `{ok:true, op:"query", kind:"has_item", has:<bool>, scope:"on_person_dialogue_predicate"}`. The literal scope string is the LOAD-BEARING LABELING GUARD repeated across the doc, the STATE row, the Catch2 test name, the response payload, and the regression PASS lines. Unknown `itype_id` → recoverable `bad_request` (never silent `has:false`). No engine touch, no per-transaction gate, no transcript engine event. Witnessed on `ArcopolisCarriedNestedTest` (a clone of `ArcopolisBackpackTest`, NOT regenerated; one `glass_shard` save-edited inside the worn backpack pocket — the container-recursion witness; one `rock` wielded; one `feather` on the avatar's own ground tile — the load-bearing anti-`crafting_inventory()` scope-pin). Gated by `spike26a_dialogue_predicate_regression.ps1`; doc 52 | ✅                                      |
 
+**Stage A carried-at-contact witness (L1, current truth — composition over existing surfaces, NO new
+spike, NO `src/` or fixture change).** A consumer can compute the chosen Stage A return signal
+`carried_at_contact = avatar.pos_abs == contact_pos_abs && query.has && query.scope ==
+"on_person_dialogue_predicate"` from native observations alone: live `op:"export"` for position
+(native-authority class **S**, `avatar.pos_abs`) and the Spike 26A live `op:"query"` for possession
+(class **C**), composed CONSUMER-SIDE — the backend gains no "return condition" API and mutates nothing.
+One `command move` `move_s` is used ONLY to manufacture the off-contact false-green, with a proven
+post-move `pos_abs != contact_pos_abs`. **L1 observation only — this is NOT mission completion**, not
+`MGOAL_FIND_ITEM`/`crafting_inventory()`, not NPC turn-in/dialogue, not L4. Gated by
+`stage_a_return_condition_regression.ps1` (ten hard gates incl. the scope-pin, anti-flat-export, and
+proven-off-contact-move rows) over `ArcopolisCarriedNestedTest`; doc 53. **Provisional — same-model
+review is a floor; not locked as "the Stage A return proof" until an external/cross-model seal confirms
+the wording and witness boundary.**
+
 ## Source & tests
 
 `src/arcopolis_export.{h,cpp}` (snapshot; `write_entities` → `entities.monsters[]` Spike 6A +
