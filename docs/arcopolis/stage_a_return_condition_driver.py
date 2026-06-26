@@ -145,155 +145,151 @@ def run(args):
     # mid-session (e.g. a SystemExit from _read_line_json). Matches the examine/prompt_menu driver pattern.
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     try:
-        return _run_session(p, args)
+        ready = _read_line_json(p, expected_type="ready")
+        summary = {
+            "ready": {"world": ready.get("world"), "protocol_version": ready.get("protocol_version")},
+            "gates": {},
+            "ok": True,
+        }
+        successful_query_scopes = []
+
+        def record(name, gate):
+            summary["gates"][name] = gate
+            if not gate.get("pass"):
+                summary["ok"] = False
+
+        # --- Contact instant: export position, then query the two contact-time cases. ---
+        _, contact_snap = _export(p, 1, "contact_start", args.export_dir)
+        contact_pos = contact_snap.get("avatar", {}).get("pos_abs")
+        if not (isinstance(contact_pos, list) and len(contact_pos) == 3):
+            raise SystemExit("fatal: contact snapshot has no avatar.pos_abs list: %r" % (contact_pos,))
+        flat_carried = _carried_type_ids(contact_snap)
+        flat_has_nested = NESTED in flat_carried
+        summary["contact_pos_abs"] = contact_pos
+        summary["flat_carried_type_ids"] = flat_carried
+
+        # (1) carried_at_contact_glass_shard: AT contact, has:true -> composite TRUE.
+        q1 = _query(p, 2, NESTED)
+        if q1.get("ok") is True:
+            successful_query_scopes.append(q1.get("scope"))
+        composite1 = _composite(True, q1.get("has") is True, q1.get("scope"))
+        # The anti-flat divergence is part of THIS gate's evidence: the predicate finds the nested package the
+        # flat export structurally cannot. We require has:true AND flat lacks the nested id (the divergence the
+        # postmortem named). A flat export that suddenly DOES contain it is a STOP -> re-audit, not a soft pass.
+        record("carried_at_contact_glass_shard", {
+            "pos_match": True, "query_ok": q1.get("ok"), "query_has": q1.get("has"),
+            "scope": q1.get("scope"), "flat_carried_has": flat_has_nested,
+            "composite": composite1, "expected": True,
+            "pass": (q1.get("ok") is True and composite1 is True),
+        })
+        # Dedicated anti-flat-authority gate: query true while the flat export omits the nested package.
+        record("flat_carried_items_not_authority", {
+            "query_has": q1.get("has"), "flat_carried_has": flat_has_nested,
+            "expected": "query has:true AND flat lacks " + NESTED,
+            "pass": (q1.get("has") is True and flat_has_nested is False),
+        })
+
+        # (2) dropped_at_contact_feather: AT contact, has:false -> composite FALSE (anti-crafting_inventory).
+        q2 = _query(p, 3, GROUND)
+        if q2.get("ok") is True:
+            successful_query_scopes.append(q2.get("scope"))
+        composite2 = _composite(True, q2.get("has") is True, q2.get("scope"))
+        record("dropped_at_contact_feather", {
+            "pos_match": True, "query_ok": q2.get("ok"), "query_has": q2.get("has"),
+            "scope": q2.get("scope"), "composite": composite2, "expected": False,
+            "pass": (q2.get("ok") is True and q2.get("has") is False and composite2 is False),
+        })
+
+        # --- Move OFF contact (witness tool only -- existing level 2/3 movement). Do not trust success. ---
+        _send(p, {"id": 4, "op": "command", "command": "move", "direction": "move_s"})
+        mv = _read_line_json(p, expected_type="response")
+        move_ok = (mv.get("ok") is True and mv.get("op") == "command")
+        if not move_ok:
+            # Blocked / prompted / rejected (e.g. Spike 21 unexpected_prompt). FAIL LOUD -- never silently
+            # treated as the wrong-position case. We still gather the post-move evidence below.
+            summary["ok"] = False
+        summary["move"] = {"ok": mv.get("ok"), "op": mv.get("op"),
+                           "error_code": (mv.get("error") or {}).get("code")}
+
+        # Export AFTER the move and PROVE the position changed (the plan's hard requirement).
+        _, after_snap = _export(p, 5, "after_move", args.export_dir)
+        after_pos = after_snap.get("avatar", {}).get("pos_abs")
+        if not (isinstance(after_pos, list) and len(after_pos) == 3):
+            raise SystemExit("fatal: after-move snapshot has no avatar.pos_abs list: %r" % (after_pos,))
+        delta = [after_pos[i] - contact_pos[i] for i in range(3)]
+        moved_off_contact = (after_pos != contact_pos)
+        south_single_tile = (delta == [0, 1, 0])  # move_s = +y, one tile (move_se asserts [1,1,0])
+        summary["after_pos_abs"] = after_pos
+        summary["move"].update({"moved_off_contact": moved_off_contact, "delta": delta,
+                                "south_single_tile": south_single_tile})
+
+        # (3) wrong_position_glass_shard: AFTER the move, still has:true but pos != contact -> composite FALSE.
+        q3 = _query(p, 6, NESTED)
+        if q3.get("ok") is True:
+            successful_query_scopes.append(q3.get("scope"))
+        after_pos_match = (after_pos == contact_pos)
+        composite3 = _composite(after_pos_match, q3.get("has") is True, q3.get("scope"))
+        record("wrong_position_glass_shard", {
+            "pos_match": after_pos_match, "query_ok": q3.get("ok"), "query_has": q3.get("has"),
+            "scope": q3.get("scope"), "composite": composite3, "expected": False,
+            "moved_off_contact": moved_off_contact, "delta": delta, "move_ok": move_ok,
+            # Possession must still be true (the package is carried), position must differ, and the move must
+            # have genuinely happened (proven off-contact + clean command), or the false-green is unproven.
+            "pass": (q3.get("ok") is True and q3.get("has") is True and composite3 is False and
+                     moved_off_contact and south_single_tile and move_ok),
+        })
+
+        # (4) absent_hairpin: a valid-but-absent id -> has:false -> composite FALSE.
+        q4 = _query(p, 7, ABSENT)
+        if q4.get("ok") is True:
+            successful_query_scopes.append(q4.get("scope"))
+        composite4 = _composite(after_pos_match, q4.get("has") is True, q4.get("scope"))
+        record("absent_hairpin", {
+            "pos_match": after_pos_match, "query_ok": q4.get("ok"), "query_has": q4.get("has"),
+            "scope": q4.get("scope"), "composite": composite4, "expected": False,
+            "pass": (q4.get("ok") is True and q4.get("has") is False and composite4 is False),
+        })
+
+        # (5) unknown_id_fail_loud: garbage itype_id -> ok:false, bad_request (recoverable). Health gate only;
+        # Spike 26A already proves it -- NOT new Stage A evidence.
+        q5 = _query(p, 8, UNKNOWN)
+        record("unknown_id_fail_loud", {
+            "query_ok": q5.get("ok"), "error_code": (q5.get("error") or {}).get("code"),
+            "expected": "ok:false code:bad_request",
+            "pass": (q5.get("ok") is False and (q5.get("error") or {}).get("code") == "bad_request"),
+        })
+
+        # (scope) labelling guard: every SUCCESSFUL query carried the literal scope string verbatim. The count
+        # guard (== 4) is load-bearing, not decorative: it pins the four successful queries (q1 glass@contact,
+        # q2 feather@contact, q3 glass@after, q4 hairpin@after; q5 is the unknown id -> ok:false, never appended)
+        # AND stops all([]) from passing vacuously if every query had failed. Update it if a query case is added.
+        scope_label_ok = all(s == SCOPE for s in successful_query_scopes) and len(successful_query_scopes) == 4
+        # Recorded at the top level (parallel to summary["ok"]), intentionally NOT under summary["gates"]: this is
+        # a cross-cutting invariant over all queries, not a per-case gate; the wrapper reads $result.scope_label_ok.
+        summary["scope_label_ok"] = scope_label_ok
+        summary["successful_query_scopes"] = successful_query_scopes
+        if not scope_label_ok:
+            summary["ok"] = False
+
+        # --- Clean quit. ---
+        _send(p, {"id": 99, "op": "quit"})
+        qresp = _read_line_json(p, expected_type="response")
+        summary["quit_ok"] = (qresp.get("ok") is True and qresp.get("status") == "session_end")
+        if not summary["quit_ok"]:
+            summary["ok"] = False
+        try:
+            rc = p.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            rc = -1
+        summary["process_exit_code"] = rc
+        if rc != 0:
+            summary["ok"] = False
+
+        return summary
     finally:
         if p.poll() is None:
             p.kill()  # never leave an orphaned backend if the driver aborts mid-session
-
-
-def _run_session(p, args):
-    ready = _read_line_json(p, expected_type="ready")
-    summary = {
-        "ready": {"world": ready.get("world"), "protocol_version": ready.get("protocol_version")},
-        "gates": {},
-        "ok": True,
-    }
-    successful_query_scopes = []
-
-    def record(name, gate):
-        summary["gates"][name] = gate
-        if not gate.get("pass"):
-            summary["ok"] = False
-
-    # --- Contact instant: export position, then query the two contact-time cases. ---
-    _, contact_snap = _export(p, 1, "contact_start", args.export_dir)
-    contact_pos = contact_snap.get("avatar", {}).get("pos_abs")
-    if not (isinstance(contact_pos, list) and len(contact_pos) == 3):
-        raise SystemExit("fatal: contact snapshot has no avatar.pos_abs list: %r" % (contact_pos,))
-    flat_carried = _carried_type_ids(contact_snap)
-    flat_has_nested = NESTED in flat_carried
-    summary["contact_pos_abs"] = contact_pos
-    summary["flat_carried_type_ids"] = flat_carried
-
-    # (1) carried_at_contact_glass_shard: AT contact, has:true -> composite TRUE.
-    q1 = _query(p, 2, NESTED)
-    if q1.get("ok") is True:
-        successful_query_scopes.append(q1.get("scope"))
-    composite1 = _composite(True, q1.get("has") is True, q1.get("scope"))
-    # The anti-flat divergence is part of THIS gate's evidence: the predicate finds the nested package the
-    # flat export structurally cannot. We require has:true AND flat lacks the nested id (the divergence the
-    # postmortem named). A flat export that suddenly DOES contain it is a STOP -> re-audit, not a soft pass.
-    record("carried_at_contact_glass_shard", {
-        "pos_match": True, "query_ok": q1.get("ok"), "query_has": q1.get("has"),
-        "scope": q1.get("scope"), "flat_carried_has": flat_has_nested,
-        "composite": composite1, "expected": True,
-        "pass": (q1.get("ok") is True and composite1 is True),
-    })
-    # Dedicated anti-flat-authority gate: query true while the flat export omits the nested package.
-    record("flat_carried_items_not_authority", {
-        "query_has": q1.get("has"), "flat_carried_has": flat_has_nested,
-        "expected": "query has:true AND flat lacks " + NESTED,
-        "pass": (q1.get("has") is True and flat_has_nested is False),
-    })
-
-    # (2) dropped_at_contact_feather: AT contact, has:false -> composite FALSE (anti-crafting_inventory).
-    q2 = _query(p, 3, GROUND)
-    if q2.get("ok") is True:
-        successful_query_scopes.append(q2.get("scope"))
-    composite2 = _composite(True, q2.get("has") is True, q2.get("scope"))
-    record("dropped_at_contact_feather", {
-        "pos_match": True, "query_ok": q2.get("ok"), "query_has": q2.get("has"),
-        "scope": q2.get("scope"), "composite": composite2, "expected": False,
-        "pass": (q2.get("ok") is True and q2.get("has") is False and composite2 is False),
-    })
-
-    # --- Move OFF contact (witness tool only -- existing level 2/3 movement). Do not trust success. ---
-    _send(p, {"id": 4, "op": "command", "command": "move", "direction": "move_s"})
-    mv = _read_line_json(p, expected_type="response")
-    move_ok = (mv.get("ok") is True and mv.get("op") == "command")
-    if not move_ok:
-        # Blocked / prompted / rejected (e.g. Spike 21 unexpected_prompt). FAIL LOUD -- never silently
-        # treated as the wrong-position case. We still gather the post-move evidence below.
-        summary["ok"] = False
-    summary["move"] = {"ok": mv.get("ok"), "op": mv.get("op"),
-                       "error_code": (mv.get("error") or {}).get("code")}
-
-    # Export AFTER the move and PROVE the position changed (the plan's hard requirement).
-    _, after_snap = _export(p, 5, "after_move", args.export_dir)
-    after_pos = after_snap.get("avatar", {}).get("pos_abs")
-    if not (isinstance(after_pos, list) and len(after_pos) == 3):
-        raise SystemExit("fatal: after-move snapshot has no avatar.pos_abs list: %r" % (after_pos,))
-    delta = [after_pos[i] - contact_pos[i] for i in range(3)]
-    moved_off_contact = (after_pos != contact_pos)
-    south_single_tile = (delta == [0, 1, 0])  # move_s = +y, one tile (move_se asserts [1,1,0])
-    summary["after_pos_abs"] = after_pos
-    summary["move"].update({"moved_off_contact": moved_off_contact, "delta": delta,
-                            "south_single_tile": south_single_tile})
-
-    # (3) wrong_position_glass_shard: AFTER the move, still has:true but pos != contact -> composite FALSE.
-    q3 = _query(p, 6, NESTED)
-    if q3.get("ok") is True:
-        successful_query_scopes.append(q3.get("scope"))
-    after_pos_match = (after_pos == contact_pos)
-    composite3 = _composite(after_pos_match, q3.get("has") is True, q3.get("scope"))
-    record("wrong_position_glass_shard", {
-        "pos_match": after_pos_match, "query_ok": q3.get("ok"), "query_has": q3.get("has"),
-        "scope": q3.get("scope"), "composite": composite3, "expected": False,
-        "moved_off_contact": moved_off_contact, "delta": delta, "move_ok": move_ok,
-        # Possession must still be true (the package is carried), position must differ, and the move must
-        # have genuinely happened (proven off-contact + clean command), or the false-green is unproven.
-        "pass": (q3.get("ok") is True and q3.get("has") is True and composite3 is False and
-                 moved_off_contact and south_single_tile and move_ok),
-    })
-
-    # (4) absent_hairpin: a valid-but-absent id -> has:false -> composite FALSE.
-    q4 = _query(p, 7, ABSENT)
-    if q4.get("ok") is True:
-        successful_query_scopes.append(q4.get("scope"))
-    composite4 = _composite(after_pos_match, q4.get("has") is True, q4.get("scope"))
-    record("absent_hairpin", {
-        "pos_match": after_pos_match, "query_ok": q4.get("ok"), "query_has": q4.get("has"),
-        "scope": q4.get("scope"), "composite": composite4, "expected": False,
-        "pass": (q4.get("ok") is True and q4.get("has") is False and composite4 is False),
-    })
-
-    # (5) unknown_id_fail_loud: garbage itype_id -> ok:false, bad_request (recoverable). Health gate only;
-    # Spike 26A already proves it -- NOT new Stage A evidence.
-    q5 = _query(p, 8, UNKNOWN)
-    record("unknown_id_fail_loud", {
-        "query_ok": q5.get("ok"), "error_code": (q5.get("error") or {}).get("code"),
-        "expected": "ok:false code:bad_request",
-        "pass": (q5.get("ok") is False and (q5.get("error") or {}).get("code") == "bad_request"),
-    })
-
-    # (scope) labelling guard: every SUCCESSFUL query carried the literal scope string verbatim. The count
-    # guard (== 4) is load-bearing, not decorative: it pins the four successful queries (q1 glass@contact,
-    # q2 feather@contact, q3 glass@after, q4 hairpin@after; q5 is the unknown id -> ok:false, never appended)
-    # AND stops all([]) from passing vacuously if every query had failed. Update it if a query case is added.
-    scope_label_ok = all(s == SCOPE for s in successful_query_scopes) and len(successful_query_scopes) == 4
-    # Recorded at the top level (parallel to summary["ok"]), intentionally NOT under summary["gates"]: this is
-    # a cross-cutting invariant over all queries, not a per-case gate; the wrapper reads $result.scope_label_ok.
-    summary["scope_label_ok"] = scope_label_ok
-    summary["successful_query_scopes"] = successful_query_scopes
-    if not scope_label_ok:
-        summary["ok"] = False
-
-    # --- Clean quit. ---
-    _send(p, {"id": 99, "op": "quit"})
-    qresp = _read_line_json(p, expected_type="response")
-    summary["quit_ok"] = (qresp.get("ok") is True and qresp.get("status") == "session_end")
-    if not summary["quit_ok"]:
-        summary["ok"] = False
-    try:
-        rc = p.wait(timeout=15)
-    except subprocess.TimeoutExpired:
-        p.kill()
-        rc = -1
-    summary["process_exit_code"] = rc
-    if rc != 0:
-        summary["ok"] = False
-
-    return summary
 
 
 def main(argv=None):
