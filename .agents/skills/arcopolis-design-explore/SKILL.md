@@ -43,13 +43,33 @@ user to `arcopolis-design-interrogate` (user-invoked), or route to `arcopolis-cl
    as the plan.
 4. Derive native-authority guesses yourself from the downstream consumer; do not ask the
    user to choose A/B/C/D/S. Label each as `Native-authority guess`, not final class.
-5. Give exactly one recommendation and exactly one anti-recommendation.
-6. Name intent forks only at the product/intent level; do not ask the user to classify engine
+5. **Orthogonal reframing pass (after candidates, before the recommendation).** An
+   **orthogonal reframe** changes the decision _axis_ before accepting the user's framing;
+   it is not a larger or smaller version of the same task. A valid reframe must state what
+   it changes — route, downstream consumer, native-authority class guess, active mechanism,
+   witness, stop condition, or scope. At least one candidate OR one explicitly rejected
+   framing must be orthogonal to the user's proposed direction, and must name which of those
+   axes it changes. When the prompt is open-ended with NO proposed direction (e.g. "what
+   should we do next?"), reframe instead against the INERTIAL next step — the obvious /
+   most-likely candidate the current state invites — and name that baseline. A "reframe" that
+   changes none of
+   those is the same task restated, not an orthogonal one — this is the cheap counter to
+   anchoring on the prompt's framing, the pattern behind the Spike-25 miss, where "what can a
+   frontend SHOW about carried items?" (display, D) was never flipped to "what engine
+   PREDICATE answers possession?" (C). Do not proceed to a Task Statement Card or
+   implementation from this pass. Flip the decision on one of these product-level axes:
+   - product proof vs backend authority proof,
+   - display surface (D) vs engine predicate (C),
+   - frontend prototype vs backend witness,
+   - implementation vs audit-only,
+   - Stage A proof vs Stage B ambition.
+6. Give exactly one recommendation and exactly one anti-recommendation.
+7. Name intent forks only at the product/intent level; do not ask the user to classify engine
    authority, choose equivalence levels, or walk call paths.
-7. End with one narrowed handoff impulse the user can paste into a new
+8. End with one narrowed handoff impulse the user can paste into a new
    `arcopolis-design-interrogate` session (interrogate is user-invoked and requires
    per-pass user answers).
-8. Explicitly state that the workflow should not proceed to implementation from this brief.
+9. Explicitly state that the workflow should not proceed to implementation from this brief.
 
 ## Evidence Labels
 
@@ -97,6 +117,7 @@ Produce this conceptual structure:
 Question restated
 Current-state anchors
 Candidate directions
+Orthogonal reframe (what axis it flips; what it changes vs the user's framing)
 Recommendation
 Anti-recommendation
 Intent forks for the user
@@ -138,7 +159,13 @@ The skill fails if it:
 - does not provide exactly one anti-recommendation;
 - has no handoff impulse;
 - replaces `arcopolis-design-interrogate` instead of feeding it;
-- leaves broad "what-next" routing ambiguous with `arcopolis-claim-plan`.
+- leaves broad "what-next" routing ambiguous with `arcopolis-claim-plan`;
+- offers only smaller-or-larger variants of the user's proposed direction (or, for an
+  open-ended prompt, of the inertial next step), with no candidate or rejected framing
+  orthogonal to it (no orthogonal reframing pass);
+- states an "orthogonal reframe" that names no change to any of the reframe axes (route,
+  downstream consumer, native-authority class guess, active mechanism, witness, stop
+  condition, or scope) — a same-task restatement, not a reframe.
 
 ## Validation / Self-Check Examples
 
@@ -192,9 +219,17 @@ Expected:
 - Treat inventory display as one candidate, not the plan.
 - Provide alternatives and tradeoffs.
 - State what inventory display would prove and what it would not prove.
+- Include a real orthogonal reframe, not just more options: flip the decision axis from
+  "display surface" to "engine predicate" — e.g. "expose BN's own possession predicate
+  (`has_amount`/`has_charges`)" instead of a richer carried-items list. Name what the
+  reframe changes: downstream consumer (frontend display → engine condition check),
+  native-authority class guess (D → C), and witness (a snapshot field → a
+  predicate-divergence state, an item nested in a worn container). This is the Spike-25
+  lesson made routine.
 - Give one recommendation and one anti-recommendation.
 - Hand off only the narrowed choice.
-- Do not simply validate the user's proposal.
+- Do not simply validate the user's proposal, and do not offer only larger/smaller
+  inventory-display variants.
 
 ### V4 - Already Narrow Task
 

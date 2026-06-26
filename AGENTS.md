@@ -155,6 +155,33 @@ it rides on; classifying it **D** or **S** to skip the predicate body-read is th
 (Procedural detail lives in the `arcopolis-*` governance skills; this is the canonical class list they
 defer to.)
 
+### Orthogonal-reframe axes (the canonical set)
+
+An **orthogonal reframe** changes the decision _axis_ before accepting the user's or author's
+framing — not a larger or smaller version of the same task. The `arcopolis-*` governance skills
+(design-explore, design-interrogate, claim-plan, build-from-approved-plan, red-team-review) each
+require a reframe to name which axis it changes, and all defer to the SAME set defined here. This
+block is the single source of truth; a skill copy must not drift from it.
+
+<!-- canonical-reframe-axes:start -->
+
+route, downstream consumer, native-authority class guess, active mechanism, witness, stop condition, scope
+
+<!-- canonical-reframe-axes:end -->
+
+`native-authority class guess` is the load-bearing axis: dropping it is the Spike-25 class-drift
+shape (display-D laundered as predicate-C). In PR #79 a build-skill copy silently dropped it; every
+in-loop same-model gate graded that a non-blocking NOTE and only a cross-model reviewer escalated it.
+Two guards follow:
+
+- **Mechanical floor.** `deno test --allow-read .agents/arcopolis_reframe_axes_test.ts` (also run in
+  CI by `deno test`) fails if any governance skill's canonical list drifts from this block. It
+  catches a dropped or renamed axis deterministically; it cannot judge whether the set is correct.
+- **Cross-author seal.** Adding, removing, or renaming an axis here is a framing edit: an in-loop
+  same-model review is a FLOOR, not a seal, because it keys on the very judgment that could be wrong.
+  Route any such change to an external / cross-model seal — see `arcopolis-red-team-review`
+  "Spec-frame challenge" and `docs/arcopolis/reframe_axis_external_seal_prompt.md` — before merge.
+
 ### Backend documentation
 
 **Read first (current truth):** `docs/arcopolis/ARCOPOLIS_STATE.md` — a single-page checkpoint of the backend's current architecture (the input-seam design), the snapshot/transcript contract, capabilities by spike, and the deferred backlog. The numbered `NN_SPIKE*.md` files are the chronological record (including the failed Spike 3); list the live set with `Get-ChildItem docs/arcopolis`.
