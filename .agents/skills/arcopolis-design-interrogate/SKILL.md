@@ -57,8 +57,9 @@ standardized gate scored 0% catch; the only real catch came from OUTSIDE the loo
 second pass by the SAME model shares the same prior and modally repeats the error. So any
 possession / mission / objective / Stage-blocking card is marked `External-seal required:
 YES` and is NOT plan-ready until an independent check — a human GUI-equivalence
-confirmation, or a cross-model adversarial pass (`arcopolis-red-team-review` /
-`/code-review ultra` run by a different reasoner) — names the concrete engine consumer and
+confirmation, or a blind cross-model read by a different reasoner (the
+`arcopolis-red-team-review` / `/code-review ultra` tools are not yet a sanctioned blind
+channel — see the External-seal section) — names the concrete engine consumer and
 reads its body. Do NOT represent any in-loop pass, including this skill's own, as that
 seal.
 

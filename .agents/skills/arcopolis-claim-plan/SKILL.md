@@ -29,9 +29,11 @@ If the incoming task statement is a Task Statement Card from `arcopolis-design-i
   wants), not a proxy substituted for it; no separate resolution path is added.
 - an `External-seal required: YES` card (any possession / mission / objective / state-check
   / Stage-blocking goal) is a HARD BLOCK on a Stage-blocking witness until an INDEPENDENT
-  check clears it — a human "equivalent to WHAT?" GUI-equivalence confirmation or a
-  cross-model adversarial review (`arcopolis-red-team-review` / `/code-review ultra` run by
-  a different reasoner). A same-model in-loop re-read does NOT clear it: the canonical
+  check clears it — a human "equivalent to WHAT?" GUI-equivalence confirmation or a blind
+  cross-model read by a different reasoner (the `arcopolis-red-team-review` / `/code-review
+  ultra` tools are not yet a sanctioned blind channel — they rate an existing claim; see
+  `arcopolis-design-interrogate`'s External-seal section). A same-model in-loop re-read does
+  NOT clear it: the canonical
   Spike-25 failure was caught only from outside the loop, and the in-loop gates scored 0%.
 
 A card carrying no blocking flag still has its consumer re-derived at item 4 — the
