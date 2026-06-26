@@ -254,7 +254,9 @@ top-level sources only. A `Predicate-read owed` card with no such body-read is N
 wrong. Record BOTH the goal's REQUIRED scope and the cited predicate's ACTUAL scope (proven
 by its body). On mismatch — e.g. on-person `set_has_items` cited for a goal needing
 `MGOAL_FIND_ITEM`'s `crafting_inventory()` reach — output `AUDIT ONLY` (`SCOPE MISMATCH`);
-do not write the wrong-scope predicate confidently.
+do not write the wrong-scope predicate confidently. `SCOPE MISMATCH` requires a KNOWN
+goal-required scope: if the goal-required scope is `UNKNOWN`, do not fire a mismatch — route
+to the citation threshold (treat as `MECHANISM UNKNOWN` until the required scope is pinned).
 
 **Proxy substitution.** If the only surface the agent can cite for a B/C goal is a D/S
 display/raw export (no predicate/loop exposed) → log `PROXY SUBSTITUTION` and treat as
@@ -288,18 +290,41 @@ _Failure mode addressed:_ "One witnessed path generalized into prompt-class supp
 the non-goal violation documented across Spikes 12A, 13B, and in `arcopolis-claim-plan`'s
 hard rules.
 
-Ask: "Name one thing this change must NOT affect — a surface, a mechanism, or a
-capability that must remain unchanged."
+Ask an intent question: "What must this change NOT do — what existing behavior, surface, or
+system must it leave intact, or reuse rather than re-implement?" Plain language is the
+expected answer (e.g. "don't add a parallel surface alongside the existing engine code").
+The non-goal boundary is USER-OWNED (see "Who decides what"); do not demand the user name a
+symbol.
 
-Accept only a specific artifact name: a file, a registered action, a seam, or a named
-capability. Do not accept category-level answers: "existing behavior," "the save system,"
-and "the UI layer" are not artifact names. If the user provides only a category: ask
-once for a specific name. If still no specific name: log `SCOPE UNBOUNDED` and continue.
+Then, by what the user gives:
 
-**Self-contradiction check.** After accepting a specific non-goal name: does it name
+- **User names a concrete artifact** (a file, registered action, seam, or named capability)
+  → accept it directly as the non-goal.
+- **User gives a plain-language boundary** → the agent OPERATIONALIZES it by reading the
+  source and PROPOSING 1-3 concrete candidate non-goal artifacts the boundary maps to (for
+  "don't create a parallel surface", the existing engine path the change must route THROUGH
+  rather than duplicate). Present them as proposals and STOP for the user to pick or reject.
+  Record ONLY the artifact the user explicitly confirms — an unconfirmed proposal is NOT the
+  non-goal, and "I'll treat X as the non-goal" without an explicit user pick is forbidden (it
+  would let the agent self-record a convenient, non-binding bound). The user, seeing a
+  concrete artifact, can reject a weak choice and name the real one.
+- **User states no boundary, or rejects every proposal without naming one** → log
+  `NON-GOAL-UNBOUNDED` and continue. Do NOT fabricate a bound.
+- **Edge — a genuine boundary with no concrete artifact in source** → say so and record the
+  user's plain-language boundary as an artifact-unanchored non-goal, distinct from
+  `NON-GOAL-UNBOUNDED` (which means no boundary at all).
+
+**Actor invariant.** The user OWNS the boundary (states it; confirms or names the binding
+artifact); the agent ASSISTS (proposes concrete candidates from the code; never binds).
+Recording requires an explicit user decision — this keeps the non-goal an independent,
+user-anchored guardrail while sparing the user from naming a symbol the agent should surface.
+
+**Self-contradiction check.** After a specific non-goal artifact is confirmed: does it name
 the exact same artifact as the goal artifact from Pass 1? If yes: output
 `SELF-CONTRADICTORY SCOPE — the goal and the stated non-goal name the same artifact.
-A Task Statement Card cannot be produced.` Stop. This check is name-identity only.
+A Task Statement Card cannot be produced.` Stop. This check is name-identity only, and is
+skipped (not fired) when Pass 1 produced no concrete goal artifact (`TARGET UNKNOWN` /
+`ARTIFACT UNVERIFIED`).
 
 Do not prompt for a comprehensive exclusion list. That is impact mapping's job in
 `arcopolis-claim-plan`.
@@ -323,9 +348,10 @@ implementation were wrong." A C-class predicate may have no GUI player action at
 e.g. a dialogue/mission condition; the authority is the engine call's returned value, not
 a keypress. Do not demand a GUI-action witness, and do not mark `FALSIFICATION UNKNOWN`
 merely because no player action exists — compare result to predicate on the same state.
-The divergence state should exercise the SCOPE the goal requires (e.g. an item nested in a
-worn container, or off-person within crafting reach) so a flat or wrong-scope surface is
-caught.
+The AGENT refines the user's stated divergence so the resulting state exercises the SCOPE the
+goal requires (e.g. an item nested in a worn container, or off-person within crafting reach)
+so a flat or wrong-scope surface is caught — the user is not asked to name that
+scope-exercising state.
 
 **For D-class goals:** "Name a game state where the export would diverge from what the
 GUI would actually DISPLAY for that field — the native display mechanism, formatted /
@@ -342,9 +368,14 @@ The answer must reference engine state or behavior, not output appearance or aes
 difference. "The JSON would look different" is not a falsification criterion. "The
 engine predicate would return true when the export returns false" is.
 
-If the user cannot state a behavioral divergence after one follow-up: log
-`FALSIFICATION UNKNOWN`. This does not block the card, but `arcopolis-claim-plan` must
-address it before any witness is chosen.
+**Actor split.** The user supplies the plain-language WRONGNESS — what observable behavior
+would be wrong ("the engine would say the avatar has it, but our surface would say no"). The
+AGENT refines that into the scope-exercising divergence state above. Do not charge the user
+with the scope-specific state — that is the agent's job.
+
+If the user cannot state ANY behavioral wrongness after one follow-up — not merely the
+scope-exercising specifics, which the agent supplies — log `FALSIFICATION UNKNOWN`. This does
+not block the card, but `arcopolis-claim-plan` must address it before any witness is chosen.
 
 ## Output
 
@@ -353,13 +384,13 @@ address it before any witness is chosen.
 ```
 Task:                  [one sentence, active verb, names the engine artifact]
 Downstream consumer:   [named consumer — display / snapshot / action / menu-loop / predicate — or UNKNOWN]
-Native-auth class:     [A / B / C / D / S — agent-derived, CLAIMED not proven — or UNVERIFIED]
+Native-auth class:     [A / B / C / D / S — agent-derived, CLAIMED not proven — or UNKNOWN]
 Goal-required scope:   [on-person / container-deep / crafting reach / map / GUI display / raw field / UNKNOWN]
 Authority target:      [cited file:function / display surface / raw field — or UNKNOWN]
 Authority scope:       [scope proven by the cited body — or UNKNOWN]
 Predicate-read owed:   [YES (with trigger basis) / NO]
 External-seal required:[YES (possession/objective/Stage-blocking) / NO]
-External-seal status:  [not required / required (pending) / cleared by human / cleared by cross-model / blocked]
+External-seal status:  [not required / required (pending) / cleared by human / cleared by blind cross-model read / AUDIT ONLY (reviewer disagreed or returned UNKNOWN)]
 External-seal evidence:[link, quote, or reviewer-output summary — or NONE]
 Must NOT touch:        [named surface, seam, or capability — or UNBOUNDED]
 Falsification:         [C: vs engine predicate result on the same state · D: vs GUI display · S: vs raw state · A: engine-state/seam divergence — or UNKNOWN]
@@ -383,8 +414,9 @@ state-check / Stage-blocking goal — is NOT plan-ready on this skill's output a
 seal (name the concrete engine consumer, read its body, discriminate predicate C from
 display D on the same state) must be performed or adjudicated by a reasoner that does NOT
 share this agent's prior: a human "equivalent to WHAT?" GUI-equivalence confirmation, an
-external review, or a cross-model adversarial pass (`arcopolis-red-team-review` /
-`/code-review ultra` run by a different reasoner). This skill's in-loop gates raise the
+external review, or a cross-model reasoner given the blind input below. (The
+`arcopolis-red-team-review` / `/code-review ultra` TOOLS are NOT yet a sanctioned blind
+channel — see the tool-channel limitation below.) This skill's in-loop gates raise the
 floor; they are NOT the seal — every in-loop standardized gate scored 0% catch on the
 canonical failure. Record the seal state on the card; `arcopolis-claim-plan` must not
 advance a possession/objective card to a Stage-blocking witness until it is cleared.
@@ -498,6 +530,10 @@ it is removed, they become inert.
 - **`External-seal required`:** a possession/objective/Stage-blocking card needs an
   independent (human / cross-model) check before it is plan-ready.
 - **Proxy substitution:** a D/S surface offered as the B/C mechanism. `AUDIT ONLY`.
+- **`MECHANISM UNKNOWN`:** no citable authority mechanism (predicate body / input loop /
+  handler) for the goal — the genus; `PROXY SUBSTITUTION` and `SCOPE MISMATCH` are named
+  sub-causes. Class-dependent disposition: A-class logs and continues to Pass 4; B/C-class is
+  terminal `AUDIT ONLY`.
 - **Classifier / Prober / Bounder:** the functions of Passes 2, 3, 4 — sequential, not
   multi-agent roles.
 - **`ARTIFACT UNVERIFIED`:** proposed symbol not found in `ARCOPOLIS_STATE.md` / `AGENTS.md`.
@@ -508,8 +544,12 @@ it is removed, they become inert.
   AUTHORITATIVE-vs-DERIVED probe. Logged to `Open unknowns` for `arcopolis-claim-plan` to
   resolve at its consumer re-derivation (item 4).
 - **`SPLIT DECLINED`:** user declined a class-based split.
-- **`SCOPE MISMATCH`:** cited predicate's scope ≠ goal-required scope. `AUDIT ONLY`.
-- **`SCOPE UNBOUNDED`:** no specific non-goal surface named in Pass 4. Yellow flag.
+- **`SCOPE MISMATCH`:** cited predicate's scope ≠ goal-required scope. `AUDIT ONLY`. Requires
+  a KNOWN goal-required scope; an `UNKNOWN` required scope routes to the citation threshold,
+  not a mismatch.
+- **`NON-GOAL-UNBOUNDED`:** no user-owned non-goal boundary established in Pass 4 — the user
+  named none and confirmed no proposed candidate. Yellow flag. (Renamed from `SCOPE UNBOUNDED`
+  so it stops colliding with the agent-derived authority/goal scope.)
 - **`FALSIFICATION UNKNOWN`:** no behavioral divergence stated in Pass 5. `arcopolis-claim-plan`
   must resolve before any witness.
 - **`SELF-CONTRADICTORY SCOPE`:** goal and non-goal name the same artifact. A separate
