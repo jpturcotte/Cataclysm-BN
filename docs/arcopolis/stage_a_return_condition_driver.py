@@ -139,8 +139,19 @@ def _composite(pos_match, has, scope):
 def run(args):
     cmd = [args.exe, "--arcopolis-live", "--world", args.world, "--userdir", args.userdir,
            "--arcopolis-export-dir", args.export_dir]
-    p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # Inherit the parent's stderr (the pwsh wrapper redirects it to a log file) instead of capturing it in
+    # an unread PIPE: an unread stderr=PIPE can deadlock if the backend floods it, and silently discards
+    # crash logs. Wrap the session in try/finally so the backend is never left running if the driver aborts
+    # mid-session (e.g. a SystemExit from _read_line_json). Matches the examine/prompt_menu driver pattern.
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    try:
+        return _run_session(p, args)
+    finally:
+        if p.poll() is None:
+            p.kill()  # never leave an orphaned backend if the driver aborts mid-session
 
+
+def _run_session(p, args):
     ready = _read_line_json(p, expected_type="ready")
     summary = {
         "ready": {"world": ready.get("world"), "protocol_version": ready.get("protocol_version")},

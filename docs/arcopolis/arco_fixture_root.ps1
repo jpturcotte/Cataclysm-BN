@@ -48,3 +48,36 @@ function Resolve-ArcoFixtureRoot {
     # "fixture not found: <path>" guard names the location a contributor should restore.
     return $repoLocal
 }
+
+function Format-ArcoPath {
+    <#
+    .SYNOPSIS
+      Redact the user-profile / home portion of a path for diagnostic output (AGENTS.md privacy rule).
+
+    .DESCRIPTION
+      A committed regression script MUST NOT echo identifying local paths (e.g. C:\Users\<name>\...) by
+      default — see AGENTS.md "Privacy and Environment Documentation" ("MUST redact local paths from
+      diagnostic script output by default. If exact paths are useful, require an explicit opt-in flag such
+      as -RevealPaths"). This collapses the $USERPROFILE / $HOME prefix to "<user-profile>" and any other
+      \Users\<name> segment to \Users\<user>, so a copied failure log carries no username. Relative paths
+      and the AGENTS.md-approved non-sensitive roots (C:\dev\*, C:\tmp\*) contain no username and pass
+      through UNCHANGED, so default-path diagnostics are unaffected. Set $env:ARCO_REVEAL_PATHS to a
+      non-empty value (the explicit opt-in) to print full paths.
+
+      Wrap path interpolations in diagnostic messages, e.g.:
+          Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)" 3
+    #>
+    param([string]$Path)
+    if( -not $Path ) { return $Path }
+    if( $env:ARCO_REVEAL_PATHS ) { return $Path }   # opt-in: print full paths (empty = unset)
+    $redacted = $Path
+    # Collapse a leading $USERPROFILE / $HOME prefix (handles a redirected profile not literally C:\Users\<name>).
+    foreach( $root in @($env:USERPROFILE, $HOME) ) {
+        if( $root -and $redacted.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase) ) {
+            $redacted = '<user-profile>' + $redacted.Substring($root.Length)
+            break
+        }
+    }
+    # Redact any remaining \Users\<name> segment (e.g. an override path under a different profile).
+    return [regex]::Replace($redacted, '(?i)\\Users\\[^\\]+', '\Users\<user>')
+}
