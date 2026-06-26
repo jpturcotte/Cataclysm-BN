@@ -116,7 +116,7 @@ $p = Start-Process -FilePath "python" -ArgumentList $argList -NoNewWindow -Wait 
 
 $fail = 0
 
-# --- Hard gate 1: driver exits 0. ---
+# --- Setup check (NOT one of the ten PASS/FAIL gates): driver exits 0; else abandon the gates. ---
 if( $p.ExitCode -ne 0 ) {
     Write-Host "  FAIL: driver exited $($p.ExitCode) (expected 0). stderr: $(Get-Content $stderrPath -Raw -ErrorAction SilentlyContinue)" -ForegroundColor Red
     Write-Host "STAGE A RETURN-CONDITION REGRESSION: driver failed, abandoning gates." -ForegroundColor Red
@@ -128,7 +128,7 @@ if( -not (Test-Path $resultPath) ) {
 $result = Get-Content $resultPath -Raw | ConvertFrom-Json
 $gates  = $result.gates
 
-# --- Hard gate 2: backend exited 0; session_end seen. ---
+# --- Hard gate 1: backend exited 0; session_end seen. ---
 if( $result.process_exit_code -ne 0 ) {
     Write-Host "  FAIL: backend exited $($result.process_exit_code) (expected 0)." -ForegroundColor Red
     $fail++
@@ -139,7 +139,7 @@ if( $result.process_exit_code -ne 0 ) {
     Write-Host "  PASS: backend exit 0, session_end observed." -ForegroundColor Green
 }
 
-# --- Hard gate 3: ready event reports protocol_version 1 and the requested world. ---
+# --- Hard gate 2: ready event reports protocol_version 1 and the requested world. ---
 if( $result.ready.protocol_version -ne 1 -or $result.ready.world -ne $World ) {
     Write-Host "  FAIL: ready -- protocol_version=$($result.ready.protocol_version) world='$($result.ready.world)' (expected 1 / '$World')." -ForegroundColor Red
     $fail++
@@ -147,7 +147,7 @@ if( $result.ready.protocol_version -ne 1 -or $result.ready.world -ne $World ) {
     Write-Host "  PASS: ready event -- protocol_version 1, world '$($result.ready.world)'." -ForegroundColor Green
 }
 
-# --- Hard gate 4: contact export exists and carries avatar.pos_abs. ---
+# --- Hard gate 3: contact export exists and carries avatar.pos_abs. ---
 if( $null -eq $result.contact_pos_abs -or @($result.contact_pos_abs).Count -ne 3 ) {
     Write-Host "  FAIL: contact export missing a 3-element avatar.pos_abs (got '$($result.contact_pos_abs)')." -ForegroundColor Red
     $fail++
@@ -155,7 +155,7 @@ if( $null -eq $result.contact_pos_abs -or @($result.contact_pos_abs).Count -ne 3
     Write-Host "  PASS: contact export carries avatar.pos_abs = [$($result.contact_pos_abs -join ',')]." -ForegroundColor Green
 }
 
-# --- Hard gate 5: carried_at_contact_glass_shard -- composite TRUE. ---
+# --- Hard gate 4: carried_at_contact_glass_shard -- composite TRUE. ---
 $g = $gates.carried_at_contact_glass_shard
 if( $null -eq $g -or -not $g.pass -or $g.composite -ne $true ) {
     Write-Host "  FAIL: carried_at_contact_glass_shard -- pos_match=$($g.pos_match) has=$($g.query_has) scope='$($g.scope)' composite=$($g.composite) (expected composite TRUE)." -ForegroundColor Red
@@ -164,7 +164,7 @@ if( $null -eq $g -or -not $g.pass -or $g.composite -ne $true ) {
     Write-Host "  PASS: carried_at_contact_glass_shard -- AT contact + has:true -> composite TRUE." -ForegroundColor Green
 }
 
-# --- Hard gate 6: dropped_at_contact_feather -- composite FALSE (anti-crafting_inventory()). ---
+# --- Hard gate 5: dropped_at_contact_feather -- composite FALSE (anti-crafting_inventory()). ---
 $g = $gates.dropped_at_contact_feather
 if( $null -eq $g -or -not $g.pass -or $g.query_has -ne $false -or $g.composite -ne $false ) {
     Write-Host "  FAIL: dropped_at_contact_feather -- has=$($g.query_has) composite=$($g.composite) (expected has:false / composite FALSE; the on-person predicate excludes the avatar's own ground tile)." -ForegroundColor Red
@@ -173,7 +173,7 @@ if( $null -eq $g -or -not $g.pass -or $g.query_has -ne $false -or $g.composite -
     Write-Host "  PASS: dropped_at_contact_feather -- has:false -> composite FALSE (Spike 26B's broader crafting_inventory() scope would flip this)." -ForegroundColor Green
 }
 
-# --- Hard gate 7: wrong_position_glass_shard -- composite FALSE with PROVEN off-contact move. ---
+# --- Hard gate 6: wrong_position_glass_shard -- composite FALSE with PROVEN off-contact move. ---
 $g = $gates.wrong_position_glass_shard
 $moveProven = $null -ne $g -and $g.moved_off_contact -eq $true -and $g.move_ok -eq $true `
               -and ($g.delta -join ',') -eq '0,1,0'
@@ -184,7 +184,7 @@ if( $null -eq $g -or -not $g.pass -or $g.query_has -ne $true -or $g.composite -n
     Write-Host "  PASS: wrong_position_glass_shard -- after a PROVEN move_s off contact (delta [0,1,0]), has:true but pos!=contact -> composite FALSE." -ForegroundColor Green
 }
 
-# --- Hard gate 8: flat_carried_items_not_authority -- query true, flat export lacks the nested id. ---
+# --- Hard gate 7: flat_carried_items_not_authority -- query true, flat export lacks the nested id. ---
 $g = $gates.flat_carried_items_not_authority
 if( $null -eq $g -or -not $g.pass -or $g.query_has -ne $true -or $g.flat_carried_has -ne $false ) {
     Write-Host "  FAIL: flat_carried_items_not_authority -- query_has=$($g.query_has) flat_carried_has=$($g.flat_carried_has) (expected query has:true while flat carried_items[] lacks the nested glass_shard). A flat export that NOW contains it is a STOP -> re-audit the fixture/export." -ForegroundColor Red
@@ -193,7 +193,7 @@ if( $null -eq $g -or -not $g.pass -or $g.query_has -ne $true -or $g.flat_carried
     Write-Host "  PASS: flat_carried_items_not_authority -- query has:true while flat avatar.carried_items[] omits the nested glass_shard (the predicate is the authority, not the flat export)." -ForegroundColor Green
 }
 
-# --- Hard gate 9: scope_label_guard -- every successful query carries the labelling guard verbatim. ---
+# --- Hard gate 8: scope_label_guard -- every successful query carries the labelling guard verbatim. ---
 if( $result.scope_label_ok -ne $true ) {
     Write-Host "  FAIL: scope_label_guard -- not every successful query carried scope='on_person_dialogue_predicate' (observed: $($result.successful_query_scopes -join ', '))." -ForegroundColor Red
     $fail++
@@ -201,7 +201,7 @@ if( $result.scope_label_ok -ne $true ) {
     Write-Host "  PASS: scope_label_guard -- every successful query response carries scope='on_person_dialogue_predicate' verbatim." -ForegroundColor Green
 }
 
-# --- Hard gate 10: absent_hairpin -- has:false / composite FALSE (a valid-but-absent id). ---
+# --- Hard gate 9: absent_hairpin -- has:false / composite FALSE (a valid-but-absent id). ---
 $g = $gates.absent_hairpin
 if( $null -eq $g -or -not $g.pass -or $g.query_has -ne $false -or $g.composite -ne $false ) {
     Write-Host "  FAIL: absent_hairpin -- has=$($g.query_has) composite=$($g.composite) (expected has:false / composite FALSE)." -ForegroundColor Red
@@ -210,7 +210,7 @@ if( $null -eq $g -or -not $g.pass -or $g.query_has -ne $false -or $g.composite -
     Write-Host "  PASS: absent_hairpin -- a valid-but-absent id is has:false -> composite FALSE." -ForegroundColor Green
 }
 
-# --- Hard gate 11: unknown_id_fail_loud -- bad_request, not a silent has:false. ---
+# --- Hard gate 10: unknown_id_fail_loud -- bad_request, not a silent has:false. ---
 $g = $gates.unknown_id_fail_loud
 if( $null -eq $g -or -not $g.pass -or $g.query_ok -ne $false -or $g.error_code -ne 'bad_request' ) {
     Write-Host "  FAIL: unknown_id_fail_loud -- ok=$($g.query_ok) code='$($g.error_code)' (expected ok:false / bad_request; NOT a silent has:false). [Health/recovery only -- Spike 26A already proves this, not new Stage A evidence.]" -ForegroundColor Red
