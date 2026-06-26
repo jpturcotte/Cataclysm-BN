@@ -130,32 +130,32 @@ function Stop-WithCode {
 # --- 7=server script, 8=static files, 9=port already in use, 10=tileset dir). NOTE:
 # --- prereq exit 10 here is unrelated to the backend's exit 10 (backend_stalled). ---
 if( -not (Test-Path $Exe) ) {
-    Stop-WithCode "Binary not found: $Exe  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
+    Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
 if( -not (Test-Path $FixtureSrc) ) {
-    Stop-WithCode "Fixture source directory not found: $FixtureSrc  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4
+    Stop-WithCode "Fixture source directory not found: $(Format-ArcoPath $FixtureSrc)  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4
 }
 $fixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $World)
 if( -not (Test-Path $fixtureWorld) ) {
-    Stop-WithCode "Fixture world '$World' not found at $fixtureWorld -- copy the canonical ArcopolisTest fixture. See AGENTS.md (Arcopolis test world fixture)." 5
+    Stop-WithCode "Fixture world '$World' not found at $(Format-ArcoPath $fixtureWorld) -- copy the canonical ArcopolisTest fixture. See AGENTS.md (Arcopolis test world fixture)." 5
 }
 if( -not (Get-Command python -ErrorAction SilentlyContinue) ) {
     Stop-WithCode "python not found on PATH (needed to run the prototype bridge). See 00_WINDOWS_LOCAL_ENVIRONMENT.md." 6
 }
 if( -not (Test-Path $Server) ) {
-    Stop-WithCode "Prototype server not found: $Server" 7
+    Stop-WithCode "Prototype server not found: $(Format-ArcoPath $Server)" 7
 }
 $staticDir = Join-Path (Split-Path $Server -Parent) "static"
 foreach( $name in @("index.html", "app.js", "style.css") ) {
     if( -not (Test-Path (Join-Path $staticDir $name)) ) {
-        Stop-WithCode "Static UI file missing: $(Join-Path $staticDir $name)" 8
+        Stop-WithCode "Static UI file missing: $(Format-ArcoPath (Join-Path $staticDir $name))" 8
     }
 }
 if( Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue ) {
     Stop-WithCode "Port $Port is already listening -- is a prototype server (or another service) running? Rerun with -Port <free port>." 9
 }
 if( -not (Test-Path (Join-Path $TilesetDir "tile_config.json")) ) {
-    Stop-WithCode "Tileset config not found: $(Join-Path $TilesetDir 'tile_config.json') -- Gate 2c serves the in-repo UltimateCataclysm tileset (or pass -TilesetDir)." 10
+    Stop-WithCode "Tileset config not found: $(Format-ArcoPath (Join-Path $TilesetDir 'tile_config.json')) -- Gate 2c serves the in-repo UltimateCataclysm tileset (or pass -TilesetDir)." 10
 }
 
 # Refresh the gitignored sandbox world from the external fixture. `Copy-Item -Recurse` nests the
@@ -208,10 +208,12 @@ $serverErr = Join-Path $OutRoot "server_stderr.txt"   # MUST be two distinct red
 # --tileset-dir is safe on the one shared server: tileset failures are fail-safe
 # server-side (serving disabled, UI glyph-only), so a broken tileset cannot take
 # gates 1..14 down - only Gate 2c would fail.
+# Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+# a space (a spaced checkout/binary) would otherwise reach python's argparse split into broken tokens.
 $serverProc = Start-Process python -ArgumentList @(
-        $Server, "--exe", $Exe, "--userdir", $UserDir, "--world", $World,
-        "--out-root", $sessionsRoot, "--port", $Port,
-        "--tileset-dir", $TilesetDir
+        "`"$Server`"", "--exe", "`"$Exe`"", "--userdir", "`"$UserDir`"", "--world", $World,
+        "--out-root", "`"$sessionsRoot`"", "--port", $Port,
+        "--tileset-dir", "`"$TilesetDir`""
     ) -NoNewWindow -PassThru -RedirectStandardOutput $serverOut -RedirectStandardError $serverErr
 $serverProc2 = $null   # Gate 15's second server; predeclared so `finally` can reap it
 
@@ -412,7 +414,7 @@ try {
             "outcome is no_command" "(status $($ex.Status), outcome $($o.outcome))"
         Assert-True ($o.turn_delta -eq 0) "turn_delta is 0" "(got $($o.turn_delta))"
         $exportSnapshot = Join-Path (Join-Path $sessionsRoot "session_001") $ex.Json.backend.snapshot
-        Assert-True (Test-Path $exportSnapshot) "export snapshot file exists" "(missing $exportSnapshot)"
+        Assert-True (Test-Path $exportSnapshot) "export snapshot file exists" "(missing $(Format-ArcoPath $exportSnapshot))"
 
         # --- Gate 10: backend vocabulary rejection is survivable data. ------------------------
         Write-Host "Gate 10: move_up -> backend unsupported_command, session survives" -ForegroundColor Cyan
@@ -513,9 +515,11 @@ try {
         Write-Host "Gate 15: --disable-tileset fail-safe" -ForegroundColor Cyan
         $server2Out = Join-Path $OutRoot "server2_stdout.txt"
         $server2Err = Join-Path $OutRoot "server2_stderr.txt"
+        # Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+        # a space (a spaced checkout/binary) would otherwise reach python's argparse split into broken tokens.
         $serverProc2 = Start-Process python -ArgumentList @(
-                $Server, "--exe", $Exe, "--userdir", $UserDir, "--world", $World,
-                "--out-root", (Join-Path $OutRoot "sessions_gate15"), "--port", $Port,
+                "`"$Server`"", "--exe", "`"$Exe`"", "--userdir", "`"$UserDir`"", "--world", $World,
+                "--out-root", "`"$(Join-Path $OutRoot "sessions_gate15")`"", "--port", $Port,
                 "--disable-tileset"
             ) -NoNewWindow -PassThru -RedirectStandardOutput $server2Out -RedirectStandardError $server2Err
         $state2 = $null

@@ -89,31 +89,31 @@ function Stop-WithCode {
 
 # --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=harness, 8=viewer). ---
 if( -not (Test-Path $Exe) ) {
-    Stop-WithCode "Binary not found: $Exe  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
+    Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
 if( -not (Test-Path $FixtureSrc) ) {
-    Stop-WithCode "Fixture source directory not found: $FixtureSrc  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4
+    Stop-WithCode "Fixture source directory not found: $(Format-ArcoPath $FixtureSrc)  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4
 }
 $fixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $World)
 if( -not (Test-Path $fixtureWorld) ) {
-    Stop-WithCode "Fixture world '$World' not found at $fixtureWorld -- copy the canonical ArcopolisTest fixture. See AGENTS.md (Arcopolis test world fixture)." 5
+    Stop-WithCode "Fixture world '$World' not found at $(Format-ArcoPath $fixtureWorld) -- copy the canonical ArcopolisTest fixture. See AGENTS.md (Arcopolis test world fixture)." 5
 }
 $monsterFixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $MonsterWorld)
 if( -not (Test-Path $monsterFixtureWorld) ) {
-    Stop-WithCode "Monster fixture world '$MonsterWorld' not found at $monsterFixtureWorld -- build it with docs/arcopolis/make_monster_fixture.py (see 16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md)." 5
+    Stop-WithCode "Monster fixture world '$MonsterWorld' not found at $(Format-ArcoPath $monsterFixtureWorld) -- build it with docs/arcopolis/make_monster_fixture.py (see 16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md)." 5
 }
 $wallFixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $WallWorld)
 if( -not (Test-Path $wallFixtureWorld) ) {
-    Stop-WithCode "Wall fixture world '$WallWorld' not found at $wallFixtureWorld -- build it with docs/arcopolis/make_wall_fixture.py (the Spike 21 terrain blocked_no_op witness; see 43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md)." 5
+    Stop-WithCode "Wall fixture world '$WallWorld' not found at $(Format-ArcoPath $wallFixtureWorld) -- build it with docs/arcopolis/make_wall_fixture.py (the Spike 21 terrain blocked_no_op witness; see 43_SPIKE21_UILIST_UNEXPECTED_PROMPT_FAIL_LOUD.md)." 5
 }
 if( -not (Get-Command python -ErrorAction SilentlyContinue) ) {
     Stop-WithCode "python not found on PATH (needed to run the client harness and the offline viewer). See 00_WINDOWS_LOCAL_ENVIRONMENT.md." 6
 }
 if( -not (Test-Path $Harness) ) {
-    Stop-WithCode "Client harness not found: $Harness" 7
+    Stop-WithCode "Client harness not found: $(Format-ArcoPath $Harness)" 7
 }
 if( -not (Test-Path $Viewer) ) {
-    Stop-WithCode "Offline viewer not found: $Viewer (needed for the consumer cross-check gate)" 8
+    Stop-WithCode "Offline viewer not found: $(Format-ArcoPath $Viewer) (needed for the consumer cross-check gate)" 8
 }
 
 # Refresh the gitignored sandbox world from the external fixture. `Copy-Item -Recurse` nests the
@@ -151,8 +151,10 @@ $fail = 0
 $failDir = Join-Path $OutRoot "run_failloud"
 if( Test-Path $failDir ) { Remove-Item $failDir -Recurse -Force }
 $failJson = Join-Path $OutRoot "run_failloud_result.json"
-$pf = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', $Exe, '--world', $World, '--userdir', $UserDir,
-    '--out', $failDir, '--commands', 'move_n', '--json') `
+# Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+# a space (a spaced checkout/binary) would otherwise reach python's argparse split into broken tokens.
+$pf = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'run', '--exe', "`"$Exe`"", '--world', $World, '--userdir', "`"$UserDir`"",
+    '--out', "`"$failDir`"", '--commands', 'move_n', '--json') `
     -StdoutPath $failJson -StderrPath (Join-Path $OutRoot "run_failloud_stderr.txt")
 $fj = $null
 try { $fj = $pf.Stdout | ConvertFrom-Json } catch {}
@@ -181,8 +183,8 @@ if( $failOk ) {
 $normalDir = Join-Path $OutRoot "run_normal"
 if( Test-Path $normalDir ) { Remove-Item $normalDir -Recurse -Force }
 $normalJson = Join-Path $OutRoot "run_normal_result.json"
-$pn = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', $Exe, '--world', $World, '--userdir', $UserDir,
-    '--out', $normalDir, '--commands', 'move_s,wait', '--json') `
+$pn = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'run', '--exe', "`"$Exe`"", '--world', $World, '--userdir', "`"$UserDir`"",
+    '--out', "`"$normalDir`"", '--commands', 'move_s,wait', '--json') `
     -StdoutPath $normalJson -StderrPath (Join-Path $OutRoot "run_normal_stderr.txt")
 $normalOk = $false
 if( $pn.ExitCode -eq 0 ) {
@@ -211,8 +213,8 @@ if( $normalOk ) {
 $wallDir = Join-Path $OutRoot "run_wall"
 if( Test-Path $wallDir ) { Remove-Item $wallDir -Recurse -Force }
 $wallJson = Join-Path $OutRoot "run_wall_result.json"
-$pw = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', $Exe, '--world', $WallWorld, '--userdir', $UserDir,
-    '--out', $wallDir, '--commands', 'move_e', '--json') `
+$pw = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'run', '--exe', "`"$Exe`"", '--world', $WallWorld, '--userdir', "`"$UserDir`"",
+    '--out', "`"$wallDir`"", '--commands', 'move_e', '--json') `
     -StdoutPath $wallJson -StderrPath (Join-Path $OutRoot "run_wall_stderr.txt")
 $wallOk = $false
 if( $pw.ExitCode -eq 0 ) {
@@ -260,7 +262,7 @@ if( $startSnap ) {
         } | Select-Object -First 1
         $blockerName = if( $northNpc ) { $northNpc.name } else { "Edwardo Stovall" }
         $viewHtml = Join-Path $failDir "view.html"
-        $pv = Invoke-PyTool -ToolArgs @($Harness, 'view', '--session-dir', $failDir, '--output', $viewHtml, '--snapshot', 'start', '--at', $northAt) `
+        $pv = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'view', '--session-dir', "`"$failDir`"", '--output', "`"$viewHtml`"", '--snapshot', 'start', '--at', $northAt) `
             -StdoutPath (Join-Path $failDir "view_stdout.txt") -StderrPath (Join-Path $failDir "view_stderr.txt")
         if( ($pv.ExitCode -eq 0) -and (Test-Path $viewHtml) ) {
             $htmlRaw = Get-Content $viewHtml -Raw
@@ -285,8 +287,8 @@ if( $viewOk ) {
 $diagDir = Join-Path $OutRoot "run_diag"
 if( Test-Path $diagDir ) { Remove-Item $diagDir -Recurse -Force }
 $diagJson = Join-Path $OutRoot "run_diag_result.json"
-$pd = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', $Exe, '--world', $World, '--userdir', $UserDir,
-    '--out', $diagDir, '--commands', 'move_se', '--json') `
+$pd = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'run', '--exe', "`"$Exe`"", '--world', $World, '--userdir', "`"$UserDir`"",
+    '--out', "`"$diagDir`"", '--commands', 'move_se', '--json') `
     -StdoutPath $diagJson -StderrPath (Join-Path $OutRoot "run_diag_stderr.txt")
 $diagOk = $false
 if( $pd.ExitCode -eq 0 ) {
@@ -311,7 +313,7 @@ if( $diagOk ) {
 # normal-sequence session (Gate 2) -- the fail-loud run's transcript carries an error event the viewer would
 # (correctly) flag as a discrepancy. ---
 $report = Join-Path $normalDir "report.html"
-$pview = Invoke-PyTool -ToolArgs @($Viewer, '--session-dir', $normalDir, '--output', $report) `
+$pview = Invoke-PyTool -ToolArgs @("`"$Viewer`"", '--session-dir', "`"$normalDir`"", '--output', "`"$report`"") `
     -StdoutPath (Join-Path $normalDir "viewer_stdout.txt") -StderrPath (Join-Path $normalDir "viewer_stderr.txt")
 Write-Host ("[viewer] exit=$($pview.ExitCode)  " + $pview.Stdout.Trim())
 if( $pview.ExitCode -ne 0 ) {
@@ -330,8 +332,8 @@ if( $pview.ExitCode -ne 0 ) {
 $monDir  = Join-Path $OutRoot "monster_run"
 if( Test-Path $monDir ) { Remove-Item $monDir -Recurse -Force }
 $monJson = Join-Path $OutRoot "monster_run_result.json"
-$pm = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', $Exe, '--world', $MonsterWorld, '--userdir', $UserDir,
-    '--out', $monDir, '--commands', 'wait', '--json') `
+$pm = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'run', '--exe', "`"$Exe`"", '--world', $MonsterWorld, '--userdir', "`"$UserDir`"",
+    '--out', "`"$monDir`"", '--commands', 'wait', '--json') `
     -StdoutPath $monJson -StderrPath (Join-Path $OutRoot "monster_run_stderr.txt")
 $monOk = $false
 $monsters = @()
@@ -373,7 +375,7 @@ if( $monOk ) {
     } else {
         $monAt   = "$($mpl[0]),$($mpl[1])"
         $monHtml = Join-Path $monDir "monster_view.html"
-        $pmv = Invoke-PyTool -ToolArgs @($Harness, 'view', '--session-dir', $monDir, '--snapshot', 'start', '--output', $monHtml, '--at', $monAt) `
+        $pmv = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'view', '--session-dir', "`"$monDir`"", '--snapshot', 'start', '--output', "`"$monHtml`"", '--at', $monAt) `
             -StdoutPath (Join-Path $monDir "view_stdout.txt") -StderrPath (Join-Path $monDir "view_stderr.txt")
         $monViewOk = $false
         if( ($pmv.ExitCode -eq 0) -and (Test-Path $monHtml) ) {

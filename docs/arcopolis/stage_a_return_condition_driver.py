@@ -281,6 +281,7 @@ def run(args):
             rc = p.wait(timeout=15)
         except subprocess.TimeoutExpired:
             p.kill()
+            p.wait(timeout=10)  # reap the killed backend (match examine/prompt_menu)
             rc = -1
         summary["process_exit_code"] = rc
         if rc != 0:
@@ -290,6 +291,7 @@ def run(args):
     finally:
         if p.poll() is None:
             p.kill()  # never leave an orphaned backend if the driver aborts mid-session
+            p.wait(timeout=5)  # reap it so the killed backend is not left unwaited
 
 
 def main(argv=None):

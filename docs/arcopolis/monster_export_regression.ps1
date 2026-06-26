@@ -74,16 +74,16 @@ function Stop-WithCode {
 
 # --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=viewer). ---
 if( -not (Test-Path $Exe) ) {
-    Stop-WithCode "Binary not found: $Exe  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
+    Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
 if( -not (Test-Path $FixtureSrc) ) {
-    Stop-WithCode "Fixture source directory not found: $FixtureSrc  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4
+    Stop-WithCode "Fixture source directory not found: $(Format-ArcoPath $FixtureSrc)  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4
 }
 # The monster fixture world must already exist inside the fixture userdir (doc 16 creates it). Use $World
 # in the path so a rename stays correct; the layout is ...\arcopolis_user\save\<World>\.
 $fixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $World)
 if( -not (Test-Path $fixtureWorld) ) {
-    Stop-WithCode "Monster fixture world '$World' not found at $fixtureWorld -- create it first: one IMMOBILE monster (e.g. mon_fungal_wall) a few tiles from the avatar, inside the radius-12 window. See docs/arcopolis/16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md." 5
+    Stop-WithCode "Monster fixture world '$World' not found at $(Format-ArcoPath $fixtureWorld) -- create it first: one IMMOBILE monster (e.g. mon_fungal_wall) a few tiles from the avatar, inside the radius-12 window. See docs/arcopolis/16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md." 5
 }
 # The viewer is a HARD gate here (unlike movement_regression.ps1, which never runs it), so its two
 # prerequisites get their own codes.
@@ -91,7 +91,7 @@ if( -not (Get-Command python -ErrorAction SilentlyContinue) ) {
     Stop-WithCode "python not found on PATH (needed to run the offline viewer make_report.py). See 00_WINDOWS_LOCAL_ENVIRONMENT.md." 6
 }
 if( -not (Test-Path $Viewer) ) {
-    Stop-WithCode "Offline viewer not found: $Viewer" 7
+    Stop-WithCode "Offline viewer not found: $(Format-ArcoPath $Viewer)" 7
 }
 
 # Refresh the gitignored sandbox world from the external fixture. `Copy-Item -Recurse` nests the source
@@ -122,11 +122,13 @@ function Invoke-MonsterScenario {
 
     # cataclysm-bn-tiles is a GUI / WINDOWS-subsystem exe, so a bare `& $exe` does NOT wait for it and
     # leaves $LASTEXITCODE empty. Start-Process -Wait -PassThru waits and captures the real exit code.
+    # Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+    # a space (a spaced checkout/binary) would otherwise reach the child split into broken tokens.
     $p = Start-Process -FilePath $Exe -ArgumentList @(
         '--world', $World,
-        '--arcopolis-run-script', $scriptPath,
-        '--arcopolis-export-dir', $dir,
-        '--userdir', $UserDir
+        '--arcopolis-run-script', "`"$scriptPath`"",
+        '--arcopolis-export-dir', "`"$dir`"",
+        '--userdir', "`"$UserDir`""
     ) -NoNewWindow -Wait -PassThru `
         -RedirectStandardOutput (Join-Path $dir "stdout.txt") -RedirectStandardError (Join-Path $dir "stderr.txt")
     if( $p.ExitCode -ne 0 ) { throw "run for $Name exited $($p.ExitCode) (expected 0): $(Get-Content (Join-Path $dir 'stderr.txt') -Raw)" }
@@ -136,7 +138,7 @@ function Invoke-MonsterScenario {
     $snapFiles = Get-ChildItem $dir -Filter "*.json" |
                  Where-Object { $_.Name -match '^\d+_' } |
                  Sort-Object Name
-    if( $snapFiles.Count -lt 1 ) { throw "no snapshot files produced in $dir" }
+    if( $snapFiles.Count -lt 1 ) { throw "no snapshot files produced in $(Format-ArcoPath $dir)" }
     $snaps = foreach( $f in $snapFiles ) {
         [pscustomobject]@{ File = $f.Name; Snap = (Get-Content $f.FullName -Raw | ConvertFrom-Json) }
     }
@@ -220,8 +222,10 @@ foreach( $entry in $scn.Snaps ) {
 $report = Join-Path $scn.Dir "report.html"
 $vout   = Join-Path $scn.Dir "viewer_stdout.txt"
 $verr   = Join-Path $scn.Dir "viewer_stderr.txt"
+# Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+# a space (a spaced checkout/binary) would otherwise reach python's argparse split into broken tokens.
 $pv = Start-Process -FilePath "python" -ArgumentList @(
-    $Viewer, '--session-dir', $scn.Dir, '--output', $report
+    "`"$Viewer`"", '--session-dir', "`"$($scn.Dir)`"", '--output', "`"$report`""
 ) -NoNewWindow -Wait -PassThru -RedirectStandardOutput $vout -RedirectStandardError $verr
 $viewerExit = $pv.ExitCode
 $viewerOut  = Get-Content $vout -Raw
@@ -229,7 +233,7 @@ $mw = [regex]::Match($viewerOut, 'monsters_off_window=(\d+)')
 
 Write-Host ("[viewer] exit=$viewerExit  " + ($viewerOut.Trim()))
 if( $viewerExit -ne 0 ) {
-    Write-Host "  FAIL: viewer exited $viewerExit (0=clean; 2=discrepancies incl. off-window monsters; 1=fatal). See $verr / $report." -ForegroundColor Red
+    Write-Host "  FAIL: viewer exited $viewerExit (0=clean; 2=discrepancies incl. off-window monsters; 1=fatal). See $(Format-ArcoPath $verr) / $(Format-ArcoPath $report)." -ForegroundColor Red
     $fail++
 }
 if( -not $mw.Success ) {

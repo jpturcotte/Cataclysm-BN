@@ -57,13 +57,13 @@ function Stop-WithCode {
 
 # --- Prereqs (3=exe, 4=fixture, 5=world). ---
 if( -not (Test-Path $Exe) ) {
-    Stop-WithCode "Binary not found: $Exe  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
+    Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
-if( -not (Test-Path $FixtureSrc) ) { Stop-WithCode "Fixture source directory not found: $FixtureSrc  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4 }
+if( -not (Test-Path $FixtureSrc) ) { Stop-WithCode "Fixture source directory not found: $(Format-ArcoPath $FixtureSrc)  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4 }
 foreach( $w in @($World, $VehicleWorld, $CapacityWorld, $FurnitureWorld) ) {
     $fw = Join-Path $FixtureSrc (Join-Path "save" $w)
     if( -not (Test-Path $fw) ) {
-        Stop-WithCode "Fixture world '$w' not found at $fw -- see AGENTS.md (Arcopolis test world fixture) / the make_*_fixture.py builders." 5
+        Stop-WithCode "Fixture world '$w' not found at $(Format-ArcoPath $fw) -- see AGENTS.md (Arcopolis test world fixture) / the make_*_fixture.py builders." 5
     }
 }
 
@@ -109,11 +109,13 @@ function Invoke-ScriptScenario {
     New-Item -ItemType Directory -Force $dir | Out-Null
     $scriptPath = Join-Path $dir "script.json"
     Set-Content -Path $scriptPath -Value $ScriptJson -Encoding ascii
+    # Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+    # a space (a spaced checkout/binary) would otherwise reach the exe's arg parser split into broken tokens.
     $p = Start-Process -FilePath $Exe -ArgumentList @(
             '--world', $ScenarioWorld,
-            '--arcopolis-run-script', $scriptPath,
-            '--arcopolis-export-dir', $dir,
-            '--userdir', $UserDir
+            '--arcopolis-run-script', "`"$scriptPath`"",
+            '--arcopolis-export-dir', "`"$dir`"",
+            '--userdir', "`"$UserDir`""
         ) -NoNewWindow -Wait -PassThru `
         -RedirectStandardOutput (Join-Path $dir "stdout.txt") -RedirectStandardError (Join-Path $dir "stderr.txt")
     $logPath = Join-Path $dir "session.jsonl"

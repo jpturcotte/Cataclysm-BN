@@ -70,27 +70,27 @@ function Stop-WithCode {
 
 # --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=driver, 8=harness). ---
 if( -not (Test-Path $Exe) ) {
-    Stop-WithCode "Binary not found: $Exe  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
+    Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
 if( -not (Test-Path $FixtureSrc) ) {
-    Stop-WithCode "Fixture source directory not found: $FixtureSrc  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4
+    Stop-WithCode "Fixture source directory not found: $(Format-ArcoPath $FixtureSrc)  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4
 }
 $fixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $World)
 if( -not (Test-Path $fixtureWorld) ) {
-    Stop-WithCode "Fixture world '$World' not found at $fixtureWorld -- copy the canonical ArcopolisTest fixture. See AGENTS.md (Arcopolis test world fixture)." 5
+    Stop-WithCode "Fixture world '$World' not found at $(Format-ArcoPath $fixtureWorld) -- copy the canonical ArcopolisTest fixture. See AGENTS.md (Arcopolis test world fixture)." 5
 }
 $fixtureVehicleWorld = Join-Path $FixtureSrc (Join-Path "save" $VehicleWorld)
 if( -not (Test-Path $fixtureVehicleWorld) ) {
-    Stop-WithCode "Fixture world '$VehicleWorld' not found at $fixtureVehicleWorld -- the vehicle-examine fail-loud witness (scenario C) needs the cargo-vehicle fixture (a copy of $World with a folding_wagon injected onto the south ground-item pile; build it with docs/arcopolis/make_vehicle_fixture.py)." 5
+    Stop-WithCode "Fixture world '$VehicleWorld' not found at $(Format-ArcoPath $fixtureVehicleWorld) -- the vehicle-examine fail-loud witness (scenario C) needs the cargo-vehicle fixture (a copy of $World with a folding_wagon injected onto the south ground-item pile; build it with docs/arcopolis/make_vehicle_fixture.py)." 5
 }
 if( -not (Get-Command python -ErrorAction SilentlyContinue) ) {
     Stop-WithCode "python not found on PATH (needed to run the live driver). See 00_WINDOWS_LOCAL_ENVIRONMENT.md." 6
 }
 if( -not (Test-Path $Driver) ) {
-    Stop-WithCode "Examine live driver not found: $Driver" 7
+    Stop-WithCode "Examine live driver not found: $(Format-ArcoPath $Driver)" 7
 }
 if( -not (Test-Path (Join-Path $HarnessDir "harness.py")) ) {
-    Stop-WithCode "Client harness not found under: $HarnessDir (the driver imports its LiveSession)" 8
+    Stop-WithCode "Client harness not found under: $(Format-ArcoPath $HarnessDir) (the driver imports its LiveSession)" 8
 }
 
 # Refresh the gitignored sandbox userdir from the external fixture. `Copy-Item -Recurse` nests the
@@ -127,9 +127,11 @@ function Invoke-LiveScenario {
     $resultPath = Join-Path $OutRoot "$Name.result.json"
     $stdout = Join-Path $OutRoot "$Name.driver_stdout.txt"
     $stderr = Join-Path $OutRoot "$Name.driver_stderr.txt"
-    $p = Start-Process -FilePath "python" -ArgumentList @($Driver, '--exe', $Exe, '--world', $ScenarioWorld,
-        '--userdir', $UserDir, '--out', $dir, '--requests', $reqPath, '--timeout', $TimeoutSec,
-        '--result', $resultPath) -NoNewWindow -Wait -PassThru `
+    # Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+    # a space (a spaced checkout/binary) would otherwise reach python's argparse split into broken tokens.
+    $p = Start-Process -FilePath "python" -ArgumentList @("`"$Driver`"", '--exe', "`"$Exe`"", '--world', $ScenarioWorld,
+        '--userdir', "`"$UserDir`"", '--out', "`"$dir`"", '--requests', "`"$reqPath`"", '--timeout', $TimeoutSec,
+        '--result', "`"$resultPath`"") -NoNewWindow -Wait -PassThru `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr
     $result = $null
     if( Test-Path $resultPath ) { $result = Get-Content $resultPath -Raw | ConvertFrom-Json }
@@ -151,11 +153,13 @@ function Invoke-ExamineRunScript {
     New-Item -ItemType Directory -Force $dir | Out-Null
     $scriptPath = Join-Path $dir "script.json"
     $ScriptBody | Set-Content -Encoding ascii $scriptPath
+    # Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+    # a space (a spaced checkout/binary) would otherwise reach the exe's parser split into broken tokens.
     $p = Start-Process -FilePath $Exe -ArgumentList @(
         '--world', $ScenarioWorld,
-        '--arcopolis-run-script', $scriptPath,
-        '--arcopolis-export-dir', $dir,
-        '--userdir', $UserDir
+        '--arcopolis-run-script', "`"$scriptPath`"",
+        '--arcopolis-export-dir', "`"$dir`"",
+        '--userdir', "`"$UserDir`""
     ) -NoNewWindow -Wait -PassThru `
         -RedirectStandardOutput (Join-Path $dir "stdout.txt") -RedirectStandardError (Join-Path $dir "stderr.txt")
     # Select snapshots by the NNN_ prefix so we pick only NNN_<name>.json (excludes script.json).

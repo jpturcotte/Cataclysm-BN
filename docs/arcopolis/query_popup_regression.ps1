@@ -73,19 +73,19 @@ function Stop-WithCode {
 
 # --- Prereqs (3=exe, 4=fixture, 5=world, 6=python, 7=driver, 8=harness). ---
 if( -not (Test-Path $Exe) ) {
-    Stop-WithCode "Binary not found: $Exe  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
+    Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
-if( -not (Test-Path $FixtureSrc) ) { Stop-WithCode "Fixture source directory not found: $FixtureSrc  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4 }
+if( -not (Test-Path $FixtureSrc) ) { Stop-WithCode "Fixture source directory not found: $(Format-ArcoPath $FixtureSrc)  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4 }
 $fixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $World)
 if( -not (Test-Path $fixtureWorld) ) {
-    Stop-WithCode "Fixture world '$World' not found at $fixtureWorld -- the query_popup witness needs a copy of ArcopolisTest with one f_floor_mattress placed one tile EAST of the avatar; build it with docs/arcopolis/make_furniture_fixture.py." 5
+    Stop-WithCode "Fixture world '$World' not found at $(Format-ArcoPath $fixtureWorld) -- the query_popup witness needs a copy of ArcopolisTest with one f_floor_mattress placed one tile EAST of the avatar; build it with docs/arcopolis/make_furniture_fixture.py." 5
 }
 if( -not (Get-Command python -ErrorAction SilentlyContinue) ) {
     Stop-WithCode "python not found on PATH (needed to run the live driver). See 00_WINDOWS_LOCAL_ENVIRONMENT.md." 6
 }
-if( -not (Test-Path $Driver) ) { Stop-WithCode "Prompt live driver not found: $Driver" 7 }
+if( -not (Test-Path $Driver) ) { Stop-WithCode "Prompt live driver not found: $(Format-ArcoPath $Driver)" 7 }
 if( -not (Test-Path (Join-Path $HarnessDir "harness.py")) ) {
-    Stop-WithCode "Client harness not found under: $HarnessDir (the driver imports its LiveSession)" 8
+    Stop-WithCode "Client harness not found under: $(Format-ArcoPath $HarnessDir) (the driver imports its LiveSession)" 8
 }
 
 # Refresh the gitignored sandbox userdir from the external fixture.
@@ -121,9 +121,11 @@ function Invoke-LiveScenario {
     $resultPath = Join-Path $OutRoot "$Name.result.json"
     $stdout = Join-Path $OutRoot "$Name.driver_stdout.txt"
     $stderr = Join-Path $OutRoot "$Name.driver_stderr.txt"
-    $p = Start-Process -FilePath "python" -ArgumentList @($Driver, '--exe', $Exe, '--world', $World,
-        '--userdir', $UserDir, '--out', $dir, '--requests', $reqPath, '--timeout', $TimeoutSec,
-        '--result', $resultPath) -NoNewWindow -Wait -PassThru `
+    # Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+    # a space (a spaced checkout/binary) would otherwise reach python's argparse split into broken tokens.
+    $p = Start-Process -FilePath "python" -ArgumentList @("`"$Driver`"", '--exe', "`"$Exe`"", '--world', $World,
+        '--userdir', "`"$UserDir`"", '--out', "`"$dir`"", '--requests', "`"$reqPath`"", '--timeout', $TimeoutSec,
+        '--result', "`"$resultPath`"") -NoNewWindow -Wait -PassThru `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr
     $result = $null
     if( Test-Path $resultPath ) { $result = Get-Content $resultPath -Raw | ConvertFrom-Json }

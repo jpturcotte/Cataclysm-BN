@@ -80,23 +80,23 @@ function Flag { param($v) if( $v ) { "true" } else { "false" } }
 
 # --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=viewer). ---
 if( -not (Test-Path $Exe) ) {
-    Stop-WithCode "Binary not found: $Exe  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
+    Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
 if( -not (Test-Path $FixtureSrc) ) {
-    Stop-WithCode "Fixture source directory not found: $FixtureSrc  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4
+    Stop-WithCode "Fixture source directory not found: $(Format-ArcoPath $FixtureSrc)  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" 4
 }
 # ArcopolisTest ships in the canonical fixture userdir (it is the base world). Use $World in the path so a
 # rename stays correct; the layout is ...\arcopolis_user\save\<World>\.
 $fixtureWorld = Join-Path $FixtureSrc (Join-Path "save" $World)
 if( -not (Test-Path $fixtureWorld) ) {
-    Stop-WithCode "Fixture world '$World' not found at $fixtureWorld -- copy the canonical ArcopolisTest fixture. See AGENTS.md (Arcopolis test world fixture)." 5
+    Stop-WithCode "Fixture world '$World' not found at $(Format-ArcoPath $fixtureWorld) -- copy the canonical ArcopolisTest fixture. See AGENTS.md (Arcopolis test world fixture)." 5
 }
 # The viewer is a HARD gate here, so its two prerequisites get their own codes.
 if( -not (Get-Command python -ErrorAction SilentlyContinue) ) {
     Stop-WithCode "python not found on PATH (needed to run the offline viewer make_report.py). See 00_WINDOWS_LOCAL_ENVIRONMENT.md." 6
 }
 if( -not (Test-Path $Viewer) ) {
-    Stop-WithCode "Offline viewer not found: $Viewer" 7
+    Stop-WithCode "Offline viewer not found: $(Format-ArcoPath $Viewer)" 7
 }
 
 # Refresh the gitignored sandbox world from the external fixture. `Copy-Item -Recurse` nests the source
@@ -120,11 +120,13 @@ function Invoke-NpcScenario {
     # leaves $LASTEXITCODE empty. Start-Process -Wait -PassThru waits and captures the real exit code.
     # Spike 21: do NOT throw on a nonzero exit -- the fail-loud scenario is EXPECTED to exit 14. The caller
     # asserts the exit code.
+    # Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+    # a space (a spaced checkout/binary) would otherwise reach the exe's arg parser split into broken tokens.
     $p = Start-Process -FilePath $Exe -ArgumentList @(
         '--world', $World,
-        '--arcopolis-run-script', $scriptPath,
-        '--arcopolis-export-dir', $dir,
-        '--userdir', $UserDir
+        '--arcopolis-run-script', "`"$scriptPath`"",
+        '--arcopolis-export-dir', "`"$dir`"",
+        '--userdir', "`"$UserDir`""
     ) -NoNewWindow -Wait -PassThru `
         -RedirectStandardOutput (Join-Path $dir "stdout.txt") -RedirectStandardError (Join-Path $dir "stderr.txt")
 
@@ -295,8 +297,10 @@ if( $g5 ) {
 $report = Join-Path $scn.Dir "report.html"
 $vout   = Join-Path $scn.Dir "viewer_stdout.txt"
 $verr   = Join-Path $scn.Dir "viewer_stderr.txt"
+# Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+# a space (a spaced checkout/binary) would otherwise reach python's argparse split into broken tokens.
 $pv = Start-Process -FilePath "python" -ArgumentList @(
-    $Viewer, '--session-dir', $scn.Dir, '--output', $report
+    "`"$Viewer`"", '--session-dir', "`"$($scn.Dir)`"", '--output', "`"$report`""
 ) -NoNewWindow -Wait -PassThru -RedirectStandardOutput $vout -RedirectStandardError $verr
 $viewerExit = $pv.ExitCode
 $viewerOut  = Get-Content $vout -Raw
@@ -304,7 +308,7 @@ $nw = [regex]::Match($viewerOut, 'npcs_off_window=(\d+)')
 
 Write-Host ("[viewer] exit=$viewerExit  " + ($viewerOut.Trim()))
 if( $viewerExit -ne 0 ) {
-    Write-Host "  FAIL: viewer exited $viewerExit (0=clean; 2=discrepancies incl. off-window npcs; 1=fatal). See $verr / $report." -ForegroundColor Red
+    Write-Host "  FAIL: viewer exited $viewerExit (0=clean; 2=discrepancies incl. off-window npcs; 1=fatal). See $(Format-ArcoPath $verr) / $(Format-ArcoPath $report)." -ForegroundColor Red
     $fail++
 }
 if( -not $nw.Success ) {
