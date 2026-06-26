@@ -266,8 +266,13 @@ def _run_session(p, args):
         "pass": (q5.get("ok") is False and (q5.get("error") or {}).get("code") == "bad_request"),
     })
 
-    # (scope) labelling guard: every SUCCESSFUL query carried the literal scope string verbatim.
+    # (scope) labelling guard: every SUCCESSFUL query carried the literal scope string verbatim. The count
+    # guard (== 4) is load-bearing, not decorative: it pins the four successful queries (q1 glass@contact,
+    # q2 feather@contact, q3 glass@after, q4 hairpin@after; q5 is the unknown id -> ok:false, never appended)
+    # AND stops all([]) from passing vacuously if every query had failed. Update it if a query case is added.
     scope_label_ok = all(s == SCOPE for s in successful_query_scopes) and len(successful_query_scopes) == 4
+    # Recorded at the top level (parallel to summary["ok"]), intentionally NOT under summary["gates"]: this is
+    # a cross-cutting invariant over all queries, not a per-case gate; the wrapper reads $result.scope_label_ok.
     summary["scope_label_ok"] = scope_label_ok
     summary["successful_query_scopes"] = successful_query_scopes
     if not scope_label_ok:
