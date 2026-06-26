@@ -79,6 +79,16 @@ no build). Gated by
 (seven hard gates including the scope-pinning ground negative and the labeling-guard string assertion).
 See [52_SPIKE26A_DIALOGUE_PREDICATE_QUERY.md](52_SPIKE26A_DIALOGUE_PREDICATE_QUERY.md).
 
+**Also the Stage A carried-at-contact L1 witness.** The same fixture (no change) backs the L1
+observation-only composite `carried_at_contact = avatar.pos_abs == contact_pos_abs && query.has &&
+query.scope == "on_person_dialogue_predicate"`: `glass_shard` is the carried package, `feather` (on the
+avatar's own tile) the anti-`crafting_inventory()` false-green, and `hairpin` the valid-but-absent id. A
+single live session exports position (`op:"export"`), queries possession (`op:"query"`), and uses one
+`command move` `move_s` only to manufacture the off-contact false-green. **L1 only — NOT mission
+completion.** Gated by
+[`docs/arcopolis/stage_a_return_condition_regression.ps1`](stage_a_return_condition_regression.ps1); see
+[53_STAGE_A_RETURN_CONDITION_WITNESS.md](53_STAGE_A_RETURN_CONDITION_WITNESS.md).
+
 ## `ArcopolisVehicleCargoTest` — vehicle-source `uilist` witness (Spike 13B `pickup`); vehicle `examine` "Select an action" fail-loud witness (Spike 21)
 
 (Was the Spike 12A-follow-up fail-loud witness.) A clone of `ArcopolisTest` with an exact `folding_wagon`
