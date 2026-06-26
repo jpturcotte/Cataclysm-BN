@@ -52,11 +52,11 @@ $ErrorActionPreference = "Stop"
 if( -not $FixtureSrc ) { $FixtureSrc = Resolve-ArcoFixtureRoot -ScriptDir $PSScriptRoot }
 
 if( -not (Test-Path $Exe) ) {
-    Write-Error "Binary not found: $Exe  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)"
+    Write-Error "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)"
     exit 3
 }
 if( -not (Test-Path $FixtureSrc) ) {
-    Write-Error "Fixture source directory not found: $FixtureSrc  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)"
+    Write-Error "Fixture source directory not found: $(Format-ArcoPath $FixtureSrc)  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)"
     exit 4
 }
 
@@ -87,11 +87,13 @@ function Invoke-Scenario {
     # cataclysm-bn-tiles is a GUI / WINDOWS-subsystem exe, so a bare `& $exe` does NOT wait for it and
     # leaves $LASTEXITCODE empty. Start-Process -Wait -PassThru waits and captures the real exit code
     # (the pattern the spike validations use), with stdout/stderr redirected into the scenario dir.
+    # Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+    # a space (a spaced checkout/binary) would otherwise reach the backend's arg parser split into broken tokens.
     $p = Start-Process -FilePath $Exe -ArgumentList @(
         '--world', $World,
-        '--arcopolis-run-script', $scriptPath,
-        '--arcopolis-export-dir', $dir,
-        '--userdir', $UserDir
+        '--arcopolis-run-script', "`"$scriptPath`"",
+        '--arcopolis-export-dir', "`"$dir`"",
+        '--userdir', "`"$UserDir`""
     ) -NoNewWindow -Wait -PassThru `
         -RedirectStandardOutput (Join-Path $dir "stdout.txt") -RedirectStandardError (Join-Path $dir "stderr.txt")
     $code = $p.ExitCode
@@ -99,7 +101,7 @@ function Invoke-Scenario {
 
     $beforeFile = Get-ChildItem $dir -Filter "*_before.json" | Select-Object -First 1
     $afterFile  = Get-ChildItem $dir -Filter "*_after.json"  | Select-Object -First 1
-    if( -not $beforeFile -or -not $afterFile ) { throw "missing before/after snapshot in $dir" }
+    if( -not $beforeFile -or -not $afterFile ) { throw "missing before/after snapshot in $(Format-ArcoPath $dir)" }
 
     $b = Get-Content $beforeFile.FullName -Raw | ConvertFrom-Json
     $a = Get-Content $afterFile.FullName  -Raw | ConvertFrom-Json
@@ -162,8 +164,10 @@ $nScript = Join-Path $nDir "script.json"
   { "op": "export",  "name": "after" }
 ] }
 '@ | Set-Content -Encoding ascii $nScript
+# Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
+# a space (a spaced checkout/binary) would otherwise reach the backend's arg parser split into broken tokens.
 $np = Start-Process -FilePath $Exe -ArgumentList @(
-    '--world', $World, '--arcopolis-run-script', $nScript, '--arcopolis-export-dir', $nDir, '--userdir', $UserDir
+    '--world', $World, '--arcopolis-run-script', "`"$nScript`"", '--arcopolis-export-dir', "`"$nDir`"", '--userdir', "`"$UserDir`""
 ) -NoNewWindow -Wait -PassThru `
     -RedirectStandardOutput (Join-Path $nDir "stdout.txt") -RedirectStandardError (Join-Path $nDir "stderr.txt")
 $nAfter = Get-ChildItem $nDir -Filter "*_after.json" -ErrorAction SilentlyContinue | Select-Object -First 1
