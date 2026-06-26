@@ -102,7 +102,7 @@ if( Test-Path $exportDir ) { Remove-Item $exportDir -Recurse -Force }
 
 # Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
 # a space (a spaced checkout/binary) would otherwise reach python's argparse split into broken tokens.
-$argList = @($Driver, '--exe', "`"$Exe`"", '--world', $World, '--userdir', "`"$UserDir`"",
+$argList = @("`"$Driver`"", '--exe', "`"$Exe`"", '--world', $World, '--userdir', "`"$UserDir`"",
              '--export-dir', "`"$exportDir`"", '--out', "`"$resultPath`"")
 $p = Start-Process -FilePath "python" -ArgumentList $argList -NoNewWindow -Wait -PassThru `
     -RedirectStandardOutput (Join-Path $OutRoot "driver_stdout.txt") `

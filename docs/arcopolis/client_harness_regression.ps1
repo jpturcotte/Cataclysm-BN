@@ -153,7 +153,7 @@ if( Test-Path $failDir ) { Remove-Item $failDir -Recurse -Force }
 $failJson = Join-Path $OutRoot "run_failloud_result.json"
 # Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
 # a space (a spaced checkout/binary) would otherwise reach python's argparse split into broken tokens.
-$pf = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', "`"$Exe`"", '--world', $World, '--userdir', "`"$UserDir`"",
+$pf = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'run', '--exe', "`"$Exe`"", '--world', $World, '--userdir', "`"$UserDir`"",
     '--out', "`"$failDir`"", '--commands', 'move_n', '--json') `
     -StdoutPath $failJson -StderrPath (Join-Path $OutRoot "run_failloud_stderr.txt")
 $fj = $null
@@ -183,7 +183,7 @@ if( $failOk ) {
 $normalDir = Join-Path $OutRoot "run_normal"
 if( Test-Path $normalDir ) { Remove-Item $normalDir -Recurse -Force }
 $normalJson = Join-Path $OutRoot "run_normal_result.json"
-$pn = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', "`"$Exe`"", '--world', $World, '--userdir', "`"$UserDir`"",
+$pn = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'run', '--exe', "`"$Exe`"", '--world', $World, '--userdir', "`"$UserDir`"",
     '--out', "`"$normalDir`"", '--commands', 'move_s,wait', '--json') `
     -StdoutPath $normalJson -StderrPath (Join-Path $OutRoot "run_normal_stderr.txt")
 $normalOk = $false
@@ -213,7 +213,7 @@ if( $normalOk ) {
 $wallDir = Join-Path $OutRoot "run_wall"
 if( Test-Path $wallDir ) { Remove-Item $wallDir -Recurse -Force }
 $wallJson = Join-Path $OutRoot "run_wall_result.json"
-$pw = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', "`"$Exe`"", '--world', $WallWorld, '--userdir', "`"$UserDir`"",
+$pw = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'run', '--exe', "`"$Exe`"", '--world', $WallWorld, '--userdir', "`"$UserDir`"",
     '--out', "`"$wallDir`"", '--commands', 'move_e', '--json') `
     -StdoutPath $wallJson -StderrPath (Join-Path $OutRoot "run_wall_stderr.txt")
 $wallOk = $false
@@ -262,7 +262,7 @@ if( $startSnap ) {
         } | Select-Object -First 1
         $blockerName = if( $northNpc ) { $northNpc.name } else { "Edwardo Stovall" }
         $viewHtml = Join-Path $failDir "view.html"
-        $pv = Invoke-PyTool -ToolArgs @($Harness, 'view', '--session-dir', "`"$failDir`"", '--output', "`"$viewHtml`"", '--snapshot', 'start', '--at', $northAt) `
+        $pv = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'view', '--session-dir', "`"$failDir`"", '--output', "`"$viewHtml`"", '--snapshot', 'start', '--at', $northAt) `
             -StdoutPath (Join-Path $failDir "view_stdout.txt") -StderrPath (Join-Path $failDir "view_stderr.txt")
         if( ($pv.ExitCode -eq 0) -and (Test-Path $viewHtml) ) {
             $htmlRaw = Get-Content $viewHtml -Raw
@@ -287,7 +287,7 @@ if( $viewOk ) {
 $diagDir = Join-Path $OutRoot "run_diag"
 if( Test-Path $diagDir ) { Remove-Item $diagDir -Recurse -Force }
 $diagJson = Join-Path $OutRoot "run_diag_result.json"
-$pd = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', "`"$Exe`"", '--world', $World, '--userdir', "`"$UserDir`"",
+$pd = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'run', '--exe', "`"$Exe`"", '--world', $World, '--userdir', "`"$UserDir`"",
     '--out', "`"$diagDir`"", '--commands', 'move_se', '--json') `
     -StdoutPath $diagJson -StderrPath (Join-Path $OutRoot "run_diag_stderr.txt")
 $diagOk = $false
@@ -313,7 +313,7 @@ if( $diagOk ) {
 # normal-sequence session (Gate 2) -- the fail-loud run's transcript carries an error event the viewer would
 # (correctly) flag as a discrepancy. ---
 $report = Join-Path $normalDir "report.html"
-$pview = Invoke-PyTool -ToolArgs @($Viewer, '--session-dir', "`"$normalDir`"", '--output', "`"$report`"") `
+$pview = Invoke-PyTool -ToolArgs @("`"$Viewer`"", '--session-dir', "`"$normalDir`"", '--output', "`"$report`"") `
     -StdoutPath (Join-Path $normalDir "viewer_stdout.txt") -StderrPath (Join-Path $normalDir "viewer_stderr.txt")
 Write-Host ("[viewer] exit=$($pview.ExitCode)  " + $pview.Stdout.Trim())
 if( $pview.ExitCode -ne 0 ) {
@@ -332,7 +332,7 @@ if( $pview.ExitCode -ne 0 ) {
 $monDir  = Join-Path $OutRoot "monster_run"
 if( Test-Path $monDir ) { Remove-Item $monDir -Recurse -Force }
 $monJson = Join-Path $OutRoot "monster_run_result.json"
-$pm = Invoke-PyTool -ToolArgs @($Harness, 'run', '--exe', "`"$Exe`"", '--world', $MonsterWorld, '--userdir', "`"$UserDir`"",
+$pm = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'run', '--exe', "`"$Exe`"", '--world', $MonsterWorld, '--userdir', "`"$UserDir`"",
     '--out', "`"$monDir`"", '--commands', 'wait', '--json') `
     -StdoutPath $monJson -StderrPath (Join-Path $OutRoot "monster_run_stderr.txt")
 $monOk = $false
@@ -375,7 +375,7 @@ if( $monOk ) {
     } else {
         $monAt   = "$($mpl[0]),$($mpl[1])"
         $monHtml = Join-Path $monDir "monster_view.html"
-        $pmv = Invoke-PyTool -ToolArgs @($Harness, 'view', '--session-dir', "`"$monDir`"", '--snapshot', 'start', '--output', "`"$monHtml`"", '--at', $monAt) `
+        $pmv = Invoke-PyTool -ToolArgs @("`"$Harness`"", 'view', '--session-dir', "`"$monDir`"", '--snapshot', 'start', '--output', "`"$monHtml`"", '--at', $monAt) `
             -StdoutPath (Join-Path $monDir "view_stdout.txt") -StderrPath (Join-Path $monDir "view_stderr.txt")
         $monViewOk = $false
         if( ($pmv.ExitCode -eq 0) -and (Test-Path $monHtml) ) {

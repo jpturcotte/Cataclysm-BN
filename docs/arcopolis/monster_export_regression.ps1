@@ -124,7 +124,7 @@ function Invoke-MonsterScenario {
     # leaves $LASTEXITCODE empty. Start-Process -Wait -PassThru waits and captures the real exit code.
     # Quote path-valued args: Start-Process -ArgumentList joins the array space-separated, so a path containing
     # a space (a spaced checkout/binary) would otherwise reach the child split into broken tokens.
-    $p = Start-Process -FilePath "`"$Exe`"" -ArgumentList @(
+    $p = Start-Process -FilePath $Exe -ArgumentList @(
         '--world', $World,
         '--arcopolis-run-script', "`"$scriptPath`"",
         '--arcopolis-export-dir', "`"$dir`"",
