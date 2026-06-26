@@ -125,6 +125,15 @@ or narrowing a canonical axis (e.g. build's labelled equivalence-level / audit-o
 CONSEQUENCES on top of the full 7 axes) is legitimate — challenge a spec that weakens, not
 one that merely extends.
 
+**When the spec under review DEFINES a canonical invariant** — the orthogonal-reframe axis set
+(`AGENTS.md` "Orthogonal-reframe axes"), the native-authority taxonomy, or the floor/seal rule
+itself — your in-loop verdict is a FLOOR, not a seal: it keys on the same judgment the edit could
+get wrong (the PR #79 axis-drop was graded a NOTE by every same-model gate and escalated only
+by a cross-model reviewer). Confirm the mechanical floor still passes
+(`deno test --allow-read .agents/arcopolis_reframe_axes_test.ts`), then require an external /
+cross-model seal before merge (`docs/arcopolis/reframe_axis_external_seal_prompt.md`). Do not
+self-ratify a change to the canonical set.
+
 ## Adversarial pass (any equivalence or goal-fit claim)
 
 A single read is not a review. Run at least THREE INDEPENDENT refute-lenses — this is
@@ -195,10 +204,9 @@ break; it has two ASYMMETRIC directions — do not conflate them.
    (the 7-axis reframe set + downstream-consumer discipline), or was it merely FOLLOWED
    faithfully? "Matches the spec" is not evidence when the spec is the object under review.
 6. **Biggest false-green risk — including the reframed false-green risk** (the strongest
-   divergence any reframe surfaced). A genuinely minor divergence may be reported here as
-   non-blocking; a constructed divergence on a canonical / Spike-25 axis (native-authority
-   class / downstream-consumer / active-mechanism) is NOT minor — grade it `needs revision`
-   or stronger per the adjudication rule, never filed here as a NOTE to escape that grade.
+   divergence any reframe surfaced). Grade it per the adjudication rule above — a genuinely
+   minor divergence may be reported non-blocking, but a constructed divergence on a canonical
+   / Spike-25 axis is not a NOTE.
 7. **Required next action.**
 
 Keep hedges and witness-scoping intact; do not polish an uncertain claim into
