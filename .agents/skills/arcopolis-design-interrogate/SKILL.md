@@ -445,6 +445,13 @@ shape for a tool channel is deferred to issue #73; a human "equivalent to WHAT?"
 neutral grep/source pointer are the sanctioned blind channels.) If the second reader
 disagrees, names a different consumer/scope, or returns UNKNOWN: `AUDIT ONLY`.
 
+To PRODUCE this blind input without hand-authoring it each time, invoke
+`arcopolis-external-seal-prompt`; it enforces exactly the requirements above (strip the
+card / class / target, raw impulse only, neutral both-surface pointers, forcing question
+without the word "predicate") and emits a portable prompt. This section remains the SPEC the
+generator implements — the seal requirement and the blind-input shape are DEFINED here; the
+generator only assembles them, and it does not itself clear the block.
+
 ### AUDIT ONLY output (non-actionable stop)
 
 ```

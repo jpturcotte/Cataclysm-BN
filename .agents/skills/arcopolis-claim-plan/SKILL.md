@@ -35,6 +35,8 @@ If the incoming task statement is a Task Statement Card from `arcopolis-design-i
   `arcopolis-design-interrogate`'s External-seal section). A same-model in-loop re-read does
   NOT clear it: the canonical
   Spike-25 failure was caught only from outside the loop, and the in-loop gates scored 0%.
+  Produce the blind prompt for that independent read with `arcopolis-external-seal-prompt` (it
+  builds the classify-from-scratch input; it does not itself clear the block).
 
 A card carrying no blocking flag still has its consumer re-derived at item 4 — the
 native-consumer classification, the predicate body-read at `file:line`, AND a three-way

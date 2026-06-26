@@ -66,6 +66,11 @@ pitch).
 The title/body is the author's frame; reviewing inside it is how a reviewer who shares the
 author's conflation passes a broken claim.
 
+**This frame-removal step is a shared primitive.** `arcopolis-external-seal-prompt` draws on
+it to assemble a BLIND external-seal input: this skill removes the author frame to REVIEW (a
+same-model floor); that skill removes the same frame to HAND OFF a blind input to an
+independent reader (the seal). One procedure, two consumers — do not fork a second copy.
+
 **Reframe on a different axis than the author used.** The adversarial pass below requires at
 least THREE independent refute-lenses; AT LEAST ONE of them must explicitly REFRAME the
 claim on a different decision _axis_ than the author argued. An **orthogonal reframe**
