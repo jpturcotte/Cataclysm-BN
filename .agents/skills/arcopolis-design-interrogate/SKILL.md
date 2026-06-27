@@ -56,12 +56,17 @@ standardized gate scored 0% catch; the only real catch came from OUTSIDE the loo
 "equivalent to WHAT?" question, an external review, a cross-model adversarial critic). A
 second pass by the SAME model shares the same prior and modally repeats the error. So any
 possession / mission / objective / Stage-blocking card is marked `External-seal required:
-YES` and is NOT plan-ready until an independent check — a human GUI-equivalence
+YES` and is NOT plan-ready until an INDEPENDENT READ — a human GUI-equivalence
 confirmation, or a blind cross-model read by a different reasoner (the
 `arcopolis-red-team-review` / `/code-review ultra` tools are not yet a sanctioned blind
-channel — see the External-seal section) — names the concrete engine consumer and
-reads its body. Do NOT represent any in-loop pass, including this skill's own, as that
-seal.
+channel — see the External-seal section) — names the concrete engine consumer and reads its
+body. **That independent read is a STRONGER FLOOR (independence evidence), not the seal:** a
+different reasoner may share the same plausibility prior and miss the error for the same
+reason (de-correlation is unmeasured). The only true SEAL is a MECHANICAL check that cannot
+share the prior — a Class-C witness exercising the engine predicate's own returned result,
+enforced downstream. For the framing JUDGMENT itself (is this C or D?) no mechanical check
+exists — it is floors all the way up; record the independent read and acknowledge the
+residual risk. Never represent any pass — in-loop OR independent — as the seal.
 
 This skill turns a vague design impulse into a scoped, falsifiable Task Statement Card. It
 does not generate implementation options, evaluate feasibility, survey the backlog, or
@@ -181,7 +186,7 @@ over-inclusive — a needless body-read is cheap; a missed one reopened the spik
 a backstop only.** It catches the lexically-MARKED case; it does NOT catch an
 abstraction-routed unmarked goal (e.g. "expose the courier job's completion flag" — no
 stem, yet `mission::is_complete` → `crafting_inventory().has_amount`). The unmarked case is
-caught — if at all — by the consumer-naming gate and the external seal, NOT by the stem
+caught — if at all — by the consumer-naming gate and the external independent read, NOT by the stem
 list. Never advertise the keyword scan as the mechanical guarantee.
 
 **Domain override.** A possession / mission / objective / state-check goal is Class C
@@ -411,39 +416,51 @@ Consumer/mechanism step (item 4 — including the predicate body-read and the go
 vs authority vs surface scope comparison) and its registered-input step (item 3). The card
 front-loads them to focus the plan; a fully-filled card is well-FORMED, not proven TRUE.
 **A card with `External-seal required: YES` is NOT plan-ready until the external check (next
-section) clears.** The card's own load-bearing contributions are the consumer-naming, the
+section) is recorded.** The card's own load-bearing contributions are the consumer-naming, the
 `Falsification` criterion, and the `Open unknowns` flags `arcopolis-claim-plan` must resolve.
 
 ### External seal (possession / objective / Stage-blocking cards)
 
 Any card with `External-seal required: YES` — any possession / mission / objective /
 state-check / Stage-blocking goal — is NOT plan-ready on this skill's output alone. The
-seal (name the concrete engine consumer, read its body, discriminate predicate C from
-display D on the same state) must be performed or adjudicated by a reasoner that does NOT
-share this agent's prior: a human "equivalent to WHAT?" GUI-equivalence confirmation, an
-external review, or a cross-model reasoner given the blind input below. (The
+independent read (name the concrete engine consumer, read its body, discriminate an
+engine-computed check C from a display D on the same state) must be performed by a reasoner
+that does NOT share this agent's prior: a human "equivalent to WHAT?" GUI-equivalence
+confirmation, an external review, or a cross-model reasoner given the blind input below. (The
 `arcopolis-red-team-review` / `/code-review ultra` TOOLS are NOT yet a sanctioned blind
-channel — see the tool-channel limitation below.) This skill's in-loop gates raise the
-floor; they are NOT the seal — every in-loop standardized gate scored 0% catch on the
-canonical failure. Record the seal state on the card; `arcopolis-claim-plan` must not
-advance a possession/objective card to a Stage-blocking witness until it is cleared.
+channel — see the tool-channel limitation below.) It is a STRONGER FLOOR (independence
+evidence), NOT the seal — the reasoner may share the prior and miss the error for the same
+reason; the only true seal is the downstream MECHANICAL Class-C witness, and for the framing
+judgment itself none exists. Record the `External-seal status` on the card; `arcopolis-claim-plan`
+must not advance a possession/objective card to a Stage-blocking witness until that
+independent read is recorded.
 
 **The external-seal input must be BLIND.** Give the second reader ONLY the raw user impulse,
 relevant repo context pointers, and the forcing question — "name the concrete downstream
-engine consumer; is it a predicate/condition, a display, raw state, an action, or a
-menu/input loop?" Do NOT provide the first Task Statement Card, the proposed class,
+engine consumer, and say what the engine does with the value: does it SHOW it, EVALUATE a
+yes/no it computes from it, hold it as raw state, perform it as an action, or present it as a
+menu?" Do NOT provide the first Task Statement Card, the proposed class,
 authority target, scope, or rationale until AFTER the second reader has answered; otherwise
-the reviewer is anchored by the first agent's framing, which is the circularity the seal
-exists to break. The repo pointers are agent-selected, so constrain them to NEUTRALITY:
+the reviewer is anchored by the first agent's framing, which is the circularity the
+independent read exists to break. The repo pointers are agent-selected, so constrain them to NEUTRALITY:
 point at BOTH any display/raw surface AND any suspected predicate/condition source the
 impulse could touch (or grant the reviewer independent repo grep), never only the first
 agent's preferred surface; and ask the forcing question WITHOUT naming the suspected class,
-the authority target, or the word "predicate." (Driving the seal through a TOOL channel —
+the authority target, or the word "predicate." (Driving the independent read through a TOOL channel —
 `arcopolis-red-team-review` / `/code-review ultra` — is a LIMITATION, not yet a procedure:
-those tools rate an EXISTING claim rather than classify from scratch, so the blind-input
-shape for a tool channel is deferred to issue #73; a human "equivalent to WHAT?" read and a
-neutral grep/source pointer are the sanctioned blind channels.) If the second reader
+those tools rate an EXISTING claim rather than classify from scratch, so feeding them even a
+blind input would not seal anything — the limitation is the tools' rate-not-classify
+behavior, not a missing input shape (`arcopolis-external-seal-prompt` produces that input for
+the sanctioned channels). A human "equivalent to WHAT?" read and a neutral grep/source
+pointer are the sanctioned blind channels.) If the second reader
 disagrees, names a different consumer/scope, or returns UNKNOWN: `AUDIT ONLY`.
+
+To PRODUCE this blind input without hand-authoring it each time, invoke
+`arcopolis-external-seal-prompt`; it enforces exactly the requirements above (strip the
+card / class / target, raw impulse only, neutral both-surface pointers, forcing question
+without the word "predicate") and emits a portable prompt. This section remains the SPEC the
+generator implements — the External-seal requirement and the blind-input shape are DEFINED here; the
+generator only assembles them, and it does not itself clear the block.
 
 ### AUDIT ONLY output (non-actionable stop)
 
@@ -486,7 +503,7 @@ step (item 4); runs item 4's consumer re-derivation + predicate body-read + the
 goal-required vs authority vs surface scope comparison for every observation/predicate
 card; requires a `FALSIFICATION UNKNOWN` flag to be resolved before any witness (item 5);
 and treats `External-seal required: YES` as a hard block on a Stage-blocking witness until
-an independent (human / cross-model) check clears it.
+an independent (human / cross-model) read is recorded (a stronger floor, not a seal).
 
 The authoritative wording lives in `arcopolis-claim-plan` — do not duplicate it here, to
 avoid drift. These flags have downstream enforcement only while that block is present; if
@@ -497,8 +514,10 @@ it is removed, they become inert.
 - The AGENT derives class, consumer, authority target, and scope from grounded inspection.
   Do NOT quiz the user on classification or call paths; ask only intent questions.
 - The possession-surface keyword scan is a cheap over-trigger, NOT the mechanical
-  guarantee. The floor is consumer-naming + the discriminating body-read; the SEAL is the
-  external (human / cross-model) check. Never call an in-loop pass the seal.
+  guarantee. The floor is consumer-naming + the discriminating body-read; an independent
+  external (human / cross-model) read is a STRONGER FLOOR (independence evidence), not the
+  seal; the only true seal is a mechanical Class-C witness. Never call an in-loop pass, or an
+  independent read, the seal.
 - A possession / mission / objective / state-check card is `External-seal required: YES`
   and is not plan-ready on this skill alone.
 - Do not generate implementation options, evaluate feasibility, or assign equivalence
@@ -524,10 +543,12 @@ it is removed, they become inert.
   AUTHORITATIVE vs DERIVED/DISPLAY) flip the impulse's frame so the class follows the
   consumer, not the wording. Broad option/axis reframing at the product level belongs to
   `arcopolis-design-explore`.
-- **Floor vs seal:** in-loop gates (consumer-naming, body-read, scope-binding, the keyword
-  over-trigger) RAISE THE FLOOR; the SEAL for possession/objective claims is an independent
-  external check (human GUI-equivalence question or cross-model adversarial review). The
-  skill forces the external check; it does not internally close Spike-25.
+- **Floor vs independence vs seal:** in-loop gates (consumer-naming, body-read,
+  scope-binding, the keyword over-trigger) RAISE THE FLOOR; an independent external check
+  (human GUI-equivalence question or cross-model adversarial review) is a STRONGER FLOOR /
+  independence evidence, NOT a proven seal; the only true SEAL is a mechanical Class-C witness
+  (and for the framing judgment itself, none exists — floors all the way up). The skill forces
+  the independent check; it does not internally close Spike-25.
 - **Downstream consumer:** the named engine consumer of the surface/action (display /
   snapshot / action / menu-loop / predicate). Naming it is Pass 2's primary gate.
 - **Goal-required scope / Authority scope:** the reach the goal needs (on-person /
@@ -536,7 +557,8 @@ it is removed, they become inert.
 - **`Predicate-read owed`:** a possession/objective surface owes the discriminating
   body-read before a class is final.
 - **`External-seal required`:** a possession/objective/Stage-blocking card needs an
-  independent (human / cross-model) check before it is plan-ready.
+  independent (human / cross-model) read — a stronger floor, not a seal — before it is
+  plan-ready.
 - **Proxy substitution:** a D/S surface offered as the B/C mechanism. `AUDIT ONLY`.
 - **`MECHANISM UNKNOWN`:** no citable authority mechanism (predicate body / input loop /
   handler) for the goal — the genus; `PROXY SUBSTITUTION` and `SCOPE MISMATCH` are named

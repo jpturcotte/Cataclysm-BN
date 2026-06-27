@@ -177,10 +177,13 @@ Two guards follow:
 - **Mechanical floor.** `deno test --allow-read .agents/arcopolis_reframe_axes_test.ts` (also run in
   CI by `deno test`) fails if any governance skill's canonical list drifts from this block. It
   catches a dropped or renamed axis deterministically; it cannot judge whether the set is correct.
-- **Cross-author seal.** Adding, removing, or renaming an axis here is a framing edit: an in-loop
-  same-model review is a FLOOR, not a seal, because it keys on the very judgment that could be wrong.
-  Route any such change to an external / cross-model seal — see `arcopolis-red-team-review`
-  "Spec-frame challenge" and `docs/arcopolis/reframe_axis_external_seal_prompt.md` — before merge.
+- **Cross-author independence check.** Adding, removing, or renaming an axis here is a framing edit: an
+  in-loop same-model review is a FLOOR, not a seal, because it keys on the very judgment that could be wrong.
+  Route any such change to an external / cross-model independent read — see `arcopolis-red-team-review`
+  "Spec-frame challenge" and `docs/arcopolis/reframe_axis_external_seal_prompt.md` — before merge. That read
+  is a STRONGER FLOOR (independence evidence), not a proven seal: a different model may share the same prior.
+  No mechanical check can judge whether the axis set is CORRECT, so for this edit there is no seal — only
+  floors; record the independent read and accept the residual risk.
 
 ### Backend documentation
 
@@ -435,4 +438,4 @@ Multi-context — `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md
 
 ### Reusable agent skills
 
-Reusable skills live in `.agents/skills/<name>/SKILL.md` (Codex reads them directly; Claude Code loads project skills from `.claude/skills/`, so it needs a local bridge). See `docs/agents/agent-skills.md` — including the five `arcopolis-*` equivalence-claim governance skills, plus the two design-stage skills (`arcopolis-design-interrogate` and `arcopolis-design-explore`).
+Reusable skills live in `.agents/skills/<name>/SKILL.md` (Codex reads them directly; Claude Code loads project skills from `.claude/skills/`, so it needs a local bridge). See `docs/agents/agent-skills.md` — including the five `arcopolis-*` equivalence-claim governance skills, the two design-stage skills (`arcopolis-design-interrogate` and `arcopolis-design-explore`), and the `arcopolis-external-seal-prompt` support instrument that generates the blind cross-model/human seal prompt.
