@@ -29,11 +29,13 @@ If the incoming task statement is a Task Statement Card from `arcopolis-design-i
   wants), not a proxy substituted for it; no separate resolution path is added.
 - an `External-seal required: YES` card (any possession / mission / objective / state-check
   / Stage-blocking goal) is a HARD BLOCK on a Stage-blocking witness until an INDEPENDENT
-  check clears it — a human "equivalent to WHAT?" GUI-equivalence confirmation or a blind
+  read is recorded — a human "equivalent to WHAT?" GUI-equivalence confirmation or a blind
   cross-model read by a different reasoner (the `arcopolis-red-team-review` / `/code-review
   ultra` tools are not yet a sanctioned blind channel — they rate an existing claim; see
-  `arcopolis-design-interrogate`'s External-seal section). A same-model in-loop re-read does
-  NOT clear it: the canonical
+  `arcopolis-design-interrogate`'s External-seal section). That read is a STRONGER FLOOR
+  (independence evidence), not a seal — it lifts the block to proceed, but a different reasoner
+  may share the prior; the only true seal is a downstream MECHANICAL Class-C witness. A
+  same-model in-loop re-read does NOT lift it: the canonical
   Spike-25 failure was caught only from outside the loop, and the in-loop gates scored 0%.
   Produce the blind prompt for that independent read with `arcopolis-external-seal-prompt` (it
   builds the classify-from-scratch input; it does not itself clear the block).
@@ -52,7 +54,9 @@ NO` is a floor pass, not proof that no abstraction-routed possession/predicate d
 exists. So when the goal is possession / mission / objective / state-check ADJACENT but item
 4 re-derived `NO`, do NOT trust that `NO` — set `External-seal required: YES` and route the
 blind external (human / cross-model) check anyway; downgrade to `NO` only after that
-independent reader confirms no predicate consumer exists. The card's class,
+independent reader finds no predicate consumer — and treat even that as a stronger-floor pass,
+not proof of absence (the reader may share the prior; only a mechanical check would seal an
+absence claim). The card's class,
 mechanism, and scope are the interrogator's CLAIMED values, not findings, so item 4 runs for
 every observation/predicate card regardless of which flags are present; the card only lets
 the plan OPEN faster, it does not discharge item 4. Absent a card, plan as normal.

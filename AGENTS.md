@@ -177,10 +177,13 @@ Two guards follow:
 - **Mechanical floor.** `deno test --allow-read .agents/arcopolis_reframe_axes_test.ts` (also run in
   CI by `deno test`) fails if any governance skill's canonical list drifts from this block. It
   catches a dropped or renamed axis deterministically; it cannot judge whether the set is correct.
-- **Cross-author seal.** Adding, removing, or renaming an axis here is a framing edit: an in-loop
-  same-model review is a FLOOR, not a seal, because it keys on the very judgment that could be wrong.
-  Route any such change to an external / cross-model seal — see `arcopolis-red-team-review`
-  "Spec-frame challenge" and `docs/arcopolis/reframe_axis_external_seal_prompt.md` — before merge.
+- **Cross-author independence check.** Adding, removing, or renaming an axis here is a framing edit: an
+  in-loop same-model review is a FLOOR, not a seal, because it keys on the very judgment that could be wrong.
+  Route any such change to an external / cross-model independent read — see `arcopolis-red-team-review`
+  "Spec-frame challenge" and `docs/arcopolis/reframe_axis_external_seal_prompt.md` — before merge. That read
+  is a STRONGER FLOOR (independence evidence), not a proven seal: a different model may share the same prior.
+  No mechanical check can judge whether the axis set is CORRECT, so for this edit there is no seal — only
+  floors; record the independent read and accept the residual risk.
 
 ### Backend documentation
 

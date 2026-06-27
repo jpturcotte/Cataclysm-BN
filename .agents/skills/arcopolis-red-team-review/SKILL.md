@@ -69,7 +69,8 @@ author's conflation passes a broken claim.
 **This frame-removal step is a shared primitive.** `arcopolis-external-seal-prompt` draws on
 it to assemble a BLIND external-seal input: this skill removes the author frame to REVIEW (a
 same-model floor); that skill removes the same frame to HAND OFF a blind input to an
-independent reader (the seal). One procedure, two consumers — do not fork a second copy.
+independent reader (a stronger floor / independence evidence — not the seal; only a mechanical
+check seals). One procedure, two consumers — do not fork a second copy.
 
 **Reframe on a different axis than the author used.** The adversarial pass below requires at
 least THREE independent refute-lenses; AT LEAST ONE of them must explicitly REFRAME the
@@ -136,8 +137,9 @@ itself — your in-loop verdict is a FLOOR, not a seal: it keys on the same judg
 get wrong (the PR #79 axis-drop was graded a NOTE by every same-model gate and escalated only
 by a cross-model reviewer). Confirm the mechanical floor still passes
 (`deno test --allow-read .agents/arcopolis_reframe_axes_test.ts`), then require an external /
-cross-model seal before merge (`docs/arcopolis/reframe_axis_external_seal_prompt.md`). Do not
-self-ratify a change to the canonical set.
+cross-model independent read before merge (`docs/arcopolis/reframe_axis_external_seal_prompt.md`)
+— a stronger floor, not a proven seal; no mechanical check can judge axis-set correctness, so
+this stays floored. Do not self-ratify a change to the canonical set.
 
 ## Adversarial pass (any equivalence or goal-fit claim)
 
@@ -229,7 +231,8 @@ C predicate / D display / S simulation-state) · Goal-fit (sufficient-for vs
 consistent-with) · Counterexample / divergence witness · Orthogonal reframe (change the
 decision axis — route / consumer / class / mechanism / witness / stop-condition / scope —
 not the task size) · Author-frame removal (restate the claim from diff + witness + consumer,
-not the PR title/body) · Floor vs seal /
+not the PR title/body) · Floor vs independence vs seal /
 judge-independence (same-model lenses = floor, labeled; cross-substrate convergence =
-seal; weight by independence + decisive-leaf verification, not confidence; authoritative
-floor/seal rule in `arcopolis-design-interrogate`).
+INDEPENDENCE EVIDENCE / a stronger floor, NOT a proven seal — two models can share the prior;
+only a mechanical / structural check seals; weight by independence + decisive-leaf
+verification, not confidence; authoritative floor/seal rule in `arcopolis-design-interrogate`).
