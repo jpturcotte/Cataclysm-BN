@@ -67,8 +67,11 @@ This skill turns a vague design impulse into a scoped, falsifiable Task Statemen
 does not generate implementation options, evaluate feasibility, survey the backlog, or
 propose architecture.
 
-**One follow-up question TO THE USER per pass, no exceptions.** The agent may inspect
-source freely; what is bounded is questions to the user. If the user's answer after the
+**One follow-up question TO THE USER per pass.** The lone exception is Pass 4's non-goal
+RATIFICATION — a single, bounded pick/reject on agent-proposed candidate artifacts: it
+confirms the agent's read rather than eliciting new intent, never re-asks, and is itself
+flag-and-advance (reject-all → `NON-GOAL-UNBOUNDED`). The agent may inspect source freely;
+what is bounded is clarifying questions to the user. If the user's answer after the
 follow-up is still insufficient, log the appropriate flag and advance. Do not ask a third
 time. A logged flag is the correct output for an unanswerable pass — it is information for
 `arcopolis-claim-plan`, not a failure of this skill.
@@ -304,8 +307,10 @@ Then, by what the user gives:
 - **User gives a plain-language boundary** → the agent OPERATIONALIZES it by reading the
   source and PROPOSING 1-3 concrete candidate non-goal artifacts the boundary maps to (for
   "don't create a parallel surface", the existing engine path the change must route THROUGH
-  rather than duplicate). Present them as proposals and STOP for the user to pick or reject.
-  Record ONLY the artifact the user explicitly confirms — an unconfirmed proposal is NOT the
+  rather than duplicate). Present them as proposals and STOP for the user to pick or reject —
+  this single ratification turn is the one second user-interaction the pass budget permits
+  beyond the intent question (one round; do not re-propose). Record ONLY the artifact the
+  user explicitly confirms — an unconfirmed proposal is NOT the
   non-goal, and "I'll treat X as the non-goal" without an explicit user pick is forbidden (it
   would let the agent self-record a convenient, non-binding bound). The user, seeing a
   concrete artifact, can reject a weak choice and name the real one.
@@ -323,9 +328,10 @@ user-anchored guardrail while sparing the user from naming a symbol the agent sh
 **Self-contradiction check.** After a specific non-goal artifact is confirmed: does it name
 the exact same artifact as the goal artifact from Pass 1? If yes: output
 `SELF-CONTRADICTORY SCOPE — the goal and the stated non-goal name the same artifact.
-A Task Statement Card cannot be produced.` Stop. This check is name-identity only, and is
-skipped (not fired) when Pass 1 produced no concrete goal artifact (`TARGET UNKNOWN` /
-`ARTIFACT UNVERIFIED`).
+A Task Statement Card cannot be produced.` Stop. This check is name-identity only, so it
+FIRES whenever Pass 1 produced a concrete goal-artifact name — including `ARTIFACT
+UNVERIFIED`, where the user named a symbol that merely is not in the docs (a name is still a
+name to compare). It is skipped only when Pass 1 named no artifact at all (`TARGET UNKNOWN`).
 
 Do not prompt for a comprehensive exclusion list. That is impact mapping's job in
 `arcopolis-claim-plan`.
@@ -503,7 +509,8 @@ it is removed, they become inert.
   prioritization queue.
 - Do not write a confident-but-unverified or wrong-scope mechanism to the card; an honest
   AUDIT ONLY beats a plausible wrong symbol.
-- One follow-up question to the user per pass. Flag and advance on failure.
+- One follow-up question to the user per pass (Pass 4's non-goal ratification is the lone
+  bounded exception). Flag and advance on failure.
 
 ## Shared vocabulary
 
