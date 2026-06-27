@@ -430,8 +430,9 @@ advance a possession/objective card to a Stage-blocking witness until it is clea
 
 **The external-seal input must be BLIND.** Give the second reader ONLY the raw user impulse,
 relevant repo context pointers, and the forcing question — "name the concrete downstream
-engine consumer; is it a predicate/condition, a display, raw state, an action, or a
-menu/input loop?" Do NOT provide the first Task Statement Card, the proposed class,
+engine consumer, and say what the engine does with the value: does it SHOW it, EVALUATE a
+yes/no it computes from it, hold it as raw state, perform it as an action, or present it as a
+menu?" Do NOT provide the first Task Statement Card, the proposed class,
 authority target, scope, or rationale until AFTER the second reader has answered; otherwise
 the reviewer is anchored by the first agent's framing, which is the circularity the seal
 exists to break. The repo pointers are agent-selected, so constrain them to NEUTRALITY:
