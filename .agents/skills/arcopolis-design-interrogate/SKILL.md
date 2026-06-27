@@ -399,7 +399,7 @@ Predicate-read owed:   [YES (with trigger basis) / NO]
 External-seal required:[YES (possession/objective/Stage-blocking) / NO]
 External-seal status:  [not required / required (pending) / cleared by human / cleared by blind cross-model read / AUDIT ONLY (reviewer disagreed or returned UNKNOWN)]
 External-seal evidence:[link, quote, or reviewer-output summary — or NONE]
-Must NOT touch:        [named surface, seam, or capability — or UNBOUNDED]
+Must NOT touch:        [named surface, seam, or capability — or NON-GOAL-UNBOUNDED]
 Falsification:         [C: vs engine predicate result on the same state · D: vs GUI display · S: vs raw state · A: engine-state/seam divergence — or UNKNOWN]
 Open unknowns:         [all logged flags — or NONE]
 ```
@@ -561,6 +561,8 @@ it is removed, they become inert.
 - **`FALSIFICATION UNKNOWN`:** no behavioral divergence stated in Pass 5. `arcopolis-claim-plan`
   must resolve before any witness.
 - **`SELF-CONTRADICTORY SCOPE`:** goal and non-goal name the same artifact. A separate
-  terminal stop after Pass 4 (not an `AUDIT ONLY`); resolved by redefining the scope.
+  terminal stop after Pass 4 (not an `AUDIT ONLY`); resolved by redefining the scope. The
+  name-identity check fires whenever Pass 1 produced a goal-artifact name (including
+  `ARTIFACT UNVERIFIED`) and is skipped only for `TARGET UNKNOWN` (no name to compare).
 - **`TARGET UNKNOWN`:** user cannot name any artifact or frontier area. Proceed using the
   frontier as a loose anchor; logged on card.
