@@ -53,3 +53,12 @@ strategy/roadmap questions before there is a narrowed impulse) precede the
 equivalence-claim suite — they shape and classify a vague design impulse into something
 the governance suite can act on; `arcopolis-design-interrogate` is user-invoked by design
 (the model must not launch the interactive interrogation itself).
+
+`arcopolis-external-seal-prompt` is a support instrument, not a workflow stage: it generates
+the BLIND, classify-from-scratch prompt an external seal needs — the cross-model / human read
+that `arcopolis-design-interrogate` raises and `arcopolis-claim-plan` blocks on. It produces
+the prompt only; the seal itself is rendered outside the session, by a reasoner that does not
+share this one's prior. It draws its frame-removal step from `arcopolis-red-team-review` and
+defers the blind-input spec to `arcopolis-design-interrogate`, so it adds no new copy of
+either. It carries no canonical reframe-axis block (it performs no reframe), so it is
+correctly absent from the `arcopolis_reframe_axes_test.ts` skill list.
