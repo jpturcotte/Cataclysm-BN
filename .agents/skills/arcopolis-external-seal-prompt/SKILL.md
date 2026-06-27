@@ -92,10 +92,10 @@ A same-model in-loop re-read does NOT fill these — it is the floor the seal ex
 
 The sanctioned blind channels are a human "equivalent to WHAT?" read and a blind cross-model
 read. The `arcopolis-red-team-review` / `/code-review ultra` TOOLS are NOT a sanctioned
-channel: they rate an EXISTING claim rather than classify from scratch (the tool-channel
-blind-input shape is deferred to issue #73). This skill produces the classify-from-scratch
-input such a channel would need, but it does not by itself sanction the tools — until #73
-lands, paste the prompt to a human or a blind cross-model reasoner, not to those tools.
+channel: they rate an EXISTING claim rather than classify from scratch. This skill produces
+the classify-from-scratch input a blind reader needs, but feeding it to those tools still
+would not seal anything — the limitation is the tools' rate-not-classify behavior, not the
+input shape. Paste the prompt to a human or a blind cross-model reasoner, not to those tools.
 
 ## Self-check (before handing the prompt over)
 
@@ -115,4 +115,4 @@ seal (same-substrate = floor; cross-substrate / human = seal; doctrine in
 `arcopolis-design-interrogate`) · Native-authority class (A action / B prompt-menu /
 C predicate / D display / S simulation-state) · Sanctioned blind channel (human "equivalent
 to WHAT?" / blind cross-model — NOT the `arcopolis-red-team-review` / `/code-review ultra`
-tools; issue #73) · Classify-from-scratch vs rate-an-existing-claim.
+tools, which rate rather than classify) · Classify-from-scratch vs rate-an-existing-claim.

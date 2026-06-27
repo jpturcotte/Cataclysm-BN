@@ -440,9 +440,11 @@ impulse could touch (or grant the reviewer independent repo grep), never only th
 agent's preferred surface; and ask the forcing question WITHOUT naming the suspected class,
 the authority target, or the word "predicate." (Driving the seal through a TOOL channel —
 `arcopolis-red-team-review` / `/code-review ultra` — is a LIMITATION, not yet a procedure:
-those tools rate an EXISTING claim rather than classify from scratch, so the blind-input
-shape for a tool channel is deferred to issue #73; a human "equivalent to WHAT?" read and a
-neutral grep/source pointer are the sanctioned blind channels.) If the second reader
+those tools rate an EXISTING claim rather than classify from scratch, so feeding them even a
+blind input would not seal anything — the limitation is the tools' rate-not-classify
+behavior, not a missing input shape (`arcopolis-external-seal-prompt` produces that input for
+the sanctioned channels). A human "equivalent to WHAT?" read and a neutral grep/source
+pointer are the sanctioned blind channels.) If the second reader
 disagrees, names a different consumer/scope, or returns UNKNOWN: `AUDIT ONLY`.
 
 To PRODUCE this blind input without hand-authoring it each time, invoke
