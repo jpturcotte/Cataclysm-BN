@@ -1,0 +1,4 @@
+# Transient generated prompt artifacts (regenerate via gen_prompts.ts + gen_workflow.ts).
+# out/id_map.json is only a cache — collect.ts/grade.ts rebuild it from corpus.jsonl (buildIdMap),
+# so re-grading the committed verdicts/*.jsonl + results/* needs nothing from out/.
+out/
