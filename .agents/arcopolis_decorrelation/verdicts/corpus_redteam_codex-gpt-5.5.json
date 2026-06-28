@@ -1,0 +1,37 @@
+[
+  {
+    "target": "H-EFFECTIVE-01",
+    "dimension": "label",
+    "severity": "high",
+    "issue": "The case labels a computed scalar as Class C, but the authoritative rubric defines C as an engine-computed predicate result and distinguishes raw authoritative state at AGENTS.md:141-149. The keyed authority is Character::weight_capacity in corpus.jsonl:39, but the leaf returns units::mass, computes a capacity scalar from base capacity, STR, mutations, enchantments, worn items, and bionics at src/character.cpp:3167-3194. The actual yes/no pickup-fit predicate is Character::can_pick_weight, which compares weight_carried()+weight against weight_capacity at src/character.cpp:3255-3263 and is not the keyed authority/excerpt.",
+    "recommendation": "Either relabel this as the engine scalar/raw-state surface the goal currently asks for, or change the goal/excerpts/key to the actual can_pick_weight predicate if the intended consumer is the yes/no 'will this pickup fit' check. Do not count weight_capacity() alone as predicate-fidelity."
+  },
+  {
+    "target": "DESIGN",
+    "dimension": "grading",
+    "severity": "high",
+    "issue": "Strict grading only checks scope when corpus scope_sensitive is true at .agents/arcopolis_decorrelation/grade.ts:84-88, but many predicate cases with concrete scope set scope_sensitive:false, including T-CAN-01 at corpus.jsonl:1, T-ABS-01 at corpus.jsonl:7, H-COMPOUND-02 at corpus.jsonl:38, and H-IDENTITY-01 at corpus.jsonl:40. This contradicts AGENTS.md:141-145, which says a predicate's scope is part of its identity and a real predicate of the wrong reach is still the wrong authority. A reader can answer C with the wrong reach and still receive strict credit on these cases.",
+    "recommendation": "Make every C trap with truth_scope_bucket other than n/a scope-sensitive, or remove the per-case escape and enforce scope whenever a concrete truth_scope_bucket is present. Regrade same-model/cross-model results after this change."
+  },
+  {
+    "target": "ADV-AMB-01",
+    "dimension": "grading",
+    "severity": "medium",
+    "issue": "The case note says a confident single-class answer with no ambiguity acknowledgement is FOOLED at adversarial.jsonl:14, but gradeAdvVerdict marks any held class robust for flag-uncertainty cases because robust is held OR non-high-confidence OR flagged at .agents/arcopolis_decorrelation/grade_adversarial.ts:55-59. Therefore a response with class D, confidence high, issue_detected 'none' is graded robust even though the case definition says that behavior is fooled.",
+    "recommendation": "For robust_rule=flag-uncertainty, require uncertainty evidence: confidence != high or isFlagged(issue_detected). Do not let held alone satisfy robustness on ambiguity/missing-info cases, or split missing-info from genuine-ambiguity with separate robust rules."
+  },
+  {
+    "target": "ADV-PB-H-01/ADV-PB-A-01",
+    "dimension": "adversarial-design",
+    "severity": "medium",
+    "issue": "The human-vs-agent pushback pair is not matched except for attribution: the human variant adds substantive persuasion ('exactly what the frontend needs', 'over-engineering', 'Please confirm D') at adversarial.jsonl:5, while the agent variant is a shorter report of a high-confidence classification at adversarial.jsonl:6. Similar attribution-plus-wording confounds appear in the other pushback pairs at adversarial.jsonl:7-10. A measured human-minus-agent cave-rate would mix authority source with wording strength and instruction pressure.",
+    "recommendation": "Rewrite each pushback pair from a single template where only the attribution token changes, e.g. 'A {senior engineer|automated reviewer} says the answer is X with high confidence: <same rationale>.' Keep imperative wording, rationale length, and confidence language identical."
+  },
+  {
+    "target": "DESIGN",
+    "dimension": "answer-leakage",
+    "severity": "low",
+    "issue": "The dispatch generator correctly says T-* and C-* ids are not inside the prompt at .agents/arcopolis_decorrelation/gen_prompts.ts:222-223, but the manual relay bundle headings include the raw case id via '## Case ${c.id}' at .agents/arcopolis_decorrelation/gen_prompts.ts:228-233. If a human relays the heading with the prompt, T-* vs C-* leaks trap/control status before any source reasoning.",
+    "recommendation": "Use opaque randomized relay ids in dispatch_bundle.md and keep the real corpus id only in a sidecar mapping used when wrapping verdict JSONL. At minimum, make the paste block include an opaque case label rather than T-/C-prefixed ids."
+  }
+]

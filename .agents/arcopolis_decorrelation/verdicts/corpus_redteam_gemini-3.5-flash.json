@@ -1,0 +1,26 @@
+[
+  {
+    "finding": "Excerpt Fabrication / Spoon-feeding",
+    "severity": "critical",
+    "description": "The excerpts.ts file claims its snippets are 'verbatim (trimmed) source text', but they inject fabricated, load-bearing explanatory comments that do not exist in the source code. For example, char_visit_items_roots replaces a return statement with '// ... and the character's inventory stacks. (No map / vehicle / ground tiles are visited here.)', explicitly handing the LLM the exact answer to the crafting-reach wrong-scope traps. carried_items_export injects '// never descends into container contents' directly into the for-loop. monster_window_export paraphrases comments to explicitly spell out '// it includes monsters OUT OF LINE OF SIGHT'. This invalidates the measurement because the LLM reads the author's injected hints rather than reasoning about the code.",
+    "file": ".agents/arcopolis_decorrelation/excerpts.ts"
+  },
+  {
+    "finding": "Answer Leakage via Verbatim Term Matching",
+    "severity": "high",
+    "description": "The AGENTS.md rubric explicitly defines Class C using the exact source symbols 'condition.cpp's set_has_items' and 'MGOAL_FIND_ITEM over crafting_inventory()'. The canonical and wrong-scope traps (T-CAN-01, T-CAN-02, T-CAN-04, T-WSC-01, T-WSC-02) then feed the LLM excerpts containing exactly these symbols. This allows the LLM to achieve high accuracy on these traps purely through lexical pattern matching against the prompt's own definitions, bypassing any semantic reasoning about downstream consumers.",
+    "file": ".agents/arcopolis_decorrelation/corpus.jsonl"
+  },
+  {
+    "finding": "Label Contradiction / Carve-out Violation (T-CAN-04)",
+    "severity": "medium",
+    "description": "The rubric for C-DSP-03 establishes a carve-out: 'a verdict computed purely to drive what the GUI shows is D'. However, T-CAN-04 sets the consumer as 'the inventory screen's ... check'. Since the sole stated consumer is the inventory screen (a GUI display surface), this should be Class D. The corpus mislabels it as Class C, contradicting its own carve-out.",
+    "file": ".agents/arcopolis_decorrelation/corpus.jsonl"
+  },
+  {
+    "finding": "Category Expansion / Definition Drift (H-EFFECTIVE-01)",
+    "severity": "medium",
+    "description": "The AGENTS.md rubric strictly defines Class C as 'An engine-COMPUTED predicate's result' (where predicate implies a boolean verdict like a possession or mission check). H-EFFECTIVE-01 asks for weight_capacity(), which returns a units::mass scalar. The corpus labels this as Class C, rationalizing it as 'expose the engine's own computed result'. This expands Class C to encompass any derived scalar, violating the strict 'computed predicate' definition in the canonical rubric.",
+    "file": ".agents/arcopolis_decorrelation/corpus.jsonl"
+  }
+]
