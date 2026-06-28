@@ -1,0 +1,212 @@
+{
+  "generated_against": "corpus.jsonl",
+  "n_cases": 40,
+  "n_traps": 29,
+  "n_controls": 11,
+  "conditions": {
+    "anchored_same_model": {
+      "n_verdicts": 120,
+      "trap_catch_rate_class_pct": 90.8,
+      "trap_catch_rate_strict_pct": 70.1,
+      "trap_n": 87,
+      "per_category": {
+        "canonical": {
+          "n": 21,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 66.7
+        },
+        "abstraction-routed": {
+          "n": 15,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 46.7
+        },
+        "wrong-scope": {
+          "n": 12,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 83.3
+        },
+        "hard-predicate": {
+          "n": 12,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 100
+        },
+        "action-fidelity": {
+          "n": 6,
+          "catch_class_pct": 50,
+          "catch_strict_pct": 50
+        },
+        "menu-fidelity": {
+          "n": 15,
+          "catch_class_pct": 66.7,
+          "catch_strict_pct": 66.7
+        },
+        "compound": {
+          "n": 6,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 83.3
+        }
+      },
+      "control_fp_rate_pct": 0,
+      "control_n": 33,
+      "per_control_type": {
+        "control-display": {
+          "n": 18,
+          "fp_pct": 0
+        },
+        "control-rawstate": {
+          "n": 9,
+          "fp_pct": 0
+        },
+        "control-hard-display": {
+          "n": 6,
+          "fp_pct": 0
+        }
+      }
+    },
+    "blind_same_model": {
+      "n_verdicts": 200,
+      "trap_catch_rate_class_pct": 100,
+      "trap_catch_rate_strict_pct": 100,
+      "trap_n": 145,
+      "per_category": {
+        "canonical": {
+          "n": 35,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 100
+        },
+        "abstraction-routed": {
+          "n": 25,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 100
+        },
+        "wrong-scope": {
+          "n": 20,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 100
+        },
+        "hard-predicate": {
+          "n": 20,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 100
+        },
+        "action-fidelity": {
+          "n": 10,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 100
+        },
+        "menu-fidelity": {
+          "n": 25,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 100
+        },
+        "compound": {
+          "n": 10,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 100
+        }
+      },
+      "control_fp_rate_pct": 0,
+      "control_n": 55,
+      "per_control_type": {
+        "control-display": {
+          "n": 30,
+          "fp_pct": 0
+        },
+        "control-rawstate": {
+          "n": 15,
+          "fp_pct": 0
+        },
+        "control-hard-display": {
+          "n": 10,
+          "fp_pct": 0
+        }
+      }
+    },
+    "cross_model": {
+      "n_verdicts": 80,
+      "trap_catch_rate_class_pct": 86.2,
+      "trap_catch_rate_strict_pct": 86.2,
+      "trap_n": 58,
+      "per_category": {
+        "canonical": {
+          "n": 14,
+          "catch_class_pct": 57.1,
+          "catch_strict_pct": 57.1
+        },
+        "abstraction-routed": {
+          "n": 10,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 100
+        },
+        "wrong-scope": {
+          "n": 8,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 100
+        },
+        "hard-predicate": {
+          "n": 8,
+          "catch_class_pct": 75,
+          "catch_strict_pct": 75
+        },
+        "action-fidelity": {
+          "n": 4,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 100
+        },
+        "menu-fidelity": {
+          "n": 10,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 100
+        },
+        "compound": {
+          "n": 4,
+          "catch_class_pct": 100,
+          "catch_strict_pct": 100
+        }
+      },
+      "control_fp_rate_pct": 0,
+      "control_n": 22,
+      "per_control_type": {
+        "control-display": {
+          "n": 12,
+          "fp_pct": 0
+        },
+        "control-rawstate": {
+          "n": 6,
+          "fp_pct": 0
+        },
+        "control-hard-display": {
+          "n": 4,
+          "fp_pct": 0
+        }
+      }
+    }
+  },
+  "decorrelation": {
+    "blind_same_trap_catch_strict_pct": 100,
+    "cross_trap_catch_strict_pct": 86.2,
+    "delta_pp": -13.8,
+    "same_model_missed_cases": 0,
+    "both_missed_cases": 0,
+    "miss_overlap": null,
+    "miss_overlap_cases": [],
+    "control_fp_delta_pp": 0,
+    "fisher_exact_two_tailed_p": 0.00003081645588545863
+  },
+  "verdict": "REFUTED — cross-model did NOT de-correlate upward (Δ≤10pp); here it is a WEAKER floor than blind same-model — lean on the mechanical Class-C gate, issue #76",
+  "baselines": {
+    "constant_c": {
+      "note": "an 'always say C' reader: catches C traps by class, false-positives every control",
+      "trap_catch_class_pct": 75.9,
+      "control_fp_pct": 100
+    },
+    "excerpt_count": {
+      "note": "excerpt COUNT cannot predict class once every case is padded to a constant count",
+      "distinct_excerpt_counts": [
+        3
+      ],
+      "count_is_constant": true
+    }
+  },
+  "unknown_case_ids": []
+}
