@@ -1,0 +1,8 @@
+// TEMPLATE — copy to cross_model.jsonl and fill from external (non-Claude) model replies.
+// One JSON object per line. The cross-model agent reads ONE opaque-named prompt under
+// out/tasks/<opaque-id>__blind_same_model.txt (see corpus_classify_brief.md) and records the OPAQUE id
+// as case_id — NEVER the real T-/C- id, which would leak trap/control. collect.ts / grade.ts remap it.
+// Take consumer/class/scope/decisive_source/divergence/support_disposition from the model's reply; set
+// model to the model you ran and sample to 1,2,... for repeats. Lines beginning with // are ignored by
+// the loader. Do NOT use a second Claude pass here.
+{"case_id":"case-1a2b3c4","condition":"cross_model","model":"gpt-5","sample":1,"consumer":"<from reply>","class":"C","scope":"<from reply>","decisive_source":"<from reply>","divergence":"<from reply>","support_disposition":"<from reply>"}
