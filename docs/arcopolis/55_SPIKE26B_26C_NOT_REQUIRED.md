@@ -14,8 +14,9 @@
 
 The intended architecture (`AGENTS.md` → "Target architecture under investigation"): **BN is
 authoritative for simulation facts** — world state, position, possession — and returns read-only
-snapshots + query responses; the **separate Arcopolis frontend / controller owns the quest / objective
-rules** and never mutates simulation state. BN _has_ a mission system (`mission::is_complete`,
+snapshots + query responses; the **separate Arcopolis app/controller layer owns the quest / objective
+rules**, and the visual frontend may display that result and send player intent but never independently
+authors, mutates, or persists objective completion. BN _has_ a mission system (`mission::is_complete`,
 `MGOAL_FIND_ITEM`) and _could_ own "package returned," but Stage A deliberately **does not use it**:
 the objective rule lives in the Arcopolis layer, composed over BN-native facts.
 
@@ -27,8 +28,10 @@ carried_at_contact =  exported avatar position == contact position      // class
                    && has_item(package).scope == "on_person_dialogue_predicate"
 ```
 
-computed **consumer-side** (in the driver / frontend; see `stage_a_return_condition_driver.py`), never
-by the backend.
+computed **consumer-side** by the Arcopolis app/controller layer — outside BN's mission / NPC / dialogue
+systems. In the current witness, `stage_a_return_condition_driver.py` stands in for that
+consumer/controller. The BN backend gains no `return_condition` endpoint, and the visual frontend is not
+the authority for completion.
 
 ## What "return condition" means here (dissolving the apparent contradiction)
 
@@ -57,14 +60,16 @@ stays consumer-side; the backend gains **no** "return condition" endpoint.
 ## Why 26B and 26C are not required (and what they actually are)
 
 - **26B** = a backend query for the broader `crafting_inventory()` scope (the `MGOAL_FIND_ITEM`
-  authority, `src/mission.cpp:428`; reserved for a future `kind:"crafting_has_item"` /
-  `scope:"crafting_inventory"` at `src/arcopolis_live.cpp:833`). `crafting_inventory()` is a strict
-  **superset** of the on-person scope — its only extra reach is **off-person** sources (ground items
-  at/near the tile, vehicle cargo, furniture within `PICKUP_RANGE`; `src/crafting.cpp:606-621`). For
-  _"is the avatar carrying the package on their person,"_ that broader scope is **wrong**, not missing:
-  it would **false-green** a package merely dropped near the contact tile (the `dropped_at_contact`
-  case doc 53 deliberately pins to FALSE). So 26B is not just unnecessary for Stage A — its scope is the
-  wrong authority for the Stage A question.
+  authority, `src/mission.cpp:428`). The response formatter at `src/arcopolis_live.cpp:827-833` is already
+  shape-compatible with a future `kind:"crafting_has_item"` / `scope:"crafting_inventory"` (it echoes
+  `kind` and `scope` verbatim), but **no 26B query handler exists**. `crafting_inventory()` is **broader**
+  than the on-person query: it adds off-person crafting reach via `form_from_map(...)` (ground items
+  at/near the tile, vehicle cargo, furniture within `PICKUP_RANGE`) **and** crafting-only virtual sources
+  such as bionic fake items and BURROW pseudo-tools (`src/crafting.cpp:618-633`) — so it is **not** a
+  strict off-person-only superset. For _"is the avatar carrying the **normal package** on their person,"_
+  that broader scope is **wrong**, not missing: its off-person reach would **false-green** a package merely
+  dropped near the contact tile (the `dropped_at_contact` case doc 53 deliberately pins to FALSE). So 26B
+  is not just unnecessary for Stage A — its scope is the wrong authority for the Stage A question.
 - **26C** = driving NPC dialogue at level 4 to fire `TALK_MISSION_SUCCESS` / `mission::is_complete`
   (`src/mission.cpp:384,706`). Stage A is **non-social** — doc 47 §10 (Stage B deferrals): _"must not
   route the package through NPC interaction"_ — so 26C is out of scope for Stage A.
@@ -79,21 +84,24 @@ load-bearing `scope:"on_person_dialogue_predicate"` label.
 
 ## Evidence status (honest)
 
-- **Possession classification — confirmed.** That the possession answer is the engine predicate's own
-  recursing result (class **C**), **not** the flat `carried_items[]` display (class **D**), is (a)
-  **mechanical by construction** — `src/arcopolis_live.cpp:232-233` returns `has_charges||has_amount`'s
-  own value, so it cannot diverge from the predicate; and (b) **independently confirmed** by two blind
-  cross-model / human reads (each independently named consumer = `condition.cpp` `set_has_items`, class
-  **C**, scope on-person / container-deep / ground-excluding, and constructed the nested-in-backpack
-  divergence the flat export misses). That is **independence evidence (a stronger floor)**, not a
-  mechanical seal of the whole composite.
-- **The composite witness** (doc 53) is **L1 observation** computed consumer-side. Its _wording and
-  witness boundary_ — on-person, **not** mission completion — are now confirmed by the independent reads,
-  discharging the "confirm the wording / witness boundary" condition doc 53 was provisional on. The
-  remaining open items are **product decisions, not classification** — doc 47 §13 leaves "is Stage A
-  success at 'picked up'?" and "which Step-2 design ships?" as maintainer choices, and the end-to-end
-  PICKUP-then-query composition over the real product item (briefcase / `box_small`, vs. the save-edited
-  fixture) is unwitnessed coverage, consistent with doc 53's provisional status.
+- **Possession classification — mechanically sealed by construction.** That the possession answer is the
+  engine predicate's own recursing result (class **C**), **not** the flat `carried_items[]` display (class
+  **D**), is **mechanical by construction**: `src/arcopolis_live.cpp:232-233` returns
+  `has_charges||has_amount`'s own value, so the surface _is_ the predicate's result and cannot diverge from
+  it. This is the mechanical Class-**C** seal, not merely corroborated evidence. Two independent blind
+  cross-model / human reads additionally and independently named the same consumer (`condition.cpp`
+  `set_has_items`), class **C**, and scope (on-person / container-deep / ground-excluding), and constructed
+  the nested-in-backpack divergence the flat export misses.
+- **Wording / framing — cleared at the independence floor (the terminal guardrail for a framing claim).**
+  The on-person, **not**-mission-completion boundary is a framing choice, and **no mechanical gate exists —
+  or can — for a framing choice** (true of every framing decision in this repo). The independent blind
+  reads are therefore the strongest attainable check, and they cleared it. This is **settled, not
+  provisional**: do not reopen the seal / evidence question.
+- **Remaining coverage (not provisionality).** The end-to-end PICKUP-then-query composition over the real
+  product item (briefcase / `box_small`, vs. the save-edited fixture) is unwitnessed **coverage** — a
+  coverage bound on this witness, **not** an open question about the decision or classification. Whether
+  Stage A success is "at picked up" and which Step-2 design ships remain **product decisions** (doc 47
+  §13), not classification.
 
 ## When 26B / 26C would become relevant
 
