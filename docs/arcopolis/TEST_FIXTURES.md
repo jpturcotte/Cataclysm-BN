@@ -200,6 +200,28 @@ cannot observe). The fixture asserts no monster on either stair tile and `stair_
 scan NPCs (they live in overmap files), which is sufficient here because the z=0 stair is the avatar's own
 tile (never the shelter NPC Edwardo, one tile north) and the z=-1 stair is in a basement no NPC visits.
 
+## `ArcopolisLivenessTest` — world-tick liveness witness (Spike 27, Part 1)
+
+A clone of `ArcopolisTest` with one **hostile mobile** `mon_zombie` injected 2 tiles **south** of the
+avatar (save fields `anger=100`, `morale=100`, `aggro_character=true` — an authored initial condition,
+exactly as the GUI debug spawn authors one). Across `[export, (wait, export) × N]` the driven `wait`
+falls through `do_turn`'s clean-park seam into the bottom-half tick (`game::monmove`), and the zombie
+pathfinds toward the avatar **on its own engine turn** — witnessing that BN simulates between inputs
+(equivalence **level 1 / class S**, observation only; `delta ⇒ act`, never `no-delta ⇒ no-liveness`).
+Non-interference is structural: the stock NPC Edwardo is 1 tile **north** (opposite side, avatar
+between) and exports `is_stationary=true`, so he can neither reach nor be reached by the zombie — gated
+by asserting his `pos_abs` is held. Built by the **parameterized**
+[`docs/arcopolis/make_monster_fixture.py`](make_monster_fixture.py) (the opt-in `--anger` /
+`--morale` / `--aggro-character` flags; defaults still produce the immobile `ArcopolisNearMonsterTest`
+witness byte-for-byte). Gated by
+[`docs/arcopolis/world_tick_liveness_regression.ps1`](world_tick_liveness_regression.ps1), which runs
+**3 distinct seeds** and asserts only **RNG-invariant** quantities (approach / clock-advance /
+avatar-held / NPC-held / mover-survived) — the headless sim is not byte-deterministic even fully serial
+
+- seeded, so the witness proves invariance by sampling RNG realizations rather than fixing the seed. The
+  attacker-attributed **damage** fact (surfacing the engine's `source` at the damage funnel) is **Part 2**,
+  a separate follow-up. See [56_SPIKE27_WORLD_TICK_LIVENESS.md](56_SPIKE27_WORLD_TICK_LIVENESS.md).
+
 ## Spike 16 — non-live run-script reuse of the prompt fixtures
 
 **Spike 16 reuses all four prompt fixtures (`ArcopolisTest`, `ArcopolisVehicleCargoTest`,
