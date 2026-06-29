@@ -440,6 +440,11 @@ pick one.
 6. **Return condition:** without Spike 2, stop at "package picked up on objective floor" (the engine proof);
    with Spike 2, the chosen carried/return signal makes "package returned" provable.
 
+> **Update (2026-06-28):** the carried/return signal was realized over **existing** surfaces (the on-person
+> possession query + position) as an Arcopolis-layer L1 composite — no new export seam was needed (doc 53).
+> Engine-native "package returned" (mission completion) remains Stage B. See
+> [55_SPIKE26B_26C_NOT_REQUIRED.md](55_SPIKE26B_26C_NOT_REQUIRED.md).
+
 ## 13. Open questions
 
 **Resolved from the repo in this audit (no build needed):**

@@ -78,6 +78,12 @@ independent human / cross-model seal confirms the wording and the witness bounda
 consumer-side; any proposal to add a backend "return condition" endpoint, or to relabel the result as
 `MGOAL_FIND_ITEM` / mission completion / NPC turn-in / dialogue completion, is out of this witness's scope.
 
+> **Update (2026-06-28):** two independent blind cross-model / human reads confirmed the possession
+> classification (class C — the engine predicate's own recursing result, **not** the flat display) and the
+> witness boundary (on-person, **not** mission completion) — independence evidence (a stronger floor),
+> discharging the wording / witness-boundary condition above. Remaining open items are product decisions,
+> not classification. See [55_SPIKE26B_26C_NOT_REQUIRED.md](55_SPIKE26B_26C_NOT_REQUIRED.md).
+
 See [52_SPIKE26A_DIALOGUE_PREDICATE_QUERY.md](52_SPIKE26A_DIALOGUE_PREDICATE_QUERY.md) (the possession
 half), [51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md](51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md) (why the flat
 export is not the authority), and [ARCOPOLIS_STATE.md](ARCOPOLIS_STATE.md) for the live frontier.
