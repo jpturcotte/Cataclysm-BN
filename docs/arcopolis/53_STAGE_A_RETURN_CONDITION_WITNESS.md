@@ -18,7 +18,7 @@
 
 ## Status and scope
 
-- **Built — regression evidence (provisional).** A stdlib live driver
+- **Built — regression evidence (seal CLEARED — not provisional; see "Seal status" below).** A stdlib live driver
   ([`stage_a_return_condition_driver.py`](stage_a_return_condition_driver.py)) + a pwsh wrapper
   ([`stage_a_return_condition_regression.ps1`](stage_a_return_condition_regression.ps1)) compose three
   EXISTING live surfaces over the existing `ArcopolisCarriedNestedTest` fixture. **No `src/` change, no
@@ -70,13 +70,33 @@ on-person dialogue-predicate scope.
 **Does not prove:** no mission system; no NPC turn-in; no dialogue; no `crafting_inventory()`; no Stage B
 social/objective completion; no broader prompt/menu class support.
 
-## External seal (do not lock without it)
+## Seal status — CLEARED (not provisional)
 
-Because this is possession/objective-adjacent and Stage-blocking, same-model review is a **floor, not a
-seal**. This is provisional regression evidence: do **not** lock it as "the Stage A return proof" until an
-independent human / cross-model seal confirms the wording and the witness boundary. The conjunction stays
-consumer-side; any proposal to add a backend "return condition" endpoint, or to relabel the result as
-`MGOAL_FIND_ITEM` / mission completion / NPC turn-in / dialogue completion, is out of this witness's scope.
+This witness has cleared every guardrail this repo defines for a possession/objective-adjacent,
+Stage-blocking claim. It is **not** provisional, and "lock it later, pending a seal" no longer applies.
+
+- **Classification — mechanically sealed by construction.** The possession answer _is_ the engine
+  predicate's own returned value: the live op forwards `get_avatar().has_charges(id,n) || has_amount(id,n)`
+  verbatim (`src/arcopolis_live.cpp:232-233`). A surface that _is_ the predicate's result cannot diverge
+  from it — this is the mechanical Class-**C** seal, not merely corroborated evidence. So "possession =
+  class C (the engine predicate's recursing result), not the flat `carried_items[]` display (class D)" is
+  sealed.
+- **Wording / witness boundary — cleared at the independence floor (the terminal guardrail for a framing
+  claim).** Two independent blind cross-model / human reads each independently named the on-person /
+  container-deep / ground-excluding scope and the "on-person, **not** mission completion" boundary. **No
+  mechanical gate exists — or can — for a wording / framing choice** (true of every framing decision in
+  this repo, not just this one), so the independent blind read is the strongest attainable check, and it is
+  cleared. This is settled, not "awaiting a seal that cannot be built."
+
+Out of scope (unchanged): the conjunction stays consumer-side; no backend "return condition" endpoint; do
+**not** relabel the result as `MGOAL_FIND_ITEM` / mission completion / NPC turn-in / dialogue completion.
+
+> **Cleared (2026-06-28):** two independent blind cross-model / human reads cleared the wording / witness
+> boundary (on-person, **not** mission completion); the classification was already mechanically sealed by
+> construction (above). The real-product-item PICKUP-then-query end-to-end (briefcase / `box_small`, vs.
+> the save-edited `ArcopolisCarriedNestedTest` fixture) remains future Stage B **coverage** — a coverage
+> bound, **not** an open question about the decision. See
+> [55_SPIKE26B_26C_NOT_REQUIRED.md](55_SPIKE26B_26C_NOT_REQUIRED.md).
 
 See [52_SPIKE26A_DIALOGUE_PREDICATE_QUERY.md](52_SPIKE26A_DIALOGUE_PREDICATE_QUERY.md) (the possession
 half), [51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md](51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md) (why the flat

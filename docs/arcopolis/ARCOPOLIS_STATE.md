@@ -472,9 +472,23 @@ One `command move` `move_s` is used ONLY to manufacture the off-contact false-gr
 post-move `pos_abs != contact_pos_abs`. **L1 observation only — this is NOT mission completion**, not
 `MGOAL_FIND_ITEM`/`crafting_inventory()`, not NPC turn-in/dialogue, not L4. Gated by
 `stage_a_return_condition_regression.ps1` (ten hard gates incl. the scope-pin, anti-flat-export, and
-proven-off-contact-move rows) over `ArcopolisCarriedNestedTest`; doc 53. **Provisional — same-model
-review is a floor; not locked as "the Stage A return proof" until an external/cross-model seal confirms
-the wording and witness boundary.**
+proven-off-contact-move rows) over `ArcopolisCarriedNestedTest`; doc 53. **Seal CLEARED (not
+provisional):** the possession classification is mechanically sealed by construction (the query returns the
+engine predicate's own result), and the on-person / not-mission-completion framing is cleared by two
+independent blind cross-agent / human reads — the terminal guardrail for a framing claim, since no
+mechanical gate exists for one. Real-product-item end-to-end is future coverage, not provisionality.
+
+**Contract placement (decision, 2026-06-28 — read before re-deriving Spike 26B/26C):** Stage A return
+completion is an **Arcopolis-LAYER rule over BN-native facts**, NOT a BN mission/NPC/dialogue event. BN
+is authoritative for the **facts** (position = class S; on-person possession = class C, the Spike-26A
+query returning the engine predicate's own `has_charges||has_amount` result); the consumer/controller
+owns the conjunction. So **Spike 26B** (a backend query for the broader `crafting_inventory()` mission
+scope) and **Spike 26C** (NPC-dialogue `mission::is_complete` turn-in) are **NOT Stage A prerequisites**
+— wanting the backend to own "package returned" is Stage B. The possession-surface classification (C,
+on-person/container-deep, NOT the flat `carried_items[]` display) is mechanically sealed by construction
+(the query returns the engine predicate's own result), with the on-person framing additionally cleared by
+two independent blind reads. Do not add a backend `return_condition` API. Full rationale:
+[55_SPIKE26B_26C_NOT_REQUIRED.md](55_SPIKE26B_26C_NOT_REQUIRED.md).
 
 ## Source & tests
 
