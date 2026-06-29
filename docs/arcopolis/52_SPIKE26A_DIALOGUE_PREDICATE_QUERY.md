@@ -52,6 +52,11 @@ whose actual predicate is `mission::is_complete`'s `crafting_inventory().has_amo
   drive any NPC interaction.
 - **Spike 26C** — drives the actual dialogue → mission completion at L4.
 
+> **Update (2026-06-28):** 26B/26C are **not** Stage A prerequisites. The Stage A return signal is an
+> Arcopolis-layer rule composed over on-person facts (26A + position); the mission scope (26B) and
+> dialogue completion (26C) are Stage B. See
+> [55_SPIKE26B_26C_NOT_REQUIRED.md](55_SPIKE26B_26C_NOT_REQUIRED.md).
+
 This spike is the smallest of the three: parser branch + handler + formatter + Catch2 + fixture
 generator + regression + STATE row + this doc. No new per-transaction gate, no new served prompt
 category, no engine touch.
@@ -95,8 +100,8 @@ Fail-loud response (recoverable; the session keeps serving):
 
 The `scope` field is the LOAD-BEARING LABELING GUARD. Future Spike 26B reuses the same `op:"query"`
 parser shape additively with `kind:"crafting_has_item"` and `scope:"crafting_inventory"` — extensible
-by `kind`, not by an orthogonal `scope` parameter (the alternative shape was considered and rejected
-per the Spike 26B plan, "Rejected alternative shape: single op with a `scope` parameter").
+by `kind`, not by an orthogonal `scope` parameter (a single op with a `scope` parameter was the
+alternative shape, considered and rejected — design rationale; no committed Spike 26B plan exists).
 
 ## Engine predicate consulted
 
