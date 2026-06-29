@@ -29,7 +29,8 @@ already in the save (one of the stock wildlife), then changes only:
 PLACEMENT MUST BE ON PASSABLE TERRAIN. This is the load-bearing rule (root-caused
 2026-06-05, see doc 17). At load the monster is added at its exact ``pos_abs``
 (no terrain check). On the first processed turn ``game::monmove()`` runs a
-lifecycle guard (src/game.cpp:5994) that, for any critter standing on a tile it
+lifecycle guard (the impassable-tile eject in ``game::monmove``, ~src/game.cpp:6124 — the
+line drifts; match by the "Critters in impassable tiles get pushed away" comment) that, for any critter standing on a tile it
 ``can_move_to`` is false for (i.e. impassable -- a wall, a tree, ...), searches
 ``points_in_radius(pos, 3)`` for the first passable+empty tile and ``setpos()``
 es it there -- or, if none exists within radius 3, **kills it**. So an in-wall
@@ -51,6 +52,17 @@ Usage::
 
     python docs/arcopolis/make_monster_fixture.py            # defaults (grass, 8 south)
     python docs/arcopolis/make_monster_fixture.py --offset 0,5,0 --monster mon_fungal_wall
+
+    # World-tick LIVENESS witness (a HOSTILE MOBILE approacher, doc on the world-tick spike):
+    python docs/arcopolis/make_monster_fixture.py --dest-world ArcopolisLivenessTest \
+        --monster mon_zombie --offset 0,8,0 --anger 100 --morale 100 --aggro-character --force
+
+The default (no hostility flags) reproduces the original IMMOBILE-witness behavior BYTE-FOR-BYTE,
+so ``ArcopolisNearMonsterTest`` regenerates unchanged. The opt-in ``--anger`` / ``--morale`` /
+``--aggro-character`` flags author a monster that the engine's own ``monmove`` will path toward the
+avatar on its OWN turn -- the initial condition the world-tick liveness witness observes. (Authoring
+an initial anger/aggro state is exactly what the GUI debug spawn does; the engine then simulates
+faithfully -- it is NOT faking engine state.)
 """
 
 import argparse
@@ -149,8 +161,15 @@ def terrain_id_at(world_dir, x, y, z):
         return None
 
 
-def build_witness(template, monster_id, pos_abs, turn):
-    """Clone a real engine-written monster into a clean instance of ``monster_id``."""
+def build_witness(template, monster_id, pos_abs, turn, anger=0, morale=0, aggro_character=False):
+    """Clone a real engine-written monster into a clean instance of ``monster_id``.
+
+    Defaults (anger/morale 0, not aggroed) reproduce the original IMMOBILE-witness output
+    BYTE-FOR-BYTE. Pass anger>0 + aggro_character=True for the world-tick LIVENESS witness: a
+    hostile instance the engine's own ``monmove`` paths toward the avatar on its own turn. The
+    fields below are an authored INITIAL world condition (as the GUI debug spawn authors one);
+    the engine simulates from there -- nothing here mutates the running simulation.
+    """
     w = copy.deepcopy(template)
     w["typeid"] = monster_id
     w["pos_abs"] = list(pos_abs)
@@ -161,11 +180,11 @@ def build_witness(template, monster_id, pos_abs, turn):
     w["speed"] = 100
     w["last_updated"] = turn  # no-op catch-up if on_load runs; never affects position (see doc 17)
     w["wandf"] = 0
-    w["anger"] = 0
-    w["morale"] = 0
+    w["anger"] = anger
+    w["morale"] = morale
     w["hallucination"] = False
     w["friendly"] = 0
-    w["aggro_character"] = False
+    w["aggro_character"] = aggro_character
     w["effects"] = {}
     w["special_attacks"] = {}
     w["unique_name"] = ""
@@ -182,11 +201,22 @@ def main(argv=None):
                         help="userdir holding save/<world> (default: the AGENTS.md fixture root)")
     parser.add_argument("--source-world", default="ArcopolisTest", help="world to clone (read-only)")
     parser.add_argument("--dest-world", default="ArcopolisNearMonsterTest", help="world to create")
-    parser.add_argument("--monster", default="mon_fungal_wall", help="witness monster type id (IMMOBILE recommended)")
+    parser.add_argument("--monster", default="mon_fungal_wall",
+                        help="witness monster type id. IMMOBILE (mon_fungal_wall) for the stationary export "
+                             "witness; a MOBILE hostile type (e.g. mon_zombie) WITH --aggro-character for the "
+                             "world-tick liveness witness.")
     parser.add_argument("--offset", default="0,8,0",
                         help="witness pos_abs offset from the avatar as dx,dy,dz. DEFAULT 0,8,0 lands on grass "
                              "south of the shelter (passable, cheb 8, in-window). MUST be passable terrain — "
-                             "see doc 17.")
+                             "see doc 17. For a mover, keep cheb>1 (out of melee) and <=12 (in-window).")
+    # Opt-in hostility (default 0/0/False == the original immobile-witness output, byte-for-byte). Authoring an
+    # initial anger/aggro state is an INITIAL world condition (as the GUI debug spawn is), not faked engine state.
+    parser.add_argument("--anger", type=int, default=0,
+                        help="witness current anger (0 = original immobile-witness default; >0 = hostile mover).")
+    parser.add_argument("--morale", type=int, default=0,
+                        help="witness current morale (0 = original default; raise with --anger so it does not flee).")
+    parser.add_argument("--aggro-character", dest="aggro_character", action="store_true",
+                        help="mark the witness aggressive toward the avatar (the liveness-mover flag).")
     parser.add_argument("--force", action="store_true", help="overwrite an existing dest world")
     args = parser.parse_args(argv)
 
@@ -217,9 +247,12 @@ def main(argv=None):
         raise SystemExit("fatal: source world has no active_monsters to clone a template from")
     pos = (ax + dx, ay + dy, az + dz)
 
-    # Passability guard (best-effort): a witness on impassable terrain is teleported (radius-3) or KILLED by
-    # the game::monmove lifecycle on the first turn (src/game.cpp:5994; see doc 17). Warn loudly so the
-    # author fixes the offset rather than shipping a drifting/vanishing witness.
+    # Passability guard (best-effort, TERRAIN ONLY -- does not inspect furniture): a witness on impassable
+    # terrain is teleported (radius-3) or KILLED by the game::monmove impassable-tile eject on the first turn
+    # (~src/game.cpp:6124, line drifts; see doc 17). Warn loudly so the author fixes the offset rather than
+    # shipping a drifting/vanishing witness. For a HOSTILE MOVER the world_tick_liveness_regression's
+    # no-teleport + passable-terrain gates also fail loud on a bad placement, so this warning is a first line,
+    # not the only one.
     ter = terrain_id_at(dst, *pos)
     if ter is not None:
         bad = any(h in ter for h in IMPASSABLE_HINTS) or not any(h in ter for h in PASSABLE_HINTS)
@@ -231,14 +264,18 @@ def main(argv=None):
     else:
         print("terrain at witness tile: <unreadable map.sqlite3 — verify the tile is passable per doc 17>")
 
-    witness = build_witness(monsters[0], args.monster, pos, turn)
+    witness = build_witness(monsters[0], args.monster, pos, turn,
+                            anger=args.anger, morale=args.morale,
+                            aggro_character=args.aggro_character)
     monsters.append(witness)
     with open(sav, "wb") as f:
         f.write(prefix + json.dumps(data, separators=(",", ":")).encode("utf-8"))
 
+    mode = ("HOSTILE MOVER (anger=%d, morale=%d, aggro_character=True)"
+            % (args.anger, args.morale)) if args.aggro_character or args.anger else "immobile/passive (stationary witness)"
     print("created world : %s" % dst)
-    print("witness       : %s @ pos_abs %s (avatar %s + offset %s, cheb %d)"
-          % (args.monster, list(pos), [ax, ay, az], [dx, dy, dz], max(abs(dx), abs(dy))))
+    print("witness       : %s @ pos_abs %s (avatar %s + offset %s, cheb %d) — %s"
+          % (args.monster, list(pos), [ax, ay, az], [dx, dy, dz], max(abs(dx), abs(dy)), mode))
     print("active_monsters: %d (was %d)" % (len(monsters), len(monsters) - 1))
     print("next          : validate with docs/arcopolis/monster_export_regression.ps1")
     return 0
