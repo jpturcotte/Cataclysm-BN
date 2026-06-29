@@ -47,16 +47,17 @@
     4. clock advanced = N      — backend.turn rose by exactly N across the waits (the world
                                  ticked; NOT a clean-park early return).
     5. avatar held             — avatar.pos_abs identical across every export (the avatar only
-                                 waits; closes the "the avatar moved and dragged the read".
+                                 waits; closes the "avatar moved and dragged the relative read" confound).
     6. NPC non-interference    — npcs[0].is_stationary=true AND npcs[0].pos_abs identical
                                  across every export.
     7. mover survived          — exactly one non-hallucination mon_zombie at the final export.
     8. autonomous step (no teleport) — the mover's Chebyshev displacement is <=1 between every
-                                 consecutive export (a speed-70 monster steps <=1 tile/turn; the
-                                 monmove impassable-eject does a multi-tile setpos). Converts an
+                                 consecutive export (the zombie is speed 100, so a move is <=1 tile/turn;
+                                 the monmove impassable-eject does a multi-tile setpos). Converts an
                                  eject/teleport into a fail-loud and proves a step-by-step path.
-    9. mover on passable terrain — the mover's LOAD tile ter is not impassable (the eject precondition
-                                 is engine impassability; the generator only WARNS on bad terrain).
+    9. mover on passable terrain — the mover's LOAD tile ter shows no clear impassable signal (an
+                                 impassable family token with NO passable one; the eject precondition is
+                                 engine impassability, the generator only WARNS on bad terrain).
   SOFT REPORT (stakes, NOT gated — RNG-dependent): the avatar HP delta under attack.
 
   WHAT THIS DOES NOT PROVE (scope; do not let docs widen it): ambient/idle autonomy (this is a
@@ -119,6 +120,7 @@ Copy-Item $FixtureSrc $UserDir -Recurse -Force
 New-Item -ItemType Directory -Force $OutRoot | Out-Null
 
 function Get-Cheb {
+    # 2-D Chebyshev distance; the z axis is intentionally excluded (this witness is single-z by design).
     param($A, $B)
     return [Math]::Max([Math]::Abs($A[0] - $B[0]), [Math]::Abs($A[1] - $B[1]))
 }
@@ -192,7 +194,8 @@ foreach( $seed in $Seeds ) {
         $loadCheb = "?"; $finalCheb = "?"
     }
 
-    # Anti-teleport / autonomous-step: a genuine speed-70 monster moves <=1 tile per turn, but the
+    # Anti-teleport / autonomous-step: a single monster move is <=1 tile/turn (the fixture zombie is
+    # speed 100 -- well under the ~200 needed to step 2 tiles in one turn), but the
     # do_turn monmove impassable-eject ("Critters in impassable tiles get pushed away", src/game.cpp)
     # does a multi-tile setpos that could masquerade as an approach. Asserting the mover's Chebyshev
     # displacement is <=1 between consecutive exports converts an eject/teleport into a FAIL-LOUD, and
@@ -215,11 +218,17 @@ foreach( $seed in $Seeds ) {
     # impassable terrain under the mover is the false-green vector. (Furniture impassability is NOT fully
     # decidable from the exported ter/furn ids, so the no-teleport gate above is the belt to this braces.)
     $impassableHints = 'wall', 'rock', 'tree', 'bars', 'grate', '_door_c', 'door_locked', 'boulder'
+    $passableHints   = 'floor', 'grass', 'dirt', 'sand', 'mud', 'gravel', 'underbrush', 'pavement', 'road', 'sidewalk', 'concrete', 'shrub'
     if( $loadZ.Count -ge 1 ) {
         $loadMp   = $loadZ[0].pos_local
         $loadTile = @($load.tiles | Where-Object { $_ -and $_.x -eq $loadMp[0] -and $_.y -eq $loadMp[1] -and $_.z -eq $loadMp[2] })
         $ter      = if( $loadTile.Count -ge 1 ) { "$($loadTile[0].ter)" } else { "" }
-        $hasImpassable = @($impassableHints | Where-Object { $ter -like "*$_*" }).Count -gt 0
+        # Flag ONLY on a clear impassable signal (an impassable family token AND no passable one), so a
+        # passable id that merely CONTAINS an impassable substring (t_rock_floor -> "rock", but also "floor")
+        # is not a false FAILURE (gemini PR #89). Erring toward PASS on ambiguity is correct -- gate 8
+        # (no-teleport) is the robust anti-eject defense; this is the conservative belt to its braces.
+        $hasImpassable = (@($impassableHints | Where-Object { $ter -like "*$_*" }).Count -gt 0) -and `
+            (@($passableHints | Where-Object { $ter -like "*$_*" }).Count -eq 0)
         $g['mover_on_passable_terrain'] = ($loadTile.Count -ge 1) -and (-not $hasImpassable)
     } else {
         $g['mover_on_passable_terrain'] = $false

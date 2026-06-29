@@ -53,9 +53,11 @@ Usage::
     python docs/arcopolis/make_monster_fixture.py            # defaults (grass, 8 south)
     python docs/arcopolis/make_monster_fixture.py --offset 0,5,0 --monster mon_fungal_wall
 
-    # World-tick LIVENESS witness (a HOSTILE MOBILE approacher, doc on the world-tick spike):
+    # World-tick LIVENESS witness (a HOSTILE MOBILE approacher, doc 56). The 0,2,0 offset is
+    # load-bearing -- it is the committed ArcopolisLivenessTest placement (2 south, in dark-shelter
+    # detection range); 0,8,0 would land out of detection range and break the reached_adjacency gate:
     python docs/arcopolis/make_monster_fixture.py --dest-world ArcopolisLivenessTest \
-        --monster mon_zombie --offset 0,8,0 --anger 100 --morale 100 --aggro-character --force
+        --monster mon_zombie --offset 0,2,0 --anger 100 --morale 100 --aggro-character --force
 
 The default (no hostility flags) reproduces the original IMMOBILE-witness behavior BYTE-FOR-BYTE,
 so ``ArcopolisNearMonsterTest`` regenerates unchanged. The opt-in ``--anger`` / ``--morale`` /
@@ -255,7 +257,10 @@ def main(argv=None):
     # not the only one.
     ter = terrain_id_at(dst, *pos)
     if ter is not None:
-        bad = any(h in ter for h in IMPASSABLE_HINTS) or not any(h in ter for h in PASSABLE_HINTS)
+        # Flag only on a CLEAR impassable signal (an impassable family token AND no passable one), so a
+        # passable id that merely CONTAINS an impassable substring -- e.g. t_rock_floor -> "rock" -- is not
+        # a false positive (gemini PR #89); for a HOSTILE MOVER gate 8 (no-teleport) is the runtime backstop.
+        bad = any(h in ter for h in IMPASSABLE_HINTS) and not any(h in ter for h in PASSABLE_HINTS)
         flag = "  <-- LIKELY IMPASSABLE, will drift/vanish (see doc 17)" if bad else "  (passable)"
         print("terrain at witness tile: %s%s" % (ter, flag))
         if bad:
@@ -271,8 +276,8 @@ def main(argv=None):
     with open(sav, "wb") as f:
         f.write(prefix + json.dumps(data, separators=(",", ":")).encode("utf-8"))
 
-    mode = ("HOSTILE MOVER (anger=%d, morale=%d, aggro_character=True)"
-            % (args.anger, args.morale)) if args.aggro_character or args.anger else "immobile/passive (stationary witness)"
+    mode = ("HOSTILE MOVER (anger=%d, morale=%d, aggro_character=%s)"
+            % (args.anger, args.morale, args.aggro_character)) if args.aggro_character or args.anger else "immobile/passive (stationary witness)"
     print("created world : %s" % dst)
     print("witness       : %s @ pos_abs %s (avatar %s + offset %s, cheb %d) — %s"
           % (args.monster, list(pos), [ax, ay, az], [dx, dy, dz], max(abs(dx), abs(dy)), mode))

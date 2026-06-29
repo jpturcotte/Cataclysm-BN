@@ -84,6 +84,15 @@ Gated by [`world_tick_liveness_regression.ps1`](world_tick_liveness_regression.p
 5. **avatar held** — `avatar.pos_abs` identical across every export (the avatar only waits).
 6. **NPC non-interference** — see below.
 7. **mover survived** — exactly one non-hallucination `mon_zombie` at the final export.
+8. **autonomous step (no teleport)** — the mover's Chebyshev displacement is `<= 1` between every
+   consecutive export (the zombie is speed 100, so a move is `<= 1` tile/turn; the `monmove`
+   impassable-eject does a multi-tile `setpos`). Converts an eject/teleport into a fail-loud and
+   proves a step-by-step path, not a jump.
+9. **mover on passable terrain** — the mover's load tile `ter` shows no clear impassable signal (an
+   impassable family token with **no** passable one). The eject precondition is engine impassability;
+   this re-asserts the fixture invariant the generator only _warns_ on. (Gates 8/9 were added in the
+   red-team pass to close a regenerated-onto-impassable false-green; the committed fixture is on
+   passable `t_floor`, so the eject never fires.)
 
 **Soft report (not gated — RNG-dependent):** the avatar HP delta under attack (the stakes preview).
 This is observed and reported, never asserted — and it is **source-blind**, so it is **not** a proof
