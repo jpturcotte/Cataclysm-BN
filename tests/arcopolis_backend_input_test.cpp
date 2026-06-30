@@ -10,8 +10,10 @@
 #include "arcopolis_script.h"   // script_step
 #include "debug.h"              // capture_debugmsg_during (cata_test uilist-abort witness)
 #include "input.h"              // inp_mngr, input_manager::wait_for_any_key (raw-read guard)
+#include "monster.h"            // monster (Spike 27B attacker-identity source)
 #include "output.h"             // query_yn (Spike 15 cata_test query_popup-abort witness)
 #include "popup.h"              // query_popup (Spike 15 backend-driven query_popup witnesses)
+#include "type_id.h"            // mtype_id (Spike 27B attacker-identity source)
 #include "ui.h"                 // uilist, UILIST_ERROR (Spike 13B backend-UI-mode witnesses)
 
 // Unit tests for the Arcopolis backend INPUT SOURCE (Spike 3.1A, mechanism M1). These cover the pure,
@@ -1411,4 +1413,48 @@ TEST_CASE( "arcopolis script source drives no prompt once a fatal failure is alr
            first_detail );  // first-failure-wins preserved
     arcopolis::backend_end_uilist_transaction();
     arcopolis::end_backend_session();
+}
+
+// --- Spike 27B: attacker-attributed avatar-damage buffer (the gated Character::apply_damage funnel
+//     tap's record/drain side). The tap FIRING on a real monster melee is an engine-behaviour claim, proven
+//     by the fixture regression (attacker_damage_regression.ps1, RNG-dependent); this world-independent unit
+//     test pins the buffer CONTRACT: classify a REAL monster source off the engine's own Creature, preserve
+//     per-application order, drain per take (so each snapshot's array is the window since the prior one), and
+//     stay inert outside a session. ---
+
+TEST_CASE( "arcopolis avatar-damage buffer records attacker identity, preserves order, drains per take",
+           "[arcopolis]" )
+{
+    monster zed( mtype_id( "mon_zombie" ) );
+
+    arcopolis::begin_backend_session( { .steps = {} } );
+
+    // Two applications in one turn (per bodypart / per hit) -- an event stream, not a per-turn rollup. The
+    // second is a SUB-PART hit (eyes): the struck part the GUI message names (bodypart) differs from the
+    // HP-pool part the amount was deducted from (hp_part = eyes->main_part = head) -- we record BOTH.
+    arcopolis::backend_record_avatar_damage( zed, { .amount = 7, .bodypart = "torso", .hp_part = "torso", .turn = 42 } );
+    arcopolis::backend_record_avatar_damage( zed, { .amount = 3, .bodypart = "eyes", .hp_part = "head", .turn = 42 } );
+
+    const std::vector<arcopolis::avatar_damage_record> drained =
+        arcopolis::backend_take_avatar_damage_taken();
+    REQUIRE( drained.size() == 2 );
+    CHECK( drained[0].source_kind == "monster" );
+    CHECK( drained[0].source_type_id ==
+           "mon_zombie" );  // classified off the real Creature, NOT asserted
+    CHECK( drained[0].amount == 7 );
+    CHECK( drained[0].bodypart == "torso" );
+    CHECK( drained[0].hp_part == "torso" );   // main-part hit: struck part == HP-pool part
+    CHECK( drained[0].turn == 42 );
+    CHECK( drained[1].amount == 3 );          // order preserved
+    CHECK( drained[1].bodypart == "eyes" );   // the struck sub-part the GUI message names
+    CHECK( drained[1].hp_part == "head" );    // the HP pool the amount actually hit (eyes -> head)
+
+    // Drain: the events were consumed, so a second take is empty (each snapshot reports its own window).
+    CHECK( arcopolis::backend_take_avatar_damage_taken().empty() );
+
+    arcopolis::end_backend_session();
+
+    // Inert outside a session: cata_test / normal play never accumulate records.
+    arcopolis::backend_record_avatar_damage( zed, { .amount = 5, .bodypart = "head", .hp_part = "head", .turn = 1 } );
+    CHECK( arcopolis::backend_take_avatar_damage_taken().empty() );
 }

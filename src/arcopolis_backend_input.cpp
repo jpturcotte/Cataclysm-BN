@@ -13,8 +13,12 @@
 #include "arcopolis_command.h"  // backend_command, command_to_action, command_error, command_error_kind
 #include "arcopolis_export.h"   // write_current_view, snapshot_session_info, current_snapshot_summary
 #include "arcopolis_session_log.h"  // session_log_command / session_log_export / session_log_error
+#include "creature.h"           // Creature::is_monster/as_monster/is_npc (Spike 27B source classify)
 #include "filesystem.h"         // ensure_valid_file_name
+#include "monster.h"            // monster::type (Spike 27B attacker type id)
+#include "mtype.h"              // mtype::id (Spike 27B attacker type id)
 #include "string_formatter.h"   // string_format
+#include "type_id.h"            // mtype_id::str (Spike 27B attacker type id)
 
 namespace
 {
@@ -106,6 +110,12 @@ struct backend_session {
     //     exit 14); in LIVE mode it sets THIS recoverable pending error instead (no done/failure), which the
     //     per-request runner consumes -> a visibly-failed ok=false response, session stays open. ---
     std::optional<arcopolis::command_error> unexpected_prompt_pending;
+
+    // --- Spike 27B: attacker-attributed avatar-damage events recorded at the Character::apply_damage
+    //     funnel (gated tap, src/character.cpp). DRAINED per snapshot by backend_take_avatar_damage_taken(),
+    //     so a snapshot's avatar.damage_taken[] is the event window since the prior snapshot. Avatar-only by
+    //     construction (the tap gates on is_avatar()); cleared with the session by end_backend_session(). ---
+    std::vector<arcopolis::avatar_damage_record> avatar_damage;
 };
 
 backend_session session;
@@ -535,6 +545,34 @@ auto arcopolis::end_backend_session() -> void
 auto arcopolis::backend_session_active() -> bool
 {
     return session.active;
+}
+
+auto arcopolis::backend_record_avatar_damage( const Creature &source,
+        arcopolis::avatar_damage_record event ) -> void
+{
+    if( !session.active ) {
+        return;  // inert outside a session (the apply_damage call site also gates -- defence in depth)
+    }
+    // Classify the engine's in-scope attacker INTO the caller's event. The category discrimination the
+    // witness relies on (mon_zombie vs the stationary ally NPC vs terrain) is done in the FIXTURE +
+    // regression, never here: this only reads the raw kind + type id off `source`, the engine's ground truth.
+    if( source.is_monster() ) {
+        event.source_kind = "monster";
+        event.source_type_id = source.as_monster()->type->id.str();
+    } else if( source.is_npc() ) {
+        event.source_kind = "npc";  // stable NPC type identity stays deferred (Spike 7A npc export v0)
+    } else {
+        event.source_kind =
+            "creature";  // unreached for the witnessed melee; never the avatar (source != this)
+    }
+    session.avatar_damage.push_back( std::move( event ) );
+}
+
+auto arcopolis::backend_take_avatar_damage_taken() -> std::vector<arcopolis::avatar_damage_record>
+{
+    auto out = std::move( session.avatar_damage );
+    session.avatar_damage.clear();  // a moved-from vector is valid-but-unspecified; force a known-empty buffer
+    return out;
 }
 
 auto arcopolis::backend_input_done() -> bool

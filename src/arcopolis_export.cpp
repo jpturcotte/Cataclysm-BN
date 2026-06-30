@@ -131,6 +131,36 @@ auto write_carried_items( JsonOut &json, const snapshot_ctx &ctx ) -> void
     json.end_array();
 }
 
+/// Spike 27B: the avatar's attacker-attributed damage events since the prior snapshot, written inside
+/// the avatar object as avatar.damage_taken[]. Each entry is the engine's OWN in-scope `source` + applied
+/// `amount` read at the Character::apply_damage funnel (src/character.cpp) -- read-only observation,
+/// native-authority class S (raw funnel state). It is recorded BEFORE the GUI's display filters and is
+/// independent of both: the per-hit combat message masks the attacker name to "Something hits your %s." when
+/// the avatar cannot see the attacker (src/monster.cpp melee_attack, !g->u.sees), and the on_hurt distraction
+/// message is gated by painkiller/narcosis/disturb -- the funnel value is present regardless, so the frontend
+/// renders its own (optionally perception-masked) message from this ground truth. DRAINS the buffer: this
+/// array is the event window since the previous snapshot, never a cumulative rollup. This is the FUNNEL FACT,
+/// NOT message-equivalence: NOT a hit/miss / damage-type / ranged-vs-melee / LOS-perception surface.
+auto write_damage_taken( JsonOut &json ) -> void
+{
+    json.member( "damage_taken" );
+    json.start_array();
+    for( const arcopolis::avatar_damage_record &rec : arcopolis::backend_take_avatar_damage_taken() ) {
+        json.start_object();
+        json.member( "source_kind", rec.source_kind );      // "monster" | "npc"
+        json.member( "source_type_id", rec.source_type_id ); // monster type id; empty for an npc source
+        json.member( "amount",
+                     rec.amount );                // dam_to_bodypart actually applied (HP lost), > 0
+        json.member( "bodypart",
+                     rec.bodypart );            // the struck part the GUI names (apply_damage `hurt`)
+        json.member( "hp_part",
+                     rec.hp_part );              // the HP-pool part `amount` hit (hurt->main_part)
+        json.member( "turn", rec.turn );                    // calendar turn at the funnel (== backend.turn)
+        json.end_object();
+    }
+    json.end_array();
+}
+
 auto write_avatar( JsonOut &json, const snapshot_ctx &ctx ) -> void
 {
     const auto pos_local = ctx.u.bub_pos();  // tripoint_bub_ms - reality-bubble milestone coords
@@ -167,6 +197,8 @@ auto write_avatar( JsonOut &json, const snapshot_ctx &ctx ) -> void
     json.member( "kcal_percent", ctx.u.get_kcal_percent() );  // float
     write_carried_items( json,
                          ctx );  // Spike 25: read-only top-level carried items (avatar.carried_items[])
+    write_damage_taken(
+        json );  // Spike 27B: attacker-attributed damage events (drains the buffer)
     json.end_object();
 }
 

@@ -200,7 +200,7 @@ cannot observe). The fixture asserts no monster on either stair tile and `stair_
 scan NPCs (they live in overmap files), which is sufficient here because the z=0 stair is the avatar's own
 tile (never the shelter NPC Edwardo, one tile north) and the z=-1 stair is in a basement no NPC visits.
 
-## `ArcopolisLivenessTest` — world-tick liveness witness (Spike 27, Part 1)
+## `ArcopolisLivenessTest` — world-tick liveness witness (Spike 27A)
 
 A clone of `ArcopolisTest` with one **hostile mobile** `mon_zombie` injected 2 tiles **south** of the
 avatar (save fields `anger=100`, `morale=100`, `aggro_character=true` — an authored initial condition,
@@ -219,8 +219,8 @@ witness byte-for-byte). Gated by
 avatar-held / NPC-held / mover-survived) — the headless sim is not byte-deterministic even fully serial
 
 - seeded, so the witness proves invariance by sampling RNG realizations rather than fixing the seed. The
-  attacker-attributed **damage** fact (surfacing the engine's `source` at the damage funnel) is **Part 2**,
-  a separate follow-up. See [56_SPIKE27_WORLD_TICK_LIVENESS.md](56_SPIKE27_WORLD_TICK_LIVENESS.md).
+  attacker-attributed **damage** fact (surfacing the engine's `source` at the damage funnel) is **27B**,
+  a separate follow-up. See [56_SPIKE27A_WORLD_TICK_LIVENESS.md](56_SPIKE27A_WORLD_TICK_LIVENESS.md).
 
 ## Spike 16 — non-live run-script reuse of the prompt fixtures
 

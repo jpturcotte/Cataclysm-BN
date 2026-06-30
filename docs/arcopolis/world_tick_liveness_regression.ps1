@@ -64,7 +64,7 @@
   PROVOKED, avatar-targeting mover); multi-entity or world-wide simulation (fields, fires,
   vehicles, weather, spawns); sustained multi-tick liveness; any other z-level (single-z
   window); and the ATTACKER-IDENTITY attack fact (surfacing the engine's damage `source`) — a
-  SEPARATE follow-up spike (Part 2), deliberately not in this PR.
+  SEPARATE follow-up spike (27B), deliberately not in this PR.
 
   WHY a fixture-driven script and not a CI catch2 test (same reasoning as
   monster_export_regression.ps1): it needs a fully loaded world; the pure command/script
