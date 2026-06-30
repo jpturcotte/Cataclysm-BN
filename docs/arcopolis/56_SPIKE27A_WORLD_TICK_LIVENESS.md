@@ -1,9 +1,9 @@
-# Spike 27 — World-Tick Liveness Witness (Part 1: autonomous agency)
+# Spike 27A — World-Tick Liveness Witness (autonomous agency)
 
 **Status:** built, validated. Equivalence **level 1 (observation only)**, native-authority class
-**S** (raw simulation state). No `src/` change — fixture + regression + docs only. This is **Part 1**
-of a two-part frontier; **Part 2** (the GUI-faithful attacker-attributed _damage_ fact) is a separate
-follow-up, deliberately not in this PR (see "Part 2" below).
+**S** (raw simulation state). No `src/` change — fixture + regression + docs only. This is **27A**
+of a two-part frontier; **27B** (the GUI-faithful attacker-attributed _damage_ fact) is a separate
+follow-up, deliberately not in this PR (see "27B" below).
 
 ## What it proves
 
@@ -96,7 +96,7 @@ Gated by [`world_tick_liveness_regression.ps1`](world_tick_liveness_regression.p
 
 **Soft report (not gated — RNG-dependent):** the avatar HP delta under attack (the stakes preview).
 This is observed and reported, never asserted — and it is **source-blind**, so it is **not** a proof
-that the monster attacked (that is Part 2).
+that the monster attacked (that is 27B).
 
 ## NPC non-interference (proven from the export — no new field)
 
@@ -126,19 +126,35 @@ soft, source-blind note here.
    witnesses; an idle monster need not move.
 5. **Single-z** — the monster window is a radius-12 single-z square (multi-z is a recorded non-goal).
 6. **A perception-free position fact, not combat** — no attacker-identity, no damage attribution, no
-   hit/miss/damage-type, no LOS/perception. **That is Part 2.**
+   hit/miss/damage-type, no LOS/perception. Attacker-identity + damage attribution is **27B**;
+   hit/miss, damage type, and LOS/perception stay deferred **even beyond 27B** (27B is itself a
+   perception-free FUNNEL fact, not the perception-masked display).
 
-## Part 2 (separate follow-up) — the attacker-attributed damage fact
+## 27B (separate follow-up) — the attacker-attributed damage fact
 
 To prove the monster **attacked** the avatar and the avatar **received damage from that monster** the
-way the engine computes/shows it, Part 2 surfaces the engine's **own in-scope `source`** (+ `damage`)
-at the `Character::apply_damage` funnel (`src/character.cpp:9495/9518`) — the same value the GUI's
-"You were attacked by %s!" message is built from (`Character::on_hurt`, `:9801`). The regression then
-asserts, on **this same fixture**, that the avatar took damage **and** `source == mon_zombie` — the
-engine's own attribution, reproduced as backend semantics (the frontend renders its own message). It is
-a one-`src/`-file gated funnel tap (mechanism (b)); its class-S classification was cleared by two
-independent blind cross-model reads. We do **not** scrape the perception-gated GUI string (a separate,
-larger frontier blocked on the `sees()` seam). Tracked via `arcopolis-claim-plan`.
+way the engine computes it, 27B surfaces the engine's **own in-scope `source`** (+ `dam_to_bodypart`)
+at the `Character::apply_damage` funnel (`src/character.cpp:9495/9518`) — the same `source` pointer the
+GUI's "You were attacked by %s!" message is built from (`Character::on_hurt`, `:9801`). The regression
+then asserts, on **this same fixture**, that the avatar took damage **and** `source == mon_zombie` — the
+engine's own attribution, reproduced as backend semantics (the frontend renders its own message). It is a
+one-`src/`-file gated funnel tap (mechanism (b)); its class-S classification is **self-sealing by
+construction** (raw funnel state cannot diverge from itself), with the two independent blind cross-model
+reads as corroborating **independence evidence, NOT the seal**.
+
+> **Correction (made when 27B was built — `57_SPIKE27B_ATTACKER_DAMAGE.md`).** An earlier draft of
+> this section called the on_hurt "You were attacked by %s!" string "perception-gated." Verified at the
+> leaf, it is **not**: on_hurt's message is gated by **painkiller / narcosis / `disturb`**
+> (`character.cpp:9528/9800`), and its `source->disp_name()` for a monster is **unconditional**
+> (`monster::disp_name`, `monster.cpp:809`, has no `sees()` mask). The genuinely **perception-gated**
+> string is the **per-hit combat message** (`monster::melee_attack`, `monster.cpp:2253/2284`): "The zombie
+> hits your leg." when `g->u.sees(attacker)`, else **"Something hits your leg."** with the attacker
+> identity masked. The funnel `source` 27B surfaces is recorded **before** that perception filter
+> (class S, ground truth); the perception-masked **display** is the deferred frontier (the `sees()` seam),
+> and the backend `source` is never claimed equal to the GUI's _displayed_ attacker — only the raw funnel
+> attacker.
+
+**27B is now built** — [`57_SPIKE27B_ATTACKER_DAMAGE.md`](57_SPIKE27B_ATTACKER_DAMAGE.md).
 
 ## Reproduce
 

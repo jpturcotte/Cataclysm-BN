@@ -14,6 +14,10 @@
 // pulling action.h via this header. The .cpp includes action.h. Matches the global enum in action.h.
 enum action_id : int;
 
+// Forward declaration so backend_record_avatar_damage() can take the engine's in-scope attacker by
+// reference without this header pulling creature.h. The .cpp includes creature.h/monster.h to classify it.
+class Creature;
+
 namespace arcopolis
 {
 
@@ -548,5 +552,48 @@ auto backend_take_unexpected_prompt_error() -> std::optional<command_error>;
 /// completion -- after do_turn returns from the clean-park path and before end_backend_session() clears
 /// state. Records a write failure via backend_session_failure(); returns true on success. (Spike 3.1B)
 auto backend_write_final_snapshot() -> bool;
+
+// --- Spike 27B: attacker-attributed avatar-damage observation (read-only, native-authority class S).
+// A gated, ADDITIVE tap at the engine's own Character::apply_damage funnel (src/character.cpp) records who
+// dealt damage to the AVATAR, surfaced read-only as avatar.damage_taken[] (arcopolis_export). This is L1
+// observation -- it drives NO registered input and makes NO level-4 claim. It exposes the raw in-scope
+// `source` the funnel already carries -- the SAME pointer the GUI "You were attacked by %s!" message is
+// built from (Character::on_hurt) -- which is RAW SIMULATION STATE: it cannot diverge from itself, so the
+// class-S surface is self-sealing and needs no counterexample. The funnel value is recorded BEFORE the
+// GUI's display filters and is independent of both:
+//   * PERCEPTION -- the per-hit combat message masks the attacker name to "Something hits your %s." when
+//     !g->u.sees(attacker) (src/monster.cpp melee_attack); the funnel `source` is the real attacker
+//     regardless of LOS. A frontend renders its own (optionally perception-masked) message from this.
+//   * the on_hurt distraction message is gated by painkiller / narcosis / disturb (NOT perception); the
+//     funnel value is present even when that message is suppressed.
+// So this asserts the FUNNEL FACT, never message-equivalence (the perception-masked display is a separate,
+// deferred frontier). Per-APPLICATION (per bodypart / per hit) -- an event stream, NOT a per-turn rollup.
+// The funnel fires only on a landed HIT, so a witness of "took damage from X" is RNG-DEPENDENT (empirically
+// reliable across seeds, NOT RNG-invariant like the Spike 27A position witness). ---
+
+/// One attacker-attributed avatar-damage event, captured at the apply_damage funnel.
+struct avatar_damage_record {
+    std::string source_kind;     ///< "monster" / "npc" (the attacker's Creature kind)
+    std::string source_type_id;  ///< monster type id (e.g. "mon_zombie"); empty for an npc source
+    ///< (stable NPC identity is deferred, as in the Spike 7A npc export v0)
+    int amount = 0;              ///< dam_to_bodypart actually applied (HP lost on the part), always > 0
+    std::string
+    bodypart;        ///< the STRUCK part the GUI message names (apply_damage `hurt`, e.g. "eyes")
+    std::string hp_part;         ///< the HP-pool part `amount` was deducted from (hurt->main_part, e.g.
+    ///< "head"); == bodypart for a torso/head/limb hit, differs only on a sub-part hit (eyes/mouth/hand/foot)
+    int turn = 0;                ///< calendar turn at the funnel (matches the snapshot's backend.turn)
+};
+
+/// Records one avatar-damage event from the apply_damage funnel: classifies `source` (monster/npc + type
+/// id) INTO `event` and appends it. `event` carries the OBSERVABLE fields the caller knows (amount,
+/// bodypart, hp_part, turn); this fills source_kind/source_type_id. Called ONLY from the gated tap in
+/// Character::apply_damage, which has already checked is_avatar() / source != nullptr / source != this /
+/// dam_to_bodypart > 0. Inert (no-op) outside an active session, so cata_test / normal play never accumulate.
+auto backend_record_avatar_damage( const Creature &source, avatar_damage_record event ) -> void;
+
+/// Returns the avatar-damage events recorded since the previous call and CLEARS the buffer (drain): each
+/// snapshot's avatar.damage_taken[] is therefore the event window since the prior snapshot, not a
+/// cumulative rollup. Empty outside a session. Read by arcopolis_export's write_damage_taken().
+auto backend_take_avatar_damage_taken() -> std::vector<avatar_damage_record>;
 
 } // namespace arcopolis

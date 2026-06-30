@@ -21,6 +21,7 @@
 #include "activity_actor_definitions.h"
 #include "activity_handlers.h"
 #include "anatomy.h"
+#include "arcopolis_backend_input.h"
 #include "avatar.h"
 #include "avatar_action.h"
 #include "bionics.h"
@@ -9536,6 +9537,23 @@ void Character::apply_damage( Creature *source, item *source_weapon, item *sourc
 
     mod_part_hp_cur( part_to_damage, - dam_to_bodypart );
     get_event_bus().send<event_type::character_takes_damage>( getID(), dam_to_bodypart );
+
+    // Arcopolis (Spike 27B): additive, session-gated tap of the engine's OWN damage funnel, surfacing
+    // attacker-attributed avatar damage as read-only observation state (avatar.damage_taken[], class S). It
+    // records the SAME in-scope `source` the GUI "You were attacked by %s!" message is built from (on_hurt,
+    // below) BEFORE any perception/painkiller display filter -- the frontend renders its own message. Records
+    // dam_to_bodypart (HP actually lost), NOT the raw incoming `dam`; records BOTH the STRUCK part `hurt` (the
+    // part the GUI message names, e.g. "eyes") and the HP-pool part it rolls up to -- part_to_damage =
+    // hurt->main_part, where the HP was deducted (e.g. "head"). Excludes self-source (source != this) and
+    // null/environmental source (fields/suffer pass nullptr); category discrimination (which monster / ally
+    // vs terrain) lives in the fixture + regression, never here. Inert outside an Arcopolis session.
+    if( arcopolis::backend_session_active() && is_avatar() && source != nullptr &&
+        source != this && dam_to_bodypart > 0 ) {
+        arcopolis::backend_record_avatar_damage( *source, { .amount = dam_to_bodypart,
+                .bodypart = hurt.id().str(), .hp_part = part_to_damage.id().str(),
+                .turn = to_turn<int>( calendar::turn )
+                                                          } );
+    }
 
     const item &weapon = primary_weapon();
     if( !weapon.is_null() && !as_player()->can_wield( weapon ).success() &&
