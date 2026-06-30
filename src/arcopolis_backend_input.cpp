@@ -547,26 +547,25 @@ auto arcopolis::backend_session_active() -> bool
     return session.active;
 }
 
-auto arcopolis::backend_record_avatar_damage( const Creature &source, int amount,
-        const std::string &bodypart, int turn ) -> void
+auto arcopolis::backend_record_avatar_damage( const Creature &source,
+        arcopolis::avatar_damage_record event ) -> void
 {
     if( !session.active ) {
         return;  // inert outside a session (the apply_damage call site also gates -- defence in depth)
     }
-    // Classify the engine's in-scope attacker. The category discrimination that the witness relies on
-    // (mon_zombie vs the stationary ally NPC vs terrain) is done in the FIXTURE + regression, never here:
-    // this only reads the raw kind + type id off `source`, the engine's own ground truth (fidelity rule).
-    auto rec = arcopolis::avatar_damage_record{ .amount = amount, .bodypart = bodypart, .turn = turn };
+    // Classify the engine's in-scope attacker INTO the caller's event. The category discrimination the
+    // witness relies on (mon_zombie vs the stationary ally NPC vs terrain) is done in the FIXTURE +
+    // regression, never here: this only reads the raw kind + type id off `source`, the engine's ground truth.
     if( source.is_monster() ) {
-        rec.source_kind = "monster";
-        rec.source_type_id = source.as_monster()->type->id.str();
+        event.source_kind = "monster";
+        event.source_type_id = source.as_monster()->type->id.str();
     } else if( source.is_npc() ) {
-        rec.source_kind = "npc";  // stable NPC type identity stays deferred (Spike 7A npc export v0)
+        event.source_kind = "npc";  // stable NPC type identity stays deferred (Spike 7A npc export v0)
     } else {
-        rec.source_kind =
+        event.source_kind =
             "creature";  // unreached for the witnessed melee; never the avatar (source != this)
     }
-    session.avatar_damage.push_back( std::move( rec ) );
+    session.avatar_damage.push_back( std::move( event ) );
 }
 
 auto arcopolis::backend_take_avatar_damage_taken() -> std::vector<arcopolis::avatar_damage_record>

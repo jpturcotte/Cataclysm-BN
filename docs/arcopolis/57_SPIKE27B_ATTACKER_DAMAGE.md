@@ -19,9 +19,20 @@ the stationary avatar it melee-attacks; a **landed hit** flows through the engin
 `Character::apply_damage(source, …)` ([character.cpp:9495](../../src/character.cpp:9495)). A gated,
 additive Arcopolis tap immediately after the funnel's event send
 ([character.cpp:9518](../../src/character.cpp:9518)) records `{source_kind, source_type_id, amount,
-bodypart, turn}` into a session buffer, surfaced read-only as **`avatar.damage_taken[]`**. The regression
-asserts that some post-load export's `damage_taken[]` carries an entry with `source_kind=="monster" &&
-source_type_id=="mon_zombie" && amount>0`.
+bodypart, hp_part, turn}` into a session buffer, surfaced read-only as **`avatar.damage_taken[]`**. The
+regression asserts that some post-load export's `damage_taken[]` carries an entry with `source_kind=="monster"
+&& source_type_id=="mon_zombie" && amount>0`.
+
+**`bodypart` vs `hp_part` (record both — the engine carries both).** The attack selects a hit body part
+(`hurt`, e.g. `eyes`/`hand_l`) via `anatomy::select_body_part`, and the GUI combat message names THAT struck
+part (`bp_hit->accusative`, [monster.cpp:2259/2284](../../src/monster.cpp:2259)). But HP is pooled per MAIN
+part, so `apply_damage` deducts `amount` from `hurt->main_part` (`eyes → head`,
+[character.cpp:9514](../../src/character.cpp:9514)). The six sub-parts (eyes/mouth/hand_l/r/foot_l/r) all have
+nonzero `hit_size`, so melee lands on them ~1-in-7 hits. We therefore record **both**: `bodypart` = the
+struck part the GUI message names (`hurt`), and `hp_part` = the HP-pool part `amount` was deducted from
+(`hurt->main_part`); they are equal for a torso/head/limb hit. A frontend with no anatomy table can then
+reproduce both the combat message and the HP-bar change. (Resolves the "report the selected body part, not
+the HP bucket" review note on PR #90.)
 
 **The witnessed signal is the engine's OWN attribution**, reproduced as backend state. It is the same
 `Creature *source` the GUI's "You were attacked by %s!" message is built from

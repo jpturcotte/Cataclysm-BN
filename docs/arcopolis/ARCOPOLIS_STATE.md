@@ -179,8 +179,9 @@ design. Stage A possession must come from BN's own container-recursing predicate
 **not** this field; the corrected primitive is a dedicated read-only possession query (a follow-up, not this
 spike). See [`51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md`](51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md).
 
-**`avatar.damage_taken[]`** (source_kind `"monster"`/`"npc"`, source_type_id, amount, bodypart, turn — Spike 27
-27B) is the avatar's **attacker-attributed damage events since the prior snapshot** (drained per snapshot —
+**`avatar.damage_taken[]`** (source_kind `"monster"`/`"npc"`, source_type_id, amount, **bodypart** = the
+struck part the GUI message names + **hp_part** = the HP-pool part the amount hit (== bodypart except on a
+sub-part hit), turn — Spike 27B) is the avatar's **attacker-attributed damage events since the prior snapshot** (drained per snapshot —
 an event stream, not a cumulative rollup), captured by a gated additive tap at the engine's own
 `Character::apply_damage` funnel (`src/character.cpp`). **L1 observation, native-authority class S** (the raw
 in-scope `source` the GUI "You were attacked by %s!" message is built from — `Character::on_hurt` — surfaced

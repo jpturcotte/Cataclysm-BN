@@ -1429,9 +1429,11 @@ TEST_CASE( "arcopolis avatar-damage buffer records attacker identity, preserves 
 
     arcopolis::begin_backend_session( { .steps = {} } );
 
-    // Two applications in one turn (per bodypart / per hit) -- an event stream, not a per-turn rollup.
-    arcopolis::backend_record_avatar_damage( zed, 7, "torso", 42 );
-    arcopolis::backend_record_avatar_damage( zed, 3, "leg_l", 42 );
+    // Two applications in one turn (per bodypart / per hit) -- an event stream, not a per-turn rollup. The
+    // second is a SUB-PART hit (eyes): the struck part the GUI message names (bodypart) differs from the
+    // HP-pool part the amount was deducted from (hp_part = eyes->main_part = head) -- we record BOTH.
+    arcopolis::backend_record_avatar_damage( zed, { .amount = 7, .bodypart = "torso", .hp_part = "torso", .turn = 42 } );
+    arcopolis::backend_record_avatar_damage( zed, { .amount = 3, .bodypart = "eyes", .hp_part = "head", .turn = 42 } );
 
     const std::vector<arcopolis::avatar_damage_record> drained =
         arcopolis::backend_take_avatar_damage_taken();
@@ -1441,9 +1443,11 @@ TEST_CASE( "arcopolis avatar-damage buffer records attacker identity, preserves 
            "mon_zombie" );  // classified off the real Creature, NOT asserted
     CHECK( drained[0].amount == 7 );
     CHECK( drained[0].bodypart == "torso" );
+    CHECK( drained[0].hp_part == "torso" );   // main-part hit: struck part == HP-pool part
     CHECK( drained[0].turn == 42 );
     CHECK( drained[1].amount == 3 );          // order preserved
-    CHECK( drained[1].bodypart == "leg_l" );
+    CHECK( drained[1].bodypart == "eyes" );   // the struck sub-part the GUI message names
+    CHECK( drained[1].hp_part == "head" );    // the HP pool the amount actually hit (eyes -> head)
 
     // Drain: the events were consumed, so a second take is empty (each snapshot reports its own window).
     CHECK( arcopolis::backend_take_avatar_damage_taken().empty() );
@@ -1451,6 +1455,6 @@ TEST_CASE( "arcopolis avatar-damage buffer records attacker identity, preserves 
     arcopolis::end_backend_session();
 
     // Inert outside a session: cata_test / normal play never accumulate records.
-    arcopolis::backend_record_avatar_damage( zed, 5, "head", 1 );
+    arcopolis::backend_record_avatar_damage( zed, { .amount = 5, .bodypart = "head", .hp_part = "head", .turn = 1 } );
     CHECK( arcopolis::backend_take_avatar_damage_taken().empty() );
 }

@@ -577,16 +577,19 @@ struct avatar_damage_record {
     std::string source_type_id;  ///< monster type id (e.g. "mon_zombie"); empty for an npc source
     ///< (stable NPC identity is deferred, as in the Spike 7A npc export v0)
     int amount = 0;              ///< dam_to_bodypart actually applied (HP lost on the part), always > 0
-    std::string bodypart;        ///< the damaged bodypart token (e.g. "torso")
+    std::string
+    bodypart;        ///< the STRUCK part the GUI message names (apply_damage `hurt`, e.g. "eyes")
+    std::string hp_part;         ///< the HP-pool part `amount` was deducted from (hurt->main_part, e.g.
+    ///< "head"); == bodypart for a torso/head/limb hit, differs only on a sub-part hit (eyes/mouth/hand/foot)
     int turn = 0;                ///< calendar turn at the funnel (matches the snapshot's backend.turn)
 };
 
 /// Records one avatar-damage event from the apply_damage funnel: classifies `source` (monster/npc + type
-/// id) and appends a record. Called ONLY from the gated tap in Character::apply_damage, which has already
-/// checked is_avatar() / source != nullptr / source != this / dam_to_bodypart > 0. Inert (no-op) outside an
-/// active session, so cata_test / normal play never accumulate records.
-auto backend_record_avatar_damage( const Creature &source, int amount, const std::string &bodypart,
-                                   int turn ) -> void;
+/// id) INTO `event` and appends it. `event` carries the OBSERVABLE fields the caller knows (amount,
+/// bodypart, hp_part, turn); this fills source_kind/source_type_id. Called ONLY from the gated tap in
+/// Character::apply_damage, which has already checked is_avatar() / source != nullptr / source != this /
+/// dam_to_bodypart > 0. Inert (no-op) outside an active session, so cata_test / normal play never accumulate.
+auto backend_record_avatar_damage( const Creature &source, avatar_damage_record event ) -> void;
 
 /// Returns the avatar-damage events recorded since the previous call and CLEARS the buffer (drain): each
 /// snapshot's avatar.damage_taken[] is therefore the event window since the prior snapshot, not a

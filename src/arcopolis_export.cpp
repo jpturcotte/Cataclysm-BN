@@ -151,7 +151,10 @@ auto write_damage_taken( JsonOut &json ) -> void
         json.member( "source_type_id", rec.source_type_id ); // monster type id; empty for an npc source
         json.member( "amount",
                      rec.amount );                // dam_to_bodypart actually applied (HP lost), > 0
-        json.member( "bodypart", rec.bodypart );            // e.g. "torso"
+        json.member( "bodypart",
+                     rec.bodypart );            // the struck part the GUI names (apply_damage `hurt`)
+        json.member( "hp_part",
+                     rec.hp_part );              // the HP-pool part `amount` hit (hurt->main_part)
         json.member( "turn", rec.turn );                    // calendar turn at the funnel (== backend.turn)
         json.end_object();
     }
