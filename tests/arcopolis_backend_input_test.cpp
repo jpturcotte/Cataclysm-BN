@@ -1458,3 +1458,34 @@ TEST_CASE( "arcopolis avatar-damage buffer records attacker identity, preserves 
     arcopolis::backend_record_avatar_damage( zed, { .amount = 5, .bodypart = "head", .hp_part = "head", .turn = 1 } );
     CHECK( arcopolis::backend_take_avatar_damage_taken().empty() );
 }
+
+// --- One-shot session-serialization fix (G2): the RNG-FREE deterministic seal for the bug class.
+//     backend_assert_event_buffers_drained() is the runtime tripwire called right AFTER a snapshot's
+//     capture/drain step (write_session_snapshot, export_current_view). A registered event buffer still
+//     non-empty there means a recorded event was about to be lost unserialized -- the exact one-shot bug
+//     shape (serialize-after-teardown reads an empty wipe). Run against the PRE-FIX ordering it fires on
+//     the one-shot bug itself; here it pins that the assertion fires when undrained and is silent once
+//     drained. This is the deterministic seal; the fixture smoke is only an empirical witness. ---
+
+TEST_CASE( "arcopolis backend_assert_event_buffers_drained fails loud on an undrained event buffer, silent once drained",
+           "[arcopolis]" )
+{
+    monster zed( mtype_id( "mon_zombie" ) );
+    arcopolis::begin_backend_session( { .steps = {} } );
+
+    // Recorded but NOT drained: the post-drain assertion MUST fail loud (debugmsg), never silently pass.
+    arcopolis::backend_record_avatar_damage( zed, { .amount = 7, .bodypart = "torso", .hp_part = "torso", .turn = 42 } );
+    const std::string fired = capture_debugmsg_during( []() {
+        arcopolis::backend_assert_event_buffers_drained();
+    } );
+    CHECK( fired.contains( "avatar-damage" ) );
+
+    // Drained first (the faithful capture-before-teardown order): the same assertion is SILENT.
+    arcopolis::backend_take_avatar_damage_taken();
+    const std::string silent = capture_debugmsg_during( []() {
+        arcopolis::backend_assert_event_buffers_drained();
+    } );
+    CHECK( silent.empty() );
+
+    arcopolis::end_backend_session();
+}

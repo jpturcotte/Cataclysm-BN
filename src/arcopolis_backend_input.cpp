@@ -14,6 +14,7 @@
 #include "arcopolis_export.h"   // write_current_view, snapshot_session_info, current_snapshot_summary
 #include "arcopolis_session_log.h"  // session_log_command / session_log_export / session_log_error
 #include "creature.h"           // Creature::is_monster/as_monster/is_npc (Spike 27B source classify)
+#include "debug.h"              // debugmsg (G2 event-buffer drain tripwire)
 #include "filesystem.h"         // ensure_valid_file_name
 #include "monster.h"            // monster::type (Spike 27B attacker type id)
 #include "mtype.h"              // mtype::id (Spike 27B attacker type id)
@@ -112,9 +113,13 @@ struct backend_session {
     std::optional<arcopolis::command_error> unexpected_prompt_pending;
 
     // --- Spike 27B: attacker-attributed avatar-damage events recorded at the Character::apply_damage
-    //     funnel (gated tap, src/character.cpp). DRAINED per snapshot by backend_take_avatar_damage_taken(),
-    //     so a snapshot's avatar.damage_taken[] is the event window since the prior snapshot. Avatar-only by
-    //     construction (the tap gates on is_avatar()); cleared with the session by end_backend_session(). ---
+    //     funnel (gated tap, src/character.cpp). DRAINED per snapshot at the snapshot's capture site WHILE
+    //     the session is active (write_session_snapshot for run-script/live, export_current_view for
+    //     one-shot) and serialized from that copy by the PURE write_damage_taken; the drain MUST run before
+    //     end_backend_session() wipes the session (else avatar.damage_taken[] is silently empty -- the
+    //     one-shot bug this fix closes). backend_assert_event_buffers_drained() verifies the drain ran.
+    //     Avatar-only by construction (the tap gates on is_avatar()); cleared with the session by
+    //     end_backend_session(). ---
     std::vector<arcopolis::avatar_damage_record> avatar_damage;
 };
 
@@ -311,7 +316,13 @@ auto write_session_snapshot( const std::string &label, const std::optional<int> 
     const auto filename = string_format( "%03d_%s.json", session.export_index,
                                          ensure_valid_file_name( label ) );
     const auto path = ( std::filesystem::path( session.export_dir ) / filename ).string();
-    if( !arcopolis::write_current_view( path, info ) ) {
+    // Drain the avatar-damage event window WHILE the session is active, then serialize a copy: this keeps
+    // write_damage_taken pure (it never touches the live session), so run-script/live and one-shot render
+    // identically. backend_assert_event_buffers_drained() is the G2 tripwire -- every registered event
+    // buffer must now be empty.
+    auto damage = arcopolis::backend_take_avatar_damage_taken();
+    arcopolis::backend_assert_event_buffers_drained();
+    if( !arcopolis::write_current_view( path, info, std::move( damage ) ) ) {
         // The provider cannot return an error; record it and stop cleanly. The runner surfaces it as the
         // process exit code once the engine loop ends.
         session.failure = arcopolis::command_error{
@@ -573,6 +584,21 @@ auto arcopolis::backend_take_avatar_damage_taken() -> std::vector<arcopolis::ava
     auto out = std::move( session.avatar_damage );
     session.avatar_damage.clear();  // a moved-from vector is valid-but-unspecified; force a known-empty buffer
     return out;
+}
+
+auto arcopolis::backend_assert_event_buffers_drained() -> void
+{
+    // Registry of session-scoped EVENT buffers a snapshot's capture/drain step must empty. A non-empty
+    // buffer here means a recorded event was about to be lost unserialized (the Spike 27B one-shot bug
+    // shape: serialize-after-teardown reads an empty wipe). To register a NEW session event buffer, add its
+    // check here AND wire its drain into BOTH capture sites (write_session_snapshot, export_current_view).
+    // Runtime FLOOR, not a general seal -- it cannot see a buffer nobody registered (cf. the lexical
+    // serializer-purity test, .agents/arcopolis_serializer_purity_test.ts).
+    if( !session.avatar_damage.empty() ) {
+        debugmsg( "arcopolis: %zu avatar-damage event(s) survived the snapshot drain step -- a session-scoped "
+                  "serialization buffer was not captured before teardown (Spike 27B one-shot bug shape)",
+                  session.avatar_damage.size() );
+    }
 }
 
 auto arcopolis::backend_input_done() -> bool

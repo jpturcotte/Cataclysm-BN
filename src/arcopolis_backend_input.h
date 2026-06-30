@@ -596,4 +596,15 @@ auto backend_record_avatar_damage( const Creature &source, avatar_damage_record 
 /// cumulative rollup. Empty outside a session. Read by arcopolis_export's write_damage_taken().
 auto backend_take_avatar_damage_taken() -> std::vector<avatar_damage_record>;
 
+/// Runtime tripwire for the one-shot session-serialization bug class (the Spike 27B shape: a session-scoped
+/// event buffer serialized AFTER teardown reads an empty wipe). Called right after a snapshot's
+/// capture/drain step (write_session_snapshot for run-script/live, export_current_view for one-shot), where
+/// every registered event buffer is expected drained: debugmsg-fail-loud if any is still non-empty. Placed
+/// at the drain site, NOT at end_backend_session(), so a game-over / stall teardown -- which writes no
+/// snapshot -- can never false-fire. The "registry" of checked buffers lives in the .cpp; adding one is a
+/// one-line edit there (and its drain must be wired into BOTH capture sites). This is a runtime FLOOR, not a
+/// general seal: it cannot see a buffer nobody registered (cf. the lexical serializer-purity test,
+/// .agents/arcopolis_serializer_purity_test.ts).
+auto backend_assert_event_buffers_drained() -> void;
+
 } // namespace arcopolis

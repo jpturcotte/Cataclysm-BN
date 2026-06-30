@@ -181,8 +181,9 @@ spike). See [`51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md`](51_SPIKE25_CARRIED_PACK
 
 **`avatar.damage_taken[]`** (source_kind `"monster"`/`"npc"`, source_type_id, amount, **bodypart** = the
 struck part the GUI message names + **hp_part** = the HP-pool part the amount hit (== bodypart except on a
-sub-part hit), turn — Spike 27B) is the avatar's **attacker-attributed damage events since the prior snapshot** (drained per snapshot —
-an event stream, not a cumulative rollup), captured by a gated additive tap at the engine's own
+sub-part hit), turn — Spike 27B) is the avatar's **attacker-attributed damage events since the prior snapshot**
+(drained at each snapshot's capture site WHILE the session is active and serialized from that copy by a PURE
+writer — an event stream, not a cumulative rollup; doc 58), captured by a gated additive tap at the engine's own
 `Character::apply_damage` funnel (`src/character.cpp`). **L1 observation, native-authority class S** (the raw
 in-scope `source` the GUI "You were attacked by %s!" message is built from — `Character::on_hurt` — surfaced
 as a value, **self-sealing**: raw state cannot diverge from itself). It is the **FUNNEL FACT, not
@@ -194,8 +195,11 @@ the backend `source` is never claimed equal to the GUI's _displayed_ attacker, o
 **NOT** a hit/miss / damage-type / ranged-vs-melee / LOS-perception / NPC-attacker surface (only MELEE
 `mon_zombie` is witnessed; the tap captures any source but the rest are unwitnessed). The witness is
 **RNG-DEPENDENT** (the funnel fires only on a landed hit), empirically reliable across seeds, **not**
-RNG-invariant like 27A's position witness. See
-[`57_SPIKE27B_ATTACKER_DAMAGE.md`](57_SPIKE27B_ATTACKER_DAMAGE.md).
+RNG-invariant like 27A's position witness. The **one-shot** `--arcopolis-export-current-view` path now emits
+this field correctly; it was **silently empty** in one-shot mode until the session-serialization fix (doc 58),
+which also added a lexical serializer-purity floor + a runtime drain tripwire. See
+[`57_SPIKE27B_ATTACKER_DAMAGE.md`](57_SPIKE27B_ATTACKER_DAMAGE.md) and
+[`58_ONESHOT_SESSION_SERIALIZATION.md`](58_ONESHOT_SESSION_SERIALIZATION.md).
 
 ### Transcript `session.jsonl` (`schema_version` 1, one JSON object per line, flushed per event)
 

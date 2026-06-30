@@ -219,8 +219,15 @@ witness byte-for-byte). Gated by
 avatar-held / NPC-held / mover-survived) — the headless sim is not byte-deterministic even fully serial
 
 - seeded, so the witness proves invariance by sampling RNG realizations rather than fixing the seed. The
-  attacker-attributed **damage** fact (surfacing the engine's `source` at the damage funnel) is **27B**,
-  a separate follow-up. See [56_SPIKE27A_WORLD_TICK_LIVENESS.md](56_SPIKE27A_WORLD_TICK_LIVENESS.md).
+  attacker-attributed **damage** fact (surfacing the engine's `source` at the damage funnel) is **27B**
+  ([`attacker_damage_regression.ps1`](attacker_damage_regression.ps1), run-script, RNG-dependent, on this same
+  fixture). The **one-shot** path's damage witness uses a **runtime-generated** adjacent-attacker variant
+  (`make_monster_fixture.py --offset 0,1,0`, built into the sandbox, NOT a committed world) gated by
+  [`oneshot_damage_regression.ps1`](oneshot_damage_regression.ps1); the one-shot session-serialization fix's
+  deterministic seal is the RNG-free Catch2 tripwire. See
+  [56_SPIKE27A_WORLD_TICK_LIVENESS.md](56_SPIKE27A_WORLD_TICK_LIVENESS.md),
+  [57_SPIKE27B_ATTACKER_DAMAGE.md](57_SPIKE27B_ATTACKER_DAMAGE.md), and
+  [58_ONESHOT_SESSION_SERIALIZATION.md](58_ONESHOT_SESSION_SERIALIZATION.md).
 
 ## Spike 16 — non-live run-script reuse of the prompt fixtures
 
