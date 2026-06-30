@@ -131,7 +131,7 @@ auto write_carried_items( JsonOut &json, const snapshot_ctx &ctx ) -> void
     json.end_array();
 }
 
-/// Spike 27 Part 2: the avatar's attacker-attributed damage events since the prior snapshot, written inside
+/// Spike 27B: the avatar's attacker-attributed damage events since the prior snapshot, written inside
 /// the avatar object as avatar.damage_taken[]. Each entry is the engine's OWN in-scope `source` + applied
 /// `amount` read at the Character::apply_damage funnel (src/character.cpp) -- read-only observation,
 /// native-authority class S (raw funnel state). It is recorded BEFORE the GUI's display filters and is
@@ -195,7 +195,7 @@ auto write_avatar( JsonOut &json, const snapshot_ctx &ctx ) -> void
     write_carried_items( json,
                          ctx );  // Spike 25: read-only top-level carried items (avatar.carried_items[])
     write_damage_taken(
-        json );  // Spike 27 Part 2: attacker-attributed damage events (drains the buffer)
+        json );  // Spike 27B: attacker-attributed damage events (drains the buffer)
     json.end_object();
 }
 

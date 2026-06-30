@@ -1,13 +1,13 @@
-# Spike 27 Part 2 — Attacker-Attributed Damage Fact
+# Spike 27B — Attacker-Attributed Damage Fact
 
 **Status:** built, validated. Equivalence **level 1 (observation only)**, native-authority class **S**
-(raw simulation state). One gated `src/` funnel tap plus a read-only export field — unlike Part 1 (which
-was fixture/docs only), this **is** a `src/` change. Reuses Part 1's `ArcopolisLivenessTest` fixture
+(raw simulation state). One gated `src/` funnel tap plus a read-only export field — unlike 27A (which
+was fixture/docs only), this **is** a `src/` change. Reuses 27A's `ArcopolisLivenessTest` fixture
 **unchanged**.
 
-This is **Part 2** of the Spike 27 frontier. **Part 1**
-([56_SPIKE27_WORLD_TICK_LIVENESS.md](56_SPIKE27_WORLD_TICK_LIVENESS.md)) proved BN simulates between
-inputs (an autonomous monster moves on its own turn) with a **source-blind** position witness. Part 2
+This is **27B** of the Spike 27 frontier. **27A**
+([56_SPIKE27A_WORLD_TICK_LIVENESS.md](56_SPIKE27A_WORLD_TICK_LIVENESS.md)) proved BN simulates between
+inputs (an autonomous monster moves on its own turn) with a **source-blind** position witness. 27B
 adds the **attacker-attributed damage fact**: the engine's own `source` at the damage funnel, surfaced as
 observable state, so a frontend knows **who** attacked the avatar — not just that the world ticked.
 
@@ -34,7 +34,7 @@ The surface exposes the **raw in-scope `source` pointer** at the funnel — auth
 neither a computed predicate (C) nor a display proxy (D). It is the engine's ground truth for "who dealt
 this damage," and **it cannot diverge from itself**, so the class-S classification is **mechanically
 self-sealing** and needs no counterexample (the External-seal finding). The two independent blind
-cross-model reads recorded for Part 1 are corroborating **independence evidence**, not the seal — the
+cross-model reads recorded for 27A are corroborating **independence evidence**, not the seal — the
 self-seal is the construction itself. The category discrimination the witness depends on (`mon_zombie` vs
 the stationary ally NPC vs terrain) is done in the **fixture + regression**, never via a synthetic
 engine-side discriminator: the tap reads only the engine's own coarse gate (`source != nullptr`, the
@@ -63,9 +63,9 @@ _display_ — and whether the avatar would see "the zombie" vs "Something" — i
 frontier (blocked on the `sees()` / `pl_sees` seam). **The backend `source` is never claimed equal to the
 GUI's displayed attacker — only to the raw funnel attacker.**
 
-## RNG-DEPENDENT, not RNG-invariant (the key difference from Part 1)
+## RNG-DEPENDENT, not RNG-invariant (the key difference from 27A)
 
-Part 1's position gates are **RNG-invariant** (the zombie always approaches). Part 2's gate is
+27A's position gates are **RNG-invariant** (the zombie always approaches). 27B's gate is
 **RNG-dependent**: the funnel fires **only on a landed hit** (`apply_damage` is hit-only; a miss never
 reaches it), so "took damage from the zombie" requires ≥1 hit to land in N waits. With a generous N
 (default 8) the zombie gets several melee attempts once adjacent and a hit is **empirically reliable**
@@ -159,7 +159,7 @@ not touch.
   (classify a **real** `mon_zombie`, preserve per-application order, drain per take, inert outside a
   session).
 - **`docs/arcopolis/attacker_damage_regression.ps1`** — the RNG-dependent fixture regression (sibling to
-  `world_tick_liveness_regression.ps1`, kept separate so Part 1's RNG-invariant gates stay pristine).
+  `world_tick_liveness_regression.ps1`, kept separate so 27A's RNG-invariant gates stay pristine).
 
 ## Validation (measured 2026-06-29, MSVC RelWithDebInfo)
 
@@ -174,13 +174,13 @@ not touch.
   additional distinct seeds**: all passed, **3–6** attributed hits each. **Across 15 distinct seeds total,
   every one landed ≥3 hits (minimum 3), zero all-miss** — the witness is **empirically reliable, not
   RNG-invariant**; a pathological all-miss run fails loud, never false-greens.
-- **No Part 1 regression** — `world_tick_liveness_regression.ps1` still passes (3 seeds, all RNG-invariant
+- **No 27A regression** — `world_tick_liveness_regression.ps1` still passes (3 seeds, all RNG-invariant
   gates) with the export field + funnel tap added.
 
 ## Reproduce
 
 ```powershell
-# Fixture (reuse Part 1's; no build):
+# Fixture (reuse 27A's; no build):
 python docs/arcopolis/make_monster_fixture.py --dest-world ArcopolisLivenessTest `
     --monster mon_zombie --offset 0,2,0 --anger 100 --morale 100 --aggro-character --force
 # Unit test:

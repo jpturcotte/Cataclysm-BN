@@ -9518,7 +9518,7 @@ void Character::apply_damage( Creature *source, item *source_weapon, item *sourc
     mod_part_hp_cur( part_to_damage, - dam_to_bodypart );
     get_event_bus().send<event_type::character_takes_damage>( getID(), dam_to_bodypart );
 
-    // Arcopolis (Spike 27 Part 2): additive, session-gated tap of the engine's OWN damage funnel, surfacing
+    // Arcopolis (Spike 27B): additive, session-gated tap of the engine's OWN damage funnel, surfacing
     // attacker-attributed avatar damage as read-only observation state (avatar.damage_taken[], class S). It
     // records the SAME in-scope `source` the GUI "You were attacked by %s!" message is built from (on_hurt,
     // below) BEFORE any perception/painkiller display filter -- the frontend renders its own message. Records

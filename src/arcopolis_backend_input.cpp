@@ -13,12 +13,12 @@
 #include "arcopolis_command.h"  // backend_command, command_to_action, command_error, command_error_kind
 #include "arcopolis_export.h"   // write_current_view, snapshot_session_info, current_snapshot_summary
 #include "arcopolis_session_log.h"  // session_log_command / session_log_export / session_log_error
-#include "creature.h"           // Creature::is_monster/as_monster/is_npc (Spike 27 Part 2 source classify)
+#include "creature.h"           // Creature::is_monster/as_monster/is_npc (Spike 27B source classify)
 #include "filesystem.h"         // ensure_valid_file_name
-#include "monster.h"            // monster::type (Spike 27 Part 2 attacker type id)
-#include "mtype.h"              // mtype::id (Spike 27 Part 2 attacker type id)
+#include "monster.h"            // monster::type (Spike 27B attacker type id)
+#include "mtype.h"              // mtype::id (Spike 27B attacker type id)
 #include "string_formatter.h"   // string_format
-#include "type_id.h"            // mtype_id::str (Spike 27 Part 2 attacker type id)
+#include "type_id.h"            // mtype_id::str (Spike 27B attacker type id)
 
 namespace
 {
@@ -111,7 +111,7 @@ struct backend_session {
     //     per-request runner consumes -> a visibly-failed ok=false response, session stays open. ---
     std::optional<arcopolis::command_error> unexpected_prompt_pending;
 
-    // --- Spike 27 Part 2: attacker-attributed avatar-damage events recorded at the Character::apply_damage
+    // --- Spike 27B: attacker-attributed avatar-damage events recorded at the Character::apply_damage
     //     funnel (gated tap, src/character.cpp). DRAINED per snapshot by backend_take_avatar_damage_taken(),
     //     so a snapshot's avatar.damage_taken[] is the event window since the prior snapshot. Avatar-only by
     //     construction (the tap gates on is_avatar()); cleared with the session by end_backend_session(). ---

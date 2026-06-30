@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-  Arcopolis ATTACKER-ATTRIBUTED DAMAGE witness (Spike 27 Part 2).
+  Arcopolis ATTACKER-ATTRIBUTED DAMAGE witness (Spike 27B).
 
 .DESCRIPTION
-  Drives the headless backend over ArcopolisLivenessTest (the SAME fixture as Part 1 -- no fixture
+  Drives the headless backend over ArcopolisLivenessTest (the SAME fixture as 27A -- no fixture
   change) and witnesses that the engine's OWN damage funnel attributed avatar damage to the hostile
-  mon_zombie. Across [export, (wait,export) x N] the zombie pathfinds to the avatar (Part 1's liveness)
+  mon_zombie. Across [export, (wait,export) x N] the zombie pathfinds to the avatar (27A's liveness)
   and, once adjacent, melee-attacks it; a landed hit reaches Character::apply_damage(source=zombie)
   (src/character.cpp), where the gated Arcopolis tap records {source_kind, source_type_id, amount,
   bodypart, turn} into avatar.damage_taken[].
@@ -18,8 +18,8 @@
   src/monster.cpp; the on_hurt distraction message is gated by painkiller/narcosis/disturb) -- a frontend
   renders its own message from this ground truth.
 
-  *** RNG-DEPENDENT, NOT RNG-INVARIANT (the key difference from Part 1). *** Part 1's position gates are
-  RNG-INVARIANT (the zombie ALWAYS approaches). Part 2's gate is RNG-DEPENDENT: the funnel fires only on
+  *** RNG-DEPENDENT, NOT RNG-INVARIANT (the key difference from 27A). *** 27A's position gates are
+  RNG-INVARIANT (the zombie ALWAYS approaches). 27B's gate is RNG-DEPENDENT: the funnel fires only on
   a LANDED HIT (apply_damage is hit-only; a miss never reaches it), so "took damage from the zombie"
   requires >=1 hit to land in N waits. With a generous N the zombie gets ~N-2 melee attempts once
   adjacent and a hit is EMPIRICALLY RELIABLE every run across seeds -- but it is NOT guaranteed by
@@ -38,14 +38,14 @@
   mon_zombie is witnessed here); NPC-attacker attribution (captured as kind="npc" but unwitnessed); LOS /
   perception; full combat resolution.
 
-  WHY a sibling script and not folded into world_tick_liveness_regression.ps1: Part 1 asserts ONLY
+  WHY a sibling script and not folded into world_tick_liveness_regression.ps1: 27A asserts ONLY
   RNG-INVARIANT gates and documents that invariance as its discipline. Mixing this RNG-DEPENDENT gate in
   would muddy that claim. Keeping it separate isolates the one RNG-dependent witness and labels it as
   such. Run with `pwsh` (PowerShell 7), not `powershell` 5.1 (BOM-less UTF-8 / options.json BOM =>
   phantom failures).
 
 .NOTES
-  Reuses the Part 1 fixture (create it first, one python invocation, no build):
+  Reuses the 27A fixture (create it first, one python invocation, no build):
     python docs/arcopolis/make_monster_fixture.py --dest-world ArcopolisLivenessTest `
         --monster mon_zombie --offset 0,2,0 --anger 100 --morale 100 --aggro-character --force
   If the fixture world is missing this script exits 5 with that pointer.

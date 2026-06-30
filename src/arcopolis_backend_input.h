@@ -553,7 +553,7 @@ auto backend_take_unexpected_prompt_error() -> std::optional<command_error>;
 /// state. Records a write failure via backend_session_failure(); returns true on success. (Spike 3.1B)
 auto backend_write_final_snapshot() -> bool;
 
-// --- Spike 27 Part 2: attacker-attributed avatar-damage observation (read-only, native-authority class S).
+// --- Spike 27B: attacker-attributed avatar-damage observation (read-only, native-authority class S).
 // A gated, ADDITIVE tap at the engine's own Character::apply_damage funnel (src/character.cpp) records who
 // dealt damage to the AVATAR, surfaced read-only as avatar.damage_taken[] (arcopolis_export). This is L1
 // observation -- it drives NO registered input and makes NO level-4 claim. It exposes the raw in-scope
@@ -569,7 +569,7 @@ auto backend_write_final_snapshot() -> bool;
 // So this asserts the FUNNEL FACT, never message-equivalence (the perception-masked display is a separate,
 // deferred frontier). Per-APPLICATION (per bodypart / per hit) -- an event stream, NOT a per-turn rollup.
 // The funnel fires only on a landed HIT, so a witness of "took damage from X" is RNG-DEPENDENT (empirically
-// reliable across seeds, NOT RNG-invariant like the Spike 27 Part 1 position witness). ---
+// reliable across seeds, NOT RNG-invariant like the Spike 27A position witness). ---
 
 /// One attacker-attributed avatar-damage event, captured at the apply_damage funnel.
 struct avatar_damage_record {

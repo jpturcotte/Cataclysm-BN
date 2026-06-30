@@ -10,10 +10,10 @@
 #include "arcopolis_script.h"   // script_step
 #include "debug.h"              // capture_debugmsg_during (cata_test uilist-abort witness)
 #include "input.h"              // inp_mngr, input_manager::wait_for_any_key (raw-read guard)
-#include "monster.h"            // monster (Spike 27 Part 2 attacker-identity source)
+#include "monster.h"            // monster (Spike 27B attacker-identity source)
 #include "output.h"             // query_yn (Spike 15 cata_test query_popup-abort witness)
 #include "popup.h"              // query_popup (Spike 15 backend-driven query_popup witnesses)
-#include "type_id.h"            // mtype_id (Spike 27 Part 2 attacker-identity source)
+#include "type_id.h"            // mtype_id (Spike 27B attacker-identity source)
 #include "ui.h"                 // uilist, UILIST_ERROR (Spike 13B backend-UI-mode witnesses)
 
 // Unit tests for the Arcopolis backend INPUT SOURCE (Spike 3.1A, mechanism M1). These cover the pure,
@@ -1415,7 +1415,7 @@ TEST_CASE( "arcopolis script source drives no prompt once a fatal failure is alr
     arcopolis::end_backend_session();
 }
 
-// --- Spike 27 Part 2: attacker-attributed avatar-damage buffer (the gated Character::apply_damage funnel
+// --- Spike 27B: attacker-attributed avatar-damage buffer (the gated Character::apply_damage funnel
 //     tap's record/drain side). The tap FIRING on a real monster melee is an engine-behaviour claim, proven
 //     by the fixture regression (attacker_damage_regression.ps1, RNG-dependent); this world-independent unit
 //     test pins the buffer CONTRACT: classify a REAL monster source off the engine's own Creature, preserve
