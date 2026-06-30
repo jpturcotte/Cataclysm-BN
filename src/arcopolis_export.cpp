@@ -46,6 +46,10 @@ struct snapshot_ctx {
     std::vector<std::string> &warnings;  ///< diagnostics accumulator (referent is mutable)
     const std::optional<arcopolis::snapshot_session_info>
     &session;  ///< Spike 2 metadata (none = nullopt)
+    /// Spike 27B events captured WHILE the session was active (drained at the capture site, never
+    /// here); write_damage_taken serializes this copy so the serializer is PURE -- one-shot and
+    /// run-script render identically.
+    std::vector<arcopolis::avatar_damage_record> damage_taken;
 };
 
 auto write_session( JsonOut &json, const snapshot_ctx &ctx ) -> void
@@ -138,14 +142,21 @@ auto write_carried_items( JsonOut &json, const snapshot_ctx &ctx ) -> void
 /// independent of both: the per-hit combat message masks the attacker name to "Something hits your %s." when
 /// the avatar cannot see the attacker (src/monster.cpp melee_attack, !g->u.sees), and the on_hurt distraction
 /// message is gated by painkiller/narcosis/disturb -- the funnel value is present regardless, so the frontend
-/// renders its own (optionally perception-masked) message from this ground truth. DRAINS the buffer: this
-/// array is the event window since the previous snapshot, never a cumulative rollup. This is the FUNNEL FACT,
+/// renders its own (optionally perception-masked) message from this ground truth. This is the FUNNEL FACT,
 /// NOT message-equivalence: NOT a hit/miss / damage-type / ranged-vs-melee / LOS-perception surface.
-auto write_damage_taken( JsonOut &json ) -> void
+///
+/// PURE serializer: it reads the already-captured `ctx.damage_taken` and NEVER drains the live session. The
+/// drain happens at the snapshot's capture site WHILE the session is active (write_session_snapshot for
+/// run-script/live; export_current_view before teardown for one-shot), and this array is the event window
+/// since the previous snapshot, never a cumulative rollup. Purity is what makes one-shot and run-script
+/// render the SAME array -- the original one-shot bug was draining HERE, after teardown wiped the buffer (so
+/// the array was structurally empty). The lexical purity test (.agents/arcopolis_serializer_purity_test.ts)
+/// pins that no write_* serializer drains the session.
+auto write_damage_taken( JsonOut &json, const snapshot_ctx &ctx ) -> void
 {
     json.member( "damage_taken" );
     json.start_array();
-    for( const arcopolis::avatar_damage_record &rec : arcopolis::backend_take_avatar_damage_taken() ) {
+    for( const arcopolis::avatar_damage_record &rec : ctx.damage_taken ) {
         json.start_object();
         json.member( "source_kind", rec.source_kind );      // "monster" | "npc"
         json.member( "source_type_id", rec.source_type_id ); // monster type id; empty for an npc source
@@ -197,8 +208,8 @@ auto write_avatar( JsonOut &json, const snapshot_ctx &ctx ) -> void
     json.member( "kcal_percent", ctx.u.get_kcal_percent() );  // float
     write_carried_items( json,
                          ctx );  // Spike 25: read-only top-level carried items (avatar.carried_items[])
-    write_damage_taken(
-        json );  // Spike 27B: attacker-attributed damage events (drains the buffer)
+    write_damage_taken( json,
+                        ctx );  // Spike 27B: attacker-attributed damage events (captured pre-teardown)
     json.end_object();
 }
 
@@ -494,6 +505,12 @@ auto arcopolis::export_current_view( const export_current_view_options &opts ) -
         return 1;
     }
 
+    // Captured BEFORE end_backend_session() wipes the session: the bootstrap turn's attacker-attributed
+    // damage events. write_current_view (below) serializes this copy. Without this capture-before-teardown
+    // the one-shot snapshot's avatar.damage_taken[] was structurally always-empty (the drain ran after the
+    // session was cleared). Stays empty unless a command runs and the avatar takes attributed damage.
+    std::vector<arcopolis::avatar_damage_record> damage_taken;
+
     // Spike 1, now Spike 3.1A: optionally apply exactly one backend command between load and export, but
     // through the SAME input seam the script runner uses -- no `command -> do_turn` inversion. The command
     // executes at handle_action() during one bootstrap do_turn (AFTER that turn's top half); then we
@@ -539,6 +556,8 @@ auto arcopolis::export_current_view( const export_current_view_options &opts ) -
         // so a hidden lost interaction never produces success-looking output (amendment 3). One-shot arms no
         // prompt transaction, so e.g. an `examine` of deployed furniture (which raises query_yn) fails loud
         // here rather than silently answering NO. Capture before end_backend_session() clears the state.
+        damage_taken = backend_take_avatar_damage_taken();  // capture the turn's events BEFORE teardown
+        backend_assert_event_buffers_drained();             // G2: every registered event buffer now empty
         const auto prompt_failure = backend_session_failure();
         end_backend_session();
         if( prompt_failure ) {
@@ -547,7 +566,7 @@ auto arcopolis::export_current_view( const export_current_view_options &opts ) -
         }
     }
 
-    if( !write_current_view( opts.output_path, std::nullopt ) ) {
+    if( !write_current_view( opts.output_path, std::nullopt, std::move( damage_taken ) ) ) {
         std::cerr << "arcopolis: failed to write snapshot to '" << opts.output_path << "'\n";
         return 1;
     }
@@ -556,7 +575,8 @@ auto arcopolis::export_current_view( const export_current_view_options &opts ) -
 }
 
 auto arcopolis::write_current_view( const std::string &output_path,
-                                    const std::optional<snapshot_session_info> &session ) -> bool
+                                    const std::optional<snapshot_session_info> &session,
+                                    std::vector<avatar_damage_record> damage_taken ) -> bool
 {
     std::vector<std::string> warnings;
     const auto ctx = snapshot_ctx{
@@ -566,6 +586,7 @@ auto arcopolis::write_current_view( const std::string &output_path,
         .radius = arcopolis_view_radius,
         .warnings = warnings,
         .session = session,
+        .damage_taken = std::move( damage_taken ),
     };
 
     return write_to_file( output_path, [&]( auto & stream ) {

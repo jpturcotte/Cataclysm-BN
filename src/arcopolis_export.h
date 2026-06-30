@@ -2,6 +2,9 @@
 
 #include <optional>
 #include <string>
+#include <vector>
+
+#include "arcopolis_backend_input.h"  // avatar_damage_record (captured damage threaded into write_current_view)
 
 namespace arcopolis
 {
@@ -37,7 +40,8 @@ struct snapshot_session_info {
 /// Requires a loaded world (the global game `g`, avatar, and map); performs no simulation mutation.
 /// Returns true on success, false if the file could not be written.
 auto write_current_view( const std::string &output_path,
-                         const std::optional<snapshot_session_info> &session ) -> bool;
+                         const std::optional<snapshot_session_info> &session,
+std::vector<avatar_damage_record> damage_taken = {} ) -> bool;
 
 /// A few scalar avatar/clock values read from the live loaded game with the SAME accessors the snapshot
 /// uses (calendar::turn, avatar::abs_pos, avatar::get_moves). The Spike 3.1C session transcript records
