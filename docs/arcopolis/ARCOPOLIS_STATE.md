@@ -149,7 +149,7 @@ render primitive in any build**, and every future un-abort site must uphold it (
 
 `session` (export_index, step_index|null, export_name, final) · `backend` (game_version,
 save_version, turn) · `avatar` (name, pos_local[xyz], pos_abs[xyz], z, hp, hp_max, stamina, moves,
-pain, thirst, fatigue, stored_kcal, kcal_percent, **`carried_items[]`** — Spike 25) · `map_bounds` (origin_abs_sm[xyz], size_x, size_y,
+pain, thirst, fatigue, stored_kcal, kcal_percent, **`carried_items[]`** — Spike 25, **`damage_taken[]`** — Spike 27B) · `map_bounds` (origin_abs_sm[xyz], size_x, size_y,
 z) · `tiles[]` (x, y, z, ter, furn, seen, **is_avatar** on the avatar's tile only — Spike 5) ·
 **`entities.monsters[]`** (index, type_id, name, symbol, pos_local[xyz], pos_abs[xyz], hp, hp_max,
 moves, hallucination — Spike 6A) · **`entities.npcs[]`** (index, name, pos_local[xyz], pos_abs[xyz],
@@ -178,6 +178,24 @@ item X?" predicate: BN answers possession with a **container-recursing** check (
 design. Stage A possession must come from BN's own container-recursing predicate (`has_amount`/`has_charges`),
 **not** this field; the corrected primitive is a dedicated read-only possession query (a follow-up, not this
 spike). See [`51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md`](51_SPIKE25_CARRIED_PACKAGE_POSTMORTEM.md).
+
+**`avatar.damage_taken[]`** (source_kind `"monster"`/`"npc"`, source_type_id, amount, **bodypart** = the
+struck part the GUI message names + **hp_part** = the HP-pool part the amount hit (== bodypart except on a
+sub-part hit), turn — Spike 27B) is the avatar's **attacker-attributed damage events since the prior snapshot** (drained per snapshot —
+an event stream, not a cumulative rollup), captured by a gated additive tap at the engine's own
+`Character::apply_damage` funnel (`src/character.cpp`). **L1 observation, native-authority class S** (the raw
+in-scope `source` the GUI "You were attacked by %s!" message is built from — `Character::on_hurt` — surfaced
+as a value, **self-sealing**: raw state cannot diverge from itself). It is the **FUNNEL FACT, not
+message-equivalence**: recorded BEFORE the GUI's display filters and independent of both — perception masks
+the per-hit combat message's attacker name to "Something hits your %s." when `!g->u.sees(attacker)`
+(`src/monster.cpp` melee_attack), and the on_hurt distraction message is gated by painkiller/narcosis/disturb
+(NOT perception). The perception-masked **display** is the frontend's job / the deferred `sees()` frontier;
+the backend `source` is never claimed equal to the GUI's _displayed_ attacker, only the raw funnel one.
+**NOT** a hit/miss / damage-type / ranged-vs-melee / LOS-perception / NPC-attacker surface (only MELEE
+`mon_zombie` is witnessed; the tap captures any source but the rest are unwitnessed). The witness is
+**RNG-DEPENDENT** (the funnel fires only on a landed hit), empirically reliable across seeds, **not**
+RNG-invariant like 27A's position witness. See
+[`57_SPIKE27B_ATTACKER_DAMAGE.md`](57_SPIKE27B_ATTACKER_DAMAGE.md).
 
 ### Transcript `session.jsonl` (`schema_version` 1, one JSON object per line, flushed per event)
 
@@ -461,7 +479,8 @@ behavior change; doc 40 carries the old→new name map).
 | 24    | **matched-stair vertical movement** (`vertical_move` + `direction` `down`/`up` → `ACTION_MOVE_DOWN`/`ACTION_MOVE_UP` → native `game::vertical_move`): a SEPARATE verb from planar `move`; proves a down → up **matched-stair round trip** on `ArcopolisStairsTest` at **level 2/3** (engine action reached, like planar `move`), incl. the per-floor-observation snapshot witness. Command plumbing only — NO engine/seam change; any sub-prompt fails loud. NO generic-vertical / ramp / elevator / ladder / 5–6-floor claim. Gated by `vertical_movement_regression.ps1`; doc 49                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | ✅                                      |
 | 25    | **carried-package observability v0** (`avatar.carried_items[]`): read-only export of the avatar's **top-level** carried items (wielded weapon / worn / top-level inventory stacks, each tagged `location`), additive to the avatar block (`schema_version` unchanged). **Level 1 — observation only**: no new input behavior, NO new level-4 claim; it reuses the Spike 12A/16 pickup to _create_ a carried item, then observes it. Proves the picked type enters `location:"inventory"` via a count-delta — but this is **display-only**, **NOT** the possession predicate (BN's `has_amount` recurses into worn containers, which this flat export omits by design); BN's own possession predicate (a follow-up query) is what answers Stage A possession, not this flat export. NO objective/mission state. NO nested-container / vehicle-cargo / NPC-inventory export; `wielded` is code-present but unwitnessed (unarmed `ArcopolisTest` avatar). One source file (`src/arcopolis_export.cpp`), no fixture change; witnessed by the extended W1 in `script_prompt_regression.ps1`; **process-failed (wrong primitive) — see postmortem doc 51**; doc 50                                                                                                                         | ✅                                      |
 | 26A   | **L1 on-person possession query** — observation of the on-person possession predicate as used by BN's DIALOGUE consumer (`condition.cpp` `set_has_items`). It does NOT answer `MGOAL_FIND_ITEM` mission completion (the mission consumer uses `crafting_inventory()`, broader scope — see Spike 26B). New live op `op:"query", kind:"has_item"` forwards verbatim to `get_avatar().has_charges(id,count) \|\| get_avatar().has_amount(id,count)` and returns `{ok:true, op:"query", kind:"has_item", has:<bool>, scope:"on_person_dialogue_predicate"}`. The literal scope string is the LOAD-BEARING LABELING GUARD repeated across the doc, the STATE row, the Catch2 test name, the response payload, and the regression PASS lines. Unknown `itype_id` → recoverable `bad_request` (never silent `has:false`). No engine touch, no per-transaction gate, no transcript engine event. Witnessed on `ArcopolisCarriedNestedTest` (a clone of `ArcopolisBackpackTest`, NOT regenerated; one `glass_shard` save-edited inside the worn backpack pocket — the container-recursion witness; one `rock` wielded; one `feather` on the avatar's own ground tile — the load-bearing anti-`crafting_inventory()` scope-pin). Gated by `spike26a_dialogue_predicate_regression.ps1`; doc 52 | ✅                                      |
-| 27    | **World-tick liveness witness (Part 1, agency)** — observation that BN simulates between inputs: a hostile `mon_zombie` 2 tiles south of the stationary avatar (authored anger/aggro, an initial condition like the GUI debug spawn) pathfinds toward it on its OWN engine turn (`game::monmove`, the do_turn bottom half the driven `wait` falls through to) across `[export, (wait,export)×N]`. **L1 / class S, NO `src/` change**; `delta ⇒ act`, never `no-delta ⇒ no-liveness`. The headless sim is NOT byte-deterministic (even fully serial + fixed seed diverges — `--seed` re-seeds only the main engine, worker AI RNG is time-seeded), so gates are RNG-INVARIANT and proven across **3 seeds**: single mover, approach (Chebyshev decreased), clock-advanced, avatar-held, NPC non-interference (`is_stationary` + pos held), mover survived. NPC Edwardo is stationary + opposite-side ⇒ non-interference is structural, proven from the existing `entities.npcs[]` export (no new field). The attacker-attributed DAMAGE fact (the engine's `source` at the `apply_damage` funnel) is **Part 2** (separate follow-up). `ArcopolisLivenessTest` + `world_tick_liveness_regression.ps1`; doc 56                                                                          | ✅                                      |
+| 27A   | **World-tick liveness witness (agency)** — observation that BN simulates between inputs: a hostile `mon_zombie` 2 tiles south of the stationary avatar (authored anger/aggro, an initial condition like the GUI debug spawn) pathfinds toward it on its OWN engine turn (`game::monmove`, the do_turn bottom half the driven `wait` falls through to) across `[export, (wait,export)×N]`. **L1 / class S, NO `src/` change**; `delta ⇒ act`, never `no-delta ⇒ no-liveness`. The headless sim is NOT byte-deterministic (even fully serial + fixed seed diverges — `--seed` re-seeds only the main engine, worker AI RNG is time-seeded), so gates are RNG-INVARIANT and proven across **3 seeds**: single mover, approach (Chebyshev decreased), clock-advanced, avatar-held, NPC non-interference (`is_stationary` + pos held), mover survived. NPC Edwardo is stationary + opposite-side ⇒ non-interference is structural, proven from the existing `entities.npcs[]` export (no new field). The attacker-attributed DAMAGE fact (the engine's `source` at the `apply_damage` funnel) is **27B** (now built, below). `ArcopolisLivenessTest` + `world_tick_liveness_regression.ps1`; doc 56                                                                                       | ✅                                      |
+| 27B   | **Attacker-attributed damage fact** — a gated additive tap at the engine's own `Character::apply_damage` funnel (`src/character.cpp`) surfaces the raw in-scope `source` + applied `amount` as read-only `avatar.damage_taken[]` (drained per snapshot). **L1 / class S, self-sealing** (the value can't diverge from itself); the FUNNEL FACT, **not** message-equivalence (recorded BEFORE the GUI's perception/painkiller filters — the perception-masked display is the deferred `sees()` frontier; the backend `source` ≠ the GUI's _displayed_ attacker). Reuses 27A's `ArcopolisLivenessTest` (NO fixture change). Witnesses MELEE `mon_zombie` only (the surface captures any source; ranged/NPC unwitnessed). **RNG-DEPENDENT** (hit-only funnel), empirically reliable across 3 seeds, NOT RNG-invariant like 27A. `character.cpp` becomes a NEW engine touch / upstream collision surface. `attacker_damage_regression.ps1` + `[arcopolis]` buffer unit test; doc 57                                                                                                                                                                                                                                                                                                      | ✅                                      |
 
 **Stage A carried-at-contact witness (L1, current truth — composition over existing surfaces, NO new
 spike, NO `src/` or fixture change).** A consumer can compute the chosen Stage A return signal
@@ -599,15 +618,27 @@ no GUI/build, witness on **passable** terrain so it stays put); see
 [16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md](16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md) and the load/wall-eject
 analysis [17_MONSTER_LOAD_AND_WALL_EJECT.md](17_MONSTER_LOAD_AND_WALL_EJECT.md).
 [`docs/arcopolis/world_tick_liveness_regression.ps1`](world_tick_liveness_regression.ps1) gates the
-**world-tick liveness witness** (Spike 27 Part 1, observation/L1) on **`ArcopolisLivenessTest`** — a clone of
+**world-tick liveness witness** (Spike 27A, observation/L1) on **`ArcopolisLivenessTest`** — a clone of
 `ArcopolisTest` with a hostile mobile `mon_zombie` 2 tiles south of the avatar (built by the **parameterized**
 `make_monster_fixture.py` opt-in hostility flags; immobile defaults unchanged). Across `[export, (wait,export)×N]`
 the mover pathfinds toward the avatar on its OWN `game::monmove` turn. It runs **3 distinct seeds** and asserts
 only **RNG-invariant** gates (single mover · approach = Chebyshev decreased · clock advanced = N · avatar held ·
 NPC non-interference via `is_stationary` + pos held · mover survived) — the headless sim is not byte-deterministic
 (even fully serial + fixed seed diverges run-to-run), so invariance is proven by sampling seeds, not by fixing one;
-exact tile/damage are RNG-dependent and NOT gated. The attacker-attributed damage fact is Part 2 (separate). See
-[56_SPIKE27_WORLD_TICK_LIVENESS.md](56_SPIKE27_WORLD_TICK_LIVENESS.md).
+exact tile/damage are RNG-dependent and NOT gated. The attacker-attributed damage fact is 27B (below). See
+[56_SPIKE27A_WORLD_TICK_LIVENESS.md](56_SPIKE27A_WORLD_TICK_LIVENESS.md).
+[`docs/arcopolis/attacker_damage_regression.ps1`](attacker_damage_regression.ps1) gates the **Spike 27B
+attacker-attributed damage fact** on the SAME **`ArcopolisLivenessTest`** (no fixture change): across
+`[export, (wait,export)×N]` (generous N=8) it scans every exported `avatar.damage_taken[]` window for an entry
+with `source_kind=="monster" && source_type_id=="mon_zombie" && amount>0` and asserts the load (`t0`) export
+carries no damage (no phantom record). **RNG-DEPENDENT** (the funnel fires only on a landed hit), so it runs
+**3 seeds** and requires each to land ≥1 attributed hit — empirically reliable, NOT RNG-invariant (kept a
+SIBLING of the liveness script precisely so 27A's RNG-invariant gates stay pristine). The funnel tap lives
+in **`src/character.cpp`** (a NEW engine touch point / upstream-rebase collision surface — `character.cpp`
+carried no Arcopolis code before), with the session buffer in `src/arcopolis_backend_input.{h,cpp}` and the
+read-only `avatar.damage_taken[]` field in `src/arcopolis_export.cpp`; the buffer contract is unit-tested in
+`tests/arcopolis_backend_input_test.cpp`. See
+[57_SPIKE27B_ATTACKER_DAMAGE.md](57_SPIKE27B_ATTACKER_DAMAGE.md).
 [`docs/arcopolis/item_export_regression.ps1`](item_export_regression.ps1) gates the **ground-item export** on
 **`ArcopolisTest`** (its saved evac shelter already holds 27 deterministic in-window ground items, so it is
 the item-export witness with **no** save edit; `export(items_before) → wait → export(items_after_wait)`); see
@@ -770,14 +801,16 @@ resumed-activity secondary prompts; generic `popup()`/`query_popup` families.
   symbol/colour (#1), message type/severity (#4 — needs a public `Messages::` accessor), multi-z (#5), and
   **richer NPC fields** (faction / dialogue / mission / opinion detail, stable persistent IDs — explicitly
   deferred from 7A's conservative v0).
-  Dynamic-entity export is the linchpin: monsters + NPCs + ground items now exist. **Spike 27 (Part 1,
-  [56_SPIKE27_WORLD_TICK_LIVENESS.md](56_SPIKE27_WORLD_TICK_LIVENESS.md)) now witnesses the autonomous
+  Dynamic-entity export is the linchpin: monsters + NPCs + ground items now exist. **Spike 27A (
+  [56_SPIKE27A_WORLD_TICK_LIVENESS.md](56_SPIKE27A_WORLD_TICK_LIVENESS.md)) now witnesses the autonomous
   monster tick** — a hostile **save-edit** mover changes its exported `pos_abs` on its own engine turn
   across `[export, wait×N, export]` — so witnessing a single-entity tick needs only a save-edit fixture,
   **NOT** the `--arcopolis-new-world` generator the earlier note assumed. That generator + field state
   remain wanted only for a broader **multi-entity / field** world-tick harness (fields/fires/vehicles/
-  weather), and the attacker-attributed damage half is Spike 27 Part 2 (see
-  [10_SPIKE3_1B_CLEAN_PARK_HARDENING.md](10_SPIKE3_1B_CLEAN_PARK_HARDENING.md)).
+  weather). The attacker-attributed damage half is **Spike 27B — now built**
+  (`avatar.damage_taken[]`, a gated `Character::apply_damage` funnel tap; L1/class S; doc 57); still
+  deferred there: the perception-masked GUI message (the `sees()` frontier), ranged/NPC-attacker
+  attribution, hit/miss, and damage type.
 - **Live protocol:** **v0 done (Spike 9B)** — a persistent process serving stdin/stdout JSONL, one
   request at a time, through the M1 seam with a blocking pull source. Still deferred: sockets/named
   pipes, framing/acks beyond line-delimited JSON, concurrent/pipelined requests, inline snapshots,
