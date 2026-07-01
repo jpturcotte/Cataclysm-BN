@@ -1,1 +1,12 @@
-{"case_id":"case-url0e2","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"consumer":"mission::is_complete (MGOAL_FIND_ITEM) asks whether the player has the required quantity of the quest item; the HUD merely shows what this check already decides.","class":"C","scope":"items reachable via crafting_inventory() (own carried items PLUS nearby reachable items), not just the character's own carried items","decisive_source":"src/mission.cpp::mission::is_complete — computes the yes/no by testing u.crafting_inventory().has_amount(type->item_id, item_count) (with a charges fallback), returning the engine's own completion verdict","divergence":"The required item sits in an adjacent container or on the ground within crafting reach but is NOT carried: crafting_inventory() counts it so is_complete()=true, while a re-derivation from write_carried_items (own carried items only) yields false — exposing the wrong-reach answer","support_disposition":"n/a"}
+{
+  "case_id": "case-url0e2",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "mission::is_complete (MGOAL_FIND_ITEM) asks whether the player has the required quantity of the quest item; the HUD merely shows what this check already decides.",
+  "class": "C",
+  "scope": "items reachable via crafting_inventory() (own carried items PLUS nearby reachable items), not just the character's own carried items",
+  "decisive_source": "src/mission.cpp::mission::is_complete — computes the yes/no by testing u.crafting_inventory().has_amount(type->item_id, item_count) (with a charges fallback), returning the engine's own completion verdict",
+  "divergence": "The required item sits in an adjacent container or on the ground within crafting reach but is NOT carried: crafting_inventory() counts it so is_complete()=true, while a re-derivation from write_carried_items (own carried items only) yields false — exposing the wrong-reach answer",
+  "support_disposition": "n/a"
+}

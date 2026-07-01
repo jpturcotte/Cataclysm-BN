@@ -1,1 +1,12 @@
-{"case_id":"case-7cgxm","condition":"blind_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The frontend HP-bar renderer asking 'how full, and what color (green/yellow/red), should this visible monster's bar be shown as?' — a formatted/filtered display of hp vs hp_max gated by visibility.","class":"D","scope":"Only monsters the avatar can currently see (the seen-filtered set per Creature::sees), rendered as a display view — not the raw all-monsters world state.","decisive_source":"src/creature.cpp::Creature::sees gates which monsters appear at all; src/arcopolis_export.cpp::write_entities exposes mon.get_hp()/get_hp_max() whose ratio the GUI maps to a green/yellow/red tier purely to drive what is DISPLAYED — a display proxy, not a value any engine condition/mission/dialogue consumes.","divergence":"A monster at 10% HP standing just outside the avatar's line of sight: raw simulation state holds it at low HP, but the correct display answer is to show NO bar (it is unseen) or a stale last-seen view — an implementation that emits its current low-HP colored bar from raw all-monsters state would be exposed as the wrong (non-display) authority.","support_disposition":"n/a"}
+{
+  "case_id": "case-7cgxm",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The frontend HP-bar renderer asking 'how full, and what color (green/yellow/red), should this visible monster's bar be shown as?' — a formatted/filtered display of hp vs hp_max gated by visibility.",
+  "class": "D",
+  "scope": "Only monsters the avatar can currently see (the seen-filtered set per Creature::sees), rendered as a display view — not the raw all-monsters world state.",
+  "decisive_source": "src/creature.cpp::Creature::sees gates which monsters appear at all; src/arcopolis_export.cpp::write_entities exposes mon.get_hp()/get_hp_max() whose ratio the GUI maps to a green/yellow/red tier purely to drive what is DISPLAYED — a display proxy, not a value any engine condition/mission/dialogue consumes.",
+  "divergence": "A monster at 10% HP standing just outside the avatar's line of sight: raw simulation state holds it at low HP, but the correct display answer is to show NO bar (it is unseen) or a stale last-seen view — an implementation that emits its current low-HP colored bar from raw all-monsters state would be exposed as the wrong (non-display) authority.",
+  "support_disposition": "n/a"
+}

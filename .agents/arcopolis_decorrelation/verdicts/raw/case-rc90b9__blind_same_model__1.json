@@ -1,1 +1,12 @@
-{"case_id":"case-rc90b9","condition":"blind_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The find-item quest's possession gate evaluated by the dialogue/condition predicate set_has_items, asking 'does the character actor have item flashlight?'","class":"C","scope":"only the character's own carried items (on-person: wielded/worn/inventory, including nested contents the predicate would traverse)","decisive_source":"src/condition.cpp::set_has_items builds the u_has_items/npc_has_items lambda that returns actor->has_charges(item_id,count) || actor->has_amount(item_id,count) over the character actor, computing a yes/no the quest gate consumes","divergence":"A flashlight nested inside a worn holster/container: the engine predicate has_amount over the actor returns true (the quest gate passes), but a re-derivation that only scans the top-level carried_items[] entries returns false, exposing the wrong answer","support_disposition":"n/a"}
+{
+  "case_id": "case-rc90b9",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The find-item quest's possession gate evaluated by the dialogue/condition predicate set_has_items, asking 'does the character actor have item flashlight?'",
+  "class": "C",
+  "scope": "only the character's own carried items (on-person: wielded/worn/inventory, including nested contents the predicate would traverse)",
+  "decisive_source": "src/condition.cpp::set_has_items builds the u_has_items/npc_has_items lambda that returns actor->has_charges(item_id,count) || actor->has_amount(item_id,count) over the character actor, computing a yes/no the quest gate consumes",
+  "divergence": "A flashlight nested inside a worn holster/container: the engine predicate has_amount over the actor returns true (the quest gate passes), but a re-derivation that only scans the top-level carried_items[] entries returns false, exposing the wrong answer",
+  "support_disposition": "n/a"
+}

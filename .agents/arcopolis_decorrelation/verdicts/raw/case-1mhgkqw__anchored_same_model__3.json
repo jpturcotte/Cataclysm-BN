@@ -1,1 +1,12 @@
-{"case_id":"case-1mhgkqw","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The GUI tile/map draw path that asks 'what threat color does the engine display this visible monster as?' so the frontend can reproduce it","class":"D","scope":"The displayed per-tile threat tint for each visible monster, as the GUI's draw layer would render it","decisive_source":"src/arcopolis_export.cpp::write_entities (monsters) — emits raw hp/hp_max/moves/hallucination engine getters, i.e. raw simulation state, not the engine's threat-to-color display computation","divergence":"A near-dead high-threat monster (e.g. a zombie hulk at 1/500 hp) still displays its high-threat tint because the color follows the threat/danger rating, not the hp ratio; reconstructing a tint from hp/hp_max (~0%) would mis-color it as harmless, and a full-hp hallucination would be tinted as a real threat","support_disposition":"n/a"}
+{
+  "case_id": "case-1mhgkqw",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The GUI tile/map draw path that asks 'what threat color does the engine display this visible monster as?' so the frontend can reproduce it",
+  "class": "D",
+  "scope": "The displayed per-tile threat tint for each visible monster, as the GUI's draw layer would render it",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities (monsters) — emits raw hp/hp_max/moves/hallucination engine getters, i.e. raw simulation state, not the engine's threat-to-color display computation",
+  "divergence": "A near-dead high-threat monster (e.g. a zombie hulk at 1/500 hp) still displays its high-threat tint because the color follows the threat/danger rating, not the hp ratio; reconstructing a tint from hp/hp_max (~0%) would mis-color it as harmless, and a full-hp hallucination would be tinted as a real threat",
+  "support_disposition": "n/a"
+}

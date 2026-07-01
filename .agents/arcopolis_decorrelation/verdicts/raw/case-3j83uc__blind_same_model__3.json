@@ -1,1 +1,12 @@
-{"case_id":"case-3j83uc","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The frontend paperdoll renderer reading avatar.carried_items[], asking 'which item occupies the wielded slot and which items fill each worn body-part slot, for display'","class":"D","scope":"only the character's own carried items, narrowed to the wielded item and the worn slots (not nearby ground items, not general inventory)","decisive_source":"arcopolis_export.cpp::write_carried_items -- iterates ctx.u.wielded_items() then ctx.u.worn, tagging each emitted item with location 'wielded'/'worn'/'inventory', producing exactly the slot-partitioned view the paperdoll displays","divergence":"A character wielding a weapon and wearing several layered garments: the paperdoll must show the wielded item in the hand slot and worn items in their body slots; a wrong answer that sourced from nearby ground items (map::i_at) or tagged plain inventory items as 'worn' would render an item in a paperdoll slot the GUI would never display it in","support_disposition":"n/a"}
+{
+  "case_id": "case-3j83uc",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The frontend paperdoll renderer reading avatar.carried_items[], asking 'which item occupies the wielded slot and which items fill each worn body-part slot, for display'",
+  "class": "D",
+  "scope": "only the character's own carried items, narrowed to the wielded item and the worn slots (not nearby ground items, not general inventory)",
+  "decisive_source": "arcopolis_export.cpp::write_carried_items -- iterates ctx.u.wielded_items() then ctx.u.worn, tagging each emitted item with location 'wielded'/'worn'/'inventory', producing exactly the slot-partitioned view the paperdoll displays",
+  "divergence": "A character wielding a weapon and wearing several layered garments: the paperdoll must show the wielded item in the hand slot and worn items in their body slots; a wrong answer that sourced from nearby ground items (map::i_at) or tagged plain inventory items as 'worn' would render an item in a paperdoll slot the GUI would never display it in",
+  "support_disposition": "n/a"
+}

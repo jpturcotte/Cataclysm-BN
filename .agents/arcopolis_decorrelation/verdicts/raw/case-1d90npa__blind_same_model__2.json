@@ -1,1 +1,12 @@
-{"case_id":"case-1d90npa","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"consumer":"game::npc_menu, reached when the avatar moves/bumps into a tile occupied by an NPC, which builds a uilist of Talk/Swap/Push/etc. and calls amenu.query() to ask the player which interaction to perform","class":"B","scope":"the single friendly NPC occupying the destination tile and the interactive menu of actions offered for it","decisive_source":"src/game.cpp::game::npc_menu builds a uilist amenu (Talk, Swap positions, Push away, ...) and calls amenu.query(), then branches on amenu.ret -- an interactive menu answered through the real input loop, not a computed value or raw state","divergence":"avatar steps into a tile holding a friendly NPC: a correct answer raises the npc_menu and routes the player's choice (e.g. Swap positions) through the engine; a wrong answer that treats it like the wall no-op (silently does nothing) or auto-picks a default option (e.g. silently attacks/swaps) diverges from what the real menu-driven interaction would produce","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-1d90npa",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "game::npc_menu, reached when the avatar moves/bumps into a tile occupied by an NPC, which builds a uilist of Talk/Swap/Push/etc. and calls amenu.query() to ask the player which interaction to perform",
+  "class": "B",
+  "scope": "the single friendly NPC occupying the destination tile and the interactive menu of actions offered for it",
+  "decisive_source": "src/game.cpp::game::npc_menu builds a uilist amenu (Talk, Swap positions, Push away, ...) and calls amenu.query(), then branches on amenu.ret -- an interactive menu answered through the real input loop, not a computed value or raw state",
+  "divergence": "avatar steps into a tile holding a friendly NPC: a correct answer raises the npc_menu and routes the player's choice (e.g. Swap positions) through the engine; a wrong answer that treats it like the wall no-op (silently does nothing) or auto-picks a default option (e.g. silently attacks/swaps) diverges from what the real menu-driven interaction would produce",
+  "support_disposition": "unsupported/fail-loud"
+}

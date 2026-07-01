@@ -1,1 +1,12 @@
-{"case_id":"case-1u225k0","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"select_crafting_recipe (called from Character::craft) presents a full-screen interactive recipe menu and asks 'which recipe did the player browse/filter to and pick?', returning the chosen recipe pointer through the engine's own input loop","class":"B","scope":"the live interactive crafting menu answered through the real active input loop; not the character's item snapshot","decisive_source":"src/crafting_gui.cpp::select_crafting_recipe — runs a full-screen interactive menu (browse/filter recipes, pick one, set batch size) through the engine's own input loop and returns the recipe (nullptr on cancel)","divergence":"two recipes the player can craft are both available; a shortcut that auto-picks the first/derived recipe from the item snapshot returns the wrong recipe (or a recipe the player did not select), whereas the engine's menu would return exactly the one the player navigated to and confirmed","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-1u225k0",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "select_crafting_recipe (called from Character::craft) presents a full-screen interactive recipe menu and asks 'which recipe did the player browse/filter to and pick?', returning the chosen recipe pointer through the engine's own input loop",
+  "class": "B",
+  "scope": "the live interactive crafting menu answered through the real active input loop; not the character's item snapshot",
+  "decisive_source": "src/crafting_gui.cpp::select_crafting_recipe — runs a full-screen interactive menu (browse/filter recipes, pick one, set batch size) through the engine's own input loop and returns the recipe (nullptr on cancel)",
+  "divergence": "two recipes the player can craft are both available; a shortcut that auto-picks the first/derived recipe from the item snapshot returns the wrong recipe (or a recipe the player did not select), whereas the engine's menu would return exactly the one the player navigated to and confirmed",
+  "support_disposition": "unsupported/fail-loud"
+}

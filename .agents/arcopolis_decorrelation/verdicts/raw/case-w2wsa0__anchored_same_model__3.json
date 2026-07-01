@@ -1,1 +1,12 @@
-{"case_id":"case-w2wsa0","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The pickup path's weight-fit check that asks 'will adding this candidate item's weight exceed the avatar's weight capacity?', i.e. the engine's own can-pickWeight/weight_capacity-vs-item-weight computation.","class":"C","scope":"The candidate item's weight measured against the avatar's current weight capacity (current carried weight plus this one item), not whole-inventory or display state.","decisive_source":"src/arcopolis_export.cpp::write_avatar (scalars) — writes hp/stamina/moves/pain/thirst/fatigue/stored_kcal/kcal_percent from getters; it exposes no weight, weight_capacity, or fit predicate, so it cannot answer the weight-fit question.","divergence":"An avatar near their weight cap about to pick up a heavy item: the engine's capacity predicate returns 'won't fit', but the scalar snapshot reports no weight or capacity figure, so any fit answer derived from these scalars is unfounded.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-w2wsa0",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The pickup path's weight-fit check that asks 'will adding this candidate item's weight exceed the avatar's weight capacity?', i.e. the engine's own can-pickWeight/weight_capacity-vs-item-weight computation.",
+  "class": "C",
+  "scope": "The candidate item's weight measured against the avatar's current weight capacity (current carried weight plus this one item), not whole-inventory or display state.",
+  "decisive_source": "src/arcopolis_export.cpp::write_avatar (scalars) — writes hp/stamina/moves/pain/thirst/fatigue/stored_kcal/kcal_percent from getters; it exposes no weight, weight_capacity, or fit predicate, so it cannot answer the weight-fit question.",
+  "divergence": "An avatar near their weight cap about to pick up a heavy item: the engine's capacity predicate returns 'won't fit', but the scalar snapshot reports no weight or capacity figure, so any fit answer derived from these scalars is unfounded.",
+  "support_disposition": "unsupported/fail-loud"
+}

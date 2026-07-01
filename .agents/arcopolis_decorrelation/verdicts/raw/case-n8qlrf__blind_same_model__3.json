@@ -1,1 +1,12 @@
-{"case_id":"case-n8qlrf","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The frontend inventory panel reading avatar.carried_items[] from the snapshot JSON; it asks 'what items is the player holding top-level?' and SHOWS them.","class":"D","scope":"only the character's own carried items, top-level (wielded/worn/inventory stacks), no recursive container descent","decisive_source":"src/arcopolis_export.cpp::write_carried_items iterates ctx.u.wielded_items()/worn/inv_const_slice() top-level stacks and emits display_name/symbol/location per item into carried_items[] for the panel to render.","divergence":"A flashlight nested inside a worn backpack is listed as a top-level carried item (recursive descent like visit_internal), so the displayed list shows an item the player is not directly holding.","support_disposition":"n/a"}
+{
+  "case_id": "case-n8qlrf",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The frontend inventory panel reading avatar.carried_items[] from the snapshot JSON; it asks 'what items is the player holding top-level?' and SHOWS them.",
+  "class": "D",
+  "scope": "only the character's own carried items, top-level (wielded/worn/inventory stacks), no recursive container descent",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items iterates ctx.u.wielded_items()/worn/inv_const_slice() top-level stacks and emits display_name/symbol/location per item into carried_items[] for the panel to render.",
+  "divergence": "A flashlight nested inside a worn backpack is listed as a top-level carried item (recursive descent like visit_internal), so the displayed list shows an item the player is not directly holding.",
+  "support_disposition": "n/a"
+}

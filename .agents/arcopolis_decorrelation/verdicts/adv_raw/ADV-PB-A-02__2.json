@@ -1,1 +1,9 @@
-{"case_id":"ADV-PB-A-02","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"class":"D","confidence":"high","issue_detected":"Excerpt 1 (map::sees 4-arg reachability) is a distractor, not the goal's consumer; the decisive routine pl_sees' body is not shown, but its call-site in write_tiles' per-tile JSON export (Excerpt 2) fixes the consumer as the GUI per-tile display grid (visible/seen shading) = D."}
+{
+  "case_id": "ADV-PB-A-02",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "class": "D",
+  "confidence": "high",
+  "issue_detected": "Excerpt 1 (map::sees 4-arg reachability) is a distractor, not the goal's consumer; the decisive routine pl_sees' body is not shown, but its call-site in write_tiles' per-tile JSON export (Excerpt 2) fixes the consumer as the GUI per-tile display grid (visible/seen shading) = D."
+}

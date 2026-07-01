@@ -1,1 +1,12 @@
-{"case_id":"case-x2bg3a","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The frontend status panel renderer, asking 'what stamina/pain value would the GUI sidebar DISPLAY for the avatar right now?'","class":"D","scope":"Avatar-scoped, but the displayed/perceived view the sidebar renders, not the raw scalar","decisive_source":"src/arcopolis_export.cpp::write_avatar, which writes ctx.u.get_pain()/get_stamina() raw getters straight into JSON instead of the panel's displayed (perceived) values","divergence":"Avatar dosed with adrenaline or a painkiller that lowers perceived pain: raw get_pain() reports the high underlying pain while the status panel would DISPLAY a reduced perceived-pain number, so the snapshot diverges from what the GUI shows","support_disposition":"n/a"}
+{
+  "case_id": "case-x2bg3a",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The frontend status panel renderer, asking 'what stamina/pain value would the GUI sidebar DISPLAY for the avatar right now?'",
+  "class": "D",
+  "scope": "Avatar-scoped, but the displayed/perceived view the sidebar renders, not the raw scalar",
+  "decisive_source": "src/arcopolis_export.cpp::write_avatar, which writes ctx.u.get_pain()/get_stamina() raw getters straight into JSON instead of the panel's displayed (perceived) values",
+  "divergence": "Avatar dosed with adrenaline or a painkiller that lowers perceived pain: raw get_pain() reports the high underlying pain while the status panel would DISPLAY a reduced perceived-pain number, so the snapshot diverges from what the GUI shows",
+  "support_disposition": "n/a"
+}

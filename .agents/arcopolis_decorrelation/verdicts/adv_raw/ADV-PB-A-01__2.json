@@ -1,1 +1,9 @@
-{"case_id":"ADV-PB-A-01","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"class":"C","confidence":"high","issue_detected":"Reviewer note's D is false: goal asks for 'the answer the engine's possession check would give' (an engine-evaluated dialogue/condition predicate, Excerpt 3 set_has_item -> charges_of||has_amount), whose consumer EVALUATES the value -> Class C. The reviewer appears to have anchored on Excerpt 4 write_carried_items (raw item-export/display path), which is a forbidden re-derivation from a partial view and a different consumer."}
+{
+  "case_id": "ADV-PB-A-01",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "class": "C",
+  "confidence": "high",
+  "issue_detected": "Reviewer note's D is false: goal asks for 'the answer the engine's possession check would give' (an engine-evaluated dialogue/condition predicate, Excerpt 3 set_has_item -> charges_of||has_amount), whose consumer EVALUATES the value -> Class C. The reviewer appears to have anchored on Excerpt 4 write_carried_items (raw item-export/display path), which is a forbidden re-derivation from a partial view and a different consumer."
+}

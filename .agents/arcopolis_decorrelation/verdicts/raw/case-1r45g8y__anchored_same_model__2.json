@@ -1,1 +1,13 @@
-{"case_id":"case-1r45g8y","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The frontend map renderer that paints ground items per tile, asking 'what items would the GUI DISPLAY on this tile for the avatar' (the visible/remembered view), not 'what items physically exist in raw world state'.","class":"D","scope":"The display-filtered, seen/visibility-gated view of each tile's ground-item stack as the GUI would paint it (only tiles the avatar can currently see or remembers), not the raw stack of every tile in radius.","decisive_source":"src/arcopolis_export.cpp::write_entities(items) — iterates points_in_radius and writes get_map().i_at(p) for every in-window tile directly, with no seen/visibility filter, so it emits raw map ground-stack state rather than the displayed view.","divergence":"A tile inside the export window that the avatar cannot currently see (behind a wall / never explored) holding a dropped item: raw i_at reports the item so the frontend paints it, but the GUI would draw nothing there since it isn't seen/remembered — exposing S-state leaking as display.","support_disposition":"n/a","verdict":"flag"}
+{
+  "case_id": "case-1r45g8y",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The frontend map renderer that paints ground items per tile, asking 'what items would the GUI DISPLAY on this tile for the avatar' (the visible/remembered view), not 'what items physically exist in raw world state'.",
+  "class": "D",
+  "scope": "The display-filtered, seen/visibility-gated view of each tile's ground-item stack as the GUI would paint it (only tiles the avatar can currently see or remembers), not the raw stack of every tile in radius.",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities(items) — iterates points_in_radius and writes get_map().i_at(p) for every in-window tile directly, with no seen/visibility filter, so it emits raw map ground-stack state rather than the displayed view.",
+  "divergence": "A tile inside the export window that the avatar cannot currently see (behind a wall / never explored) holding a dropped item: raw i_at reports the item so the frontend paints it, but the GUI would draw nothing there since it isn't seen/remembered — exposing S-state leaking as display.",
+  "support_disposition": "n/a",
+  "verdict": "flag"
+}

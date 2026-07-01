@@ -1,1 +1,12 @@
-{"case_id":"case-52r3o1","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The frontend asking a yes/no possession question 'is the player currently holding a 1st_aid?', the same question an engine possession check (Character::has_amount / has_item_with family) answers.","class":"C","scope":"A full possession check over everything the player has on their person, recursing into worn/held container contents and nested pockets — the engine's has_amount-family reach, not just top-level item stacks.","decisive_source":"src/arcopolis_export.cpp::write_carried_items dumps raw wielded_items()/worn/inv_const_slice() lists into JSON; it enumerates top-level item containers (simulation state S) and asks the consumer to re-derive the possession verdict rather than returning the engine-computed predicate's result.","divergence":"A 1st_aid stored inside a worn backpack or nested container pocket: the engine's possession check counts it as held, but the flat top-level wielded/worn/inventory walk in write_carried_items misses it, so the frontend's re-derived answer says 'not holding' while the engine predicate says 'holding'.","support_disposition":"n/a"}
+{
+  "case_id": "case-52r3o1",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The frontend asking a yes/no possession question 'is the player currently holding a 1st_aid?', the same question an engine possession check (Character::has_amount / has_item_with family) answers.",
+  "class": "C",
+  "scope": "A full possession check over everything the player has on their person, recursing into worn/held container contents and nested pockets — the engine's has_amount-family reach, not just top-level item stacks.",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items dumps raw wielded_items()/worn/inv_const_slice() lists into JSON; it enumerates top-level item containers (simulation state S) and asks the consumer to re-derive the possession verdict rather than returning the engine-computed predicate's result.",
+  "divergence": "A 1st_aid stored inside a worn backpack or nested container pocket: the engine's possession check counts it as held, but the flat top-level wielded/worn/inventory walk in write_carried_items misses it, so the frontend's re-derived answer says 'not holding' while the engine predicate says 'holding'.",
+  "support_disposition": "n/a"
+}

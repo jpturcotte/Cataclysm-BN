@@ -1,1 +1,12 @@
-{"case_id":"case-1u225k0","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"consumer":"Character::craft reads the recipe pointer returned by select_crafting_recipe, asking 'which recipe did the player interactively browse/filter/pick (and at what batch size) to craft?'","class":"B","scope":"the crafting GUI's own interactive input loop (browse/filter/select/batch), not an item-inventory reach","decisive_source":"src/crafting_gui.cpp::select_crafting_recipe -- runs a full-screen interactive recipe menu answered through the engine's own input loop and returns the chosen recipe (nullptr on cancel)","divergence":"a recipe that is hidden/locked in the real menu (uncraftable -- missing skill, tool, or proficiency so the GUI would never let the player select it) is nonetheless returned, exposing that the chosen-recipe came from a shortcut rather than the menu's own selection loop","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-1u225k0",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "Character::craft reads the recipe pointer returned by select_crafting_recipe, asking 'which recipe did the player interactively browse/filter/pick (and at what batch size) to craft?'",
+  "class": "B",
+  "scope": "the crafting GUI's own interactive input loop (browse/filter/select/batch), not an item-inventory reach",
+  "decisive_source": "src/crafting_gui.cpp::select_crafting_recipe -- runs a full-screen interactive recipe menu answered through the engine's own input loop and returns the chosen recipe (nullptr on cancel)",
+  "divergence": "a recipe that is hidden/locked in the real menu (uncraftable -- missing skill, tool, or proficiency so the GUI would never let the player select it) is nonetheless returned, exposing that the chosen-recipe came from a shortcut rather than the menu's own selection loop",
+  "support_disposition": "unsupported/fail-loud"
+}

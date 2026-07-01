@@ -1,1 +1,12 @@
-{"case_id":"case-rc90b9","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The find-item quest's possession/objective gate, asking whether the engine considers the flashlight possessed at the quest's required reach (objective completion predicate).","class":"C","scope":"The find-item objective's required reach over the character's full reachable inventory (including items nested inside worn containers and counted by charges/amount), as the engine's possession/objective predicate computes it.","decisive_source":"src/arcopolis_export.cpp::write_carried_items, which flat-walks wielded_items/worn/inv_const_slice top-level stacks and re-derives possession from a partial view rather than returning the engine's objective predicate result.","divergence":"The flashlight sits inside a worn backpack pocket (nested container contents): the engine's has_amount/charges_of objective predicate counts it as possessed, but the flat carried_items walk only emits top-level inventory stacks and misses it, so the gate reads 'not on character' when the quest says it is.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-rc90b9",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The find-item quest's possession/objective gate, asking whether the engine considers the flashlight possessed at the quest's required reach (objective completion predicate).",
+  "class": "C",
+  "scope": "The find-item objective's required reach over the character's full reachable inventory (including items nested inside worn containers and counted by charges/amount), as the engine's possession/objective predicate computes it.",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items, which flat-walks wielded_items/worn/inv_const_slice top-level stacks and re-derives possession from a partial view rather than returning the engine's objective predicate result.",
+  "divergence": "The flashlight sits inside a worn backpack pocket (nested container contents): the engine's has_amount/charges_of objective predicate counts it as possessed, but the flat carried_items walk only emits top-level inventory stacks and misses it, so the gate reads 'not on character' when the quest says it is.",
+  "support_disposition": "unsupported/fail-loud"
+}

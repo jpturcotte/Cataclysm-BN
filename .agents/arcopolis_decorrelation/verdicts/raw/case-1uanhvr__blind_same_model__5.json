@@ -1,1 +1,12 @@
-{"case_id":"case-1uanhvr","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"consumer":"handle_problematic_pickup's amenu.query() call, which asks the player to pick Wear/Wield/Empty/Skip and returns that choice to drive the pickup path's action","class":"B","scope":"the single problematic item being picked up, with the choice answered through the engine's real active input loop / uilist query","decisive_source":"src/pickup.cpp::handle_problematic_pickup builds a uilist (Wear/Wield/Empty entries) and calls amenu.query() to obtain the player's interactive choice that the pickup path then performs","divergence":"An item too heavy to carry triggers the menu; if the backend silently defaults to one option (e.g. skip) instead of presenting the choice, the player who intended to Wear armor ends up not wearing it (or vice versa), diverging from the real game where the queried menu selection governs the outcome","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-1uanhvr",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "consumer": "handle_problematic_pickup's amenu.query() call, which asks the player to pick Wear/Wield/Empty/Skip and returns that choice to drive the pickup path's action",
+  "class": "B",
+  "scope": "the single problematic item being picked up, with the choice answered through the engine's real active input loop / uilist query",
+  "decisive_source": "src/pickup.cpp::handle_problematic_pickup builds a uilist (Wear/Wield/Empty entries) and calls amenu.query() to obtain the player's interactive choice that the pickup path then performs",
+  "divergence": "An item too heavy to carry triggers the menu; if the backend silently defaults to one option (e.g. skip) instead of presenting the choice, the player who intended to Wear armor ends up not wearing it (or vice versa), diverging from the real game where the queried menu selection governs the outcome",
+  "support_disposition": "unsupported/fail-loud"
+}

@@ -1,1 +1,12 @@
-{"case_id":"case-1x3l7p3","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"An engine possession/eligibility check asking 'does the avatar carry a working multitool?' (a has-item/has-charges predicate over the avatar's on-person inventory, as a condition/dialogue would call it).","class":"C","scope":"The avatar's on-person carried inventory (wielded/worn/held), evaluated as a functional 'working' predicate, not raw item rows.","decisive_source":"src/arcopolis_export.cpp::write_carried_items dumps raw wielded/worn/inv_const_slice item fields (type_id, charges, count_by_charges) as JSON, exposing simulation state and forcing the consumer to re-derive possession.","divergence":"A depleted multitool (charges==0) sitting in inventory: write_carried_items still emits it so a naive reader counts it as carried/working, while the engine's working-tool possession predicate returns false.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-1x3l7p3",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "An engine possession/eligibility check asking 'does the avatar carry a working multitool?' (a has-item/has-charges predicate over the avatar's on-person inventory, as a condition/dialogue would call it).",
+  "class": "C",
+  "scope": "The avatar's on-person carried inventory (wielded/worn/held), evaluated as a functional 'working' predicate, not raw item rows.",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items dumps raw wielded/worn/inv_const_slice item fields (type_id, charges, count_by_charges) as JSON, exposing simulation state and forcing the consumer to re-derive possession.",
+  "divergence": "A depleted multitool (charges==0) sitting in inventory: write_carried_items still emits it so a naive reader counts it as carried/working, while the engine's working-tool possession predicate returns false.",
+  "support_disposition": "unsupported/fail-loud"
+}

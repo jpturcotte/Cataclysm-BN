@@ -1,1 +1,13 @@
-{"case_id":"case-1qdfptr","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"the engine's active input-dispatch site that consumes a registered move-east action and advances the turn by deducting moves, asking 'execute one eastward step at keypress cost'","class":"A","scope":"a registered player movement action driven through the engine's own active input loop so it actually relocates the avatar and spends a turn","decisive_source":"src/arcopolis_export.cpp::write_avatar (scalars) — only serializes read-only avatar getters (get_moves/get_hp/...) into snapshot JSON; it reports state, it never invokes a movement action or input dispatch","divergence":"avatar adjacent to an open tile east: exporting moves/stamina reports unchanged scalars but the avatar never relocates and no turn is consumed, so the goal silently fails while the surface looks 'answered'","support_disposition":"unsupported/fail-loud","verdict":"flag"}
+{
+  "case_id": "case-1qdfptr",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "the engine's active input-dispatch site that consumes a registered move-east action and advances the turn by deducting moves, asking 'execute one eastward step at keypress cost'",
+  "class": "A",
+  "scope": "a registered player movement action driven through the engine's own active input loop so it actually relocates the avatar and spends a turn",
+  "decisive_source": "src/arcopolis_export.cpp::write_avatar (scalars) — only serializes read-only avatar getters (get_moves/get_hp/...) into snapshot JSON; it reports state, it never invokes a movement action or input dispatch",
+  "divergence": "avatar adjacent to an open tile east: exporting moves/stamina reports unchanged scalars but the avatar never relocates and no turn is consumed, so the goal silently fails while the surface looks 'answered'",
+  "support_disposition": "unsupported/fail-loud",
+  "verdict": "flag"
+}

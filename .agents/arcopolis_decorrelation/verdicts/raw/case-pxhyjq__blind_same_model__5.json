@@ -1,1 +1,12 @@
-{"case_id":"case-pxhyjq","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"consumer":"A detection/targeting check asking 'can the avatar see this specific monster right now?' that EVALUATES the engine-computed yes/no from Creature::sees, not a render decision.","class":"C","scope":"pairwise avatar-as-observer visibility against one specific target monster (not a map region, not inventory)","decisive_source":"src/creature.cpp::Creature::sees — computes a boolean of whether one creature can see another from range, light, line of sight, concealment, crouch/hide-place and night-invisibility branches.","divergence":"A monster in plain range and LOS but standing in a hide-place / crouched behind concealment (or night-invisible): Creature::sees returns false, while a raw range+LOS re-derivation that omits the concealment/crouch/night branches would wrongly report it visible.","support_disposition":"n/a"}
+{
+  "case_id": "case-pxhyjq",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "consumer": "A detection/targeting check asking 'can the avatar see this specific monster right now?' that EVALUATES the engine-computed yes/no from Creature::sees, not a render decision.",
+  "class": "C",
+  "scope": "pairwise avatar-as-observer visibility against one specific target monster (not a map region, not inventory)",
+  "decisive_source": "src/creature.cpp::Creature::sees — computes a boolean of whether one creature can see another from range, light, line of sight, concealment, crouch/hide-place and night-invisibility branches.",
+  "divergence": "A monster in plain range and LOS but standing in a hide-place / crouched behind concealment (or night-invisible): Creature::sees returns false, while a raw range+LOS re-derivation that omits the concealment/crouch/night branches would wrongly report it visible.",
+  "support_disposition": "n/a"
+}

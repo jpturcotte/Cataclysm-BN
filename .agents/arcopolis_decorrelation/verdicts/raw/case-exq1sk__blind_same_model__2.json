@@ -1,1 +1,12 @@
-{"case_id":"case-exq1sk","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"consumer":"A dialogue/condition possession check (conditional_t::set_has_item lambda) asking yes/no: does the character personally carry the detonator on their body?","class":"C","scope":"only the character's own carried items (wielded + worn + personal inventory), excluding nearby reachable containers","decisive_source":"src/condition.cpp::conditional_t<T>::set_has_item — its body evaluates actor->charges_of(item_id)>0 || actor->has_amount(item_id,1) over the character actor, an engine-computed on-person possession predicate whose returned bool a condition consumes","divergence":"A detonator sitting in an adjacent crate (reachable nearby) while the player carries none: the correct on-person predicate returns false, but a crafting_inventory()-scoped check (mission.cpp MGOAL_FIND_ITEM, Excerpt 2) wrongly returns true","support_disposition":"n/a"}
+{
+  "case_id": "case-exq1sk",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "A dialogue/condition possession check (conditional_t::set_has_item lambda) asking yes/no: does the character personally carry the detonator on their body?",
+  "class": "C",
+  "scope": "only the character's own carried items (wielded + worn + personal inventory), excluding nearby reachable containers",
+  "decisive_source": "src/condition.cpp::conditional_t<T>::set_has_item — its body evaluates actor->charges_of(item_id)>0 || actor->has_amount(item_id,1) over the character actor, an engine-computed on-person possession predicate whose returned bool a condition consumes",
+  "divergence": "A detonator sitting in an adjacent crate (reachable nearby) while the player carries none: the correct on-person predicate returns false, but a crafting_inventory()-scoped check (mission.cpp MGOAL_FIND_ITEM, Excerpt 2) wrongly returns true",
+  "support_disposition": "n/a"
+}

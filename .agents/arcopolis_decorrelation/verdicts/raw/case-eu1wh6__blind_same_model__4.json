@@ -1,1 +1,12 @@
-{"case_id":"case-eu1wh6","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"game::handle_action's ACTION_RELOAD_WIELDED case, which PERFORMS the reload by invoking avatar_action::reload_wielded() through the engine's active input dispatch, mutating the gun and consuming the ammo and moves.","class":"A","scope":"the character's own carried items plus reachable nearby ammo that reload_wielded() draws from; the authority is the action driven through input dispatch, not a read-only view.","decisive_source":"src/handle_action.cpp::game::handle_action (ACTION_RELOAD_WIELDED) -- its body dispatches the registered reload action to avatar_action::reload_wielded(), running the engine's own reload code path.","divergence":"A wielded gun left at 0 charges that is 'reloaded' by directly setting gun.charges in the snapshot/state: the gun reads loaded but no moves were spent and the source ammo stack was never decremented, exposing that the engine action path was bypassed rather than driven.","support_disposition":"supported"}
+{
+  "case_id": "case-eu1wh6",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "game::handle_action's ACTION_RELOAD_WIELDED case, which PERFORMS the reload by invoking avatar_action::reload_wielded() through the engine's active input dispatch, mutating the gun and consuming the ammo and moves.",
+  "class": "A",
+  "scope": "the character's own carried items plus reachable nearby ammo that reload_wielded() draws from; the authority is the action driven through input dispatch, not a read-only view.",
+  "decisive_source": "src/handle_action.cpp::game::handle_action (ACTION_RELOAD_WIELDED) -- its body dispatches the registered reload action to avatar_action::reload_wielded(), running the engine's own reload code path.",
+  "divergence": "A wielded gun left at 0 charges that is 'reloaded' by directly setting gun.charges in the snapshot/state: the gun reads loaded but no moves were spent and the source ammo stack was never decremented, exposing that the engine action path was bypassed rather than driven.",
+  "support_disposition": "supported"
+}

@@ -1,1 +1,12 @@
-{"case_id":"case-n8qlrf","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The frontend inventory panel renderer reading avatar.carried_items[], asking 'what items is the avatar holding (wielded/worn/inventory) to list top-level?'","class":"S","scope":"The avatar's top-level carried-item containers: wielded items, worn items, and top-level inventory stacks (not nested container/pocket contents).","decisive_source":"src/arcopolis_export.cpp::write_carried_items enumerates ctx.u.wielded_items(), ctx.u.worn, and ctx.u.inv_const_slice() and emits each item's raw type_id/name/symbol/location/charges, dumping authoritative carried-item state with no predicate or display filtering.","divergence":"An item placed inside a worn backpack's pocket: it is held but not a top-level carried item, so it is correctly absent from this enumeration, confirming the surface matches the 'top-level what they are holding' scope rather than a deeper possession reach.","support_disposition":"n/a"}
+{
+  "case_id": "case-n8qlrf",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The frontend inventory panel renderer reading avatar.carried_items[], asking 'what items is the avatar holding (wielded/worn/inventory) to list top-level?'",
+  "class": "S",
+  "scope": "The avatar's top-level carried-item containers: wielded items, worn items, and top-level inventory stacks (not nested container/pocket contents).",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items enumerates ctx.u.wielded_items(), ctx.u.worn, and ctx.u.inv_const_slice() and emits each item's raw type_id/name/symbol/location/charges, dumping authoritative carried-item state with no predicate or display filtering.",
+  "divergence": "An item placed inside a worn backpack's pocket: it is held but not a top-level carried item, so it is correctly absent from this enumeration, confirming the surface matches the 'top-level what they are holding' scope rather than a deeper possession reach.",
+  "support_disposition": "n/a"
+}

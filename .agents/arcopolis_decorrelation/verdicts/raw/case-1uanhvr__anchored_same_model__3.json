@@ -1,1 +1,12 @@
-{"case_id":"case-1uanhvr","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The pickup over-encumbrance branch that, when an item exceeds carry capacity, raises the wear/wield/skip choice and asks the player which to do through the real input loop.","class":"B","scope":"An interactive prompt/menu answered through the engine's real active input loop, offering and consuming the player's wear/wield/skip selection at the too-heavy pickup site.","decisive_source":"src/character.cpp::Character::weight_capacity computes a raw mass number from base capacity, strength, mutations, enchantments, worn items, and bionics; it is a re-derived scalar, not the engine's too-heavy decision nor the menu that resolves it.","divergence":"An item whose weight sits exactly at or just over capacity: weight_capacity returns only a number and never surfaces the wear/wield/skip menu, so a player who would have chosen 'wield' to carry it instead gets no choice and the item is silently skipped or mis-handled.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-1uanhvr",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The pickup over-encumbrance branch that, when an item exceeds carry capacity, raises the wear/wield/skip choice and asks the player which to do through the real input loop.",
+  "class": "B",
+  "scope": "An interactive prompt/menu answered through the engine's real active input loop, offering and consuming the player's wear/wield/skip selection at the too-heavy pickup site.",
+  "decisive_source": "src/character.cpp::Character::weight_capacity computes a raw mass number from base capacity, strength, mutations, enchantments, worn items, and bionics; it is a re-derived scalar, not the engine's too-heavy decision nor the menu that resolves it.",
+  "divergence": "An item whose weight sits exactly at or just over capacity: weight_capacity returns only a number and never surfaces the wear/wield/skip menu, so a player who would have chosen 'wield' to carry it instead gets no choice and the item is silently skipped or mis-handled.",
+  "support_disposition": "unsupported/fail-loud"
+}

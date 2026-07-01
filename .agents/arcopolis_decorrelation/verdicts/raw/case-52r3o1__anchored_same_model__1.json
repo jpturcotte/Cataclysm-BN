@@ -1,1 +1,12 @@
-{"case_id":"case-52r3o1","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"A dialogue/mission/eligibility possession check asking 'does the avatar have a 1st_aid?' — the engine's own has_amount/has_item_with/charges_of computation, not a raw item enumeration.","class":"C","scope":"A full possession reach that recurses into worn/wielded container contents and aggregates charges, matching the engine's has_amount/charges_of, not just top-level wielded/worn/inventory stacks.","decisive_source":"src/arcopolis_export.cpp::write_carried_items — iterates only ctx.u.wielded_items(), ctx.u.worn, and ctx.u.inv_const_slice() top-level stacks, dumping raw item fields (S-class), so the frontend must re-derive the predicate from a partial view.","divergence":"A 1st_aid stored inside a worn backpack (container nested in worn): the engine possession check reports HAS, but write_carried_items only emits the top-level container and never the nested kit, so the frontend re-derives 'not holding' — a false negative.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-52r3o1",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "A dialogue/mission/eligibility possession check asking 'does the avatar have a 1st_aid?' — the engine's own has_amount/has_item_with/charges_of computation, not a raw item enumeration.",
+  "class": "C",
+  "scope": "A full possession reach that recurses into worn/wielded container contents and aggregates charges, matching the engine's has_amount/charges_of, not just top-level wielded/worn/inventory stacks.",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items — iterates only ctx.u.wielded_items(), ctx.u.worn, and ctx.u.inv_const_slice() top-level stacks, dumping raw item fields (S-class), so the frontend must re-derive the predicate from a partial view.",
+  "divergence": "A 1st_aid stored inside a worn backpack (container nested in worn): the engine possession check reports HAS, but write_carried_items only emits the top-level container and never the nested kit, so the frontend re-derives 'not holding' — a false negative.",
+  "support_disposition": "unsupported/fail-loud"
+}

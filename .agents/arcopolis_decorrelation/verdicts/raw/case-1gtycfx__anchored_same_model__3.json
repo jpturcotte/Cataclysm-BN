@@ -1,1 +1,13 @@
-{"case_id":"case-1gtycfx","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The mission/job completion check that asks 'is the courier job's objective satisfied so the player may hand it in?'","class":"C","scope":"The mission objective's own completion predicate over its required reach (the deliverable/target condition), not merely items on the avatar's person","decisive_source":"src/arcopolis_export.cpp::write_carried_items dumps raw wielded/worn/inv_const_slice item state, a re-derivable on-person inventory listing rather than the engine's computed mission-completion verdict","divergence":"The required delivery item sits in a nearby vehicle cargo or a reachable ground tile (counted by the mission objective) but not on the avatar's person: carried_items shows it absent so the frontend stays dark, yet the engine's mission check reports the job complete","support_disposition":"unsupported/fail-loud","verdict":"flag"}
+{
+  "case_id": "case-1gtycfx",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The mission/job completion check that asks 'is the courier job's objective satisfied so the player may hand it in?'",
+  "class": "C",
+  "scope": "The mission objective's own completion predicate over its required reach (the deliverable/target condition), not merely items on the avatar's person",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items dumps raw wielded/worn/inv_const_slice item state, a re-derivable on-person inventory listing rather than the engine's computed mission-completion verdict",
+  "divergence": "The required delivery item sits in a nearby vehicle cargo or a reachable ground tile (counted by the mission objective) but not on the avatar's person: carried_items shows it absent so the frontend stays dark, yet the engine's mission check reports the job complete",
+  "support_disposition": "unsupported/fail-loud",
+  "verdict": "flag"
+}

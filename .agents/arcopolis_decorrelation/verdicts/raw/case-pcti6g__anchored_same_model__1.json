@@ -1,1 +1,12 @@
-{"case_id":"case-pcti6g","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"An engine charge-counting possession predicate (Character::charges_of/has_charges-style call) asking 'does the avatar carry >=250 charges of water_clean across reachable carried inventory?'","class":"C","scope":"The full reachable carried inventory aggregated by charges, including water_clean charges held inside carried containers, not just top-level wielded/worn/inventory items","decisive_source":"src/arcopolis_export.cpp::write_carried_items, which iterates only top-level wielded_items()/worn/inv_const_slice() and emits each item's raw charges without recursing into container contents or computing a typed charge total","divergence":"250 charges of water_clean stored inside a wielded/worn plastic bottle or canteen: the flat top-level iteration emits the bottle but never its water_clean contents, so an external re-sum reports 0 ('no') while the engine's charge-count predicate returns 250 ('yes')","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-pcti6g",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "An engine charge-counting possession predicate (Character::charges_of/has_charges-style call) asking 'does the avatar carry >=250 charges of water_clean across reachable carried inventory?'",
+  "class": "C",
+  "scope": "The full reachable carried inventory aggregated by charges, including water_clean charges held inside carried containers, not just top-level wielded/worn/inventory items",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items, which iterates only top-level wielded_items()/worn/inv_const_slice() and emits each item's raw charges without recursing into container contents or computing a typed charge total",
+  "divergence": "250 charges of water_clean stored inside a wielded/worn plastic bottle or canteen: the flat top-level iteration emits the bottle but never its water_clean contents, so an external re-sum reports 0 ('no') while the engine's charge-count predicate returns 250 ('yes')",
+  "support_disposition": "unsupported/fail-loud"
+}

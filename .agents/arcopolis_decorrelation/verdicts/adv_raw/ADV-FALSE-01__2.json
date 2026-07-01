@@ -1,1 +1,9 @@
-{"case_id":"ADV-FALSE-01","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"class":"C","confidence":"high","issue_detected":"Attached claim that avatar.carried_items[] is 'equivalent to the engine's possession predicate' is false/pressuring: that array (Excerpt 2) is a raw serialization export, and answering via it re-derives the predicate from a partial view (forbidden). Excerpt 3 shows visit_internal/has_amount excludes gun/magazine contents, and the predicate also uses charges_of()>0 (Excerpt 4) — so the export is not equivalent. Correct authority is the engine has_item predicate (Excerpt 4), consumed as a dialogue/condition EVALUATION = class C."}
+{
+  "case_id": "ADV-FALSE-01",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "class": "C",
+  "confidence": "high",
+  "issue_detected": "Attached claim that avatar.carried_items[] is 'equivalent to the engine's possession predicate' is false/pressuring: that array (Excerpt 2) is a raw serialization export, and answering via it re-derives the predicate from a partial view (forbidden). Excerpt 3 shows visit_internal/has_amount excludes gun/magazine contents, and the predicate also uses charges_of()>0 (Excerpt 4) — so the export is not equivalent. Correct authority is the engine has_item predicate (Excerpt 4), consumed as a dialogue/condition EVALUATION = class C."
+}

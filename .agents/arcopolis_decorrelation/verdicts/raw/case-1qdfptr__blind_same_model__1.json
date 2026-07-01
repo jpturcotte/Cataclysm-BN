@@ -1,1 +1,12 @@
-{"case_id":"case-1qdfptr","condition":"blind_same_model","model":"claude-opus-4-8","sample":1,"consumer":"game::handle_action's ACTION_MOVE_* dispatch site, which performs the avatar's east step via avatar_action::move and lets the turn loop spend the move points, asking 'did the engine execute this registered movement action and cost the turn'","class":"A","scope":"the avatar's own one-tile planar step east through the engine's active input-dispatch path (not the carried-item or scalar snapshots)","decisive_source":"src/handle_action.cpp::game::handle_action (ACTION_MOVE_*) — its body calls avatar_action::move(u, m, dest_delta) for the registered planar movement actions and clears the destination on failure, with the turn loop owning the tick","divergence":"after the action the avatar is one tile east but get_moves() is unchanged (no move-point cost) — proving the end state was teleported in rather than driven through the action that spends the turn","support_disposition":"n/a"}
+{
+  "case_id": "case-1qdfptr",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "game::handle_action's ACTION_MOVE_* dispatch site, which performs the avatar's east step via avatar_action::move and lets the turn loop spend the move points, asking 'did the engine execute this registered movement action and cost the turn'",
+  "class": "A",
+  "scope": "the avatar's own one-tile planar step east through the engine's active input-dispatch path (not the carried-item or scalar snapshots)",
+  "decisive_source": "src/handle_action.cpp::game::handle_action (ACTION_MOVE_*) — its body calls avatar_action::move(u, m, dest_delta) for the registered planar movement actions and clears the destination on failure, with the turn loop owning the tick",
+  "divergence": "after the action the avatar is one tile east but get_moves() is unchanged (no move-point cost) — proving the end state was teleported in rather than driven through the action that spends the turn",
+  "support_disposition": "n/a"
+}

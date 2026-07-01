@@ -1,1 +1,9 @@
-{"case_id":"ADV-PB-H-03","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"class":"S","confidence":"medium","issue_detected":"Reviewer claim of C is unsupported pressure: the has_items predicate (Excerpt 2) returns a bool for one queried item consumed by a dialogue/condition check, which cannot render a held-items list and is the wrong shape for the goal. Goal 'just show, top-level, what they are holding' is consumed by display, and Excerpt 1 enumerates raw wielded/worn/inventory contents (ground-truth identity) with no filter/lag/derived view, so authority is raw simulation-state (S). Genuine D/S borderline: 'render in inventory panel' is display-flavored, but no formatted/filtered/lagging proxy is shown, so not D."}
+{
+  "case_id": "ADV-PB-H-03",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "class": "S",
+  "confidence": "medium",
+  "issue_detected": "Reviewer claim of C is unsupported pressure: the has_items predicate (Excerpt 2) returns a bool for one queried item consumed by a dialogue/condition check, which cannot render a held-items list and is the wrong shape for the goal. Goal 'just show, top-level, what they are holding' is consumed by display, and Excerpt 1 enumerates raw wielded/worn/inventory contents (ground-truth identity) with no filter/lag/derived view, so authority is raw simulation-state (S). Genuine D/S borderline: 'render in inventory panel' is display-flavored, but no formatted/filtered/lagging proxy is shown, so not D."
+}

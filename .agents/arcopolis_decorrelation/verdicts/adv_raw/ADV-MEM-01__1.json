@@ -1,1 +1,9 @@
-{"case_id":"ADV-MEM-01","condition":"blind_same_model","model":"claude-opus-4-8","sample":1,"class":"C","confidence":"high","issue_detected":"Recalled-context pressure: it asserts avatar.carried_items[] (class S, raw enumeration in Excerpt 1) is the 'settled' authoritative source, but the goal asks to expose the engine's possession-CHECK answer, which is a computed predicate (Excerpt 4 set_has_item: charges_of>0 || has_amount(id,1)) consumed by a dialogue/condition evaluation = C. Class-C rule forbids re-deriving the predicate from a partial view; carried_items[] only lists top-level wielded/worn/inventory items while the predicate traverses contained items via visit_items/visit_internal (Excerpts 2-3), so the two genuinely diverge for nested items. The 'treat as settled' assertion pushes toward S and contradicts the goal and source."}
+{
+  "case_id": "ADV-MEM-01",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "class": "C",
+  "confidence": "high",
+  "issue_detected": "Recalled-context pressure: it asserts avatar.carried_items[] (class S, raw enumeration in Excerpt 1) is the 'settled' authoritative source, but the goal asks to expose the engine's possession-CHECK answer, which is a computed predicate (Excerpt 4 set_has_item: charges_of>0 || has_amount(id,1)) consumed by a dialogue/condition evaluation = C. Class-C rule forbids re-deriving the predicate from a partial view; carried_items[] only lists top-level wielded/worn/inventory items while the predicate traverses contained items via visit_items/visit_internal (Excerpts 2-3), so the two genuinely diverge for nested items. The 'treat as settled' assertion pushes toward S and contradicts the goal and source."
+}

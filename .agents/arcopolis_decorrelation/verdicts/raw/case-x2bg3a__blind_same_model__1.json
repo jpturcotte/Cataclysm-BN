@@ -1,1 +1,12 @@
-{"case_id":"case-x2bg3a","condition":"blind_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The status panel renderer that reads the avatar's stamina/pain scalars from the snapshot to SHOW them; it asks 'what are the avatar's current stamina and pain numbers?' and no engine condition/mission/dialogue check evaluates a yes/no from them.","class":"S","scope":"only the avatar's own scalar status values (the player character itself), not nearby entities and not a map region","decisive_source":"src/arcopolis_export.cpp::write_avatar (scalars) writes ctx.u.get_stamina() and ctx.u.get_pain() straight from the engine getters into the snapshot JSON with no formatting, filtering, lag, or colour/threshold transform, so the authority is the raw scalar world state itself.","divergence":"The avatar sprints and stamina drains from 10000 to 3000 (or pain rises after an injury); a wrong answer that reports a stale/cached number or a re-derived proxy instead of the live get_stamina()/get_pain() value is exposed against the live scalar.","support_disposition":"n/a"}
+{
+  "case_id": "case-x2bg3a",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The status panel renderer that reads the avatar's stamina/pain scalars from the snapshot to SHOW them; it asks 'what are the avatar's current stamina and pain numbers?' and no engine condition/mission/dialogue check evaluates a yes/no from them.",
+  "class": "S",
+  "scope": "only the avatar's own scalar status values (the player character itself), not nearby entities and not a map region",
+  "decisive_source": "src/arcopolis_export.cpp::write_avatar (scalars) writes ctx.u.get_stamina() and ctx.u.get_pain() straight from the engine getters into the snapshot JSON with no formatting, filtering, lag, or colour/threshold transform, so the authority is the raw scalar world state itself.",
+  "divergence": "The avatar sprints and stamina drains from 10000 to 3000 (or pain rises after an injury); a wrong answer that reports a stale/cached number or a re-derived proxy instead of the live get_stamina()/get_pain() value is exposed against the live scalar.",
+  "support_disposition": "n/a"
+}

@@ -1,1 +1,12 @@
-{"case_id":"case-lgs1uk","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"consumer":"The per-monster perception check Creature::sees(avatar) asking 'does this monster see the avatar right now?', whose boolean the noticed-flag reports.","class":"C","scope":"Monster-side line-of-sight/perception of the avatar (each monster sees the player), evaluated over monsters in the rendered area; not on-person, not a display tint.","decisive_source":"src/creature.cpp::Creature::sees — computes a yes/no from range, light, line of sight, night-invisibility, hide/crouch concealment, and a final map::sees LOS test, returning whether one creature sees another.","divergence":"A monster within range of the avatar but with a wall blocking line of sight (or standing in darkness): Creature::sees returns false, yet a position-distance re-derivation would wrongly flag it as having noticed the avatar.","support_disposition":"n/a"}
+{
+  "case_id": "case-lgs1uk",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "consumer": "The per-monster perception check Creature::sees(avatar) asking 'does this monster see the avatar right now?', whose boolean the noticed-flag reports.",
+  "class": "C",
+  "scope": "Monster-side line-of-sight/perception of the avatar (each monster sees the player), evaluated over monsters in the rendered area; not on-person, not a display tint.",
+  "decisive_source": "src/creature.cpp::Creature::sees — computes a yes/no from range, light, line of sight, night-invisibility, hide/crouch concealment, and a final map::sees LOS test, returning whether one creature sees another.",
+  "divergence": "A monster within range of the avatar but with a wall blocking line of sight (or standing in darkness): Creature::sees returns false, yet a position-distance re-derivation would wrongly flag it as having noticed the avatar.",
+  "support_disposition": "n/a"
+}

@@ -1,1 +1,12 @@
-{"case_id":"case-1mhgkqw","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The frontend monster renderer asking 'what color does the GUI tint this visible monster by threat?' so it can draw the identical coloring.","class":"D","scope":"only the currently visible monsters (per-creature display reach), as gated by Creature::sees from the avatar","decisive_source":"None of the excerpts is decisive: Excerpt 2 (write_entities monsters) exports raw hp/moves not a threat color, and Excerpt 3 (Creature::sees) computes visibility not the threat tint; the engine's monster-attitude/threat-to-color mapping that the GUI display consumes is NOT shown.","divergence":"A monster whose raw hp and attitude would map to one tint but which the GUI draws differently because it is unseen (Creature::sees returns false) or a hallucination — emitting the raw-state color instead of the displayed color exposes the wrong authority.","support_disposition":"n/a"}
+{
+  "case_id": "case-1mhgkqw",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The frontend monster renderer asking 'what color does the GUI tint this visible monster by threat?' so it can draw the identical coloring.",
+  "class": "D",
+  "scope": "only the currently visible monsters (per-creature display reach), as gated by Creature::sees from the avatar",
+  "decisive_source": "None of the excerpts is decisive: Excerpt 2 (write_entities monsters) exports raw hp/moves not a threat color, and Excerpt 3 (Creature::sees) computes visibility not the threat tint; the engine's monster-attitude/threat-to-color mapping that the GUI display consumes is NOT shown.",
+  "divergence": "A monster whose raw hp and attitude would map to one tint but which the GUI draws differently because it is unseen (Creature::sees returns false) or a hallucination — emitting the raw-state color instead of the displayed color exposes the wrong authority.",
+  "support_disposition": "n/a"
+}

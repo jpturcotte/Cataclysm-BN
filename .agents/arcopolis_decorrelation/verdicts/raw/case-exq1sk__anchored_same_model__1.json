@@ -1,1 +1,12 @@
-{"case_id":"case-exq1sk","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"mission::is_complete for MGOAL_FIND_ITEM, asking whether the required item-count is satisfied to mark the find-item mission complete.","class":"C","scope":"on-person possession only (items carried/worn on the player's body), NOT the broader reachable/nearby crafting reach.","decisive_source":"src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM branch) queries u.crafting_inventory().has_amount/has_charges, i.e. a computed predicate whose reach is the crafting inventory.","divergence":"A detonator sits in a nearby crate within crafting reach but is NOT on the player's body: crafting_inventory().has_amount returns true so the surface reports held, yet the on-body goal should report not-held.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-exq1sk",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "mission::is_complete for MGOAL_FIND_ITEM, asking whether the required item-count is satisfied to mark the find-item mission complete.",
+  "class": "C",
+  "scope": "on-person possession only (items carried/worn on the player's body), NOT the broader reachable/nearby crafting reach.",
+  "decisive_source": "src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM branch) queries u.crafting_inventory().has_amount/has_charges, i.e. a computed predicate whose reach is the crafting inventory.",
+  "divergence": "A detonator sits in a nearby crate within crafting reach but is NOT on the player's body: crafting_inventory().has_amount returns true so the surface reports held, yet the on-body goal should report not-held.",
+  "support_disposition": "unsupported/fail-loud"
+}

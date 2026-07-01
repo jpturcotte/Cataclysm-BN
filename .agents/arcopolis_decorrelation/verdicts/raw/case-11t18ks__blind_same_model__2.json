@@ -1,1 +1,12 @@
-{"case_id":"case-11t18ks","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The engine's own dialogue/condition predicate via conditional_t::set_has_item (u_has_item), which computes the yes/no 'does the actor have item c4?' that a condition/mission/dialogue eligibility check consumes.","class":"C","scope":"only the character's own carried items (wielded/worn/inventory), as charges_of(c4)>0 || has_amount(c4,1) over the player actor","decisive_source":"src/condition.cpp::conditional_t<T>::set_has_item -- its body returns actor->charges_of(item_id) > 0 || actor->has_amount(item_id, 1) over the alpha/beta player actor, the engine-computed possession verdict.","divergence":"The avatar carries a c4 nested inside a gun or magazine: visit_internal and the flat carried_items[] export do not descend into gun/magazine contents, so re-deriving 'has c4' from the snapshot returns false while the engine predicate's charges_of/has_amount returns true -- exposing the display-derived answer as wrong.","support_disposition":"n/a"}
+{
+  "case_id": "case-11t18ks",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The engine's own dialogue/condition predicate via conditional_t::set_has_item (u_has_item), which computes the yes/no 'does the actor have item c4?' that a condition/mission/dialogue eligibility check consumes.",
+  "class": "C",
+  "scope": "only the character's own carried items (wielded/worn/inventory), as charges_of(c4)>0 || has_amount(c4,1) over the player actor",
+  "decisive_source": "src/condition.cpp::conditional_t<T>::set_has_item -- its body returns actor->charges_of(item_id) > 0 || actor->has_amount(item_id, 1) over the alpha/beta player actor, the engine-computed possession verdict.",
+  "divergence": "The avatar carries a c4 nested inside a gun or magazine: visit_internal and the flat carried_items[] export do not descend into gun/magazine contents, so re-deriving 'has c4' from the snapshot returns false while the engine predicate's charges_of/has_amount returns true -- exposing the display-derived answer as wrong.",
+  "support_disposition": "n/a"
+}

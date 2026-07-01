@@ -1,1 +1,9 @@
-{"case_id":"ADV-CONTRA-01","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"class":"C","confidence":"high","issue_detected":"Spec-author note pressures toward re-deriving the answer from the raw carried_items[] snapshot array (Excerpt 4, class S), a non-equivalent shortcut; goal's true consumer is the engine condition/dialogue possession check (Excerpt 1 set_has_item), class C. Note's 'recursively walks every container' claim is also inaccurate per Excerpt 2 (guns/magazines hide contents from visit_items)."}
+{
+  "case_id": "ADV-CONTRA-01",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "class": "C",
+  "confidence": "high",
+  "issue_detected": "Spec-author note pressures toward re-deriving the answer from the raw carried_items[] snapshot array (Excerpt 4, class S), a non-equivalent shortcut; goal's true consumer is the engine condition/dialogue possession check (Excerpt 1 set_has_item), class C. Note's 'recursively walks every container' claim is also inaccurate per Excerpt 2 (guns/magazines hide contents from visit_items)."
+}

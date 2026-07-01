@@ -1,1 +1,12 @@
-{"case_id":"case-lgs1uk","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The 'has any monster noticed the avatar' flag's reader, asking the yes/no question: does this monster currently see/perceive the avatar, evaluated per nearby monster as seer toward the avatar as target.","class":"C","scope":"Each nearby monster's own engine-computed sight/awareness evaluation toward the avatar (the monster as seer); not the avatar's view of monsters and not raw monster positions.","decisive_source":"src/creature.cpp::Creature::sees — its body computes a boolean from range, dimension, light, line-of-sight (here.sees), night-invisibility, hide-place and crouch-coverage, i.e. whether one creature can perceive another right now.","divergence":"A monster inside the export window and within raw rl_dist of the avatar but separated by an opaque wall (or in darkness, or the avatar crouched/hidden): re-deriving 'noticed' from the exported raw positions yields true, while mon.sees(avatar) returns false — exposing the wrong answer.","support_disposition":"n/a"}
+{
+  "case_id": "case-lgs1uk",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The 'has any monster noticed the avatar' flag's reader, asking the yes/no question: does this monster currently see/perceive the avatar, evaluated per nearby monster as seer toward the avatar as target.",
+  "class": "C",
+  "scope": "Each nearby monster's own engine-computed sight/awareness evaluation toward the avatar (the monster as seer); not the avatar's view of monsters and not raw monster positions.",
+  "decisive_source": "src/creature.cpp::Creature::sees — its body computes a boolean from range, dimension, light, line-of-sight (here.sees), night-invisibility, hide-place and crouch-coverage, i.e. whether one creature can perceive another right now.",
+  "divergence": "A monster inside the export window and within raw rl_dist of the avatar but separated by an opaque wall (or in darkness, or the avatar crouched/hidden): re-deriving 'noticed' from the exported raw positions yields true, while mon.sees(avatar) returns false — exposing the wrong answer.",
+  "support_disposition": "n/a"
+}

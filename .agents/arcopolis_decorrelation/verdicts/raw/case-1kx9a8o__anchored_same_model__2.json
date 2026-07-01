@@ -1,1 +1,12 @@
-{"case_id":"case-1kx9a8o","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The engine dialogue/condition evaluator that runs the u_has_item/npc_has_item conditional lambda and asks 'does this character possess item X' to gate a mission/dialogue branch.","class":"C","scope":"The character actor's own possession reach (charges_of + has_amount over the avatar's inventory/wielded/worn), matching what a mission or dialogue possession check evaluates.","decisive_source":"src/condition.cpp::conditional_t<T>::set_has_item builds the lambda actor->charges_of(item_id)>0 || actor->has_amount(item_id,1), i.e. the engine's own u_has_item/npc_has_item predicate value.","divergence":"Item X sits in an adjacent vehicle cargo tile the avatar can reach but has not picked up: the possession predicate correctly returns false, whereas a re-derivation over reachable inventory would wrongly return true; the engine value is the authority here.","support_disposition":"n/a"}
+{
+  "case_id": "case-1kx9a8o",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The engine dialogue/condition evaluator that runs the u_has_item/npc_has_item conditional lambda and asks 'does this character possess item X' to gate a mission/dialogue branch.",
+  "class": "C",
+  "scope": "The character actor's own possession reach (charges_of + has_amount over the avatar's inventory/wielded/worn), matching what a mission or dialogue possession check evaluates.",
+  "decisive_source": "src/condition.cpp::conditional_t<T>::set_has_item builds the lambda actor->charges_of(item_id)>0 || actor->has_amount(item_id,1), i.e. the engine's own u_has_item/npc_has_item predicate value.",
+  "divergence": "Item X sits in an adjacent vehicle cargo tile the avatar can reach but has not picked up: the possession predicate correctly returns false, whereas a re-derivation over reachable inventory would wrongly return true; the engine value is the authority here.",
+  "support_disposition": "n/a"
+}
