@@ -67,12 +67,12 @@ composition, two route witnesses, floor count, and catching the frontend up to t
 ### Spike 28 — Stage A two-floor composite slice witness (the keystone)
 
 **What:** one live session on a new fixture (`ArcopolisStairsTest` clone + one low-volume package item —
-`box_small` per 47 §5 — save-edited onto a floor-(−1) tile; contact tile = the start tile) that runs the
+`box_small` per 47 §5 — save-edited onto a floor -1 tile; contact tile = the start tile) that runs the
 whole loop: export → `vertical_move down` → planar `move` to the package → `pickup` (level-4 prompt
 transaction) → planar return → `vertical_move up` → `op:"query" has_item` + position, conjunction green.
 Plus the false-green guards doc 53 established: possession false before pickup, off-contact false after a
 proven displacement — and two composite-specific gates the review added: **floor provenance** (the package
-is asserted on the floor-(−1) ground BEFORE the pickup, then ground −1 == carried +1 across it, so the
+is asserted on the floor -1 ground BEFORE the pickup, then ground -1 == carried +1 across it, so the
 pickup provably came from the descended floor) and a **z-changed off-contact guard** (the conjunction
 reads false while the avatar is on the other floor, not merely one tile off-contact on the same floor).
 
@@ -93,7 +93,9 @@ equivalence claim**.
 **What:** parameterize the stairs generator (`--floors N`), asserting doc 47 §4's three determinism
 conditions **per floor pair** (travel-direction flag on the current tile, aligned counterpart, no
 creature on the destination stair); witness a 5–6 floor descent→ascent round trip with a per-floor
-snapshot each leg.
+snapshot each leg. Caveat (PR-review catch): the current generator only **edits existing submaps** (it
+validates the expected z=-1 tile rather than creating floors), so `--floors N` needs an explicit lower-z
+submap creation/clone strategy — floors below the save's existing z-range don't exist to edit.
 
 **Why:** "5–6 floors work" must not be claimed from the 2-floor witness (47 §11); this is the cheapest
 honest closure — pure fixture + regression work, zero `src/`. Keep `hotel_1` as the eventual
@@ -104,15 +106,22 @@ on the tall fixture (package on the deepest floor) — that IS Stage A's travers
 
 **What:** a hostile-bot fixture via the (already parameterized, 27A) `make_monster_fixture.py` hostility
 flags, plus the drone-specific gaps 47 §6 names: `mon_turret_searchlight` for the positional witness —
-immobile and, leaf-verified, **unable to attack at all** (no `melee_dice`; its `SEARCHLIGHT` special is
-illumination-only — `turrets.json:19/26`) — and optionally `mon_secubot` for a ranged-attack observation
-the existing 27B tap **already captures with source** (`ballistics.cpp:622` → `deal_projectile_attack` →
-`creature.cpp:1271` `apply_damage`), i.e. an attributed `avatar.damage_taken[]` witness, not merely an
-engine-message one. Ammo semantics (leaf-verified): the monster ctor seeds `ammo = type->starting_ammo`
-(`monster.cpp:342`) and deserialization reads the `"ammo"` key only when present
-(`savegame_json.cpp:2151-2155`), so the fixture blob must **omit** the key rather than write an empty
-map; the generator also writes `special_attacks = {}` — verify attack-cooldown reconstruction on load
-before relying on the gun attack. L1 observation only, 27A/27B pattern (RNG-invariant gates where
+immobile and, leaf-verified, **unable to attack at all** (`melee_dice` is absent from its JSON and
+defaults to 0 — `monstergenerator.cpp:786` — so `monster::melee_attack` early-returns,
+`monster.cpp:2183-2186`; its `SEARCHLIGHT` special is illumination-only — `turrets.json:26`) — and
+optionally `mon_secubot` for a ranged-attack observation. **Attribution caveat (PR-review catch,
+leaf-confirmed): monster GUN attacks fire through a temporary fake `standard_npc`** (`gun_actor::shoot`,
+`mattack_actors.cpp:798-800`), so the 27B tap records the hit as `source_kind:"npc"` with an EMPTY type
+id — a landed-damage witness, **not** a drone-attributed one; a regression expecting `mon_secubot`
+attribution would fail. A monster-ATTRIBUTED ranged witness needs an attack that passes the monster
+itself as source — the acid-spit family does (`acid_barf` `monattack.cpp:736`, `acid_accurate` `:792`
+pass `z` directly) — or an attribution fix. Ammo semantics (leaf-verified): the ctor seeds
+`ammo = type->starting_ammo` (`monster.cpp:342`) and deserialization reads the `"ammo"` key only when
+present (`savegame_json.cpp:2151-2155`) — **but** the generator deep-copies its template
+(`make_monster_fixture.py:183`) whose monsters serialize `"ammo": { }` (committed `ArcopolisTest` sav),
+which overwrites the ctor seed with EMPTY on load: the generator needs an explicit ammo strip/inject
+step, and it also writes `special_attacks = {}` (verify cooldown reconstruction) before a gun attack can
+be relied on. L1 observation only, 27A/27B pattern (RNG-invariant gates where
 possible, seed-sampled where not).
 
 **Why:** step 5's cheap half. The liveness/damage machinery from 27A/27B transfers; only the fixture and
@@ -140,7 +149,9 @@ now witnessed for this fixture", engine-equivalent for the attack, never level 4
 **What:** a fixture with a static, **engagement-capable** threat on the direct route (NOT the
 searchlight — it cannot attack, which would make the damage-empty gate structurally unable to fail) and
 an open alternate route; witness the route composition (planar moves only) arriving with
-`damage_taken[]` empty and the threat's position held/never adjacent, **plus a contrast/capability arm**:
+`damage_taken[]` empty **across every snapshot of the route** (the buffer drains per snapshot — doc 58 —
+so a lone arrival check can miss an earlier, already-drained hit) and the threat's position held/never
+adjacent, **plus a contrast/capability arm**:
 a direct-route (or adjacency) leg on the same fixture where the threat DOES land attributed damage — the
 27B pattern proves that witnessable — so "empty" discriminates route-avoidance from threat-impotence.
 Without the contrast arm, the claim must be downgraded to "a damage-free alternate route exists."
@@ -296,11 +307,16 @@ rung:
 5. **Player ranged combat** — now source-mapped: fire, reach-attack, and throw all route through the ONE
    bespoke targeting loop (`target_ui::run`, `input_context("TARGET")`, `ranged.cpp:2937-3188`), which is
    NOT test_mode-abortable like `uilist`; driving it means a new served per-transaction family (the
-   13B/14/15 pattern) plus a renderer-neutrality audit, and one family would unlock all three verbs —
+   13B/14/15 pattern) plus a renderer-neutrality audit. One family would unlock fire and reach-attack;
+   **THROW additionally opens an inventory selector first** (`plthrow` →
+   `game_menus::inv::titled_menu`, `avatar_action.cpp:1291-1293` — the fail-loud
+   `inventory_selector`-class surface), so TARGET alone does not unlock the regular throw verb —
    **elevator** (`iexamine_elevator` uilist — mechanically the 13B pattern at a new site),
    **lockpick/smash** (smash is NOT prompt-free at entry — a weapon-shatter `query_yn` at
-   `handle_action.cpp:821-823` plus an acid-corpse query; the terrain bash itself is prompt-free once
-   past them) — each its own witnessed spike when a route needs it.
+   `handle_action.cpp:821-823` plus an acid-corpse query, then a `choose_adjacent( "Smash where?" )`
+   direction chooser at `:839` — the same chooser seam examine/open/close use, drivable via the Spike
+   11A nested answer; the bash itself is prompt-free after those) — each its own witnessed spike when a
+   route needs it.
 
 ## 9. Claims this roadmap does not make
 
