@@ -1,1 +1,13 @@
-{"case_id":"case-lgs1uk","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The frontend's threat-indicator caller asking 'has any monster noticed/detected the avatar?', which an engine-computed monster-awareness predicate answers (e.g. monster::sees(avatar) / aggro/tracking-destination state), not raw position.","class":"C","scope":"Per-monster engine awareness/detection state toward the avatar across the relevant monsters, not merely whether a monster sits inside the render window.","decisive_source":"src/arcopolis_export.cpp::write_entities (monsters window) — it iterates g->all_monsters(), filters by in_export_window, and writes index/type/pos/hp/hallucination but emits NO awareness/detection/aggro field, so the 'noticed' sub-goal is unanswerable from this surface.","divergence":"A monster standing inside the export window but unaware of the avatar (asleep/idle, has not seen it) vs one that has detected and is tracking the avatar: the raw-state dump reports both identically (same pos/hp), so 'has any monster noticed the avatar' is silently wrong.","support_disposition":"unsupported/fail-loud","verdict":"flag"}
+{
+  "case_id": "case-lgs1uk",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The frontend's threat-indicator caller asking 'has any monster noticed/detected the avatar?', which an engine-computed monster-awareness predicate answers (e.g. monster::sees(avatar) / aggro/tracking-destination state), not raw position.",
+  "class": "C",
+  "scope": "Per-monster engine awareness/detection state toward the avatar across the relevant monsters, not merely whether a monster sits inside the render window.",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities (monsters window) — it iterates g->all_monsters(), filters by in_export_window, and writes index/type/pos/hp/hallucination but emits NO awareness/detection/aggro field, so the 'noticed' sub-goal is unanswerable from this surface.",
+  "divergence": "A monster standing inside the export window but unaware of the avatar (asleep/idle, has not seen it) vs one that has detected and is tracking the avatar: the raw-state dump reports both identically (same pos/hp), so 'has any monster noticed the avatar' is silently wrong.",
+  "support_disposition": "unsupported/fail-loud",
+  "verdict": "flag"
+}

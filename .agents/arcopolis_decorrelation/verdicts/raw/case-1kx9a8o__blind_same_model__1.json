@@ -1,1 +1,12 @@
-{"case_id":"case-1kx9a8o","condition":"blind_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The dialogue/mission condition evaluator (conditional_t<T>::set_has_item lambda) asking the yes/no 'does the avatar actor have item X' via actor->charges_of(item_id) > 0 || actor->has_amount(item_id, 1).","class":"C","scope":"only the character/avatar's own carried possession (on-person: wielded/worn/inventory) as charges_of/has_amount counts it, not nearby reachable items or any map region","decisive_source":"src/condition.cpp::conditional_t<T>::set_has_item builds a lambda that EVALUATES a boolean possession predicate over the alpha/beta character actor using charges_of and has_amount; that returned value is what a mission/dialogue check consumes.","divergence":"Avatar carries ammo charges nested inside a magazine inside a worn container: the engine predicate charges_of/has_amount accounts for it and returns true, but re-deriving the yes/no from the avatar.carried_items[] snapshot (which enumerates wielded/worn/inventory entries and, per visit_internal, does not descend into gun/magazine contents) yields false — exposing the wrong authority.","support_disposition":"n/a"}
+{
+  "case_id": "case-1kx9a8o",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The dialogue/mission condition evaluator (conditional_t<T>::set_has_item lambda) asking the yes/no 'does the avatar actor have item X' via actor->charges_of(item_id) > 0 || actor->has_amount(item_id, 1).",
+  "class": "C",
+  "scope": "only the character/avatar's own carried possession (on-person: wielded/worn/inventory) as charges_of/has_amount counts it, not nearby reachable items or any map region",
+  "decisive_source": "src/condition.cpp::conditional_t<T>::set_has_item builds a lambda that EVALUATES a boolean possession predicate over the alpha/beta character actor using charges_of and has_amount; that returned value is what a mission/dialogue check consumes.",
+  "divergence": "Avatar carries ammo charges nested inside a magazine inside a worn container: the engine predicate charges_of/has_amount accounts for it and returns true, but re-deriving the yes/no from the avatar.carried_items[] snapshot (which enumerates wielded/worn/inventory entries and, per visit_internal, does not descend into gun/magazine contents) yields false — exposing the wrong authority.",
+  "support_disposition": "n/a"
+}

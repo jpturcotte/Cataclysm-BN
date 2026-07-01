@@ -1,1 +1,12 @@
-{"case_id":"case-pcti6g","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The carry-threshold objective check asking 'does the avatar carry >= 250 units of water_clean?', which an engine count predicate (e.g. charges_of/amount_of over carried inventory) answers.","class":"C","scope":"The avatar's full reachable carried inventory including charges nested inside worn/wielded/inventory containers, summed across partial stacks.","decisive_source":"src/arcopolis_export.cpp::write_carried_items dumps raw wielded/worn/inv_const_slice items with charges but never recurses into container contents and computes no count, so it is class-S raw state, not the class-C count the goal needs.","divergence":"Avatar carries a sealed canteen holding 300 units of water_clean: the engine count predicate reports >=250 (true), but the raw dump emits only the canteen as one inventory item (its nested water charges are not descended into), so re-deriving from the snapshot yields 0 units and a false negative.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-pcti6g",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The carry-threshold objective check asking 'does the avatar carry >= 250 units of water_clean?', which an engine count predicate (e.g. charges_of/amount_of over carried inventory) answers.",
+  "class": "C",
+  "scope": "The avatar's full reachable carried inventory including charges nested inside worn/wielded/inventory containers, summed across partial stacks.",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items dumps raw wielded/worn/inv_const_slice items with charges but never recurses into container contents and computes no count, so it is class-S raw state, not the class-C count the goal needs.",
+  "divergence": "Avatar carries a sealed canteen holding 300 units of water_clean: the engine count predicate reports >=250 (true), but the raw dump emits only the canteen as one inventory item (its nested water charges are not descended into), so re-deriving from the snapshot yields 0 units and a false negative.",
+  "support_disposition": "unsupported/fail-loud"
+}

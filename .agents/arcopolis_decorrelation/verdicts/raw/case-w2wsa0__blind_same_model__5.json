@@ -1,1 +1,12 @@
-{"case_id":"case-w2wsa0","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"consumer":"The pickup path calling Character::can_pick_weight(item) to gate the pickup, asking the yes/no 'can the avatar take on this item's weight given what they already carry?'","class":"C","scope":"only the character's own carried weight vs own capacity (weight_carried + this one candidate item's weight), not nearby/reachable inventory","decisive_source":"src/character.cpp::Character::can_pick_weight — returns a bool by comparing weight_carried()+weight against weight_capacity() (or weight_capacity()*4 / mass_max in the unsafe / DEBUG_STORAGE branches), not weight_capacity() alone","divergence":"Avatar already carrying near-capacity (weight_carried()+it.weight() > weight_capacity() but it.weight() alone <= weight_capacity()): the real predicate returns false, while a re-derivation from weight_capacity() that ignores already-carried load returns true; the unsafe *4 branch likewise flips the boundary","support_disposition":"n/a"}
+{
+  "case_id": "case-w2wsa0",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "consumer": "The pickup path calling Character::can_pick_weight(item) to gate the pickup, asking the yes/no 'can the avatar take on this item's weight given what they already carry?'",
+  "class": "C",
+  "scope": "only the character's own carried weight vs own capacity (weight_carried + this one candidate item's weight), not nearby/reachable inventory",
+  "decisive_source": "src/character.cpp::Character::can_pick_weight — returns a bool by comparing weight_carried()+weight against weight_capacity() (or weight_capacity()*4 / mass_max in the unsafe / DEBUG_STORAGE branches), not weight_capacity() alone",
+  "divergence": "Avatar already carrying near-capacity (weight_carried()+it.weight() > weight_capacity() but it.weight() alone <= weight_capacity()): the real predicate returns false, while a re-derivation from weight_capacity() that ignores already-carried load returns true; the unsafe *4 branch likewise flips the boundary",
+  "support_disposition": "n/a"
+}

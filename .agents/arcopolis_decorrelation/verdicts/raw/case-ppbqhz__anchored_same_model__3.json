@@ -1,1 +1,13 @@
-{"case_id":"case-ppbqhz","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The GUI tile-draw/cata_tiles render path asking 'should this tile be drawn with the dimmed remembered-but-not-currently-visible shading?'","class":"D","scope":"Per-tile display state distinguishing currently-visible vs remembered-from-avatar-memory vs never-seen, driven by the avatar's memorized-tile map","decisive_source":"map::pl_sees (src/map.cpp) returns a raw line-of-sight visibility predicate: whether the player can SEE the tile right now within radius; it does not consult the avatar's tile memory","divergence":"A tile the avatar explored earlier and stored in memory, now out of sight behind a wall: pl_sees returns false identically to a never-seen tile, so the boolean cannot drive the dimmed-remembered shading the GUI shows for it","support_disposition":"n/a","verdict":"flag"}
+{
+  "case_id": "case-ppbqhz",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The GUI tile-draw/cata_tiles render path asking 'should this tile be drawn with the dimmed remembered-but-not-currently-visible shading?'",
+  "class": "D",
+  "scope": "Per-tile display state distinguishing currently-visible vs remembered-from-avatar-memory vs never-seen, driven by the avatar's memorized-tile map",
+  "decisive_source": "map::pl_sees (src/map.cpp) returns a raw line-of-sight visibility predicate: whether the player can SEE the tile right now within radius; it does not consult the avatar's tile memory",
+  "divergence": "A tile the avatar explored earlier and stored in memory, now out of sight behind a wall: pl_sees returns false identically to a never-seen tile, so the boolean cannot drive the dimmed-remembered shading the GUI shows for it",
+  "support_disposition": "n/a",
+  "verdict": "flag"
+}

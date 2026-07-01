@@ -1,1 +1,12 @@
-{"case_id":"case-1gtycfx","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"consumer":"mission::is_complete for MGOAL_FIND_ITEM, asking the yes/no 'is the courier delivery item present in the required quantity?' that gates 'ready to hand in'","class":"C","scope":"the player's crafting_inventory reach (carried PLUS nearby reachable/usable items), not only the character's own carried items","decisive_source":"src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — computes completion by testing u.crafting_inventory().has_amount(type->item_id, item_count) (with a charges fallback), returning the engine-computed yes/no","divergence":"the courier item sits on the tile adjacent to the player: crafting_inventory() includes it so is_complete returns true (ready), but a re-derivation from avatar.carried_items[] (wielded/worn/inventory only) returns false — exposing the wrong-reach answer","support_disposition":"n/a"}
+{
+  "case_id": "case-1gtycfx",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "mission::is_complete for MGOAL_FIND_ITEM, asking the yes/no 'is the courier delivery item present in the required quantity?' that gates 'ready to hand in'",
+  "class": "C",
+  "scope": "the player's crafting_inventory reach (carried PLUS nearby reachable/usable items), not only the character's own carried items",
+  "decisive_source": "src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — computes completion by testing u.crafting_inventory().has_amount(type->item_id, item_count) (with a charges fallback), returning the engine-computed yes/no",
+  "divergence": "the courier item sits on the tile adjacent to the player: crafting_inventory() includes it so is_complete returns true (ready), but a re-derivation from avatar.carried_items[] (wielded/worn/inventory only) returns false — exposing the wrong-reach answer",
+  "support_disposition": "n/a"
+}

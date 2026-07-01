@@ -1,1 +1,12 @@
-{"case_id":"case-xrqkyj","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The external combat-log analysis script, which reads each monster's exported current HP integer as a number to log/analyze, not asking the engine any yes/no, view, action, or menu question.","class":"S","scope":"per-monster raw current HP state for each nearby monster (entity-level world state), not a line-of-sight or display-gated view","decisive_source":"src/arcopolis_export.cpp::write_entities (monsters) — writes mon.get_hp()/get_hp_max() straight from the engine getter into the snapshot JSON, exporting authoritative monster HP integers; Creature::sees and the avatar-scalar write are distractors","divergence":"A monster outside the avatar's line of sight (or whose displayed HP is colour-bucketed/clamped): raw get_hp() still reports its true integer, while a display-observability or visibility-predicate answer would report stale, hidden, or bucketed HP, exposing the wrong class.","support_disposition":"n/a"}
+{
+  "case_id": "case-xrqkyj",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The external combat-log analysis script, which reads each monster's exported current HP integer as a number to log/analyze, not asking the engine any yes/no, view, action, or menu question.",
+  "class": "S",
+  "scope": "per-monster raw current HP state for each nearby monster (entity-level world state), not a line-of-sight or display-gated view",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities (monsters) — writes mon.get_hp()/get_hp_max() straight from the engine getter into the snapshot JSON, exporting authoritative monster HP integers; Creature::sees and the avatar-scalar write are distractors",
+  "divergence": "A monster outside the avatar's line of sight (or whose displayed HP is colour-bucketed/clamped): raw get_hp() still reports its true integer, while a display-observability or visibility-predicate answer would report stale, hidden, or bucketed HP, exposing the wrong class.",
+  "support_disposition": "n/a"
+}

@@ -1,1 +1,12 @@
-{"case_id":"case-on128q","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"An engine possession/eligibility check (e.g. a has_amount/charges_of-style on-person possession predicate as a mission or dialogue condition would use) asking 'does the avatar have >=30 rounds of 9mm on their person?'","class":"C","scope":"On-person possession aggregated across the avatar's carried items INCLUDING ammo contained inside magazines/guns/containers (charges_of('9mm') reach), not just top-level wielded/worn/inventory stacks","decisive_source":"src/arcopolis_export.cpp::write_carried_items -- iterates only top-level u.wielded_items(), u.worn, and u.inv_const_slice() stacks and emits each item's own .charges, never recursing into it.contents nor invoking the engine's charges_of/has_amount possession aggregation; it dumps raw simulation-state (class S), forcing the consumer to re-derive the threshold","divergence":"Avatar carries two 9mm magazines of 15 rounds each, each loaded inside a holstered/worn gun (or the rounds are inside a magazine inside a gun): the engine's on-person possession predicate returns >=30 (true), but summing charges over the emitted top-level carried_items finds 0 loose 9mm rounds and re-derives 'no'","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-on128q",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "An engine possession/eligibility check (e.g. a has_amount/charges_of-style on-person possession predicate as a mission or dialogue condition would use) asking 'does the avatar have >=30 rounds of 9mm on their person?'",
+  "class": "C",
+  "scope": "On-person possession aggregated across the avatar's carried items INCLUDING ammo contained inside magazines/guns/containers (charges_of('9mm') reach), not just top-level wielded/worn/inventory stacks",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items -- iterates only top-level u.wielded_items(), u.worn, and u.inv_const_slice() stacks and emits each item's own .charges, never recursing into it.contents nor invoking the engine's charges_of/has_amount possession aggregation; it dumps raw simulation-state (class S), forcing the consumer to re-derive the threshold",
+  "divergence": "Avatar carries two 9mm magazines of 15 rounds each, each loaded inside a holstered/worn gun (or the rounds are inside a magazine inside a gun): the engine's on-person possession predicate returns >=30 (true), but summing charges over the emitted top-level carried_items finds 0 loose 9mm rounds and re-derives 'no'",
+  "support_disposition": "unsupported/fail-loud"
+}

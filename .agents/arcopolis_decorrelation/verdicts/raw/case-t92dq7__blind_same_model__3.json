@@ -1,1 +1,12 @@
-{"case_id":"case-t92dq7","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"pick_up_from_items in src/pickup.cpp, which presents the ground-item pile as an interactive menu and asks the player which items to select for pickup, finalizing on CONFIRM through ctxt.handle_input()","class":"B","scope":"the ground-item stacks reachable for pickup at the nearby tile(s) (map::i_at pickup pile), not the character's own carried items","decisive_source":"src/pickup.cpp::pick_up_from_items — registers UP/DOWN/RIGHT/CONFIRM/QUIT and runs an input loop (ctxt.handle_input()) that marks the selection and finalizes it, i.e. it PRESENTS a menu and performs the choice through the real active input loop","divergence":"A pile of 3 ground items where the player intends to take only item #2: a shortcut that picks up all items (or item #1 by default) instead of routing the UP/DOWN/CONFIRM selection through the menu loop ends with the wrong items in inventory, exposing the wrong authority","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-t92dq7",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "pick_up_from_items in src/pickup.cpp, which presents the ground-item pile as an interactive menu and asks the player which items to select for pickup, finalizing on CONFIRM through ctxt.handle_input()",
+  "class": "B",
+  "scope": "the ground-item stacks reachable for pickup at the nearby tile(s) (map::i_at pickup pile), not the character's own carried items",
+  "decisive_source": "src/pickup.cpp::pick_up_from_items — registers UP/DOWN/RIGHT/CONFIRM/QUIT and runs an input loop (ctxt.handle_input()) that marks the selection and finalizes it, i.e. it PRESENTS a menu and performs the choice through the real active input loop",
+  "divergence": "A pile of 3 ground items where the player intends to take only item #2: a shortcut that picks up all items (or item #1 by default) instead of routing the UP/DOWN/CONFIRM selection through the menu loop ends with the wrong items in inventory, exposing the wrong authority",
+  "support_disposition": "unsupported/fail-loud"
+}

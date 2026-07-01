@@ -1,1 +1,12 @@
-{"case_id":"case-14hz067","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"An engine LOS check such as map::sees(avatar_pos, target, range) asking the yes/no question 'does the avatar have a clear line of sight to this tile right now?' that gameplay (e.g. ranged-target eligibility) depends on","class":"C","scope":"point-to-point line of sight from the avatar's position to one given nearby tile within sight range (not a map region, not display memory)","decisive_source":"src/map.cpp::map::sees(F,T,range) — computes and returns the boolean reachability/LOS predicate between two tiles within range, the authoritative yes/no the goal needs","divergence":"A tile the avatar can actually see this turn (true map::sees) that pl_sees/'seen' reports false because it is range/memory-filtered for display (e.g. just outside the remembered-render radius or unseen this frame) — the display proxy diverges from the true LOS predicate","support_disposition":"n/a"}
+{
+  "case_id": "case-14hz067",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "An engine LOS check such as map::sees(avatar_pos, target, range) asking the yes/no question 'does the avatar have a clear line of sight to this tile right now?' that gameplay (e.g. ranged-target eligibility) depends on",
+  "class": "C",
+  "scope": "point-to-point line of sight from the avatar's position to one given nearby tile within sight range (not a map region, not display memory)",
+  "decisive_source": "src/map.cpp::map::sees(F,T,range) — computes and returns the boolean reachability/LOS predicate between two tiles within range, the authoritative yes/no the goal needs",
+  "divergence": "A tile the avatar can actually see this turn (true map::sees) that pl_sees/'seen' reports false because it is range/memory-filtered for display (e.g. just outside the remembered-render radius or unseen this frame) — the display proxy diverges from the true LOS predicate",
+  "support_disposition": "n/a"
+}

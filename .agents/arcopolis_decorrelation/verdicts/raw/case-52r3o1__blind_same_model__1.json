@@ -1,1 +1,12 @@
-{"case_id":"case-52r3o1","condition":"blind_same_model","model":"claude-opus-4-8","sample":1,"consumer":"A dialogue/condition u_has_items check (conditional_t::set_has_items lambda) asking yes/no: does the character actor currently possess a 1st_aid kit?","class":"C","scope":"only the character's own carried items (wielded/worn/inventory on-person), matching has_amount/has_charges' reach over the character actor","decisive_source":"src/condition.cpp::conditional_t<T>::set_has_items builds a predicate lambda returning actor->has_charges(item_id,count) || actor->has_amount(item_id,count), i.e. an engine-computed possession yes/no over the character","divergence":"A 1st_aid kit lying on an adjacent tile or in a nearby unworn container: a reachable-inventory or map-region answer reports 'holding' = true, but the on-person possession predicate correctly returns false","support_disposition":"n/a"}
+{
+  "case_id": "case-52r3o1",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "A dialogue/condition u_has_items check (conditional_t::set_has_items lambda) asking yes/no: does the character actor currently possess a 1st_aid kit?",
+  "class": "C",
+  "scope": "only the character's own carried items (wielded/worn/inventory on-person), matching has_amount/has_charges' reach over the character actor",
+  "decisive_source": "src/condition.cpp::conditional_t<T>::set_has_items builds a predicate lambda returning actor->has_charges(item_id,count) || actor->has_amount(item_id,count), i.e. an engine-computed possession yes/no over the character",
+  "divergence": "A 1st_aid kit lying on an adjacent tile or in a nearby unworn container: a reachable-inventory or map-region answer reports 'holding' = true, but the on-person possession predicate correctly returns false",
+  "support_disposition": "n/a"
+}

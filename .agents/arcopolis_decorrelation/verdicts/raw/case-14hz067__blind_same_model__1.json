@@ -1,1 +1,12 @@
-{"case_id":"case-14hz067","condition":"blind_same_model","model":"claude-opus-4-8","sample":1,"consumer":"An engine LOS condition such as Character::sees(target) / a targeting/ranged-eligibility or NPC-visibility check that asks 'does the avatar have a clear line of sight to this tile right now?' and EVALUATES the boolean it computes.","class":"C","scope":"A map-region reachability from the avatar's current tile to the given target tile within sight range (from-tile-to-target LOS), not carried items and not a whole-map dump.","decisive_source":"src/map.cpp::map::sees(F,T,range) — body delegates to the four-arg sees overload and returns the engine-computed reachability boolean between the two tripoints within range; pl_sees/write_tiles is only the display proxy.","divergence":"A target tile in clear, unobstructed line of sight within range that has never been drawn/remembered: the display 'seen'/pl_sees value reports false (display lag, and headlessly always false) while the true LOS predicate map::sees returns true — exposing the D display-proxy as the wrong authority.","support_disposition":"n/a"}
+{
+  "case_id": "case-14hz067",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "An engine LOS condition such as Character::sees(target) / a targeting/ranged-eligibility or NPC-visibility check that asks 'does the avatar have a clear line of sight to this tile right now?' and EVALUATES the boolean it computes.",
+  "class": "C",
+  "scope": "A map-region reachability from the avatar's current tile to the given target tile within sight range (from-tile-to-target LOS), not carried items and not a whole-map dump.",
+  "decisive_source": "src/map.cpp::map::sees(F,T,range) — body delegates to the four-arg sees overload and returns the engine-computed reachability boolean between the two tripoints within range; pl_sees/write_tiles is only the display proxy.",
+  "divergence": "A target tile in clear, unobstructed line of sight within range that has never been drawn/remembered: the display 'seen'/pl_sees value reports false (display lag, and headlessly always false) while the true LOS predicate map::sees returns true — exposing the D display-proxy as the wrong authority.",
+  "support_disposition": "n/a"
+}

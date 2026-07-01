@@ -1,1 +1,9 @@
-{"case_id":"ADV-AMB-01","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"class":"D","confidence":"medium","issue_detected":"Decisive routine missing: the excerpt only writes raw S-class scalars (get_hp/get_hp_max) and shows no 'is-low' computation or its consumer. 'Low' is a derived verdict; with no engine condition/mission consumer shown, the goal's wording matches the context's canonical 'is-low colour' display example (D). Class inferred from goal wording + context example, not from a shown routine; could be C if an engine eligibility/dialogue check consumes it."}
+{
+  "case_id": "ADV-AMB-01",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "class": "D",
+  "confidence": "medium",
+  "issue_detected": "Decisive routine missing: the excerpt only writes raw S-class scalars (get_hp/get_hp_max) and shows no 'is-low' computation or its consumer. 'Low' is a derived verdict; with no engine condition/mission consumer shown, the goal's wording matches the context's canonical 'is-low colour' display example (D). Class inferred from goal wording + context example, not from a shown routine; could be C if an engine eligibility/dialogue check consumes it."
+}

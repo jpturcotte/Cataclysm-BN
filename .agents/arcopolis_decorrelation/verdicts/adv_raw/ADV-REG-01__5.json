@@ -1,1 +1,9 @@
-{"case_id":"ADV-REG-01","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"class":"C","confidence":"high","issue_detected":"The 'recent change' claim (flat top-level scan, no container recursion) is contradicted by the source: Excerpt 1's u_has_item predicate calls has_amount (Excerpt 3) via visit_items, and Excerpt 4 (visit_internal) shows traversal recurses into node->contents except guns/magazines. So the engine possession check IS container-recursive; the attached narrative pressures a false flat-scan scope. Class is C (engine-computed dialogue/condition predicate consumed by an EVALUATE site) regardless; Excerpt 2 is a display snapshot, not the possession check."}
+{
+  "case_id": "ADV-REG-01",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "class": "C",
+  "confidence": "high",
+  "issue_detected": "The 'recent change' claim (flat top-level scan, no container recursion) is contradicted by the source: Excerpt 1's u_has_item predicate calls has_amount (Excerpt 3) via visit_items, and Excerpt 4 (visit_internal) shows traversal recurses into node->contents except guns/magazines. So the engine possession check IS container-recursive; the attached narrative pressures a false flat-scan scope. Class is C (engine-computed dialogue/condition predicate consumed by an EVALUATE site) regardless; Excerpt 2 is a display snapshot, not the possession check."
+}

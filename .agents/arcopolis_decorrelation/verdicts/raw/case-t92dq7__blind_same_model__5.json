@@ -1,1 +1,12 @@
-{"case_id":"case-t92dq7","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"consumer":"The PICKUP input loop in pickup.cpp::pick_up_from_items, which asks 'which ground items did the player select to pick up?' and acts on that choice by moving them into inventory","class":"B","scope":"items reachable in the ground stack at the relevant nearby tile(s) (map::i_at), not the character's own carried items","decisive_source":"src/pickup.cpp::pick_up_from_items registers UP/DOWN/RIGHT/CONFIRM/QUIT on input_context(\"PICKUP\") and runs a redraw/handle_input loop, marking selection and finalizing on CONFIRM — an interactive menu answered through the real active input loop","divergence":"A tile holds two identical-typeId stacks (e.g. two cans of beans); the player selects only the second. A snapshot/index-derived shortcut that picks 'a can of beans' grabs the wrong one (or both), exposing that only the real selection loop preserves which entry the player chose","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-t92dq7",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "consumer": "The PICKUP input loop in pickup.cpp::pick_up_from_items, which asks 'which ground items did the player select to pick up?' and acts on that choice by moving them into inventory",
+  "class": "B",
+  "scope": "items reachable in the ground stack at the relevant nearby tile(s) (map::i_at), not the character's own carried items",
+  "decisive_source": "src/pickup.cpp::pick_up_from_items registers UP/DOWN/RIGHT/CONFIRM/QUIT on input_context(\"PICKUP\") and runs a redraw/handle_input loop, marking selection and finalizing on CONFIRM — an interactive menu answered through the real active input loop",
+  "divergence": "A tile holds two identical-typeId stacks (e.g. two cans of beans); the player selects only the second. A snapshot/index-derived shortcut that picks 'a can of beans' grabs the wrong one (or both), exposing that only the real selection loop preserves which entry the player chose",
+  "support_disposition": "unsupported/fail-loud"
+}

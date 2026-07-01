@@ -1,1 +1,12 @@
-{"case_id":"case-vtfmi5","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The engine's active input loop reading the NPC interaction menu (game::npc_menu's uilist::query) and the subsequent trade-window selection, which asks the player to interactively choose which items to give and take and confirm the exchange.","class":"B","scope":"The real active input loop/menu mechanism driving the NPC menu selection and the trade window's per-item give/take confirmation; not a passive carried-items or ground-items snapshot.","decisive_source":"src/game.cpp::game::npc_menu builds a uilist (Talk/Swap/Push/...) and calls amenu.query(), the interactive entry point into NPC interaction including the trade transaction, which is answered through the real input loop rather than a computed value or a snapshot.","divergence":"The backend reports a completed trade (items moved between avatar and NPC inventories) without the engine's trade menu ever being queried/confirmed, so the NPC's gold/credit balance and any haggle/relationship effects are never applied and the avatar ends up with items it never legitimately acquired.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-vtfmi5",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The engine's active input loop reading the NPC interaction menu (game::npc_menu's uilist::query) and the subsequent trade-window selection, which asks the player to interactively choose which items to give and take and confirm the exchange.",
+  "class": "B",
+  "scope": "The real active input loop/menu mechanism driving the NPC menu selection and the trade window's per-item give/take confirmation; not a passive carried-items or ground-items snapshot.",
+  "decisive_source": "src/game.cpp::game::npc_menu builds a uilist (Talk/Swap/Push/...) and calls amenu.query(), the interactive entry point into NPC interaction including the trade transaction, which is answered through the real input loop rather than a computed value or a snapshot.",
+  "divergence": "The backend reports a completed trade (items moved between avatar and NPC inventories) without the engine's trade menu ever being queried/confirmed, so the NPC's gold/credit balance and any haggle/relationship effects are never applied and the avatar ends up with items it never legitimately acquired.",
+  "support_disposition": "unsupported/fail-loud"
+}

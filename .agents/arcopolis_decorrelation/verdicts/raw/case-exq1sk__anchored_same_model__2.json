@@ -1,1 +1,12 @@
-{"case_id":"case-exq1sk","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"An on-person possession check asking 'is the detonator carried on the player's body?', not a find-item mission over reachable inventory.","class":"C","scope":"On-person only (worn/wielded/carried inventory), excluding nearby crates, adjacent tiles, and other crafting-reachable sources.","decisive_source":"src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) queries u.crafting_inventory().has_amount/has_charges, a reachable-inventory predicate that pulls in surrounding/adjacent sources beyond the body.","divergence":"A detonator sitting in an open crate on a tile adjacent to the player but not carried: crafting_inventory().has_amount returns true, yet the on-body goal should report false.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-exq1sk",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "An on-person possession check asking 'is the detonator carried on the player's body?', not a find-item mission over reachable inventory.",
+  "class": "C",
+  "scope": "On-person only (worn/wielded/carried inventory), excluding nearby crates, adjacent tiles, and other crafting-reachable sources.",
+  "decisive_source": "src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) queries u.crafting_inventory().has_amount/has_charges, a reachable-inventory predicate that pulls in surrounding/adjacent sources beyond the body.",
+  "divergence": "A detonator sitting in an open crate on a tile adjacent to the player but not carried: crafting_inventory().has_amount returns true, yet the on-body goal should report false.",
+  "support_disposition": "unsupported/fail-loud"
+}

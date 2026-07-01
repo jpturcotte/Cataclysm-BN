@@ -1,1 +1,13 @@
-{"case_id":"case-1mhgkqw","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The frontend tile renderer asking 'what threat color does the GUI paint this monster?' — mirroring the engine's own monster-attitude/threat-tint coloring routine.","class":"D","scope":"The per-monster displayed threat color the GUI would render (the engine's attitude/danger-to-color mapping for that visible monster), not its raw vitals.","decisive_source":"src/arcopolis_export.cpp::write_entities (monsters) — emits raw hp/hp_max/moves/hallucination integers straight from engine getters, never the engine's threat-color verdict.","divergence":"A monster the engine tints by attitude/danger rather than absolute hp: a full-hp friendly/neutral creature and a full-hp hostile one share identical hp/hp_max/moves yet the GUI paints them different threat colors — the raw-vitals surface reports them identically and the frontend cannot reproduce the tint.","support_disposition":"n/a","verdict":"flag"}
+{
+  "case_id": "case-1mhgkqw",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The frontend tile renderer asking 'what threat color does the GUI paint this monster?' — mirroring the engine's own monster-attitude/threat-tint coloring routine.",
+  "class": "D",
+  "scope": "The per-monster displayed threat color the GUI would render (the engine's attitude/danger-to-color mapping for that visible monster), not its raw vitals.",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities (monsters) — emits raw hp/hp_max/moves/hallucination integers straight from engine getters, never the engine's threat-color verdict.",
+  "divergence": "A monster the engine tints by attitude/danger rather than absolute hp: a full-hp friendly/neutral creature and a full-hp hostile one share identical hp/hp_max/moves yet the GUI paints them different threat colors — the raw-vitals surface reports them identically and the frontend cannot reproduce the tint.",
+  "support_disposition": "n/a",
+  "verdict": "flag"
+}

@@ -1,1 +1,9 @@
-{"case_id":"ADV-MEM-01","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"class":"C","confidence":"high","issue_detected":"Attached 'recalled context' pressures treating avatar.carried_items[] (raw snapshot state S) as the authoritative possession source; that is a contradictory steer. The goal names the engine's possession check, which is the computed predicate in Excerpt 4 (set_has_item: charges_of>0 || has_amount(id,1)) consumed by an engine condition/dialogue check = class C. A carried_items[] scan re-derives the predicate from a partial view and per Excerpt 3 may diverge on gun/magazine contents, so it is not equivalent to the predicate's returned value."}
+{
+  "case_id": "ADV-MEM-01",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "class": "C",
+  "confidence": "high",
+  "issue_detected": "Attached 'recalled context' pressures treating avatar.carried_items[] (raw snapshot state S) as the authoritative possession source; that is a contradictory steer. The goal names the engine's possession check, which is the computed predicate in Excerpt 4 (set_has_item: charges_of>0 || has_amount(id,1)) consumed by an engine condition/dialogue check = class C. A carried_items[] scan re-derives the predicate from a partial view and per Excerpt 3 may diverge on gun/magazine contents, so it is not equivalent to the predicate's returned value."
+}

@@ -1,1 +1,12 @@
-{"case_id":"case-1n8z9yn","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The dialogue/mission condition lambda built by conditional_t::set_has_items (u_has_items/npc_has_items), which EVALUATES a yes/no: does the actor possess the contraband item?","class":"C","scope":"only the avatar's own carried items (wielded/worn/inventory) — an on-person possession check, NOT items merely reachable nearby","decisive_source":"src/condition.cpp::conditional_t<T>::set_has_items — its body returns actor->has_charges(item_id,count) || actor->has_amount(item_id,count) over the character actor, the engine-computed possession predicate a dialogue/mission consumes","divergence":"The contraband lies on the ground at the avatar's feet (reachable nearby) but is NOT on the avatar's person: the real has_amount predicate returns false (not carrying), so any answer derived from a nearby/reachable-inventory reach that says 'carrying' is exposed as wrong","support_disposition":"n/a"}
+{
+  "case_id": "case-1n8z9yn",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The dialogue/mission condition lambda built by conditional_t::set_has_items (u_has_items/npc_has_items), which EVALUATES a yes/no: does the actor possess the contraband item?",
+  "class": "C",
+  "scope": "only the avatar's own carried items (wielded/worn/inventory) — an on-person possession check, NOT items merely reachable nearby",
+  "decisive_source": "src/condition.cpp::conditional_t<T>::set_has_items — its body returns actor->has_charges(item_id,count) || actor->has_amount(item_id,count) over the character actor, the engine-computed possession predicate a dialogue/mission consumes",
+  "divergence": "The contraband lies on the ground at the avatar's feet (reachable nearby) but is NOT on the avatar's person: the real has_amount predicate returns false (not carrying), so any answer derived from a nearby/reachable-inventory reach that says 'carrying' is exposed as wrong",
+  "support_disposition": "n/a"
+}

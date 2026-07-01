@@ -1,1 +1,12 @@
-{"case_id":"case-1u225k0","condition":"blind_same_model","model":"claude-opus-4-8","sample":1,"consumer":"Character::craft, which calls select_crafting_recipe and asks the player to interactively browse/filter and pick a recipe (and batch size) to craft.","class":"B","scope":"the interactive full-screen recipe-selection menu driven through the engine's own active input loop","decisive_source":"src/crafting_gui.cpp::select_crafting_recipe, which presents a full-screen interactive crafting menu answered through the engine's input loop and returns the chosen recipe (nullptr on cancel)","divergence":"A recipe whose components are present nearby but which the real menu rejects (unmet proficiency/tool/skill or an active filter): the live menu returns nullptr/refuses while a shortcut that reconstructs craftability from item snapshots returns the recipe.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-1u225k0",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "Character::craft, which calls select_crafting_recipe and asks the player to interactively browse/filter and pick a recipe (and batch size) to craft.",
+  "class": "B",
+  "scope": "the interactive full-screen recipe-selection menu driven through the engine's own active input loop",
+  "decisive_source": "src/crafting_gui.cpp::select_crafting_recipe, which presents a full-screen interactive crafting menu answered through the engine's input loop and returns the chosen recipe (nullptr on cancel)",
+  "divergence": "A recipe whose components are present nearby but which the real menu rejects (unmet proficiency/tool/skill or an active filter): the live menu returns nullptr/refuses while a shortcut that reconstructs craftability from item snapshots returns the recipe.",
+  "support_disposition": "unsupported/fail-loud"
+}

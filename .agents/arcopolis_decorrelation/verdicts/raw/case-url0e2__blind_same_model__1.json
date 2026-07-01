@@ -1,1 +1,12 @@
-{"case_id":"case-url0e2","condition":"blind_same_model","model":"claude-opus-4-8","sample":1,"consumer":"mission::is_complete for MGOAL_FIND_ITEM, which EVALUATES the yes/no of whether the delivery quest's required item quantity is satisfied (the value the HUD surfaces but the quest-turn-in consumes).","class":"C","scope":"items reachable via the player's crafting_inventory() (own carried items PLUS nearby reachable items), not just carried items.","decisive_source":"src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — its body queries u.crafting_inventory() and returns has_amount(item_id,count) (with a charges fallback), i.e. the engine-COMPUTED completion predicate.","divergence":"The required item sits on an adjacent reachable tile but is not carried: crafting_inventory() includes it so is_complete returns true, while a carried-items-only re-derivation (write_carried_items reach) returns false — the wrong-reach answer fails the quest that the engine considers complete.","support_disposition":"n/a"}
+{
+  "case_id": "case-url0e2",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "mission::is_complete for MGOAL_FIND_ITEM, which EVALUATES the yes/no of whether the delivery quest's required item quantity is satisfied (the value the HUD surfaces but the quest-turn-in consumes).",
+  "class": "C",
+  "scope": "items reachable via the player's crafting_inventory() (own carried items PLUS nearby reachable items), not just carried items.",
+  "decisive_source": "src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — its body queries u.crafting_inventory() and returns has_amount(item_id,count) (with a charges fallback), i.e. the engine-COMPUTED completion predicate.",
+  "divergence": "The required item sits on an adjacent reachable tile but is not carried: crafting_inventory() includes it so is_complete returns true, while a carried-items-only re-derivation (write_carried_items reach) returns false — the wrong-reach answer fails the quest that the engine considers complete.",
+  "support_disposition": "n/a"
+}

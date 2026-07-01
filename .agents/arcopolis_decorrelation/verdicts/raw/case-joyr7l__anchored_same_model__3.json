@@ -1,1 +1,12 @@
-{"case_id":"case-joyr7l","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The mission/dialogue eligibility system's completion check for the fetch mission, asking 'does the player hold the required part so the turn-in to the contact can complete?'","class":"C","scope":"The mission's own completion-objective reach over the part the player can hand in, not merely the single actor's on-person has_charges/has_amount","decisive_source":"src/condition.cpp::conditional_t<T>::set_has_items - builds a lambda evaluating actor->has_charges(item_id,count) || actor->has_amount(item_id,count) over only d.alpha/d.beta (one character's personal inventory)","divergence":"The required part sits in adjacent vehicle cargo or a nearby container reachable for hand-in but not in the character's personal inventory: the mission-completion authority counts it satisfied while u_has_items returns false","support_disposition":"n/a"}
+{
+  "case_id": "case-joyr7l",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The mission/dialogue eligibility system's completion check for the fetch mission, asking 'does the player hold the required part so the turn-in to the contact can complete?'",
+  "class": "C",
+  "scope": "The mission's own completion-objective reach over the part the player can hand in, not merely the single actor's on-person has_charges/has_amount",
+  "decisive_source": "src/condition.cpp::conditional_t<T>::set_has_items - builds a lambda evaluating actor->has_charges(item_id,count) || actor->has_amount(item_id,count) over only d.alpha/d.beta (one character's personal inventory)",
+  "divergence": "The required part sits in adjacent vehicle cargo or a nearby container reachable for hand-in but not in the character's personal inventory: the mission-completion authority counts it satisfied while u_has_items returns false",
+  "support_disposition": "n/a"
+}

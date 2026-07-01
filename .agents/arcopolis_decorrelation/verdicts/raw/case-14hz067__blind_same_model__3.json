@@ -1,1 +1,12 @@
-{"case_id":"case-14hz067","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"An engine visibility query asking the yes/no 'does the avatar at F have line of sight to nearby tile T within sight range?', as computed by map::sees(F,T,range)","class":"C","scope":"A from->to reachability check from the avatar's own tile to the one given nearby target tile, bounded by sight range (not a whole map region, not carried inventory)","decisive_source":"src/map.cpp::map::sees(F,T,range) — its body delegates to the four-argument sees() overload and returns the engine-computed boolean for whether T is visible/reachable from F within range","divergence":"Place a solid wall on the straight line between the avatar's tile and the target tile that is within range: map::sees returns false (LOS blocked), while any answer derived only from distance/range or from raw terrain ids would wrongly report true","support_disposition":"n/a"}
+{
+  "case_id": "case-14hz067",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "An engine visibility query asking the yes/no 'does the avatar at F have line of sight to nearby tile T within sight range?', as computed by map::sees(F,T,range)",
+  "class": "C",
+  "scope": "A from->to reachability check from the avatar's own tile to the one given nearby target tile, bounded by sight range (not a whole map region, not carried inventory)",
+  "decisive_source": "src/map.cpp::map::sees(F,T,range) — its body delegates to the four-argument sees() overload and returns the engine-computed boolean for whether T is visible/reachable from F within range",
+  "divergence": "Place a solid wall on the straight line between the avatar's tile and the target tile that is within range: map::sees returns false (LOS blocked), while any answer derived only from distance/range or from raw terrain ids would wrongly report true",
+  "support_disposition": "n/a"
+}

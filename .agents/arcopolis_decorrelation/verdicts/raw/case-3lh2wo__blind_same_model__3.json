@@ -1,1 +1,12 @@
-{"case_id":"case-3lh2wo","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The offline map-dump writer that records each nearby tile's true underlying terrain id; it asks 'what is the raw terrain id at this tile?' and stores it, performing no engine check on the value.","class":"S","scope":"a map region (the raw terrain id of every nearby tile in the export window)","decisive_source":"src/arcopolis_export.cpp::write_tiles writes ctx.m.ter(p).id().str() straight into the JSON as ground-truth state, neither computing a yes/no predicate nor applying a display/visibility filter.","divergence":"A tile the character has not seen (or remembers stale) whose true map::ter differs from the player's memorized/displayed terrain: class S must report the real underlying id, so a D-style memorized/filtered value would be the wrong answer.","support_disposition":"n/a"}
+{
+  "case_id": "case-3lh2wo",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The offline map-dump writer that records each nearby tile's true underlying terrain id; it asks 'what is the raw terrain id at this tile?' and stores it, performing no engine check on the value.",
+  "class": "S",
+  "scope": "a map region (the raw terrain id of every nearby tile in the export window)",
+  "decisive_source": "src/arcopolis_export.cpp::write_tiles writes ctx.m.ter(p).id().str() straight into the JSON as ground-truth state, neither computing a yes/no predicate nor applying a display/visibility filter.",
+  "divergence": "A tile the character has not seen (or remembers stale) whose true map::ter differs from the player's memorized/displayed terrain: class S must report the real underlying id, so a D-style memorized/filtered value would be the wrong answer.",
+  "support_disposition": "n/a"
+}

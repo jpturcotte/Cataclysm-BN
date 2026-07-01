@@ -1,1 +1,12 @@
-{"case_id":"case-kl5v8y","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The engine's fetch-mission objective/eligibility check that asks 'are the required parts now accounted for?' to light the 'objective met' indicator.","class":"C","scope":"The objective's full accounting reach (the engine's own fetch/find-item predicate over carried inventory plus reachable items), not ground tiles within an export-window radius.","decisive_source":"src/arcopolis_export.cpp::write_entities(items) — scans get_map().i_at(p) for each in-window tile and serializes raw ground-item stacks, i.e. raw simulation state, never the mission objective predicate.","divergence":"The required parts sit in the player's backpack/inventory (carried, not on any ground tile): the engine's objective predicate reads 'met' and the indicator should light, but the i_at ground scan reports none of them, so the proposal leaves the indicator dark.","support_disposition":"n/a"}
+{
+  "case_id": "case-kl5v8y",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The engine's fetch-mission objective/eligibility check that asks 'are the required parts now accounted for?' to light the 'objective met' indicator.",
+  "class": "C",
+  "scope": "The objective's full accounting reach (the engine's own fetch/find-item predicate over carried inventory plus reachable items), not ground tiles within an export-window radius.",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities(items) — scans get_map().i_at(p) for each in-window tile and serializes raw ground-item stacks, i.e. raw simulation state, never the mission objective predicate.",
+  "divergence": "The required parts sit in the player's backpack/inventory (carried, not on any ground tile): the engine's objective predicate reads 'met' and the indicator should light, but the i_at ground scan reports none of them, so the proposal leaves the indicator dark.",
+  "support_disposition": "n/a"
+}

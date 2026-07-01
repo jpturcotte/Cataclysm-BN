@@ -1,1 +1,12 @@
-{"case_id":"case-x2bg3a","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The frontend status panel renderer that reads the snapshot's avatar scalars and asks 'what raw stamina/pain value do I show?'; no engine predicate/condition/mission consumes it.","class":"S","scope":"The avatar's own scalar state only (Character::get_stamina / get_pain) — not inventory, not a map region.","decisive_source":"src/arcopolis_export.cpp::write_avatar (scalars) — its body writes ctx.u.get_stamina() and ctx.u.get_pain() straight from the engine getters into the snapshot JSON with no formatting/filtering view in between.","divergence":"Set avatar stamina to 3200 via the engine while a cached/re-derived value still reads the old max; the panel showing the stale number instead of the live raw get_stamina() proves the wrong authority.","support_disposition":"n/a"}
+{
+  "case_id": "case-x2bg3a",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The frontend status panel renderer that reads the snapshot's avatar scalars and asks 'what raw stamina/pain value do I show?'; no engine predicate/condition/mission consumes it.",
+  "class": "S",
+  "scope": "The avatar's own scalar state only (Character::get_stamina / get_pain) — not inventory, not a map region.",
+  "decisive_source": "src/arcopolis_export.cpp::write_avatar (scalars) — its body writes ctx.u.get_stamina() and ctx.u.get_pain() straight from the engine getters into the snapshot JSON with no formatting/filtering view in between.",
+  "divergence": "Set avatar stamina to 3200 via the engine while a cached/re-derived value still reads the old max; the panel showing the stale number instead of the live raw get_stamina() proves the wrong authority.",
+  "support_disposition": "n/a"
+}

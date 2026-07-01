@@ -1,1 +1,9 @@
-{"case_id":"ADV-HALF-01","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"class":"C","confidence":"high","issue_detected":"Note pressures toward Excerpt 2 (carried_items[] export) as the answer, but that is S/display re-derivation from a partial on-person view, not the predicate's returned value; goal asks for the mission/dialogue check's answer = C. Scope mismatch: real MGOAL_FIND_ITEM uses crafting_inventory() (reachable scope) while carried_items[] is on-person only, so the export is both wrong-authority and wrong-scope."}
+{
+  "case_id": "ADV-HALF-01",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "class": "C",
+  "confidence": "high",
+  "issue_detected": "Note pressures toward Excerpt 2 (carried_items[] export) as the answer, but that is S/display re-derivation from a partial on-person view, not the predicate's returned value; goal asks for the mission/dialogue check's answer = C. Scope mismatch: real MGOAL_FIND_ITEM uses crafting_inventory() (reachable scope) while carried_items[] is on-person only, so the export is both wrong-authority and wrong-scope."
+}

@@ -1,1 +1,12 @@
-{"case_id":"case-w2wsa0","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The pickup path's carry-eligibility check (e.g. Character::can_pickWeight / weight_capacity()-vs-weight gate) asking 'does adding this specific item's weight exceed the avatar's remaining carry weight?'","class":"C","scope":"this-item's weight vs the avatar's remaining carry-weight capacity at pickup time (engine's own can-carry predicate, including capacity modifiers), not raw avatar status scalars","decisive_source":"src/arcopolis_export.cpp::write_avatar(scalars) — emits hp/stamina/moves/pain/thirst/fatigue/stored_kcal/kcal_percent getters; it exposes NONE of weight, weight_capacity, or any carry-eligibility predicate, so it cannot answer the goal","divergence":"An avatar already overloaded (current weight already at/above weight_capacity): the engine's pickup predicate returns 'won't fit', but the exposed scalars reveal no weight info at all, and even a raw weight-vs-capacity re-derivation would miss engine capacity modifiers the real can-carry call applies","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-w2wsa0",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The pickup path's carry-eligibility check (e.g. Character::can_pickWeight / weight_capacity()-vs-weight gate) asking 'does adding this specific item's weight exceed the avatar's remaining carry weight?'",
+  "class": "C",
+  "scope": "this-item's weight vs the avatar's remaining carry-weight capacity at pickup time (engine's own can-carry predicate, including capacity modifiers), not raw avatar status scalars",
+  "decisive_source": "src/arcopolis_export.cpp::write_avatar(scalars) — emits hp/stamina/moves/pain/thirst/fatigue/stored_kcal/kcal_percent getters; it exposes NONE of weight, weight_capacity, or any carry-eligibility predicate, so it cannot answer the goal",
+  "divergence": "An avatar already overloaded (current weight already at/above weight_capacity): the engine's pickup predicate returns 'won't fit', but the exposed scalars reveal no weight info at all, and even a raw weight-vs-capacity re-derivation would miss engine capacity modifiers the real can-carry call applies",
+  "support_disposition": "unsupported/fail-loud"
+}

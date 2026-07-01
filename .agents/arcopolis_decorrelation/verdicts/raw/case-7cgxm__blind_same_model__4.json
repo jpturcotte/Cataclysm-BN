@@ -1,1 +1,12 @@
-{"case_id":"case-7cgxm","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"The frontend HP-bar renderer reading the snapshot to draw each visible monster's bar and ask 'what color band (green/yellow/red) does the GUI show for this hp:hp_max ratio?'","class":"D","scope":"per-visible-monster on-screen display view (only monsters the player currently sees), not raw world-wide state","decisive_source":"src/arcopolis_export.cpp::write_entities(monsters) writes raw hp/hp_max integers (S ground truth), but the goal's consumer needs the GUI's banded/colored display view derived from that ratio, which the raw getters do not themselves format","divergence":"A monster sitting exactly on a color-band boundary where the GUI's banding rounds/clamps to yellow while a naive hp/hp_max recompute lands on green (or a hallucination whose displayed bar differs from any raw-state recomputation) exposes that raw integers are not the displayed color authority","support_disposition":"n/a"}
+{
+  "case_id": "case-7cgxm",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "The frontend HP-bar renderer reading the snapshot to draw each visible monster's bar and ask 'what color band (green/yellow/red) does the GUI show for this hp:hp_max ratio?'",
+  "class": "D",
+  "scope": "per-visible-monster on-screen display view (only monsters the player currently sees), not raw world-wide state",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities(monsters) writes raw hp/hp_max integers (S ground truth), but the goal's consumer needs the GUI's banded/colored display view derived from that ratio, which the raw getters do not themselves format",
+  "divergence": "A monster sitting exactly on a color-band boundary where the GUI's banding rounds/clamps to yellow while a naive hp/hp_max recompute lands on green (or a hallucination whose displayed bar differs from any raw-state recomputation) exposes that raw integers are not the displayed color authority",
+  "support_disposition": "n/a"
+}

@@ -1,1 +1,12 @@
-{"case_id":"case-15cx5qk","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"An external graphing tool reading the snapshot's stored_kcal field, asking 'what is the avatar's raw stored calorie reservoir at this tick so I can plot it over time?'","class":"S","scope":"The single raw scalar reservoir value on the avatar (whole-character stored_kcal ground truth), not a percentage, threshold predicate, or display-filtered view","decisive_source":"src/arcopolis_export.cpp::write_avatar (scalars) writes ctx.u.get_stored_kcal() straight into the JSON; get_stored_kcal() returns the avatar's raw stored calorie count, the authoritative simulation-state value the graph needs","divergence":"A character at very high calorie stores where kcal_percent saturates/clamps near its cap: the raw stored_kcal keeps rising (correct for a history graph) while kcal_percent would flatten, so relying on a derived ratio would mis-plot the curve, but the raw getter exposed here reports the true value","support_disposition":"n/a"}
+{
+  "case_id": "case-15cx5qk",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "An external graphing tool reading the snapshot's stored_kcal field, asking 'what is the avatar's raw stored calorie reservoir at this tick so I can plot it over time?'",
+  "class": "S",
+  "scope": "The single raw scalar reservoir value on the avatar (whole-character stored_kcal ground truth), not a percentage, threshold predicate, or display-filtered view",
+  "decisive_source": "src/arcopolis_export.cpp::write_avatar (scalars) writes ctx.u.get_stored_kcal() straight into the JSON; get_stored_kcal() returns the avatar's raw stored calorie count, the authoritative simulation-state value the graph needs",
+  "divergence": "A character at very high calorie stores where kcal_percent saturates/clamps near its cap: the raw stored_kcal keeps rising (correct for a history graph) while kcal_percent would flatten, so relying on a derived ratio would mis-plot the curve, but the raw getter exposed here reports the true value",
+  "support_disposition": "n/a"
+}

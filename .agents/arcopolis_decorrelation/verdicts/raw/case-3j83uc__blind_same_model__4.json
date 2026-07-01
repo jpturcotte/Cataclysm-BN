@@ -1,1 +1,12 @@
-{"case_id":"case-3j83uc","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"The frontend paperdoll renderer reading avatar.carried_items[] and asking 'which carried item occupies the wielded slot and which fills each worn slot' to lay the doll out.","class":"S","scope":"only the character's own carried items (the avatar's wielded + worn collections), not nearby ground-tile items and not a possession predicate over reachable inventory","decisive_source":"src/arcopolis_export.cpp::write_carried_items — iterates the avatar's wielded_items(), worn, and inventory and emits each item's raw identity (type_id/name/symbol/charges) tagged with a 'wielded'|'worn'|'inventory' location label, i.e. authoritative per-slot carried state, not a computed/filtered display verdict.","divergence":"An item lying on the avatar's own tile (present in map::i_at via write_entities, Excerpt 2) but not actually worn or wielded: a correct paperdoll must leave the worn/wielded slots showing only ctx.u.worn / wielded_items(); an answer sourced from the ground-item stack would falsely populate a slot with that loose ground item.","support_disposition":"n/a"}
+{
+  "case_id": "case-3j83uc",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "The frontend paperdoll renderer reading avatar.carried_items[] and asking 'which carried item occupies the wielded slot and which fills each worn slot' to lay the doll out.",
+  "class": "S",
+  "scope": "only the character's own carried items (the avatar's wielded + worn collections), not nearby ground-tile items and not a possession predicate over reachable inventory",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items — iterates the avatar's wielded_items(), worn, and inventory and emits each item's raw identity (type_id/name/symbol/charges) tagged with a 'wielded'|'worn'|'inventory' location label, i.e. authoritative per-slot carried state, not a computed/filtered display verdict.",
+  "divergence": "An item lying on the avatar's own tile (present in map::i_at via write_entities, Excerpt 2) but not actually worn or wielded: a correct paperdoll must leave the worn/wielded slots showing only ctx.u.worn / wielded_items(); an answer sourced from the ground-item stack would falsely populate a slot with that loose ground item.",
+  "support_disposition": "n/a"
+}

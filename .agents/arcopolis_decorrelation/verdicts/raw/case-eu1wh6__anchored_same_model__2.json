@@ -1,1 +1,12 @@
-{"case_id":"case-eu1wh6","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The engine's reload-eligibility logic (item::reload_option / gun reload-ammo enumeration) asking 'does the wielded gun have exactly one unambiguous compatible ammo so no selection menu is raised?'","class":"C","scope":"The full reload-ammo search the engine considers (compatible ammo across inventory, worn, and reachable map/vehicle sources), reduced to a single-vs-multiple-option verdict — not just on-person carried items","decisive_source":"src/arcopolis_export.cpp::write_carried_items, which only dumps raw wielded/worn/inventory item records (type_id, charges, count_by_charges) and computes no ammo-compatibility or option-count predicate","divergence":"Avatar wields a gun while carrying two different compatible ammo types (or one compatible ammo on-person plus another in an adjacent container/vehicle): the engine would raise a selection menu (>1 option), but the carried_items dump exposes only raw items and lets the frontend re-derive 'single ammo' from a partial on-person view, wrongly concluding the reload is unambiguous","support_disposition":"n/a"}
+{
+  "case_id": "case-eu1wh6",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The engine's reload-eligibility logic (item::reload_option / gun reload-ammo enumeration) asking 'does the wielded gun have exactly one unambiguous compatible ammo so no selection menu is raised?'",
+  "class": "C",
+  "scope": "The full reload-ammo search the engine considers (compatible ammo across inventory, worn, and reachable map/vehicle sources), reduced to a single-vs-multiple-option verdict — not just on-person carried items",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items, which only dumps raw wielded/worn/inventory item records (type_id, charges, count_by_charges) and computes no ammo-compatibility or option-count predicate",
+  "divergence": "Avatar wields a gun while carrying two different compatible ammo types (or one compatible ammo on-person plus another in an adjacent container/vehicle): the engine would raise a selection menu (>1 option), but the carried_items dump exposes only raw items and lets the frontend re-derive 'single ammo' from a partial on-person view, wrongly concluding the reload is unambiguous",
+  "support_disposition": "n/a"
+}

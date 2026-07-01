@@ -1,1 +1,9 @@
-{"case_id":"ADV-PB-A-03","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"class":"S","confidence":"medium","issue_detected":"Reviewer's C is wrong: Excerpt 1 (u_has_items) is a single-item possession predicate, wrong consumer and wrong scope for a full carried-items enumeration. The decisive routine is Excerpt 2 (write_carried_items), which serializes raw wielded/worn/inventory contents with no display filtering/formatting/lag, so it is ground-truth state (S). Genuine D-vs-S ambiguity because 'render in panel/just show' pulls toward D, but the source performs no display transformation, so S is better grounded."}
+{
+  "case_id": "ADV-PB-A-03",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "class": "S",
+  "confidence": "medium",
+  "issue_detected": "Reviewer's C is wrong: Excerpt 1 (u_has_items) is a single-item possession predicate, wrong consumer and wrong scope for a full carried-items enumeration. The decisive routine is Excerpt 2 (write_carried_items), which serializes raw wielded/worn/inventory contents with no display filtering/formatting/lag, so it is ground-truth state (S). Genuine D-vs-S ambiguity because 'render in panel/just show' pulls toward D, but the source performs no display transformation, so S is better grounded."
+}

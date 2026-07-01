@@ -1,1 +1,13 @@
-{"case_id":"case-pxhyjq","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The engine's detection/targeting eligibility check (Character::sees(Creature)) asking 'can the avatar currently see this specific monster?'","class":"C","scope":"Per-monster line-of-sight/visibility from the avatar (computed LOS predicate), not rectangular proximity-window membership","decisive_source":"Character::sees(const Creature&) (creature visibility predicate) — computes whether the viewer has line of sight to the target given light, range, obstacles, and stealth; the engine-computed value is the authority","divergence":"A monster standing inside the export window but behind a wall: in_export_window includes it so the surface reports it as present/visible, but sees() returns false because there is no line of sight — the avatar cannot actually detect/target it","support_disposition":"unsupported/fail-loud","verdict":"flag"}
+{
+  "case_id": "case-pxhyjq",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The engine's detection/targeting eligibility check (Character::sees(Creature)) asking 'can the avatar currently see this specific monster?'",
+  "class": "C",
+  "scope": "Per-monster line-of-sight/visibility from the avatar (computed LOS predicate), not rectangular proximity-window membership",
+  "decisive_source": "Character::sees(const Creature&) (creature visibility predicate) — computes whether the viewer has line of sight to the target given light, range, obstacles, and stealth; the engine-computed value is the authority",
+  "divergence": "A monster standing inside the export window but behind a wall: in_export_window includes it so the surface reports it as present/visible, but sees() returns false because there is no line of sight — the avatar cannot actually detect/target it",
+  "support_disposition": "unsupported/fail-loud",
+  "verdict": "flag"
+}
