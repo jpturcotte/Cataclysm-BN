@@ -59,6 +59,14 @@ Usage::
     python docs/arcopolis/make_monster_fixture.py --dest-world ArcopolisLivenessTest \
         --monster mon_zombie --offset 0,2,0 --anger 100 --morale 100 --aggro-character --force
 
+    # Two-attacker INSTANCE-AMBIGUITY witness (Stage-1 shadow-test, doc 59). Two hostile mon_zombie so a
+    # `mon_zombie` damage event's source_type_id alone cannot say WHICH one hit -- the gap the deferred
+    # stable-attacker-id would close. --extra-offset places the second at another in-detection floor tile:
+    python docs/arcopolis/make_monster_fixture.py --dest-world ArcopolisTwoZombieTest \
+        --monster mon_zombie --offset 0,2,0 --extra-offset 1,2,0 \
+        --anger 100 --morale 100 --aggro-character --force
+    # (a NEGATIVE extra offset needs the = form so argparse does not read it as a flag: --extra-offset=-1,2,0)
+
 The default (no hostility flags) reproduces the original IMMOBILE-witness behavior BYTE-FOR-BYTE,
 so ``ArcopolisNearMonsterTest`` regenerates unchanged. The opt-in ``--anger`` / ``--morale`` /
 ``--aggro-character`` flags author a monster that the engine's own ``monmove`` will path toward the
@@ -219,6 +227,12 @@ def main(argv=None):
                         help="witness current morale (0 = original default; raise with --anger so it does not flee).")
     parser.add_argument("--aggro-character", dest="aggro_character", action="store_true",
                         help="mark the witness aggressive toward the avatar (the liveness-mover flag).")
+    parser.add_argument("--extra-offset", action="append", default=[], metavar="DX,DY,DZ",
+                        help="place an ADDITIONAL witness at this offset with the SAME "
+                             "--monster/--anger/--morale/--aggro-character (repeatable). Default none = "
+                             "single-witness output BYTE-FOR-BYTE unchanged. Used by the two-attacker "
+                             "instance-ambiguity fixture (ArcopolisTwoZombieTest, Stage-1 shadow-test): two "
+                             "same-type hostiles so a damage event's source_type_id alone cannot say WHICH one hit.")
     parser.add_argument("--force", action="store_true", help="overwrite an existing dest world")
     args = parser.parse_args(argv)
 
@@ -269,19 +283,52 @@ def main(argv=None):
     else:
         print("terrain at witness tile: <unreadable map.sqlite3 — verify the tile is passable per doc 17>")
 
-    witness = build_witness(monsters[0], args.monster, pos, turn,
+    template = monsters[0]  # the stock wildlife template; index 0 is stable because witnesses only append
+    witness = build_witness(template, args.monster, pos, turn,
                             anger=args.anger, morale=args.morale,
                             aggro_character=args.aggro_character)
     monsters.append(witness)
+
+    # Extra witnesses (ADDITIVE; default [] => the single-witness .sav above is byte-for-byte unchanged, so
+    # ArcopolisNearMonsterTest / ArcopolisLivenessTest regenerate identically). Each --extra-offset places
+    # ANOTHER witness with the SAME --monster/--anger/--morale/--aggro-character, cloned from the SAME stock
+    # `template`. This is how the two-attacker instance-ambiguity fixture (ArcopolisTwoZombieTest, doc 59)
+    # gets two same-type hostiles: neither the damage funnel nor the export gives a per-instance id, so a
+    # `mon_zombie` damage event cannot be pinned to one of the two exported `mon_zombie`.
+    for off in args.extra_offset:
+        try:
+            edx, edy, edz = (int(v) for v in off.split(","))
+        except ValueError:
+            raise SystemExit("fatal: --extra-offset must be dx,dy,dz integers, e.g. -1,2,0 (got %r)" % off)
+        if max(abs(edx), abs(edy)) > 12:
+            sys.stderr.write("warning: --extra-offset %s Chebyshev %d > 12 -- witness may fall OUTSIDE the "
+                             "export window.\n" % (off, max(abs(edx), abs(edy))))
+        epos = (ax + edx, ay + edy, az + edz)
+        eter = terrain_id_at(dst, *epos)
+        if eter is not None:
+            ebad = any(h in eter for h in IMPASSABLE_HINTS) and not any(h in eter for h in PASSABLE_HINTS)
+            print("extra witness tile : %s ter=%s%s"
+                  % (list(epos), eter, "  <-- LIKELY IMPASSABLE, will drift/vanish (doc 17)" if ebad else "  (passable)"))
+            if ebad:
+                sys.stderr.write("warning: extra witness tile %s looks impassable; pick floor/grass (doc 17).\n" % eter)
+        else:
+            print("extra witness tile : %s ter=<unreadable map.sqlite3 — verify passable per doc 17>" % list(epos))
+        monsters.append(build_witness(template, args.monster, epos, turn,
+                                      anger=args.anger, morale=args.morale,
+                                      aggro_character=args.aggro_character))
+
     with open(sav, "wb") as f:
         f.write(prefix + json.dumps(data, separators=(",", ":")).encode("utf-8"))
 
     mode = ("HOSTILE MOVER (anger=%d, morale=%d, aggro_character=%s)"
             % (args.anger, args.morale, args.aggro_character)) if args.aggro_character or args.anger else "immobile/passive (stationary witness)"
+    added = 1 + len(args.extra_offset)
     print("created world : %s" % dst)
     print("witness       : %s @ pos_abs %s (avatar %s + offset %s, cheb %d) — %s"
           % (args.monster, list(pos), [ax, ay, az], [dx, dy, dz], max(abs(dx), abs(dy)), mode))
-    print("active_monsters: %d (was %d)" % (len(monsters), len(monsters) - 1))
+    if args.extra_offset:
+        print("extra witnesses: %d (same type/hostility, offsets %s)" % (len(args.extra_offset), ", ".join(args.extra_offset)))
+    print("active_monsters: %d (was %d, +%d witness%s)" % (len(monsters), len(monsters) - added, added, "es" if added != 1 else ""))
     print("next          : validate with docs/arcopolis/monster_export_regression.ps1")
     return 0
 

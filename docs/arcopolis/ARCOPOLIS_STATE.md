@@ -643,6 +643,16 @@ carried no Arcopolis code before), with the session buffer in `src/arcopolis_bac
 read-only `avatar.damage_taken[]` field in `src/arcopolis_export.cpp`; the buffer contract is unit-tested in
 `tests/arcopolis_backend_input_test.cpp`. See
 [57_SPIKE27B_ATTACKER_DAMAGE.md](57_SPIKE27B_ATTACKER_DAMAGE.md).
+[`docs/arcopolis/attacker_instance_ambiguity_regression.ps1`](attacker_instance_ambiguity_regression.ps1)
+gates the **Stage-1 attacker per-instance AMBIGUITY shadow-test** (deferred "Codex Claim 4", doc 59) on the
+new **`ArcopolisTwoZombieTest`** (a clone of `ArcopolisTest` with TWO hostile `mon_zombie`, built by
+`make_monster_fixture.py`'s additive `--extra-offset`; the default single-witness output stays byte-for-byte
+so `ArcopolisNearMonsterTest`/`ArcopolisLivenessTest` regenerate unchanged). It is a **gap demonstration, NO
+`src/` change**: across `[export, (wait,export)×8]` over 3 seeds it asserts two same-type `mon_zombie` both
+attack, and that `avatar.damage_taken[]` carries **no per-instance join key** (`no_instance_join_key` — a
+structural, RNG-independent gate that FLIPS if a discriminator is ever added), so a hit cannot be pinned to a
+specific `entities.monsters[]` entry. RNG-dependent (a landed hit), like its 27B sibling. See
+[59_ATTACKER_INSTANCE_ID_AUDIT.md](59_ATTACKER_INSTANCE_ID_AUDIT.md).
 [`docs/arcopolis/item_export_regression.ps1`](item_export_regression.ps1) gates the **ground-item export** on
 **`ArcopolisTest`** (its saved evac shelter already holds 27 deterministic in-window ground items, so it is
 the item-export witness with **no** save edit; `export(items_before) → wait → export(items_after_wait)`); see
@@ -814,7 +824,13 @@ resumed-activity secondary prompts; generic `popup()`/`query_popup` families.
   weather). The attacker-attributed damage half is **Spike 27B — now built**
   (`avatar.damage_taken[]`, a gated `Character::apply_damage` funnel tap; L1/class S; doc 57); still
   deferred there: the perception-masked GUI message (the `sees()` frontier), ranged/NPC-attacker
-  attribution, hit/miss, and damage type.
+  attribution, hit/miss, and damage type. A **stable per-instance attacker id** (the deferred "Codex Claim
+  4": correlate a damage event to a _specific_ `entities.monsters[]` entry, not just the type) is now
+  **audited with a Stage-1 shadow-test** ([59_ATTACKER_INSTANCE_ID_AUDIT.md](59_ATTACKER_INSTANCE_ID_AUDIT.md)):
+  BN monsters have **no stable id** (only NPCs do — engine-confirmed at `savegame_json.cpp:1004`), and the
+  two-`mon_zombie` fixture `ArcopolisTwoZombieTest` witnesses that `source_type_id` alone cannot disambiguate
+  two same-type attackers. A real id is a new engine (likely upstream) seam; the fidelity-clean bounded
+  substitute is a same-snapshot `weak_ptr`→raw-`pos_abs` resolve (class S) — neither is built (audit-only).
 - **Live protocol:** **v0 done (Spike 9B)** — a persistent process serving stdin/stdout JSONL, one
   request at a time, through the M1 seam with a blocking pull source. Still deferred: sockets/named
   pipes, framing/acks beyond line-delimited JSON, concurrent/pipelined requests, inline snapshots,
