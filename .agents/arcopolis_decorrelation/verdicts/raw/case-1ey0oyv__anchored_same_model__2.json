@@ -1,1 +1,12 @@
-{"case_id":"case-1ey0oyv","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The frontend's 'is the avatar carrying a knife_combat?' possession check, mirroring the engine's own has_item/has_amount possession predicate over the avatar's full carried reach.","class":"C","scope":"The full possession reach the engine's has_amount/visit_items predicate covers: wielded, worn, and inventory items INCLUDING items nested inside containers (e.g. inside a worn backpack), not just top-level stacks.","decisive_source":"src/arcopolis_export.cpp::write_carried_items iterates u.wielded_items(), u.worn, and u.inv_const_slice() and emits each top-level item's raw fields as an array; it never recurses into container contents and computes no possession predicate, so it is raw S-class enumeration of the wrong scope rather than the engine's C-class possession result.","divergence":"A knife_combat stored inside a worn backpack (or any container): the engine possession predicate returns true, but write_carried_items emits only the top-level container item and omits the nested knife, so the frontend reconstructs 'not carrying' -- a false negative.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-1ey0oyv",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The frontend's 'is the avatar carrying a knife_combat?' possession check, mirroring the engine's own has_item/has_amount possession predicate over the avatar's full carried reach.",
+  "class": "C",
+  "scope": "The full possession reach the engine's has_amount/visit_items predicate covers: wielded, worn, and inventory items INCLUDING items nested inside containers (e.g. inside a worn backpack), not just top-level stacks.",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items iterates u.wielded_items(), u.worn, and u.inv_const_slice() and emits each top-level item's raw fields as an array; it never recurses into container contents and computes no possession predicate, so it is raw S-class enumeration of the wrong scope rather than the engine's C-class possession result.",
+  "divergence": "A knife_combat stored inside a worn backpack (or any container): the engine possession predicate returns true, but write_carried_items emits only the top-level container item and omits the nested knife, so the frontend reconstructs 'not carrying' -- a false negative.",
+  "support_disposition": "unsupported/fail-loud"
+}

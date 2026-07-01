@@ -1,1 +1,12 @@
-{"case_id":"case-1ey0oyv","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"consumer":"condition.cpp set_has_item's lambda (the u_has_item/npc_has_item dialogue/condition predicate) asking 'does the avatar possess a knife_combat?'","class":"C","scope":"only the character's own carried items (wielded/worn/inventory on-person), as charges_of + has_amount evaluate over the actor itself","decisive_source":"src/condition.cpp::conditional_t<T>::set_has_item — returns actor->charges_of(item_id) > 0 || actor->has_amount(item_id, 1), the engine-computed yes/no possession predicate over the character actor","divergence":"avatar holds the knife_combat inside a closed non-gun/non-magazine container in inventory: has_amount/charges_of (via visit_items) descends into container contents and returns true, but a shortcut that only scanned top-level wielded/worn/inventory entries (or the flat carried_items array) would wrongly report not-carrying","support_disposition":"n/a"}
+{
+  "case_id": "case-1ey0oyv",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "consumer": "condition.cpp set_has_item's lambda (the u_has_item/npc_has_item dialogue/condition predicate) asking 'does the avatar possess a knife_combat?'",
+  "class": "C",
+  "scope": "only the character's own carried items (wielded/worn/inventory on-person), as charges_of + has_amount evaluate over the actor itself",
+  "decisive_source": "src/condition.cpp::conditional_t<T>::set_has_item — returns actor->charges_of(item_id) > 0 || actor->has_amount(item_id, 1), the engine-computed yes/no possession predicate over the character actor",
+  "divergence": "avatar holds the knife_combat inside a closed non-gun/non-magazine container in inventory: has_amount/charges_of (via visit_items) descends into container contents and returns true, but a shortcut that only scanned top-level wielded/worn/inventory entries (or the flat carried_items array) would wrongly report not-carrying",
+  "support_disposition": "n/a"
+}

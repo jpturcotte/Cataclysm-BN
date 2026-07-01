@@ -1,1 +1,12 @@
-{"case_id":"case-xrqkyj","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"An offline combat-log analysis script that asks 'what is each monster's true raw current HP integer right now?'","class":"S","scope":"Per-entity raw authoritative HP for each nearby monster, independent of visibility/seen-state or any display filtering","decisive_source":"src/arcopolis_export.cpp::write_entities(monsters) writes mon.get_hp()/get_hp_max() straight from the engine getters, reading the raw world-state HP integer rather than a computed predicate or display view","divergence":"A monster currently out of the player's line of sight (unseen) but actively losing HP from a fire/bleed field: raw state still reports its true decremented HP, whereas a display/observability proxy (what the GUI last remembered) would lag and report a stale value","support_disposition":"n/a"}
+{
+  "case_id": "case-xrqkyj",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "An offline combat-log analysis script that asks 'what is each monster's true raw current HP integer right now?'",
+  "class": "S",
+  "scope": "Per-entity raw authoritative HP for each nearby monster, independent of visibility/seen-state or any display filtering",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities(monsters) writes mon.get_hp()/get_hp_max() straight from the engine getters, reading the raw world-state HP integer rather than a computed predicate or display view",
+  "divergence": "A monster currently out of the player's line of sight (unseen) but actively losing HP from a fire/bleed field: raw state still reports its true decremented HP, whereas a display/observability proxy (what the GUI last remembered) would lag and report a stale value",
+  "support_disposition": "n/a"
+}

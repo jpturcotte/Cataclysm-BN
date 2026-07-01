@@ -1,1 +1,12 @@
-{"case_id":"case-1qdfptr","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"consumer":"game::handle_action's ACTION_MOVE_* dispatch site, which asks 'perform the registered east-move action and let the turn loop charge the tick' by calling avatar_action::move(u, m, dest_delta)","class":"A","scope":"the engine's own active input-dispatch path for the registered planar movement action (not an inventory or map reach)","decisive_source":"src/handle_action.cpp::game::handle_action (ACTION_MOVE_*) — its body consumes the registered movement action and calls avatar_action::move(u,m,dest_delta), performing the move so the turn loop owns the tick","divergence":"A wall (or other impassable terrain) one tile east: the real action returns moved==false and the avatar stays put having spent the keypress as the engine would, whereas a shortcut that directly writes avatar position east would place it inside the wall and skip the turn cost, exposing the wrong (non-action) authority","support_disposition":"supported"}
+{
+  "case_id": "case-1qdfptr",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "consumer": "game::handle_action's ACTION_MOVE_* dispatch site, which asks 'perform the registered east-move action and let the turn loop charge the tick' by calling avatar_action::move(u, m, dest_delta)",
+  "class": "A",
+  "scope": "the engine's own active input-dispatch path for the registered planar movement action (not an inventory or map reach)",
+  "decisive_source": "src/handle_action.cpp::game::handle_action (ACTION_MOVE_*) — its body consumes the registered movement action and calls avatar_action::move(u,m,dest_delta), performing the move so the turn loop owns the tick",
+  "divergence": "A wall (or other impassable terrain) one tile east: the real action returns moved==false and the avatar stays put having spent the keypress as the engine would, whereas a shortcut that directly writes avatar position east would place it inside the wall and skip the turn cost, exposing the wrong (non-action) authority",
+  "support_disposition": "supported"
+}

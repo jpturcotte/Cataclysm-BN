@@ -1,1 +1,12 @@
-{"case_id":"case-geq6mm","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The frontend map-view renderer, asking what terrain/furniture glyph the GUI would DISPLAY for each nearby tile including remembered out-of-LOS tiles.","class":"D","scope":"Per-tile displayed view over the nearby map region honoring tile memory/seen state (what the GUI would draw), not raw current world state.","decisive_source":"Standing-context class table (D vs S): D is the GUI's formatted/filtered view that may lag raw state, while write_tiles in src/arcopolis_export.cpp reads m.ter/m.furn, the raw authoritative S value.","divergence":"A tile the player previously saw as t_floor then left LOS, whose terrain changed out of view (e.g. smashed to t_floor_rubble); the map view should display the remembered t_floor, but raw m.ter reports t_floor_rubble.","support_disposition":"n/a"}
+{
+  "case_id": "case-geq6mm",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The frontend map-view renderer, asking what terrain/furniture glyph the GUI would DISPLAY for each nearby tile including remembered out-of-LOS tiles.",
+  "class": "D",
+  "scope": "Per-tile displayed view over the nearby map region honoring tile memory/seen state (what the GUI would draw), not raw current world state.",
+  "decisive_source": "Standing-context class table (D vs S): D is the GUI's formatted/filtered view that may lag raw state, while write_tiles in src/arcopolis_export.cpp reads m.ter/m.furn, the raw authoritative S value.",
+  "divergence": "A tile the player previously saw as t_floor then left LOS, whose terrain changed out of view (e.g. smashed to t_floor_rubble); the map view should display the remembered t_floor, but raw m.ter reports t_floor_rubble.",
+  "support_disposition": "n/a"
+}

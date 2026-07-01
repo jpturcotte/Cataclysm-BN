@@ -1,1 +1,12 @@
-{"case_id":"case-7cgxm","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The frontend's monster HP-bar renderer, which asks 'what color (green/yellow/red bracket) does the GUI paint this monster's HP bar?' — i.e. the engine's own display formatting of the HP ratio into a color bucket.","class":"D","scope":"The GUI's per-monster displayed HP-bar color/bracket as the engine would render it (the formatted, bucketed view), not the raw hp integers behind it.","decisive_source":"src/arcopolis_export.cpp::write_entities (monsters), which writes mon.get_hp()/get_hp_max() raw integers — raw simulation state (class S), leaving the engine's color-bucketing/get_hp_bar formatting unreproduced.","divergence":"A monster whose engine-rendered HP-bar color comes from the engine's own bucketing rules (e.g. a hallucination or a creature whose get_hp_bar thresholds round the displayed bracket differently than a naive frontend hp/hp_max ratio) — the raw integers yield a color that disagrees with the color the GUI would actually display.","support_disposition":"n/a"}
+{
+  "case_id": "case-7cgxm",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The frontend's monster HP-bar renderer, which asks 'what color (green/yellow/red bracket) does the GUI paint this monster's HP bar?' — i.e. the engine's own display formatting of the HP ratio into a color bucket.",
+  "class": "D",
+  "scope": "The GUI's per-monster displayed HP-bar color/bracket as the engine would render it (the formatted, bucketed view), not the raw hp integers behind it.",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities (monsters), which writes mon.get_hp()/get_hp_max() raw integers — raw simulation state (class S), leaving the engine's color-bucketing/get_hp_bar formatting unreproduced.",
+  "divergence": "A monster whose engine-rendered HP-bar color comes from the engine's own bucketing rules (e.g. a hallucination or a creature whose get_hp_bar thresholds round the displayed bracket differently than a naive frontend hp/hp_max ratio) — the raw integers yield a color that disagrees with the color the GUI would actually display.",
+  "support_disposition": "n/a"
+}

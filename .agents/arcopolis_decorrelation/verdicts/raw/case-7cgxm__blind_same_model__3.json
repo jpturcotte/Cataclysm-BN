@@ -1,1 +1,12 @@
-{"case_id":"case-7cgxm","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The GUI monster panel/sidebar that draws each visible monster's HP bar and asks 'what color band (green/yellow/red) should this bar display' from the hp/hp_max ratio.","class":"D","scope":"per-visible-monster display view: the engine's HP-fraction-to-color mapping for each monster the avatar can see, not raw integers and not a check","decisive_source":"src/arcopolis_export.cpp::write_entities — its body writes only raw mon.get_hp()/get_hp_max() integers (class S), so the GUI's green/yellow/red color-band mapping is NOT shown; the decisive color-banding routine (the display formatter that buckets the hp fraction into green/yellow/red) is absent from the excerpts and must be cited, not re-derived from a naive ratio.","divergence":"A monster whose hp/hp_max lands exactly on a band boundary (e.g. the GUI shows yellow at that fraction but a naive >2/3 green / >1/3 yellow cut from the raw integers shows green): the raw-integer reconstruction colors the bar wrong while the engine's display mapping colors it correctly.","support_disposition":"n/a"}
+{
+  "case_id": "case-7cgxm",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The GUI monster panel/sidebar that draws each visible monster's HP bar and asks 'what color band (green/yellow/red) should this bar display' from the hp/hp_max ratio.",
+  "class": "D",
+  "scope": "per-visible-monster display view: the engine's HP-fraction-to-color mapping for each monster the avatar can see, not raw integers and not a check",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities — its body writes only raw mon.get_hp()/get_hp_max() integers (class S), so the GUI's green/yellow/red color-band mapping is NOT shown; the decisive color-banding routine (the display formatter that buckets the hp fraction into green/yellow/red) is absent from the excerpts and must be cited, not re-derived from a naive ratio.",
+  "divergence": "A monster whose hp/hp_max lands exactly on a band boundary (e.g. the GUI shows yellow at that fraction but a naive >2/3 green / >1/3 yellow cut from the raw integers shows green): the raw-integer reconstruction colors the bar wrong while the engine's display mapping colors it correctly.",
+  "support_disposition": "n/a"
+}

@@ -1,1 +1,12 @@
-{"case_id":"case-1r45g8y","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The frontend map renderer painting each nearby tile, asking 'which item stack lies on the ground at this tile so I can draw it?'","class":"S","scope":"ground-item stacks across the nearby tile region around the avatar (a map region), NOT the character's own carried inventory","decisive_source":"src/arcopolis_export.cpp::write_entities(items) iterates map::i_at(p) over tiles in radius and serializes the raw ground-item stack (type_id, charges, count) per tile — raw authoritative world state, not a display-filtered or memory-shaded view","divergence":"Drop a knife on a nearby ground tile while the avatar carries no knife: map::i_at(tile) holds it, but the inventory predicates of Excerpts 2/3 (crafting_inventory / actor->has_amount) report absent — so an inventory-reach answer omits the on-ground item the frontend must paint","support_disposition":"n/a"}
+{
+  "case_id": "case-1r45g8y",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The frontend map renderer painting each nearby tile, asking 'which item stack lies on the ground at this tile so I can draw it?'",
+  "class": "S",
+  "scope": "ground-item stacks across the nearby tile region around the avatar (a map region), NOT the character's own carried inventory",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities(items) iterates map::i_at(p) over tiles in radius and serializes the raw ground-item stack (type_id, charges, count) per tile — raw authoritative world state, not a display-filtered or memory-shaded view",
+  "divergence": "Drop a knife on a nearby ground tile while the avatar carries no knife: map::i_at(tile) holds it, but the inventory predicates of Excerpts 2/3 (crafting_inventory / actor->has_amount) report absent — so an inventory-reach answer omits the on-ground item the frontend must paint",
+  "support_disposition": "n/a"
+}

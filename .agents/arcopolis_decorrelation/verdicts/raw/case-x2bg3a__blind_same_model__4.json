@@ -1,1 +1,12 @@
-{"case_id":"case-x2bg3a","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"The frontend status panel reads the snapshot's stamina/pain scalars to SHOW them to the player; no engine condition/mission/dialogue check consumes these for a yes/no.","class":"D","scope":"only the avatar's own status scalars (stamina, pain) as the GUI would display them; not a predicate result and not a map region","decisive_source":"src/arcopolis_export.cpp::write_avatar (scalars) — writes ctx.u.get_stamina() and ctx.u.get_pain() straight from the engine getters into the snapshot JSON for the panel to render","divergence":"A character whose perceived/displayed pain differs from raw get_pain() (e.g. pain masked or capped for the status display, or a stale snapshot after a turn advance) — the panel would show a value diverging from what the real GUI presents, exposing a wrong authority","support_disposition":"n/a"}
+{
+  "case_id": "case-x2bg3a",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "The frontend status panel reads the snapshot's stamina/pain scalars to SHOW them to the player; no engine condition/mission/dialogue check consumes these for a yes/no.",
+  "class": "D",
+  "scope": "only the avatar's own status scalars (stamina, pain) as the GUI would display them; not a predicate result and not a map region",
+  "decisive_source": "src/arcopolis_export.cpp::write_avatar (scalars) — writes ctx.u.get_stamina() and ctx.u.get_pain() straight from the engine getters into the snapshot JSON for the panel to render",
+  "divergence": "A character whose perceived/displayed pain differs from raw get_pain() (e.g. pain masked or capped for the status display, or a stale snapshot after a turn advance) — the panel would show a value diverging from what the real GUI presents, exposing a wrong authority",
+  "support_disposition": "n/a"
+}

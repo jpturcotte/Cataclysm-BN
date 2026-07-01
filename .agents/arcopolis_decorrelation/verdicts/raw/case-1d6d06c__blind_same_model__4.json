@@ -1,1 +1,12 @@
-{"case_id":"case-1d6d06c","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"mission::is_complete (MGOAL_FIND_ITEM) asking 'does crafting_inventory hold >=20 scrap?' to decide if the find-item objective is satisfied","class":"C","scope":"items reachable nearby for crafting (the character's carried items plus surrounding craftable reach via crafting_inventory), not only carried items","decisive_source":"src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — tallies u.crafting_inventory().has_amount(scrap,20) and returns whether the count reaches the required amount","divergence":"Avatar carries 15 scrap and has 10 more scrap reachable nearby (ground/adjacent vehicle within crafting reach): the correct craft-here predicate sees 25 (>=20) and reports complete, while a wrong on-person-only predicate sees 15 and reports incomplete","support_disposition":"n/a"}
+{
+  "case_id": "case-1d6d06c",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "mission::is_complete (MGOAL_FIND_ITEM) asking 'does crafting_inventory hold >=20 scrap?' to decide if the find-item objective is satisfied",
+  "class": "C",
+  "scope": "items reachable nearby for crafting (the character's carried items plus surrounding craftable reach via crafting_inventory), not only carried items",
+  "decisive_source": "src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — tallies u.crafting_inventory().has_amount(scrap,20) and returns whether the count reaches the required amount",
+  "divergence": "Avatar carries 15 scrap and has 10 more scrap reachable nearby (ground/adjacent vehicle within crafting reach): the correct craft-here predicate sees 25 (>=20) and reports complete, while a wrong on-person-only predicate sees 15 and reports incomplete",
+  "support_disposition": "n/a"
+}

@@ -1,1 +1,12 @@
-{"case_id":"case-1n8z9yn","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"The dialogue/condition has_items check (conditional_t::set_has_items lambda) asking 'is the avatar carrying the contraband item?' for the border guard's search","class":"C","scope":"only the character's own carried items (on-person possession), as the engine's has_charges/has_amount predicate computes it","decisive_source":"src/condition.cpp::conditional_t<T>::set_has_items — its lambda returns actor->has_charges(item_id,count) || actor->has_amount(item_id,count) over the character actor, the engine-computed possession verdict the guard's check consumes","divergence":"Contraband stashed inside a carried gun or magazine: the engine possession predicate counts it as carried, but a re-derivation from the avatar.carried_items[] snapshot misses it because visit_internal stops descending into gun/magazine contents, so the snapshot-derived answer says 'not carrying' while the truth is 'carrying'","support_disposition":"n/a"}
+{
+  "case_id": "case-1n8z9yn",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "The dialogue/condition has_items check (conditional_t::set_has_items lambda) asking 'is the avatar carrying the contraband item?' for the border guard's search",
+  "class": "C",
+  "scope": "only the character's own carried items (on-person possession), as the engine's has_charges/has_amount predicate computes it",
+  "decisive_source": "src/condition.cpp::conditional_t<T>::set_has_items — its lambda returns actor->has_charges(item_id,count) || actor->has_amount(item_id,count) over the character actor, the engine-computed possession verdict the guard's check consumes",
+  "divergence": "Contraband stashed inside a carried gun or magazine: the engine possession predicate counts it as carried, but a re-derivation from the avatar.carried_items[] snapshot misses it because visit_internal stops descending into gun/magazine contents, so the snapshot-derived answer says 'not carrying' while the truth is 'carrying'",
+  "support_disposition": "n/a"
+}

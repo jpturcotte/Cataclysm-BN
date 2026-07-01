@@ -1,1 +1,12 @@
-{"case_id":"case-1quh3hf","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The salvage contract's mission/condition completion check asking 'is all the required scrap gathered yet?'","class":"C","scope":"The engine's charge-aware item count over the contract's required scope (the reachable/required inventory it counts, e.g. player inventory plus the delivery zone), not just nearby map tiles","decisive_source":"src/arcopolis_export.cpp::write_entities(items) — it serializes raw map::i_at(p) ground-item stacks for tiles inside the export window, exposing partial simulation state (S) rather than computing the contract's completion predicate","divergence":"The required scrap is in the player's backpack (or a container/just outside the export radius): the contract is actually complete, but the tile-stack snapshot reports no loose scrap on the ground and the UI shows it as not-there-yet (and count_by_charges/stacking differences mis-tally partial-charge scrap)","support_disposition":"n/a"}
+{
+  "case_id": "case-1quh3hf",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The salvage contract's mission/condition completion check asking 'is all the required scrap gathered yet?'",
+  "class": "C",
+  "scope": "The engine's charge-aware item count over the contract's required scope (the reachable/required inventory it counts, e.g. player inventory plus the delivery zone), not just nearby map tiles",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities(items) — it serializes raw map::i_at(p) ground-item stacks for tiles inside the export window, exposing partial simulation state (S) rather than computing the contract's completion predicate",
+  "divergence": "The required scrap is in the player's backpack (or a container/just outside the export radius): the contract is actually complete, but the tile-stack snapshot reports no loose scrap on the ground and the UI shows it as not-there-yet (and count_by_charges/stacking differences mis-tally partial-charge scrap)",
+  "support_disposition": "n/a"
+}

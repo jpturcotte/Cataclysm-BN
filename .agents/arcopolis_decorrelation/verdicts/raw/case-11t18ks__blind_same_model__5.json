@@ -1,1 +1,12 @@
-{"case_id":"case-11t18ks","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"consumer":"The dialogue/condition evaluator built by set_has_item (u_has_item/npc_has_item), which asks the yes/no question: does the character actor possess at least one c4?","class":"C","scope":"only the character's own carried items (on-person possession, the actor's charges_of/has_amount reach)","decisive_source":"src/condition.cpp::conditional_t<T>::set_has_item — its body returns the engine-computed boolean actor->charges_of(item_id) > 0 || actor->has_amount(item_id, 1), the possession predicate a dialogue/mission condition consumes","divergence":"A c4 brick lying on the ground at the avatar's feet (or in an adjacent vehicle/container), not carried: the engine's u_has_item returns false, but a backend that re-derives possession over nearby/reachable items would wrongly return true","support_disposition":"n/a"}
+{
+  "case_id": "case-11t18ks",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "consumer": "The dialogue/condition evaluator built by set_has_item (u_has_item/npc_has_item), which asks the yes/no question: does the character actor possess at least one c4?",
+  "class": "C",
+  "scope": "only the character's own carried items (on-person possession, the actor's charges_of/has_amount reach)",
+  "decisive_source": "src/condition.cpp::conditional_t<T>::set_has_item — its body returns the engine-computed boolean actor->charges_of(item_id) > 0 || actor->has_amount(item_id, 1), the possession predicate a dialogue/mission condition consumes",
+  "divergence": "A c4 brick lying on the ground at the avatar's feet (or in an adjacent vehicle/container), not carried: the engine's u_has_item returns false, but a backend that re-derives possession over nearby/reachable items would wrongly return true",
+  "support_disposition": "n/a"
+}

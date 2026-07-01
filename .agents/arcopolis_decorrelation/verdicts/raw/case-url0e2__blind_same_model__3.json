@@ -1,1 +1,12 @@
-{"case_id":"case-url0e2","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"mission::is_complete for an MGOAL_FIND_ITEM delivery quest, asking the yes/no question 'does the player possess the required quantity of type->item_id?' which the engine evaluates to gate quest completion.","class":"C","scope":"items reachable via crafting_inventory() (the character's carried items plus nearby/adjacent reachable items the engine counts toward the requirement), not only the character's own carried items.","decisive_source":"src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — its body builds u.crafting_inventory() and tests tmp_inv.has_amount/has_charges(type->item_id, item_count) to compute the completion predicate.","divergence":"The required item sits on the ground in an adjacent reachable tile (not carried): crafting_inventory() counts it so is_complete returns true, but a carried-items-only answer (Excerpt 3 scope) reports the requirement unsatisfied — exposing both a wrong class and a too-narrow reach.","support_disposition":"n/a"}
+{
+  "case_id": "case-url0e2",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "mission::is_complete for an MGOAL_FIND_ITEM delivery quest, asking the yes/no question 'does the player possess the required quantity of type->item_id?' which the engine evaluates to gate quest completion.",
+  "class": "C",
+  "scope": "items reachable via crafting_inventory() (the character's carried items plus nearby/adjacent reachable items the engine counts toward the requirement), not only the character's own carried items.",
+  "decisive_source": "src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — its body builds u.crafting_inventory() and tests tmp_inv.has_amount/has_charges(type->item_id, item_count) to compute the completion predicate.",
+  "divergence": "The required item sits on the ground in an adjacent reachable tile (not carried): crafting_inventory() counts it so is_complete returns true, but a carried-items-only answer (Excerpt 3 scope) reports the requirement unsatisfied — exposing both a wrong class and a too-narrow reach.",
+  "support_disposition": "n/a"
+}

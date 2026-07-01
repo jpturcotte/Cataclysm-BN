@@ -1,1 +1,12 @@
-{"case_id":"case-1ey0oyv","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"A dialogue/mission possession check (e.g. u_has_item for knife_combat) asking 'does the avatar possess this itype?'","class":"C","scope":"The engine's possession reach over the avatar's inventory including items nested inside containers/holsters, matching the has_item predicate's own recursion","decisive_source":"src/arcopolis_export.cpp::write_carried_items, which iterates wielded_items()/worn/inv_const_slice() and emits each item's type_id, re-deriving possession from a partial flat view instead of calling the engine's possession predicate","divergence":"A knife_combat stored inside a worn sheath/holster or a backpack container: the engine possession check recurses into containers and returns true, but the flat top-level iteration here misses the nested item and reports the avatar is not carrying it","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-1ey0oyv",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "A dialogue/mission possession check (e.g. u_has_item for knife_combat) asking 'does the avatar possess this itype?'",
+  "class": "C",
+  "scope": "The engine's possession reach over the avatar's inventory including items nested inside containers/holsters, matching the has_item predicate's own recursion",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items, which iterates wielded_items()/worn/inv_const_slice() and emits each item's type_id, re-deriving possession from a partial flat view instead of calling the engine's possession predicate",
+  "divergence": "A knife_combat stored inside a worn sheath/holster or a backpack container: the engine possession check recurses into containers and returns true, but the flat top-level iteration here misses the nested item and reports the avatar is not carrying it",
+  "support_disposition": "unsupported/fail-loud"
+}

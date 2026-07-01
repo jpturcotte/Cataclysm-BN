@@ -1,1 +1,12 @@
-{"case_id":"case-1quh3hf","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"mission::is_complete (MGOAL_FIND_ITEM) asking 'does the player's crafting_inventory hold the required count of the scrap itype?' to mark the salvage contract objective complete","class":"C","scope":"items reachable via crafting_inventory (carried plus nearby reachable/adjacent-container items), not on-person only and not a raw map-tile listing","decisive_source":"src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) -- calls u.crafting_inventory().has_amount(item_id,item_count) with a has_charges fallback and returns the engine's completion verdict","divergence":"Required scrap sits in the player's worn/carried inventory or a reachable adjacent container but not loose on a nearby map tile: crafting_inventory().has_amount returns complete, yet re-deriving from the tile-stack item export (write_entities) sees zero on the ground and wrongly reports 'not all there yet'; conversely loose scrap on a tile outside crafting reach would be wrongly counted present","support_disposition":"n/a"}
+{
+  "case_id": "case-1quh3hf",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "mission::is_complete (MGOAL_FIND_ITEM) asking 'does the player's crafting_inventory hold the required count of the scrap itype?' to mark the salvage contract objective complete",
+  "class": "C",
+  "scope": "items reachable via crafting_inventory (carried plus nearby reachable/adjacent-container items), not on-person only and not a raw map-tile listing",
+  "decisive_source": "src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) -- calls u.crafting_inventory().has_amount(item_id,item_count) with a has_charges fallback and returns the engine's completion verdict",
+  "divergence": "Required scrap sits in the player's worn/carried inventory or a reachable adjacent container but not loose on a nearby map tile: crafting_inventory().has_amount returns complete, yet re-deriving from the tile-stack item export (write_entities) sees zero on the ground and wrongly reports 'not all there yet'; conversely loose scrap on a tile outside crafting reach would be wrongly counted present",
+  "support_disposition": "n/a"
+}

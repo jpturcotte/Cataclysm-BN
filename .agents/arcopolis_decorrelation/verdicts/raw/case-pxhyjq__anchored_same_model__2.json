@@ -1,1 +1,12 @@
-{"case_id":"case-pxhyjq","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"A detection/targeting check asking 'can the avatar currently SEE this specific monster?' — the engine's per-creature sight predicate (e.g. Character::sees(const Creature&)) over LOS and sight range","class":"C","scope":"per-monster visibility: the avatar's own LOS plus light/sight-range to that monster's tile, not a spatial bounding box","decisive_source":"src/arcopolis_export.cpp::write_entities — it emits monsters from g->all_monsters() filtered only by in_export_window (a spatial window around the avatar), writing raw pos/hp/type with no LOS or sight computation","divergence":"A monster standing inside the export window but behind a wall (or in darkness / beyond the avatar's sight range): it appears in entities.monsters[] and is treated as seen, yet Character::sees() returns false — the surface over-reports visibility","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-pxhyjq",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "A detection/targeting check asking 'can the avatar currently SEE this specific monster?' — the engine's per-creature sight predicate (e.g. Character::sees(const Creature&)) over LOS and sight range",
+  "class": "C",
+  "scope": "per-monster visibility: the avatar's own LOS plus light/sight-range to that monster's tile, not a spatial bounding box",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities — it emits monsters from g->all_monsters() filtered only by in_export_window (a spatial window around the avatar), writing raw pos/hp/type with no LOS or sight computation",
+  "divergence": "A monster standing inside the export window but behind a wall (or in darkness / beyond the avatar's sight range): it appears in entities.monsters[] and is treated as seen, yet Character::sees() returns false — the surface over-reports visibility",
+  "support_disposition": "unsupported/fail-loud"
+}

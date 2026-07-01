@@ -1,1 +1,12 @@
-{"case_id":"case-1x3l7p3","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"An engine-computed possession check (a dialogue/mission has_item/has_amount-style predicate) asking 'does the avatar possess a working multitool?'","class":"C","scope":"The full carried/reachable inventory the engine possession predicate searches, including nested container contents and a 'working' (functional/charged) condition, not just top-level stacks","decisive_source":"src/arcopolis_export.cpp::write_carried_items iterates only ctx.u.wielded_items(), ctx.u.worn, and ctx.u.inv_const_slice() top-level stacks and emits raw item fields; it never calls an engine possession predicate and never recurses into container contents","divergence":"A multitool nested inside a backpack pocket: the engine possession check returns true, but the top-level inv_const_slice() enumeration omits the nested item, so the snapshot wrongly reports 'not carried' (also a depleted/broken multitool would be listed as present though not working)","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-1x3l7p3",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "An engine-computed possession check (a dialogue/mission has_item/has_amount-style predicate) asking 'does the avatar possess a working multitool?'",
+  "class": "C",
+  "scope": "The full carried/reachable inventory the engine possession predicate searches, including nested container contents and a 'working' (functional/charged) condition, not just top-level stacks",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items iterates only ctx.u.wielded_items(), ctx.u.worn, and ctx.u.inv_const_slice() top-level stacks and emits raw item fields; it never calls an engine possession predicate and never recurses into container contents",
+  "divergence": "A multitool nested inside a backpack pocket: the engine possession check returns true, but the top-level inv_const_slice() enumeration omits the nested item, so the snapshot wrongly reports 'not carried' (also a depleted/broken multitool would be listed as present though not working)",
+  "support_disposition": "unsupported/fail-loud"
+}

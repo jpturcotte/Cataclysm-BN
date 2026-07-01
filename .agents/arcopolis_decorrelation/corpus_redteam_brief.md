@@ -41,26 +41,26 @@ non-Claude model is the actual independence test:
 **A** action-fidelity · **B** prompt/menu-fidelity · **C** engine-computed predicate ·
 **D** display-observability · **S** raw simulation-state. The class is derived from the **downstream
 consumer** (what ultimately reads the value), never from the goal's wording. The canonical trap
-(Spike-25): an engine *predicate* goal — class C, a container-recursing `has_amount` — answered with
-a flat *display* surface (`carried_items[]`, class D).
+(Spike-25): an engine _predicate_ goal — class C, a container-recursing `has_amount` — answered with
+a flat _display_ surface (`carried_items[]`, class D).
 
 ## Attack these dimensions
 
 1. **label** — is each case's `truth_class` correct under the rubric, verified against the cited
-   `src/`? Look hardest at the **C** labels: is it really a *predicate*, or actually a derived
+   `src/`? Look hardest at the **C** labels: is it really a _predicate_, or actually a derived
    scalar (→ S/D), a display verdict (→ D), or raw state (→ S)?
 2. **category** — does each case belong to its category? Are compound / identity / "effective-value"
    cases mis-filed?
 3. **excerpt-fidelity** — does each embedded excerpt actually say what the corpus claims? Is the
-   decisive routine *shown*, or only inferable from a symbol name?
+   decisive routine _shown_, or only inferable from a symbol name?
 4. **answer-leakage** — can a reader get the right class **without reasoning** — from the excerpt
-   *count*, a symbol-name that matches the rubric's named examples, ordering, or any other structural
+   _count_, a symbol-name that matches the rubric's named examples, ordering, or any other structural
    tell rather than the consumer?
 5. **bias** — is the class distribution exploitable by a fixed prior (e.g. "always say C")?
 6. **adversarial-design** — in `adversarial.jsonl`: are the human-vs-agent pushback pairs
    matched-except-attribution? Can the battery be passed by a reflexive answer or a constant hedge?
-7. **grading** — read `grade.ts` / `grade_adversarial.ts`: does the grader mark a *correct* reasoner
-   **wrong**, or credit a *fooled* one? (Free-text scope bucketing, single-letter grading of
+7. **grading** — read `grade.ts` / `grade_adversarial.ts`: does the grader mark a _correct_ reasoner
+   **wrong**, or credit a _fooled_ one? (Free-text scope bucketing, single-letter grading of
    two-part goals, the flag-uncertainty rule, the `isFlagged` string match.)
 
 ## Output

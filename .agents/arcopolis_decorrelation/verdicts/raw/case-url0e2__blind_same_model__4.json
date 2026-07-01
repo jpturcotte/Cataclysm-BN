@@ -1,1 +1,12 @@
-{"case_id":"case-url0e2","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"mission::is_complete for MGOAL_FIND_ITEM, asking the yes/no 'is the delivery quest's item requirement satisfied?' that gates quest completion","class":"C","scope":"items reachable for the find-item objective via crafting_inventory() (own carried items PLUS nearby/reachable items), not just the character's own carried items","decisive_source":"src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — evaluates the requirement by calling u.crafting_inventory() and testing has_amount/has_charges(type->item_id, item_count), returning the engine-computed yes/no","divergence":"The required item sits on the ground or in a nearby vehicle within crafting reach but is NOT carried: crafting_inventory() counts it so the quest IS satisfied, whereas a carried-items-only answer (avatar.carried_items[] from write_carried_items) reports unsatisfied — wrong reach exposed","support_disposition":"n/a"}
+{
+  "case_id": "case-url0e2",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "mission::is_complete for MGOAL_FIND_ITEM, asking the yes/no 'is the delivery quest's item requirement satisfied?' that gates quest completion",
+  "class": "C",
+  "scope": "items reachable for the find-item objective via crafting_inventory() (own carried items PLUS nearby/reachable items), not just the character's own carried items",
+  "decisive_source": "src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — evaluates the requirement by calling u.crafting_inventory() and testing has_amount/has_charges(type->item_id, item_count), returning the engine-computed yes/no",
+  "divergence": "The required item sits on the ground or in a nearby vehicle within crafting reach but is NOT carried: crafting_inventory() counts it so the quest IS satisfied, whereas a carried-items-only answer (avatar.carried_items[] from write_carried_items) reports unsatisfied — wrong reach exposed",
+  "support_disposition": "n/a"
+}

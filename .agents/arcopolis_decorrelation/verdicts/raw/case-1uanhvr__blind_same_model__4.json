@@ -1,1 +1,12 @@
-{"case_id":"case-1uanhvr","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"src/pickup.cpp::handle_problematic_pickup, which presents a Wear/Wield/Empty/Skip uilist and reads the player's selection via amenu.query() to perform the chosen disposition of the too-heavy item","class":"B","scope":"only the single problematic picked-up item, dispositioned for the player's own character via the active input loop","decisive_source":"src/pickup.cpp::handle_problematic_pickup — builds a uilist (Wear if armor, Wield, Empty if has children) and calls amenu.query(), returning the player's chosen pickup_answer that the engine then acts on","divergence":"A too-heavy item is armor; a silent default selects WIELD (disposing the currently wielded weapon) while the player would have chosen WEAR or to skip — the menu answer diverges from any default/no-op, breaking gameplay","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-1uanhvr",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "src/pickup.cpp::handle_problematic_pickup, which presents a Wear/Wield/Empty/Skip uilist and reads the player's selection via amenu.query() to perform the chosen disposition of the too-heavy item",
+  "class": "B",
+  "scope": "only the single problematic picked-up item, dispositioned for the player's own character via the active input loop",
+  "decisive_source": "src/pickup.cpp::handle_problematic_pickup — builds a uilist (Wear if armor, Wield, Empty if has children) and calls amenu.query(), returning the player's chosen pickup_answer that the engine then acts on",
+  "divergence": "A too-heavy item is armor; a silent default selects WIELD (disposing the currently wielded weapon) while the player would have chosen WEAR or to skip — the menu answer diverges from any default/no-op, breaking gameplay",
+  "support_disposition": "unsupported/fail-loud"
+}

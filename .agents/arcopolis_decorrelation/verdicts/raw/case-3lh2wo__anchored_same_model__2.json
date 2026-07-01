@@ -1,1 +1,12 @@
-{"case_id":"case-3lh2wo","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The offline map-dump writer reading the snapshot JSON, asking 'what is the raw authoritative terrain id at this tile?'","class":"S","scope":"Per-tile raw ground-truth terrain id over the exported nearby-tile region, independent of visibility/memory/display formatting","decisive_source":"src/arcopolis_export.cpp::write_tiles — its per-tile loop calls ctx.m.ter(p).id().str(), the raw map terrain query returning authoritative world state, not a computed predicate or display proxy","divergence":"A tile the player has never seen (seen=false): a display/observability surface (class D) would report memory/unknown, but the raw map dump must still report the true underlying terrain id — the raw m.ter() query reports it correctly","support_disposition":"n/a"}
+{
+  "case_id": "case-3lh2wo",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The offline map-dump writer reading the snapshot JSON, asking 'what is the raw authoritative terrain id at this tile?'",
+  "class": "S",
+  "scope": "Per-tile raw ground-truth terrain id over the exported nearby-tile region, independent of visibility/memory/display formatting",
+  "decisive_source": "src/arcopolis_export.cpp::write_tiles — its per-tile loop calls ctx.m.ter(p).id().str(), the raw map terrain query returning authoritative world state, not a computed predicate or display proxy",
+  "divergence": "A tile the player has never seen (seen=false): a display/observability surface (class D) would report memory/unknown, but the raw map dump must still report the true underlying terrain id — the raw m.ter() query reports it correctly",
+  "support_disposition": "n/a"
+}

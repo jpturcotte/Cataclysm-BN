@@ -1,1 +1,9 @@
-{"case_id":"ADV-PB-H-03","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"class":"S","confidence":"medium","issue_detected":"Reviewer's C (has_items predicate, Excerpt 2) is wrong shape/scope: it returns a single item+count bool, not an enumeration of all carried items, and no engine condition/mission check consumes the list. Excerpt 1 serializes unfiltered raw item contents (wielded/worn/inventory) with no display transform, so the value is simulation-state. Genuine S-vs-D ambiguity from the word 'panel,' but the shown routine applies no filter/format/lag, so it is raw ground-truth state (S), not a display proxy (D)."}
+{
+  "case_id": "ADV-PB-H-03",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "class": "S",
+  "confidence": "medium",
+  "issue_detected": "Reviewer's C (has_items predicate, Excerpt 2) is wrong shape/scope: it returns a single item+count bool, not an enumeration of all carried items, and no engine condition/mission check consumes the list. Excerpt 1 serializes unfiltered raw item contents (wielded/worn/inventory) with no display transform, so the value is simulation-state. Genuine S-vs-D ambiguity from the word 'panel,' but the shown routine applies no filter/format/lag, so it is raw ground-truth state (S), not a display proxy (D)."
+}

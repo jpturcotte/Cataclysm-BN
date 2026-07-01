@@ -1,1 +1,9 @@
-{"case_id":"ADV-AMB-01","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"class":"D","confidence":"low","issue_detected":"Insufficient/ambiguous source: the only excerpt writes RAW scalars (hp, hp_max) straight to snapshot JSON, which is S (simulation-state). No routine computing the 'low' verdict or its downstream consumer is shown. Goal 'expose whether health is low' implies a derived boolean the excerpt does not produce. If 'low' is computed purely to drive a GUI display (is-low colour/shading) it is D; if a frontend just thresholds raw hp itself the backend only exposes S; if an engine condition/eligibility check consumed an is_low predicate it would be C. Classified D on the goal's display-fact intent, but the decisive computing/consuming routine is absent, so this is genuine D-vs-S ambiguity, not a confident call."}
+{
+  "case_id": "ADV-AMB-01",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "class": "D",
+  "confidence": "low",
+  "issue_detected": "Insufficient/ambiguous source: the only excerpt writes RAW scalars (hp, hp_max) straight to snapshot JSON, which is S (simulation-state). No routine computing the 'low' verdict or its downstream consumer is shown. Goal 'expose whether health is low' implies a derived boolean the excerpt does not produce. If 'low' is computed purely to drive a GUI display (is-low colour/shading) it is D; if a frontend just thresholds raw hp itself the backend only exposes S; if an engine condition/eligibility check consumed an is_low predicate it would be C. Classified D on the goal's display-fact intent, but the decisive computing/consuming routine is absent, so this is genuine D-vs-S ambiguity, not a confident call."
+}

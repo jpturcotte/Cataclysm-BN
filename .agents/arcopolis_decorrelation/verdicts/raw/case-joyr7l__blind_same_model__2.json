@@ -1,1 +1,12 @@
-{"case_id":"case-joyr7l","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"consumer":"mission::is_complete for MGOAL_FIND_ITEM, asking yes/no: does the player's crafting_inventory hold item_count of type->item_id, so the fetch mission counts as complete?","class":"C","scope":"items reachable via the player's crafting_inventory() (carried PLUS nearby reachable surroundings), not merely the character's own carried/on-person items","decisive_source":"src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — builds tmp_inv = u.crafting_inventory() and returns whether it has_amount(item_id, item_count) (with a charges fallback), computing the mission-complete verdict","divergence":"The required part lies on the ground (or in a vehicle) one tile away, within crafting reach but not worn/wielded/in inventory: crafting_inventory() includes it so is_complete returns true, while an on-person possession check (visit_items / actor->has_amount in Excerpts 1-2) returns false — proving a person-scoped possession authority is the wrong reach","support_disposition":"n/a"}
+{
+  "case_id": "case-joyr7l",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "mission::is_complete for MGOAL_FIND_ITEM, asking yes/no: does the player's crafting_inventory hold item_count of type->item_id, so the fetch mission counts as complete?",
+  "class": "C",
+  "scope": "items reachable via the player's crafting_inventory() (carried PLUS nearby reachable surroundings), not merely the character's own carried/on-person items",
+  "decisive_source": "src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — builds tmp_inv = u.crafting_inventory() and returns whether it has_amount(item_id, item_count) (with a charges fallback), computing the mission-complete verdict",
+  "divergence": "The required part lies on the ground (or in a vehicle) one tile away, within crafting reach but not worn/wielded/in inventory: crafting_inventory() includes it so is_complete returns true, while an on-person possession check (visit_items / actor->has_amount in Excerpts 1-2) returns false — proving a person-scoped possession authority is the wrong reach",
+  "support_disposition": "n/a"
+}

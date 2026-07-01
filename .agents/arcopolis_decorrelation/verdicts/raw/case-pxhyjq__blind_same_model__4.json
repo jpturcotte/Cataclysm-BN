@@ -1,1 +1,12 @@
-{"case_id":"case-pxhyjq","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"The engine's detection/targeting eligibility logic asking 'can the avatar see this specific monster right now?', i.e. g->u.sees(mon) used to decide whether the monster is a valid detected/targetable creature.","class":"C","scope":"The avatar-versus-this-one-monster pair evaluated against the live map (LOS, light, range, concealment along the line between them) — not a window-filtered position snapshot.","decisive_source":"src/creature.cpp::Creature::sees — computes a boolean by checking hallucination/dimension, range, light, line-of-sight via map::sees, and concealment/crouch/hide coverage, returning the engine's authoritative can-see verdict.","divergence":"A monster inside the export window at close range but standing behind an opaque wall (or in darkness, or crouched-hidden): raw exported position says 'present', but Creature::sees returns false; re-deriving visibility from the exported position alone would falsely report it as seen.","support_disposition":"n/a"}
+{
+  "case_id": "case-pxhyjq",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "The engine's detection/targeting eligibility logic asking 'can the avatar see this specific monster right now?', i.e. g->u.sees(mon) used to decide whether the monster is a valid detected/targetable creature.",
+  "class": "C",
+  "scope": "The avatar-versus-this-one-monster pair evaluated against the live map (LOS, light, range, concealment along the line between them) — not a window-filtered position snapshot.",
+  "decisive_source": "src/creature.cpp::Creature::sees — computes a boolean by checking hallucination/dimension, range, light, line-of-sight via map::sees, and concealment/crouch/hide coverage, returning the engine's authoritative can-see verdict.",
+  "divergence": "A monster inside the export window at close range but standing behind an opaque wall (or in darkness, or crouched-hidden): raw exported position says 'present', but Creature::sees returns false; re-deriving visibility from the exported position alone would falsely report it as seen.",
+  "support_disposition": "n/a"
+}

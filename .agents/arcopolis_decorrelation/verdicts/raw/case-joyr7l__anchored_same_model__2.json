@@ -1,1 +1,12 @@
-{"case_id":"case-joyr7l","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The mission/dialogue completion check that asks 'is this fetch mission's turn-in condition satisfied — does the player have the required part to return to the contact?'","class":"C","scope":"The mission's own completion reach for the required item (the mission-tracked has-item predicate), not merely the on-person/charges inventory of one actor","decisive_source":"src/condition.cpp::conditional_t<T>::set_has_items — builds a dialogue condition lambda returning actor->has_charges(item_id,count) || actor->has_amount(item_id,count) over d.alpha/d.beta, i.e. an on-person possession check of a single character actor","divergence":"The required part sits in a crate or adjacent vehicle within the mission's reachable scope but not carried on the player's person: the engine's mission-completion predicate counts it as obtained, while has_charges||has_amount over the character actor returns false — so the proposed surface reports the fetch mission incomplete when the engine considers it complete (and symmetrically can over-credit a generic-item match versus a mission-bound instance)","support_disposition":"n/a"}
+{
+  "case_id": "case-joyr7l",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The mission/dialogue completion check that asks 'is this fetch mission's turn-in condition satisfied — does the player have the required part to return to the contact?'",
+  "class": "C",
+  "scope": "The mission's own completion reach for the required item (the mission-tracked has-item predicate), not merely the on-person/charges inventory of one actor",
+  "decisive_source": "src/condition.cpp::conditional_t<T>::set_has_items — builds a dialogue condition lambda returning actor->has_charges(item_id,count) || actor->has_amount(item_id,count) over d.alpha/d.beta, i.e. an on-person possession check of a single character actor",
+  "divergence": "The required part sits in a crate or adjacent vehicle within the mission's reachable scope but not carried on the player's person: the engine's mission-completion predicate counts it as obtained, while has_charges||has_amount over the character actor returns false — so the proposed surface reports the fetch mission incomplete when the engine considers it complete (and symmetrically can over-credit a generic-item match versus a mission-bound instance)",
+  "support_disposition": "n/a"
+}

@@ -1,1 +1,12 @@
-{"case_id":"case-1x3l7p3","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"An engine possession/eligibility check asking 'does the avatar possess a working multitool?', e.g. a Character::has_amount / has_charges / dialogue possession check, not a raw item list reader.","class":"C","scope":"A possession predicate over the avatar's carried inventory that also honors the 'working' condition (sufficient charges / not broken), matching the goal's required reach rather than a flat enumeration.","decisive_source":"src/arcopolis_export.cpp::write_carried_items, which enumerates wielded/worn/inventory items and emits type_id/name/charges but never computes a possession-of-working predicate.","divergence":"The avatar carries a multitool with charges==0 (or otherwise non-functional): the dump still lists it as a carried item so a reader says 'present', but the engine's working-possession predicate returns false.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-1x3l7p3",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "An engine possession/eligibility check asking 'does the avatar possess a working multitool?', e.g. a Character::has_amount / has_charges / dialogue possession check, not a raw item list reader.",
+  "class": "C",
+  "scope": "A possession predicate over the avatar's carried inventory that also honors the 'working' condition (sufficient charges / not broken), matching the goal's required reach rather than a flat enumeration.",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items, which enumerates wielded/worn/inventory items and emits type_id/name/charges but never computes a possession-of-working predicate.",
+  "divergence": "The avatar carries a multitool with charges==0 (or otherwise non-functional): the dump still lists it as a carried item so a reader says 'present', but the engine's working-possession predicate returns false.",
+  "support_disposition": "unsupported/fail-loud"
+}

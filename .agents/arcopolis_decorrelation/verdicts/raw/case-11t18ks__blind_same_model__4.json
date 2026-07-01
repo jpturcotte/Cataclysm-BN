@@ -1,1 +1,12 @@
-{"case_id":"case-11t18ks","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"The dialogue/condition evaluator built by conditional_t<T>::set_has_item, which asks the yes/no question 'does the actor have item c4?' by returning actor->charges_of(item_id) > 0 || actor->has_amount(item_id, 1)","class":"C","scope":"the character's own carried items (on-person: wielded/worn/inventory charges and amounts), not items merely reachable nearby","decisive_source":"src/condition.cpp::conditional_t<T>::set_has_item — its body computes a boolean possession predicate over the character actor (charges_of/has_amount) that engine dialogue/mission conditions consume as a yes/no, not for display","divergence":"A brick of c4 lying on an adjacent floor tile (reachable nearby but not carried): a wrong authority that scanned reachable inventory or map state would answer YES, but the on-person possession predicate must answer NO","support_disposition":"n/a"}
+{
+  "case_id": "case-11t18ks",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "The dialogue/condition evaluator built by conditional_t<T>::set_has_item, which asks the yes/no question 'does the actor have item c4?' by returning actor->charges_of(item_id) > 0 || actor->has_amount(item_id, 1)",
+  "class": "C",
+  "scope": "the character's own carried items (on-person: wielded/worn/inventory charges and amounts), not items merely reachable nearby",
+  "decisive_source": "src/condition.cpp::conditional_t<T>::set_has_item — its body computes a boolean possession predicate over the character actor (charges_of/has_amount) that engine dialogue/mission conditions consume as a yes/no, not for display",
+  "divergence": "A brick of c4 lying on an adjacent floor tile (reachable nearby but not carried): a wrong authority that scanned reachable inventory or map state would answer YES, but the on-person possession predicate must answer NO",
+  "support_disposition": "n/a"
+}

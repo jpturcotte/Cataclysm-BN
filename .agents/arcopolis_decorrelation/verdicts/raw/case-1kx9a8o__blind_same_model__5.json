@@ -1,1 +1,12 @@
-{"case_id":"case-1kx9a8o","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"consumer":"The dialogue/condition lambda from conditional_t::set_has_item, which asks the yes/no 'does this actor have item X' that a mission/dialogue check evaluates.","class":"C","scope":"the character's own possession check (charges_of plus has_amount over the actor's carried inventory) — not a nearby-reachable or map-region scope","decisive_source":"src/condition.cpp::set_has_item — its body returns actor->charges_of(item_id) > 0 || actor->has_amount(item_id, 1), the engine-computed yes/no the check consumes.","divergence":"Avatar carries a loaded gun whose magazine holds X but no loose X: has_amount/charges_of for X returns false (gun/magazine contents excluded), yet a re-derivation that recursed into the carried_items[] snapshot would wrongly report true.","support_disposition":"n/a"}
+{
+  "case_id": "case-1kx9a8o",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "consumer": "The dialogue/condition lambda from conditional_t::set_has_item, which asks the yes/no 'does this actor have item X' that a mission/dialogue check evaluates.",
+  "class": "C",
+  "scope": "the character's own possession check (charges_of plus has_amount over the actor's carried inventory) — not a nearby-reachable or map-region scope",
+  "decisive_source": "src/condition.cpp::set_has_item — its body returns actor->charges_of(item_id) > 0 || actor->has_amount(item_id, 1), the engine-computed yes/no the check consumes.",
+  "divergence": "Avatar carries a loaded gun whose magazine holds X but no loose X: has_amount/charges_of for X returns false (gun/magazine contents excluded), yet a re-derivation that recursed into the carried_items[] snapshot would wrongly report true.",
+  "support_disposition": "n/a"
+}

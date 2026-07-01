@@ -1,1 +1,12 @@
-{"case_id":"case-url0e2","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The delivery quest's mission completion check (engine mission::is_complete / item-requirement predicate) asking 'does the player satisfy the quest's required item?' to drive the HUD's satisfied/not-satisfied indicator.","class":"C","scope":"The mission requirement's own reachable scope (the engine's required-item predicate over the inventory it counts), not merely items physically on the avatar.","decisive_source":"src/arcopolis_export.cpp::write_carried_items — it dumps raw wielded/worn/inventory items on the avatar (a simulation-state listing), re-deriving satisfaction from a partial carried-only view instead of returning the mission predicate's computed result.","divergence":"The required item sits in adjacent reachable inventory (e.g. vehicle cargo or an open container the mission predicate counts): the engine's quest check reports satisfied, but carried_items[] (avatar-only) omits it, so the HUD wrongly shows the requirement unmet.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-url0e2",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The delivery quest's mission completion check (engine mission::is_complete / item-requirement predicate) asking 'does the player satisfy the quest's required item?' to drive the HUD's satisfied/not-satisfied indicator.",
+  "class": "C",
+  "scope": "The mission requirement's own reachable scope (the engine's required-item predicate over the inventory it counts), not merely items physically on the avatar.",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items — it dumps raw wielded/worn/inventory items on the avatar (a simulation-state listing), re-deriving satisfaction from a partial carried-only view instead of returning the mission predicate's computed result.",
+  "divergence": "The required item sits in adjacent reachable inventory (e.g. vehicle cargo or an open container the mission predicate counts): the engine's quest check reports satisfied, but carried_items[] (avatar-only) omits it, so the HUD wrongly shows the requirement unmet.",
+  "support_disposition": "unsupported/fail-loud"
+}

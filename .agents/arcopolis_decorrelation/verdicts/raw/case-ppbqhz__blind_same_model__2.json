@@ -1,1 +1,12 @@
-{"case_id":"case-ppbqhz","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The frontend tile renderer reading each tile's per-tile visibility value, asking 'is this tile remembered but not currently visible, so it should be drawn with the dimmed memory shading rather than bright?'","class":"D","scope":"the nearby tile region within the export radius around the avatar (per-tile, map-region reach)","decisive_source":"src/arcopolis_export.cpp::write_tiles (seen) — its body writes each tile's ter/furn ids plus a 'seen' value taken from ctx.m.pl_sees(p, ctx.radius), the per-tile player-visibility flag the renderer uses to choose currently-visible vs remembered-dimmed shading","divergence":"A tile the avatar saw earlier and still remembers (terrain id populated) but cannot currently see: correct export carries seen=false (renders dimmed); a wrong answer reporting seen=true would render it bright as if currently visible, exposing the error","support_disposition":"n/a"}
+{
+  "case_id": "case-ppbqhz",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The frontend tile renderer reading each tile's per-tile visibility value, asking 'is this tile remembered but not currently visible, so it should be drawn with the dimmed memory shading rather than bright?'",
+  "class": "D",
+  "scope": "the nearby tile region within the export radius around the avatar (per-tile, map-region reach)",
+  "decisive_source": "src/arcopolis_export.cpp::write_tiles (seen) — its body writes each tile's ter/furn ids plus a 'seen' value taken from ctx.m.pl_sees(p, ctx.radius), the per-tile player-visibility flag the renderer uses to choose currently-visible vs remembered-dimmed shading",
+  "divergence": "A tile the avatar saw earlier and still remembers (terrain id populated) but cannot currently see: correct export carries seen=false (renders dimmed); a wrong answer reporting seen=true would render it bright as if currently visible, exposing the error",
+  "support_disposition": "n/a"
+}

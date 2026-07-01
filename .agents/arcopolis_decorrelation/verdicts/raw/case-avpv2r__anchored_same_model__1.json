@@ -1,1 +1,12 @@
-{"case_id":"case-avpv2r","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The NPC door-dialogue gate's possession check, asking 'is the id_card on the player's body right now?'","class":"C","scope":"On-person inventory only (worn/wielded/carried), NOT the reachable/crafting inventory","decisive_source":"src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — tests type->item_id quantity against u.crafting_inventory(), which spans nearby reachable/surrounding items, not just what is carried on the body","divergence":"The id_card lies on an adjacent tile or in a nearby accessible container (within crafting reach) while the player carries nothing: crafting_inventory().has_amount returns true, so the surface says 'complete', but the true on-person possession check is false — the gate opens though you are not carrying the keycard","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-avpv2r",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The NPC door-dialogue gate's possession check, asking 'is the id_card on the player's body right now?'",
+  "class": "C",
+  "scope": "On-person inventory only (worn/wielded/carried), NOT the reachable/crafting inventory",
+  "decisive_source": "src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — tests type->item_id quantity against u.crafting_inventory(), which spans nearby reachable/surrounding items, not just what is carried on the body",
+  "divergence": "The id_card lies on an adjacent tile or in a nearby accessible container (within crafting reach) while the player carries nothing: crafting_inventory().has_amount returns true, so the surface says 'complete', but the true on-person possession check is false — the gate opens though you are not carrying the keycard",
+  "support_disposition": "unsupported/fail-loud"
+}

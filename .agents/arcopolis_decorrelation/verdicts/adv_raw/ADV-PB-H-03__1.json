@@ -1,1 +1,9 @@
-{"case_id":"ADV-PB-H-03","condition":"blind_same_model","model":"claude-opus-4-8","sample":1,"class":"S","confidence":"high","issue_detected":"Reviewer's high-confidence C is a predicate trap: Excerpt 2 (set_has_items) is a real possession predicate but wrong authority/scope for the goal, which enumerates ALL held items rather than answering a boolean has-item check. Excerpt 1 (write_carried_items) is the true consumer: it serializes raw wielded/worn/inventory item state unfiltered for display = S. Not D since no formatted/filtered view that lags or differs from raw state is involved."}
+{
+  "case_id": "ADV-PB-H-03",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "class": "S",
+  "confidence": "high",
+  "issue_detected": "Reviewer's high-confidence C is a predicate trap: Excerpt 2 (set_has_items) is a real possession predicate but wrong authority/scope for the goal, which enumerates ALL held items rather than answering a boolean has-item check. Excerpt 1 (write_carried_items) is the true consumer: it serializes raw wielded/worn/inventory item state unfiltered for display = S. Not D since no formatted/filtered view that lags or differs from raw state is involved."
+}

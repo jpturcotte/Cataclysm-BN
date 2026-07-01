@@ -1,1 +1,12 @@
-{"case_id":"case-pxhyjq","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The targeting/detection condition that asks 'can the avatar currently SEE this specific monster?' — an engine visibility predicate (avatar->creature line-of-sight/sees check), not a sprite-draw decision","class":"C","scope":"The avatar-to-this-monster sightline visibility result (LOS + light + concealment), not a geometric distance box around the avatar","decisive_source":"src/arcopolis_export.cpp::write_entities (monsters window) — iterates g->all_monsters() and emits monsters whose bub_pos passes in_export_window(center,ctx); it reports raw position/hp/type within a box and never computes visibility","divergence":"A monster standing inside the export window but behind a wall or in darkness: in_export_window includes it so the surface reports it as present, but the avatar cannot see it — and conversely a visible monster just outside the window is dropped; the raw box answer diverges from the true sees() predicate","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-pxhyjq",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The targeting/detection condition that asks 'can the avatar currently SEE this specific monster?' — an engine visibility predicate (avatar->creature line-of-sight/sees check), not a sprite-draw decision",
+  "class": "C",
+  "scope": "The avatar-to-this-monster sightline visibility result (LOS + light + concealment), not a geometric distance box around the avatar",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities (monsters window) — iterates g->all_monsters() and emits monsters whose bub_pos passes in_export_window(center,ctx); it reports raw position/hp/type within a box and never computes visibility",
+  "divergence": "A monster standing inside the export window but behind a wall or in darkness: in_export_window includes it so the surface reports it as present, but the avatar cannot see it — and conversely a visible monster just outside the window is dropped; the raw box answer diverges from the true sees() predicate",
+  "support_disposition": "unsupported/fail-loud"
+}

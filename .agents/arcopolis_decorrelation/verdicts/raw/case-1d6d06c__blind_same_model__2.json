@@ -1,1 +1,12 @@
-{"case_id":"case-1d6d06c","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"consumer":"mission::is_complete for MGOAL_FIND_ITEM, which asks 'does crafting_inventory hold >=20 scrap?' to decide if the find-item objective is satisfied","class":"C","scope":"items reachable nearby for crafting (crafting_inventory: carried plus adjacent map/vehicle/appliance sources within crafting reach), not only the character's own carried items","decisive_source":"src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — calls u.crafting_inventory() then tmp_inv.has_amount(item_id,item_count) (falling back to has_charges) and returns the resulting yes/no completion verdict","divergence":"20 scrap sit on adjacent ground (or in a neighboring vehicle) within crafting reach but none in the avatar's worn/wielded/carried inventory: the correct crafting_inventory check returns complete=true, while an on-person possession check of the wrong reach returns false","support_disposition":"n/a"}
+{
+  "case_id": "case-1d6d06c",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "mission::is_complete for MGOAL_FIND_ITEM, which asks 'does crafting_inventory hold >=20 scrap?' to decide if the find-item objective is satisfied",
+  "class": "C",
+  "scope": "items reachable nearby for crafting (crafting_inventory: carried plus adjacent map/vehicle/appliance sources within crafting reach), not only the character's own carried items",
+  "decisive_source": "src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — calls u.crafting_inventory() then tmp_inv.has_amount(item_id,item_count) (falling back to has_charges) and returns the resulting yes/no completion verdict",
+  "divergence": "20 scrap sit on adjacent ground (or in a neighboring vehicle) within crafting reach but none in the avatar's worn/wielded/carried inventory: the correct crafting_inventory check returns complete=true, while an on-person possession check of the wrong reach returns false",
+  "support_disposition": "n/a"
+}

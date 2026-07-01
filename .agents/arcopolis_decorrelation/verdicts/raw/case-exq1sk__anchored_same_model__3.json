@@ -1,1 +1,12 @@
-{"case_id":"case-exq1sk","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"mission::is_complete reading MGOAL_FIND_ITEM, asking whether the required item quantity is present in the player's crafting_inventory()","class":"C","scope":"on-person only: the player's worn/wielded/carried inventory, NOT reachable surroundings","decisive_source":"src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) tests u.crafting_inventory().has_amount/has_charges, a reach that includes adjacent/nearby crafting-accessible items","divergence":"a detonator sitting in a crate on an adjacent tile (within crafting reach) while the player carries none on their body: crafting_inventory().has_amount returns true, but the on-person possession answer is false","support_disposition":"n/a"}
+{
+  "case_id": "case-exq1sk",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "mission::is_complete reading MGOAL_FIND_ITEM, asking whether the required item quantity is present in the player's crafting_inventory()",
+  "class": "C",
+  "scope": "on-person only: the player's worn/wielded/carried inventory, NOT reachable surroundings",
+  "decisive_source": "src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) tests u.crafting_inventory().has_amount/has_charges, a reach that includes adjacent/nearby crafting-accessible items",
+  "divergence": "a detonator sitting in a crate on an adjacent tile (within crafting reach) while the player carries none on their body: crafting_inventory().has_amount returns true, but the on-person possession answer is false",
+  "support_disposition": "n/a"
+}

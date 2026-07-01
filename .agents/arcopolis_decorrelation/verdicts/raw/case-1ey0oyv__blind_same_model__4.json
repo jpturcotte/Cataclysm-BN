@@ -1,1 +1,12 @@
-{"case_id":"case-1ey0oyv","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"The dialogue/condition u_has_item check (condition.cpp set_has_item) asking the yes/no 'does the avatar carry knife_combat?'","class":"C","scope":"only the character's own carried items (wielded/worn/inventory including nested non-gun/non-magazine container contents), not items reachable nearby","decisive_source":"src/condition.cpp::conditional_t::set_has_item builds a lambda returning actor->charges_of(item_id) > 0 || actor->has_amount(item_id, 1), an engine-computed possession predicate over the actor's own inventory","divergence":"A knife_combat sealed inside a backpack/sheath (a non-gun, non-magazine container): has_amount recurses into contents and returns TRUE, but a re-derivation from the flat write_carried_items array (which lists only the top-level container, never the nested knife) answers FALSE","support_disposition":"n/a"}
+{
+  "case_id": "case-1ey0oyv",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "The dialogue/condition u_has_item check (condition.cpp set_has_item) asking the yes/no 'does the avatar carry knife_combat?'",
+  "class": "C",
+  "scope": "only the character's own carried items (wielded/worn/inventory including nested non-gun/non-magazine container contents), not items reachable nearby",
+  "decisive_source": "src/condition.cpp::conditional_t::set_has_item builds a lambda returning actor->charges_of(item_id) > 0 || actor->has_amount(item_id, 1), an engine-computed possession predicate over the actor's own inventory",
+  "divergence": "A knife_combat sealed inside a backpack/sheath (a non-gun, non-magazine container): has_amount recurses into contents and returns TRUE, but a re-derivation from the flat write_carried_items array (which lists only the top-level container, never the nested knife) answers FALSE",
+  "support_disposition": "n/a"
+}

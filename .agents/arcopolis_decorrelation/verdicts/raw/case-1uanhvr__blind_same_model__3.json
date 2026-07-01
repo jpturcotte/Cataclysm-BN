@@ -1,1 +1,12 @@
-{"case_id":"case-1uanhvr","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"handle_problematic_pickup's amenu.query() in src/pickup.cpp, asking the player which disposition (Wear/Wield/Empty/Skip) to perform for the too-heavy item","class":"B","scope":"the single picked-up item and the player's own disposition choice through the active input loop; not applicable to map regions or other inventory","decisive_source":"src/pickup.cpp::handle_problematic_pickup builds a Wear/Wield/Empty uilist seeded by can_wear()/is_armed() and calls amenu.query() to obtain the player's interactive choice","divergence":"An armored too-heavy item where can_wear() succeeds but the player chooses Skip/Wield instead of Wear: a backend that auto-resolves to the first enabled entry (Wear) silently equips it, diverging from the real query() answer","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-1uanhvr",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "handle_problematic_pickup's amenu.query() in src/pickup.cpp, asking the player which disposition (Wear/Wield/Empty/Skip) to perform for the too-heavy item",
+  "class": "B",
+  "scope": "the single picked-up item and the player's own disposition choice through the active input loop; not applicable to map regions or other inventory",
+  "decisive_source": "src/pickup.cpp::handle_problematic_pickup builds a Wear/Wield/Empty uilist seeded by can_wear()/is_armed() and calls amenu.query() to obtain the player's interactive choice",
+  "divergence": "An armored too-heavy item where can_wear() succeeds but the player chooses Skip/Wield instead of Wear: a backend that auto-resolves to the first enabled entry (Wear) silently equips it, diverging from the real query() answer",
+  "support_disposition": "unsupported/fail-loud"
+}

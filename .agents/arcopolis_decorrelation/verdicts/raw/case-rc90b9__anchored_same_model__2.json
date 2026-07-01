@@ -1,1 +1,12 @@
-{"case_id":"case-rc90b9","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The find-item quest's possession/objective gate, which asks 'does the character possess a flashlight within the objective's required reach?'","class":"C","scope":"The engine's find-item objective reach over the character's reachable inventory, including nested container contents, not just top-level on-person stacks","decisive_source":"src/arcopolis_export.cpp::write_carried_items — walks only wielded_items(), worn, and the top-level items of each inv_const_slice() stack, emitting raw S-state with no recursion into it.contents and no engine objective/possession predicate call","divergence":"A flashlight stored inside a closed backpack pocket (a container in inventory): the engine's find-item objective check counts it as possessed, but write_carried_items only iterates top-level stack items and never descends into container contents, so it reports the flashlight absent — a false-negative on the gate","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-rc90b9",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The find-item quest's possession/objective gate, which asks 'does the character possess a flashlight within the objective's required reach?'",
+  "class": "C",
+  "scope": "The engine's find-item objective reach over the character's reachable inventory, including nested container contents, not just top-level on-person stacks",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items — walks only wielded_items(), worn, and the top-level items of each inv_const_slice() stack, emitting raw S-state with no recursion into it.contents and no engine objective/possession predicate call",
+  "divergence": "A flashlight stored inside a closed backpack pocket (a container in inventory): the engine's find-item objective check counts it as possessed, but write_carried_items only iterates top-level stack items and never descends into container contents, so it reports the flashlight absent — a false-negative on the gate",
+  "support_disposition": "unsupported/fail-loud"
+}

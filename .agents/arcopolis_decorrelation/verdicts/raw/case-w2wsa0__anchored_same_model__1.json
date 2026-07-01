@@ -1,1 +1,13 @@
-{"case_id":"case-w2wsa0","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The pickup path's carry-weight eligibility check asking 'does this item's weight fit within remaining carrying capacity (weight_capacity minus weight_carried)?'","class":"C","scope":"The avatar's weight-capacity predicate over current carried weight vs. max carry weight, compared against the specific candidate item's weight","decisive_source":"src/arcopolis_export.cpp::write_avatar(scalars) writes hp/stamina/moves/pain/thirst/fatigue/kcal getters into snapshot JSON; it never emits weight_carried, weight_capacity, or the item's weight, so it cannot answer the fit predicate","divergence":"Avatar at full hp/stamina/kcal but already near max carry weight tries to pick up a heavy item: the scalar status block reports healthy values while the engine's weight-capacity predicate would deny the pickup","support_disposition":"n/a","verdict":"flag"}
+{
+  "case_id": "case-w2wsa0",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The pickup path's carry-weight eligibility check asking 'does this item's weight fit within remaining carrying capacity (weight_capacity minus weight_carried)?'",
+  "class": "C",
+  "scope": "The avatar's weight-capacity predicate over current carried weight vs. max carry weight, compared against the specific candidate item's weight",
+  "decisive_source": "src/arcopolis_export.cpp::write_avatar(scalars) writes hp/stamina/moves/pain/thirst/fatigue/kcal getters into snapshot JSON; it never emits weight_carried, weight_capacity, or the item's weight, so it cannot answer the fit predicate",
+  "divergence": "Avatar at full hp/stamina/kcal but already near max carry weight tries to pick up a heavy item: the scalar status block reports healthy values while the engine's weight-capacity predicate would deny the pickup",
+  "support_disposition": "n/a",
+  "verdict": "flag"
+}

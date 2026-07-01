@@ -1,1 +1,12 @@
-{"case_id":"case-url0e2","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The delivery quest/mission requirement check that asks 'is this mission's item requirement satisfied?' for the HUD readout.","class":"C","scope":"The mission's own item-requirement evaluation over whatever inventory reach and charge/count thresholds that objective defines, not just items on the avatar's person.","decisive_source":"src/arcopolis_export.cpp::write_carried_items dumps raw wielded/worn/inventory items (a Class-S on-person enumeration), never invoking the engine's mission/objective satisfaction predicate.","divergence":"The required item count is met only when charges across stacks aggregate to the threshold, or the item sits in a reachable container/vehicle the objective counts: carried_items reports the raw stacks while the mission predicate returns satisfied, so a frontend re-deriving satisfaction from carried_items disagrees with the engine.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-url0e2",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The delivery quest/mission requirement check that asks 'is this mission's item requirement satisfied?' for the HUD readout.",
+  "class": "C",
+  "scope": "The mission's own item-requirement evaluation over whatever inventory reach and charge/count thresholds that objective defines, not just items on the avatar's person.",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items dumps raw wielded/worn/inventory items (a Class-S on-person enumeration), never invoking the engine's mission/objective satisfaction predicate.",
+  "divergence": "The required item count is met only when charges across stacks aggregate to the threshold, or the item sits in a reachable container/vehicle the objective counts: carried_items reports the raw stacks while the mission predicate returns satisfied, so a frontend re-deriving satisfaction from carried_items disagrees with the engine.",
+  "support_disposition": "unsupported/fail-loud"
+}

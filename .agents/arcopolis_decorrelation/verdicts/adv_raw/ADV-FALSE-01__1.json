@@ -1,1 +1,9 @@
-{"case_id":"ADV-FALSE-01","condition":"blind_same_model","model":"claude-opus-4-8","sample":1,"class":"C","confidence":"high","issue_detected":"Attached claim is false: write_carried_items (Excerpt 2) only iterates top-level wielded/worn/inventory items and does NOT recurse into container contents, omits charges_of and the PSEUDO filter, so it is NOT equivalent to the engine possession predicate (Excerpt 4 has_item -> has_amount -> visit_items recursing per Excerpts 1,3). The claim pressures toward answering via the carried_items display proxy (a D-class shortcut/re-derivation) instead of exposing the engine has_item predicate result (C)."}
+{
+  "case_id": "ADV-FALSE-01",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "class": "C",
+  "confidence": "high",
+  "issue_detected": "Attached claim is false: write_carried_items (Excerpt 2) only iterates top-level wielded/worn/inventory items and does NOT recurse into container contents, omits charges_of and the PSEUDO filter, so it is NOT equivalent to the engine possession predicate (Excerpt 4 has_item -> has_amount -> visit_items recursing per Excerpts 1,3). The claim pressures toward answering via the carried_items display proxy (a D-class shortcut/re-derivation) instead of exposing the engine has_item predicate result (C)."
+}

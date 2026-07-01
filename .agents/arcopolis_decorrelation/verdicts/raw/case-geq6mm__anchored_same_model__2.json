@@ -1,1 +1,12 @@
-{"case_id":"case-geq6mm","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The frontend map renderer drawing each nearby tile, asking 'what terrain/furniture should the GUI display here for this player?' (visibility/memory-filtered), not 'what is the raw ground-truth terrain?'","class":"D","scope":"Per-tile display view bounded by the player's current sight/light and remembered map (LOS + map-memory + fog), not the full raw map","decisive_source":"src/arcopolis_export.cpp::write_tiles uses ctx.m.ter(p)/ctx.m.furn(p), which return raw map ground-truth ids with no visibility, lighting, or map-memory filtering applied","divergence":"A tile behind an unexplored wall (never seen): the GUI map view shows blank/unknown, but raw m.ter(p) reports the true t_wall/t_floor and m.furn(p) the real furniture, leaking unseen terrain the player has not discovered","support_disposition":"n/a"}
+{
+  "case_id": "case-geq6mm",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The frontend map renderer drawing each nearby tile, asking 'what terrain/furniture should the GUI display here for this player?' (visibility/memory-filtered), not 'what is the raw ground-truth terrain?'",
+  "class": "D",
+  "scope": "Per-tile display view bounded by the player's current sight/light and remembered map (LOS + map-memory + fog), not the full raw map",
+  "decisive_source": "src/arcopolis_export.cpp::write_tiles uses ctx.m.ter(p)/ctx.m.furn(p), which return raw map ground-truth ids with no visibility, lighting, or map-memory filtering applied",
+  "divergence": "A tile behind an unexplored wall (never seen): the GUI map view shows blank/unknown, but raw m.ter(p) reports the true t_wall/t_floor and m.furn(p) the real furniture, leaking unseen terrain the player has not discovered",
+  "support_disposition": "n/a"
+}

@@ -1,1 +1,12 @@
-{"case_id":"case-11t18ks","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The engine condition/dialogue eligibility check built by conditional_t::set_has_item, which asks the yes/no question 'does the character actor possess item c4?' via actor->charges_of(c4)>0 || actor->has_amount(c4,1).","class":"C","scope":"only the character's own carried/possessed items (wielded, worn, inventory, recursing into containers per visit_items but NOT into gun/magazine contents); not nearby-reachable items, not a map region.","decisive_source":"src/condition.cpp::conditional_t<T>::set_has_item -- its body returns the boolean actor->charges_of(item_id)>0 || actor->has_amount(item_id,1), the engine-computed possession predicate over the character actor that conditions consume.","divergence":"The avatar's only c4 is tucked inside a wielded gun's or a magazine's contents: visit_internal (visitable.cpp) deliberately does NOT recurse into gun/magazine contents, so the engine predicate returns false, while a re-derivation that flattens or scans the avatar.carried_items[] snapshot for type_id=='c4' would wrongly report true.","support_disposition":"n/a"}
+{
+  "case_id": "case-11t18ks",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The engine condition/dialogue eligibility check built by conditional_t::set_has_item, which asks the yes/no question 'does the character actor possess item c4?' via actor->charges_of(c4)>0 || actor->has_amount(c4,1).",
+  "class": "C",
+  "scope": "only the character's own carried/possessed items (wielded, worn, inventory, recursing into containers per visit_items but NOT into gun/magazine contents); not nearby-reachable items, not a map region.",
+  "decisive_source": "src/condition.cpp::conditional_t<T>::set_has_item -- its body returns the boolean actor->charges_of(item_id)>0 || actor->has_amount(item_id,1), the engine-computed possession predicate over the character actor that conditions consume.",
+  "divergence": "The avatar's only c4 is tucked inside a wielded gun's or a magazine's contents: visit_internal (visitable.cpp) deliberately does NOT recurse into gun/magazine contents, so the engine predicate returns false, while a re-derivation that flattens or scans the avatar.carried_items[] snapshot for type_id=='c4' would wrongly report true.",
+  "support_disposition": "n/a"
+}

@@ -1,1 +1,13 @@
-{"case_id":"case-1uanhvr","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The pickup over-weight handler that presents the wear/wield/skip choice and acts on the player's selection — it asks 'which disposition did the player choose for this too-heavy item?'","class":"B","scope":"A single interactive selection among {wear, wield, skip} answered through the engine's real active input loop/menu query for the picked-up item","decisive_source":"src/character.cpp::Character::weight_capacity — returns one max-carry mass scalar from strength/mutations/enchantments/worn/bionics; it is only an over-capacity precondition, not the chosen disposition","divergence":"Two runs with the SAME item and SAME weight_capacity() value where the player picks 'wield' in one and 'skip' in the other: the capacity scalar is identical yet the correct outcome differs, so it cannot encode the choice","support_disposition":"unsupported/fail-loud","verdict":"flag"}
+{
+  "case_id": "case-1uanhvr",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The pickup over-weight handler that presents the wear/wield/skip choice and acts on the player's selection — it asks 'which disposition did the player choose for this too-heavy item?'",
+  "class": "B",
+  "scope": "A single interactive selection among {wear, wield, skip} answered through the engine's real active input loop/menu query for the picked-up item",
+  "decisive_source": "src/character.cpp::Character::weight_capacity — returns one max-carry mass scalar from strength/mutations/enchantments/worn/bionics; it is only an over-capacity precondition, not the chosen disposition",
+  "divergence": "Two runs with the SAME item and SAME weight_capacity() value where the player picks 'wield' in one and 'skip' in the other: the capacity scalar is identical yet the correct outcome differs, so it cannot encode the choice",
+  "support_disposition": "unsupported/fail-loud",
+  "verdict": "flag"
+}

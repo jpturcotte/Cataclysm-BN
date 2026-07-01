@@ -1,1 +1,13 @@
-{"case_id":"case-lgs1uk","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The frontend's threat indicator asking, per monster, 'has this monster noticed/targeted the avatar?' — an engine-computed awareness predicate (e.g. the monster's sees-avatar / has-avatar-as-target / hostile-aware state), not raw position.","class":"C","scope":"Per-monster awareness of the avatar (the engine's own seen/target/attitude computation for each monster in view), matched to the 'noticed the avatar' clause — not merely the monster's existence and raw position within the window.","decisive_source":"src/arcopolis_export.cpp::write_entities (monsters window) — iterates g->all_monsters(), filters by in_export_window, and writes only index/type_id/pos_local/pos_abs/hp/hp_max/hallucination; it emits NO noticed/aware/target field, so the awareness predicate is absent from the surface.","divergence":"Two monsters in-window of the same type at the same hp/pos: one has the avatar as its hostile target (engine awareness predicate true) and one is idle/unaware (false). The proposed surface reports them identically with no awareness flag, so 'has any monster noticed the avatar' is unanswerable and would be falsely re-derived from raw position.","support_disposition":"unsupported/fail-loud","verdict":"flag"}
+{
+  "case_id": "case-lgs1uk",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The frontend's threat indicator asking, per monster, 'has this monster noticed/targeted the avatar?' — an engine-computed awareness predicate (e.g. the monster's sees-avatar / has-avatar-as-target / hostile-aware state), not raw position.",
+  "class": "C",
+  "scope": "Per-monster awareness of the avatar (the engine's own seen/target/attitude computation for each monster in view), matched to the 'noticed the avatar' clause — not merely the monster's existence and raw position within the window.",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities (monsters window) — iterates g->all_monsters(), filters by in_export_window, and writes only index/type_id/pos_local/pos_abs/hp/hp_max/hallucination; it emits NO noticed/aware/target field, so the awareness predicate is absent from the surface.",
+  "divergence": "Two monsters in-window of the same type at the same hp/pos: one has the avatar as its hostile target (engine awareness predicate true) and one is idle/unaware (false). The proposed surface reports them identically with no awareness flag, so 'has any monster noticed the avatar' is unanswerable and would be falsely re-derived from raw position.",
+  "support_disposition": "unsupported/fail-loud",
+  "verdict": "flag"
+}

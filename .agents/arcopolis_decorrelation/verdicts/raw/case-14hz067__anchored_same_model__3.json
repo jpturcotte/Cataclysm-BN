@@ -1,1 +1,13 @@
-{"case_id":"case-14hz067","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"A frontend/engine LOS check asking 'does the avatar have live line of sight to this nearby tile right now?'","class":"C","scope":"The avatar's current line-of-sight predicate to a specific tile within sight range (live visibility, not draw-remembered seen state)","decisive_source":"map::pl_sees — an engine LOS-with-range predicate, but in a headless backend its underlying visibility/seen cache is never populated by a draw pass, so it does not reflect live LOS","divergence":"A tile one step away in a fully unobstructed straight line: the avatar plainly has LOS, but the headless export reports seen=false (no draw populated the cache), so the surface answers 'no LOS' when LOS exists","support_disposition":"unsupported/fail-loud","verdict":"flag"}
+{
+  "case_id": "case-14hz067",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "A frontend/engine LOS check asking 'does the avatar have live line of sight to this nearby tile right now?'",
+  "class": "C",
+  "scope": "The avatar's current line-of-sight predicate to a specific tile within sight range (live visibility, not draw-remembered seen state)",
+  "decisive_source": "map::pl_sees — an engine LOS-with-range predicate, but in a headless backend its underlying visibility/seen cache is never populated by a draw pass, so it does not reflect live LOS",
+  "divergence": "A tile one step away in a fully unobstructed straight line: the avatar plainly has LOS, but the headless export reports seen=false (no draw populated the cache), so the surface answers 'no LOS' when LOS exists",
+  "support_disposition": "unsupported/fail-loud",
+  "verdict": "flag"
+}

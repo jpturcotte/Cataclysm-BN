@@ -1,1 +1,12 @@
-{"case_id":"case-lgs1uk","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The frontend's per-monster 'has noticed the avatar' flag, which asks whether the engine considers the avatar a detected/tracked target of each monster.","class":"C","scope":"Each in-window monster's engine-computed awareness/tracking state toward the avatar (whether the monster sees or is hunting the player), not merely its presence or position.","decisive_source":"src/arcopolis_export.cpp::write_entities (monsters window) — it loops g->all_monsters(), filters by in_export_window, and writes index/type_id/pos/hp/hp_max/hallucination, but reads no monster awareness/sees-player/anger/target field at all.","divergence":"A monster sits inside the export window but is asleep and has not detected the avatar (monster::sees(player)==false / no player target): the surface lists it with full HP and position, so a frontend deriving 'noticed' from mere presence flags it as having noticed when the engine predicate says it has not.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-lgs1uk",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The frontend's per-monster 'has noticed the avatar' flag, which asks whether the engine considers the avatar a detected/tracked target of each monster.",
+  "class": "C",
+  "scope": "Each in-window monster's engine-computed awareness/tracking state toward the avatar (whether the monster sees or is hunting the player), not merely its presence or position.",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities (monsters window) — it loops g->all_monsters(), filters by in_export_window, and writes index/type_id/pos/hp/hp_max/hallucination, but reads no monster awareness/sees-player/anger/target field at all.",
+  "divergence": "A monster sits inside the export window but is asleep and has not detected the avatar (monster::sees(player)==false / no player target): the surface lists it with full HP and position, so a frontend deriving 'noticed' from mere presence flags it as having noticed when the engine predicate says it has not.",
+  "support_disposition": "unsupported/fail-loud"
+}

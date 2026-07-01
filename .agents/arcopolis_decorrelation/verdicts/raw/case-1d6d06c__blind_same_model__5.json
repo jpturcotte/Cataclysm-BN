@@ -1,1 +1,12 @@
-{"case_id":"case-1d6d06c","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"consumer":"mission::is_complete (MGOAL_FIND_ITEM) asking 'does u.crafting_inventory() hold >=20 scrap?' to decide objective completion","class":"C","scope":"items reachable nearby via crafting reach (carried + adjacent map/container tiles), not just the character's own carried items","decisive_source":"src/mission.cpp::mission::is_complete — for MGOAL_FIND_ITEM it builds u.crafting_inventory() and tests has_amount(item_id, item_count), returning a yes/no the engine evaluates","divergence":"19 scrap carried plus 5 scrap on an adjacent reachable tile: an on-person-only possession check returns NO (24<... actually 19<20 carried) while the correct crafting-reach predicate counts all 24>=20 and returns YES — the wrong-reach authority fails the complete objective","support_disposition":"n/a"}
+{
+  "case_id": "case-1d6d06c",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "consumer": "mission::is_complete (MGOAL_FIND_ITEM) asking 'does u.crafting_inventory() hold >=20 scrap?' to decide objective completion",
+  "class": "C",
+  "scope": "items reachable nearby via crafting reach (carried + adjacent map/container tiles), not just the character's own carried items",
+  "decisive_source": "src/mission.cpp::mission::is_complete — for MGOAL_FIND_ITEM it builds u.crafting_inventory() and tests has_amount(item_id, item_count), returning a yes/no the engine evaluates",
+  "divergence": "19 scrap carried plus 5 scrap on an adjacent reachable tile: an on-person-only possession check returns NO (24<... actually 19<20 carried) while the correct crafting-reach predicate counts all 24>=20 and returns YES — the wrong-reach authority fails the complete objective",
+  "support_disposition": "n/a"
+}

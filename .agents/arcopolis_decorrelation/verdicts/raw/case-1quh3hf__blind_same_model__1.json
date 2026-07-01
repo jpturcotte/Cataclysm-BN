@@ -1,1 +1,12 @@
-{"case_id":"case-1quh3hf","condition":"blind_same_model","model":"claude-opus-4-8","sample":1,"consumer":"mission::is_complete for the MGOAL_FIND_ITEM salvage contract, asking 'does the player have the required count of scrap?' to gate contract turn-in","class":"C","scope":"items reachable nearby per crafting_inventory() (carried plus nearby reachable stacks), not only the character's own carried items","decisive_source":"src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — calls u.crafting_inventory() then tmp_inv.has_amount(item_id, item_count) (with a charges fallback) to compute the complete yes/no","divergence":"The required scrap count is split: some carried, the rest sitting on an adjacent reachable tile. The engine predicate (crafting_inventory scope) returns complete, but a wrong answer derived from only carried/on-person items reports 'not yet' — gating turn-in incorrectly","support_disposition":"n/a"}
+{
+  "case_id": "case-1quh3hf",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "mission::is_complete for the MGOAL_FIND_ITEM salvage contract, asking 'does the player have the required count of scrap?' to gate contract turn-in",
+  "class": "C",
+  "scope": "items reachable nearby per crafting_inventory() (carried plus nearby reachable stacks), not only the character's own carried items",
+  "decisive_source": "src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — calls u.crafting_inventory() then tmp_inv.has_amount(item_id, item_count) (with a charges fallback) to compute the complete yes/no",
+  "divergence": "The required scrap count is split: some carried, the rest sitting on an adjacent reachable tile. The engine predicate (crafting_inventory scope) returns complete, but a wrong answer derived from only carried/on-person items reports 'not yet' — gating turn-in incorrectly",
+  "support_disposition": "n/a"
+}

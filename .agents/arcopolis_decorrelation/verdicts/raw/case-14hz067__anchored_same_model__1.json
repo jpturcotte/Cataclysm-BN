@@ -1,1 +1,12 @@
-{"case_id":"case-14hz067","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The frontend/engine site asking the boolean 'does the avatar currently have line of sight to this tile?', consuming an engine-computed visibility predicate.","class":"C","scope":"The avatar's true line-of-sight reach (its actual sight range), not an arbitrary export window.","decisive_source":"src/arcopolis_export.cpp::write_tiles emits seen=map::pl_sees(p, ctx.radius), which computes player visibility but gates it on the export radius ctx.radius rather than the avatar's real sight range.","divergence":"A tile with clear, lit line of sight to the avatar but sitting just beyond ctx.radius: the avatar truly has LOS, yet pl_sees(p, ctx.radius) returns false, so the surface reports no-LOS for a tile the avatar actually sees.","support_disposition":"n/a"}
+{
+  "case_id": "case-14hz067",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The frontend/engine site asking the boolean 'does the avatar currently have line of sight to this tile?', consuming an engine-computed visibility predicate.",
+  "class": "C",
+  "scope": "The avatar's true line-of-sight reach (its actual sight range), not an arbitrary export window.",
+  "decisive_source": "src/arcopolis_export.cpp::write_tiles emits seen=map::pl_sees(p, ctx.radius), which computes player visibility but gates it on the export radius ctx.radius rather than the avatar's real sight range.",
+  "divergence": "A tile with clear, lit line of sight to the avatar but sitting just beyond ctx.radius: the avatar truly has LOS, yet pl_sees(p, ctx.radius) returns false, so the surface reports no-LOS for a tile the avatar actually sees.",
+  "support_disposition": "n/a"
+}

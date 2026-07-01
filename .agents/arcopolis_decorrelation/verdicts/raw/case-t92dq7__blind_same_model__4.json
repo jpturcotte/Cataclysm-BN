@@ -1,1 +1,12 @@
-{"case_id":"case-t92dq7","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"The PICKUP input loop in pick_up_from_items: ctxt.handle_input() in src/pickup.cpp asks the player, interactively, which ground items to mark and confirm for pickup.","class":"B","scope":"items reachable nearby (the ground-item stack of in-range tiles via map::i_at), NOT the avatar's own carried items","decisive_source":"src/pickup.cpp::pick_up_from_items — builds input_context(\"PICKUP\"), registers UP/DOWN/RIGHT/CONFIRM/QUIT, and runs a redraw/input loop calling ctxt.handle_input() to mark selections and finalize on CONFIRM; this is the interactive menu that performs the choosing, not the snapshot exporters.","divergence":"Two items A and B lie in the ground pile; the player selects only A. A correct B-class drive picks up A and leaves B on the ground; a wrong answer (e.g. defaulting to grab-all from the i_at stack, or reading carried_items instead) would pick up both or pick up nothing, diverging from the player's interactive selection.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-t92dq7",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "The PICKUP input loop in pick_up_from_items: ctxt.handle_input() in src/pickup.cpp asks the player, interactively, which ground items to mark and confirm for pickup.",
+  "class": "B",
+  "scope": "items reachable nearby (the ground-item stack of in-range tiles via map::i_at), NOT the avatar's own carried items",
+  "decisive_source": "src/pickup.cpp::pick_up_from_items — builds input_context(\"PICKUP\"), registers UP/DOWN/RIGHT/CONFIRM/QUIT, and runs a redraw/input loop calling ctxt.handle_input() to mark selections and finalize on CONFIRM; this is the interactive menu that performs the choosing, not the snapshot exporters.",
+  "divergence": "Two items A and B lie in the ground pile; the player selects only A. A correct B-class drive picks up A and leaves B on the ground; a wrong answer (e.g. defaulting to grab-all from the i_at stack, or reading carried_items instead) would pick up both or pick up nothing, diverging from the player's interactive selection.",
+  "support_disposition": "unsupported/fail-loud"
+}

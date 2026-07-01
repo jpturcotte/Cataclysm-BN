@@ -1,1 +1,12 @@
-{"case_id":"case-rc90b9","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"The find-item quest's possession gate evaluated by condition.cpp::set_has_items (u_has_items/npc_has_items), asking 'does the character actor have flashlight?' as a yes/no the engine computes.","class":"C","scope":"only the character's own carried items (on-person: wielded/worn/inventory), matching the possession gate's reach.","decisive_source":"src/condition.cpp::set_has_items — builds the dialogue condition lambda that returns actor->has_charges(item_id,count) || actor->has_amount(item_id,count) over the character actor, producing the engine-computed yes/no the gate consumes.","divergence":"A flashlight that exists only as charges inside a held container/tool so has_charges() returns true, while a flat type_id scan over the avatar.carried_items[] snapshot (which lists the container, not a 'flashlight' entry) reports absent — the re-derived answer flips the gate.","support_disposition":"n/a"}
+{
+  "case_id": "case-rc90b9",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "The find-item quest's possession gate evaluated by condition.cpp::set_has_items (u_has_items/npc_has_items), asking 'does the character actor have flashlight?' as a yes/no the engine computes.",
+  "class": "C",
+  "scope": "only the character's own carried items (on-person: wielded/worn/inventory), matching the possession gate's reach.",
+  "decisive_source": "src/condition.cpp::set_has_items — builds the dialogue condition lambda that returns actor->has_charges(item_id,count) || actor->has_amount(item_id,count) over the character actor, producing the engine-computed yes/no the gate consumes.",
+  "divergence": "A flashlight that exists only as charges inside a held container/tool so has_charges() returns true, while a flat type_id scan over the avatar.carried_items[] snapshot (which lists the container, not a 'flashlight' entry) reports absent — the re-derived answer flips the gate.",
+  "support_disposition": "n/a"
+}

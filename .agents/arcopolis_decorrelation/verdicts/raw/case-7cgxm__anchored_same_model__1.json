@@ -1,1 +1,12 @@
-{"case_id":"case-7cgxm","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The frontend HP-bar renderer asking 'which color (green/yellow/red) does the GUI paint this monster's HP bar?' — i.e. the engine's own HP-to-color mapping, not the raw fraction.","class":"D","scope":"The per-monster display color bucket the GUI assigns from its own HP thresholds/rounding, matching the engine's coloring function exactly (not a re-derived current/max ratio).","decisive_source":"src/arcopolis_export.cpp::write_entities (monsters) — emits raw mon.get_hp()/get_hp_max() integers straight from the engine getters, exposing simulation state but never invoking the GUI's HP-to-color logic.","divergence":"A monster sitting on a color-bucket boundary (e.g. HP just above the green/yellow cutoff) where the GUI's own thresholding/rounding paints yellow while a naive get_hp()/get_hp_max() ratio computed by the consumer reads green — the two disagree on color.","support_disposition":"n/a"}
+{
+  "case_id": "case-7cgxm",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The frontend HP-bar renderer asking 'which color (green/yellow/red) does the GUI paint this monster's HP bar?' — i.e. the engine's own HP-to-color mapping, not the raw fraction.",
+  "class": "D",
+  "scope": "The per-monster display color bucket the GUI assigns from its own HP thresholds/rounding, matching the engine's coloring function exactly (not a re-derived current/max ratio).",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities (monsters) — emits raw mon.get_hp()/get_hp_max() integers straight from the engine getters, exposing simulation state but never invoking the GUI's HP-to-color logic.",
+  "divergence": "A monster sitting on a color-bucket boundary (e.g. HP just above the green/yellow cutoff) where the GUI's own thresholding/rounding paints yellow while a naive get_hp()/get_hp_max() ratio computed by the consumer reads green — the two disagree on color.",
+  "support_disposition": "n/a"
+}

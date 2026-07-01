@@ -1,1 +1,12 @@
-{"case_id":"case-52r3o1","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"An engine condition/dialogue possession check (conditional_t::set_has_items, the u_has_items predicate) asking 'does the character currently possess 1st_aid on their person?'","class":"C","scope":"only the character's own on-person carried items (wielded/worn/inventory), NOT items merely reachable nearby","decisive_source":"src/condition.cpp::conditional_t<T>::set_has_items — its body returns actor->has_charges(item_id,count) || actor->has_amount(item_id,count) over the character actor, the engine-computed possession verdict","divergence":"A 1st_aid kit lying on the tile under or adjacent to the player (or in a nearby reachable container) but not held: the engine possession predicate returns false, while a re-derivation over reachable/nearby inventory or a carried-items display panel would wrongly answer 'holding = yes'","support_disposition":"n/a"}
+{
+  "case_id": "case-52r3o1",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "An engine condition/dialogue possession check (conditional_t::set_has_items, the u_has_items predicate) asking 'does the character currently possess 1st_aid on their person?'",
+  "class": "C",
+  "scope": "only the character's own on-person carried items (wielded/worn/inventory), NOT items merely reachable nearby",
+  "decisive_source": "src/condition.cpp::conditional_t<T>::set_has_items — its body returns actor->has_charges(item_id,count) || actor->has_amount(item_id,count) over the character actor, the engine-computed possession verdict",
+  "divergence": "A 1st_aid kit lying on the tile under or adjacent to the player (or in a nearby reachable container) but not held: the engine possession predicate returns false, while a re-derivation over reachable/nearby inventory or a carried-items display panel would wrongly answer 'holding = yes'",
+  "support_disposition": "n/a"
+}

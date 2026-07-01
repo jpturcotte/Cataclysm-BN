@@ -1,1 +1,12 @@
-{"case_id":"case-xrqkyj","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"consumer":"An external combat-log analysis script that reads each exported monster's current HP integer as a numeric data point; it asks 'what is this monster's raw HP value', not a yes/no the engine computes.","class":"S","scope":"Each exported monster entity's own raw current-HP field (per-monster), not a possession/inventory reach and not visibility-filtered.","decisive_source":"src/arcopolis_export.cpp::write_entities (monsters) writes mon.get_hp() straight from the engine getter as the raw integer HP value; Creature::sees (Excerpt 1) is irrelevant and Excerpt 2 is the avatar, not the monster.","divergence":"A monster behind a wall (unseen, out of LOS) sitting at 30/100 HP: a wrong answer that treated this as a display proxy (D) and filtered through visibility would report null/last-seen, but raw-state export must report 30 regardless of whether it is currently seen.","support_disposition":"n/a"}
+{
+  "case_id": "case-xrqkyj",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "An external combat-log analysis script that reads each exported monster's current HP integer as a numeric data point; it asks 'what is this monster's raw HP value', not a yes/no the engine computes.",
+  "class": "S",
+  "scope": "Each exported monster entity's own raw current-HP field (per-monster), not a possession/inventory reach and not visibility-filtered.",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities (monsters) writes mon.get_hp() straight from the engine getter as the raw integer HP value; Creature::sees (Excerpt 1) is irrelevant and Excerpt 2 is the avatar, not the monster.",
+  "divergence": "A monster behind a wall (unseen, out of LOS) sitting at 30/100 HP: a wrong answer that treated this as a display proxy (D) and filtered through visibility would report null/last-seen, but raw-state export must report 30 regardless of whether it is currently seen.",
+  "support_disposition": "n/a"
+}

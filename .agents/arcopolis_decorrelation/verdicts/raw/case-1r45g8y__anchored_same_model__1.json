@@ -1,1 +1,12 @@
-{"case_id":"case-1r45g8y","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The frontend map painter that reads entities.items[] to render item symbols on each tile, asking 'what items would the GUI actually show on this tile?'","class":"D","scope":"Per-tile within the export window, gated by current visibility/LOS and map memory — only items the avatar can see now or remembers, as the GUI would draw them","decisive_source":"src/arcopolis_export.cpp::write_entities(items), which iterates points_in_radius and dumps raw map::i_at(p) stacks unconditionally, with no seen/visibility or map-memory gating","divergence":"An item is dropped on a tile outside the avatar's current LOS (dark or behind a wall): raw i_at reports it so the proposed surface paints it, but the GUI would show nothing there (or stale remembered contents), exposing that raw-state over-reports vs. what is displayed","support_disposition":"n/a"}
+{
+  "case_id": "case-1r45g8y",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The frontend map painter that reads entities.items[] to render item symbols on each tile, asking 'what items would the GUI actually show on this tile?'",
+  "class": "D",
+  "scope": "Per-tile within the export window, gated by current visibility/LOS and map memory — only items the avatar can see now or remembers, as the GUI would draw them",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities(items), which iterates points_in_radius and dumps raw map::i_at(p) stacks unconditionally, with no seen/visibility or map-memory gating",
+  "divergence": "An item is dropped on a tile outside the avatar's current LOS (dark or behind a wall): raw i_at reports it so the proposed surface paints it, but the GUI would show nothing there (or stale remembered contents), exposing that raw-state over-reports vs. what is displayed",
+  "support_disposition": "n/a"
+}

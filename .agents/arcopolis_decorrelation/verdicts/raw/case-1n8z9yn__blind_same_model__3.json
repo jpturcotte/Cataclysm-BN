@@ -1,1 +1,12 @@
-{"case_id":"case-1n8z9yn","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The dialogue/condition has_items lambda built by set_has_items, which the border guard's search evaluates as a yes/no: does the avatar actor possess the contraband item.","class":"C","scope":"only the character's own carried items (wielded/worn/inventory) as counted by the engine's has_charges/has_amount over that actor","decisive_source":"src/condition.cpp::conditional_t::set_has_items builds a predicate lambda that returns actor->has_charges(item_id,count) || actor->has_amount(item_id,count) — an engine-COMPUTED possession verdict consumed by a condition check, not a display.","divergence":"The contraband is stashed inside a carried gun or magazine: a snapshot re-derivation that walks visit_internal stops descending into guns/magazines (Excerpt 3) and would report 'not carried', but the engine's has_amount predicate counts it as possessed — exposing the wrong answer.","support_disposition":"n/a"}
+{
+  "case_id": "case-1n8z9yn",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The dialogue/condition has_items lambda built by set_has_items, which the border guard's search evaluates as a yes/no: does the avatar actor possess the contraband item.",
+  "class": "C",
+  "scope": "only the character's own carried items (wielded/worn/inventory) as counted by the engine's has_charges/has_amount over that actor",
+  "decisive_source": "src/condition.cpp::conditional_t::set_has_items builds a predicate lambda that returns actor->has_charges(item_id,count) || actor->has_amount(item_id,count) — an engine-COMPUTED possession verdict consumed by a condition check, not a display.",
+  "divergence": "The contraband is stashed inside a carried gun or magazine: a snapshot re-derivation that walks visit_internal stops descending into guns/magazines (Excerpt 3) and would report 'not carried', but the engine's has_amount predicate counts it as possessed — exposing the wrong answer.",
+  "support_disposition": "n/a"
+}

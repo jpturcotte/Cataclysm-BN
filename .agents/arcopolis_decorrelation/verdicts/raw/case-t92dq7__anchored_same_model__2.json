@@ -1,1 +1,12 @@
-{"case_id":"case-t92dq7","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The interactive pickup selection path (the engine's pickup menu / inventory_selector answered through the real active input loop) asking 'which of the ground-pile items did the player choose to pick up?'","class":"B","scope":"The interactive item-selection menu over the reachable ground pile, answered through the real input loop, so the chosen subset is produced by the engine's own pickup mechanism (not a raw item list).","decisive_source":"src/arcopolis_export.cpp::write_entities (items) — it enumerates each nearby tile's raw map::i_at() ground stack and serializes type_id/name/symbol/charges into snapshot JSON; a read-only state dump that performs no selection.","divergence":"A tile whose pile contains items the real pickup menu would group, filter, or refuse to offer (e.g. a corpse with nested contents or a non-pickable item): the raw i_at dump lists entries the interactive selector never presents, so a 'choice' read off the export selects items the engine's own pickup loop would never let the player take.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-t92dq7",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The interactive pickup selection path (the engine's pickup menu / inventory_selector answered through the real active input loop) asking 'which of the ground-pile items did the player choose to pick up?'",
+  "class": "B",
+  "scope": "The interactive item-selection menu over the reachable ground pile, answered through the real input loop, so the chosen subset is produced by the engine's own pickup mechanism (not a raw item list).",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities (items) — it enumerates each nearby tile's raw map::i_at() ground stack and serializes type_id/name/symbol/charges into snapshot JSON; a read-only state dump that performs no selection.",
+  "divergence": "A tile whose pile contains items the real pickup menu would group, filter, or refuse to offer (e.g. a corpse with nested contents or a non-pickable item): the raw i_at dump lists entries the interactive selector never presents, so a 'choice' read off the export selects items the engine's own pickup loop would never let the player take.",
+  "support_disposition": "unsupported/fail-loud"
+}

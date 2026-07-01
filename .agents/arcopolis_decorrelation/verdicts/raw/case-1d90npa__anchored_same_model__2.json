@@ -1,1 +1,12 @@
-{"case_id":"case-1d90npa","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"avatar_action::move's destination-occupant resolution, asking 'what does the engine do when the avatar steps onto a tile occupied by a friendly NPC' (swap/displace) vs a wall (blocked no-op)","class":"C","scope":"the destination tile's occupant-resolution branch (friendly NPC -> swap, hostile -> melee, impassable terrain -> blocked), not just a fired/not-fired boolean","decisive_source":"src/handle_action.cpp::game::handle_action — the ACTION_MOVE_* dispatch only calls avatar_action::move and keeps a single 'moved' bool, discarding the friendly-swap vs blocked vs attack distinction the goal needs","divergence":"Avatar steps into a tile holding a friendly NPC: the engine swaps the two critters' positions; the dispatch's 'moved' boolean cannot distinguish this swap from a plain move onto empty terrain or from a wall-blocked no-op, so the proposed surface misreports the friendly-NPC behavior","support_disposition":"n/a"}
+{
+  "case_id": "case-1d90npa",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "avatar_action::move's destination-occupant resolution, asking 'what does the engine do when the avatar steps onto a tile occupied by a friendly NPC' (swap/displace) vs a wall (blocked no-op)",
+  "class": "C",
+  "scope": "the destination tile's occupant-resolution branch (friendly NPC -> swap, hostile -> melee, impassable terrain -> blocked), not just a fired/not-fired boolean",
+  "decisive_source": "src/handle_action.cpp::game::handle_action — the ACTION_MOVE_* dispatch only calls avatar_action::move and keeps a single 'moved' bool, discarding the friendly-swap vs blocked vs attack distinction the goal needs",
+  "divergence": "Avatar steps into a tile holding a friendly NPC: the engine swaps the two critters' positions; the dispatch's 'moved' boolean cannot distinguish this swap from a plain move onto empty terrain or from a wall-blocked no-op, so the proposed surface misreports the friendly-NPC behavior",
+  "support_disposition": "n/a"
+}

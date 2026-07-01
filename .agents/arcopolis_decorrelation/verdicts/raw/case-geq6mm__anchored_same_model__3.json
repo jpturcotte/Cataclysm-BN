@@ -1,1 +1,13 @@
-{"case_id":"case-geq6mm","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The frontend map renderer reading the tile snapshot, asking 'what terrain/furniture glyph should I draw at this tile in the map view?'","class":"D","scope":"Per-tile, filtered through the player's visibility/LOS and map-memory so out-of-sight tiles show the last-seen (remembered) appearance, not raw current world state","decisive_source":"src/arcopolis_export.cpp::write_tiles — its per-tile loop calls ctx.m.ter(p)/ctx.m.furn(p), which return the RAW authoritative terrain/furniture at the tile, bypassing the engine's visibility filtering and map-memory display path","divergence":"A wall the player saw earlier is smashed to floor while out of sight: the GUI map view still DISPLAYS the remembered t_wall, but raw m.ter(p) returns t_floor, so the surface reports floor where the display shows wall","support_disposition":"n/a","verdict":"flag"}
+{
+  "case_id": "case-geq6mm",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The frontend map renderer reading the tile snapshot, asking 'what terrain/furniture glyph should I draw at this tile in the map view?'",
+  "class": "D",
+  "scope": "Per-tile, filtered through the player's visibility/LOS and map-memory so out-of-sight tiles show the last-seen (remembered) appearance, not raw current world state",
+  "decisive_source": "src/arcopolis_export.cpp::write_tiles — its per-tile loop calls ctx.m.ter(p)/ctx.m.furn(p), which return the RAW authoritative terrain/furniture at the tile, bypassing the engine's visibility filtering and map-memory display path",
+  "divergence": "A wall the player saw earlier is smashed to floor while out of sight: the GUI map view still DISPLAYS the remembered t_wall, but raw m.ter(p) returns t_floor, so the surface reports floor where the display shows wall",
+  "support_disposition": "n/a",
+  "verdict": "flag"
+}

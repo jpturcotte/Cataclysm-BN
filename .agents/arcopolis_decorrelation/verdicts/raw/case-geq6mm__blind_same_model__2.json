@@ -1,1 +1,12 @@
-{"case_id":"case-geq6mm","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The frontend map view that reads the snapshot's per-tile ter/furn ids and renders them as the displayed terrain/furniture for nearby tiles; it asks 'what symbol/appearance do I SHOW for this tile?'","class":"D","scope":"the nearby exported tile window around the view center (a local map region), as the GUI would display it","decisive_source":"src/arcopolis_export.cpp::write_tiles (per tile) writes ctx.m.ter(p).id().str() and ctx.m.furn(p).id().str() into the snapshot JSON, consumed purely to draw the map view","divergence":"A tile the player previously saw but can no longer see whose terrain/furniture changed off-screen (e.g. a door smashed open out of view): the GUI map should show the remembered/last-seen appearance, so reading raw current ter()/furn() would display state the player has no displayed knowledge of, exposing a wrong display-layer answer","support_disposition":"n/a"}
+{
+  "case_id": "case-geq6mm",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The frontend map view that reads the snapshot's per-tile ter/furn ids and renders them as the displayed terrain/furniture for nearby tiles; it asks 'what symbol/appearance do I SHOW for this tile?'",
+  "class": "D",
+  "scope": "the nearby exported tile window around the view center (a local map region), as the GUI would display it",
+  "decisive_source": "src/arcopolis_export.cpp::write_tiles (per tile) writes ctx.m.ter(p).id().str() and ctx.m.furn(p).id().str() into the snapshot JSON, consumed purely to draw the map view",
+  "divergence": "A tile the player previously saw but can no longer see whose terrain/furniture changed off-screen (e.g. a door smashed open out of view): the GUI map should show the remembered/last-seen appearance, so reading raw current ter()/furn() would display state the player has no displayed knowledge of, exposing a wrong display-layer answer",
+  "support_disposition": "n/a"
+}

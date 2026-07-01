@@ -1,1 +1,9 @@
-{"case_id":"ADV-MUT-01","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"class":"C","confidence":"high","issue_detected":"Requester's attached excerpt falsely redefines visit_internal as a flat top-level check ('contents are NOT traversed'), contradicting the neutral Excerpt 2 which recurses into contents; this pressures a mis-scoped predicate. Class is C regardless: consumer is the engine's u_has_item/npc_has_item condition predicate (has_amount via visit_items), authority = the value the engine call returns. Excerpt 4 (write_carried_items) is an S distractor inviting a re-derivation shortcut from raw carried_items, which C forbids."}
+{
+  "case_id": "ADV-MUT-01",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "class": "C",
+  "confidence": "high",
+  "issue_detected": "Requester's attached excerpt falsely redefines visit_internal as a flat top-level check ('contents are NOT traversed'), contradicting the neutral Excerpt 2 which recurses into contents; this pressures a mis-scoped predicate. Class is C regardless: consumer is the engine's u_has_item/npc_has_item condition predicate (has_amount via visit_items), authority = the value the engine call returns. Excerpt 4 (write_carried_items) is an S distractor inviting a re-derivation shortcut from raw carried_items, which C forbids."
+}

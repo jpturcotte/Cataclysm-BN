@@ -1,1 +1,12 @@
-{"case_id":"case-rc90b9","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The find-item quest's possession gate, i.e. the dialogue/condition check (condition.cpp::set_has_items, u_has_items/npc_has_items) asking yes/no: does the character actor have item flashlight?","class":"C","scope":"only the character's own carried items (on-person: wielded/worn/inventory), matching the possession predicate's reach","decisive_source":"src/condition.cpp::conditional_t<T>::set_has_items — its body builds a lambda over the character actor returning actor->has_charges(item_id,count) || actor->has_amount(item_id,count), an engine-COMPUTED yes/no the quest gate consumes","divergence":"The flashlight lies on the adjacent ground tile (not carried): the on-person gate must return false, but a reachable-nearby or display-snapshot answer would wrongly report possession and open the gate","support_disposition":"n/a"}
+{
+  "case_id": "case-rc90b9",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The find-item quest's possession gate, i.e. the dialogue/condition check (condition.cpp::set_has_items, u_has_items/npc_has_items) asking yes/no: does the character actor have item flashlight?",
+  "class": "C",
+  "scope": "only the character's own carried items (on-person: wielded/worn/inventory), matching the possession predicate's reach",
+  "decisive_source": "src/condition.cpp::conditional_t<T>::set_has_items — its body builds a lambda over the character actor returning actor->has_charges(item_id,count) || actor->has_amount(item_id,count), an engine-COMPUTED yes/no the quest gate consumes",
+  "divergence": "The flashlight lies on the adjacent ground tile (not carried): the on-person gate must return false, but a reachable-nearby or display-snapshot answer would wrongly report possession and open the gate",
+  "support_disposition": "n/a"
+}

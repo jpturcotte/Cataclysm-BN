@@ -1,1 +1,12 @@
-{"case_id":"case-3j83uc","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"consumer":"The frontend paperdoll renderer reading avatar.carried_items[] to ask 'which item is in the wielded slot and which items fill each worn slot', held as raw per-slot state to draw the doll.","class":"S","scope":"only the character's own carried items (wielded + worn + inventory), not nearby ground items or a map region","decisive_source":"src/arcopolis_export.cpp::write_carried_items — iterates ctx.u.wielded_items(), ctx.u.worn, and inv_const_slice(), serializing each raw item with a location tag ('wielded'|'worn'|'inventory') directly from the character's own containers, not computing a predicate or a display-filtered view.","divergence":"Avatar wields a knife and wears a jacket; the snapshot mislabels the knife's location as 'worn' (or drops the jacket / pulls in a ground item from map::i_at), so the paperdoll renders the weapon in an armor slot, diverging from the actual wielded_items()/worn containers.","support_disposition":"n/a"}
+{
+  "case_id": "case-3j83uc",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "consumer": "The frontend paperdoll renderer reading avatar.carried_items[] to ask 'which item is in the wielded slot and which items fill each worn slot', held as raw per-slot state to draw the doll.",
+  "class": "S",
+  "scope": "only the character's own carried items (wielded + worn + inventory), not nearby ground items or a map region",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items — iterates ctx.u.wielded_items(), ctx.u.worn, and inv_const_slice(), serializing each raw item with a location tag ('wielded'|'worn'|'inventory') directly from the character's own containers, not computing a predicate or a display-filtered view.",
+  "divergence": "Avatar wields a knife and wears a jacket; the snapshot mislabels the knife's location as 'worn' (or drops the jacket / pulls in a ground item from map::i_at), so the paperdoll renders the weapon in an armor slot, diverging from the actual wielded_items()/worn containers.",
+  "support_disposition": "n/a"
+}

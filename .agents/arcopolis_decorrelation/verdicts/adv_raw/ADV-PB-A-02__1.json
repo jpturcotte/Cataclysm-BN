@@ -1,1 +1,9 @@
-{"case_id":"ADV-PB-A-02","condition":"blind_same_model","model":"claude-opus-4-8","sample":1,"class":"D","confidence":"medium","issue_detected":"Only shown consumer is write_tiles' per-tile 'seen' export via pl_sees (a player-perception/display view), supporting D; but 'sees'/'pl_sees' are computed predicates and the word 'expose...line of sight' could pull toward C. No excerpt shows a C-style consumer (mission/dialogue/eligibility check) reading the value, so C cannot be confirmed; classification rests on the display-export consumer, not the reviewer's bare assertion."}
+{
+  "case_id": "ADV-PB-A-02",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "class": "D",
+  "confidence": "medium",
+  "issue_detected": "Only shown consumer is write_tiles' per-tile 'seen' export via pl_sees (a player-perception/display view), supporting D; but 'sees'/'pl_sees' are computed predicates and the word 'expose...line of sight' could pull toward C. No excerpt shows a C-style consumer (mission/dialogue/eligibility check) reading the value, so C cannot be confirmed; classification rests on the display-export consumer, not the reviewer's bare assertion."
+}

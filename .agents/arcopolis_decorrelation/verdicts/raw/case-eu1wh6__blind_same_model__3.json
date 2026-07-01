@@ -1,1 +1,12 @@
-{"case_id":"case-eu1wh6","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"consumer":"game::handle_action's ACTION_RELOAD_WIELDED dispatch calling avatar_action::reload_wielded(), which PERFORMS the reload of the wielded gun through the engine's active input loop","class":"A","scope":"the avatar's own wielded gun and its single unambiguous compatible ammo source the engine's reload resolves over (the no-menu case)","decisive_source":"src/handle_action.cpp::game::handle_action (ACTION_RELOAD_WIELDED) — its body dispatches the registered reload action to avatar_action::reload_wielded(), running the engine's real reload code path","divergence":"A gun shown as reloaded (charges set in the snapshot) without avatar_action::reload_wielded() ever running: no moves consumed, no ammo decremented from inventory, and the engine's reload preconditions never checked — proving a state-shortcut rather than the driven action","support_disposition":"supported"}
+{
+  "case_id": "case-eu1wh6",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "game::handle_action's ACTION_RELOAD_WIELDED dispatch calling avatar_action::reload_wielded(), which PERFORMS the reload of the wielded gun through the engine's active input loop",
+  "class": "A",
+  "scope": "the avatar's own wielded gun and its single unambiguous compatible ammo source the engine's reload resolves over (the no-menu case)",
+  "decisive_source": "src/handle_action.cpp::game::handle_action (ACTION_RELOAD_WIELDED) — its body dispatches the registered reload action to avatar_action::reload_wielded(), running the engine's real reload code path",
+  "divergence": "A gun shown as reloaded (charges set in the snapshot) without avatar_action::reload_wielded() ever running: no moves consumed, no ammo decremented from inventory, and the engine's reload preconditions never checked — proving a state-shortcut rather than the driven action",
+  "support_disposition": "supported"
+}

@@ -1,1 +1,12 @@
-{"case_id":"case-1ey0oyv","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"consumer":"An engine condition/dialogue/mission check consuming u_has_item(knife_combat) over the avatar actor, asking the computed yes/no 'does this character possess a knife_combat'.","class":"C","scope":"only the character's own carried items (on-person: wielded/worn/inventory plus nested container contents via visit_items, excluding gun/magazine internals) -- a possession check, not a reachable-nearby objective.","decisive_source":"src/condition.cpp::conditional_t<T>::set_has_item (u_has_item/npc_has_item) -- its body returns the engine-computed predicate actor->charges_of(item_id) > 0 || actor->has_amount(item_id, 1), the authoritative yes/no, not a re-derivation from a raw item dump.","divergence":"Avatar wields a gun whose contents hold a knife_combat-like item: visit_internal (visitable.cpp) skips gun/magazine contents, so the engine has_amount predicate correctly returns NOT carried, while a flat re-walk of the raw carried_items snapshot that descended into the gun would wrongly report carried.","support_disposition":"n/a"}
+{
+  "case_id": "case-1ey0oyv",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "An engine condition/dialogue/mission check consuming u_has_item(knife_combat) over the avatar actor, asking the computed yes/no 'does this character possess a knife_combat'.",
+  "class": "C",
+  "scope": "only the character's own carried items (on-person: wielded/worn/inventory plus nested container contents via visit_items, excluding gun/magazine internals) -- a possession check, not a reachable-nearby objective.",
+  "decisive_source": "src/condition.cpp::conditional_t<T>::set_has_item (u_has_item/npc_has_item) -- its body returns the engine-computed predicate actor->charges_of(item_id) > 0 || actor->has_amount(item_id, 1), the authoritative yes/no, not a re-derivation from a raw item dump.",
+  "divergence": "Avatar wields a gun whose contents hold a knife_combat-like item: visit_internal (visitable.cpp) skips gun/magazine contents, so the engine has_amount predicate correctly returns NOT carried, while a flat re-walk of the raw carried_items snapshot that descended into the gun would wrongly report carried.",
+  "support_disposition": "n/a"
+}

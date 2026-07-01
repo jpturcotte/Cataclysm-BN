@@ -1,1 +1,12 @@
-{"case_id":"case-avpv2r","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The door's NPC dialogue gate (a dialogue possession check) asking: is the id_card carried on the player's body right now?","class":"C","scope":"On-person only (worn/wielded/held inventory), NOT the reachable/nearby crafting inventory","decisive_source":"src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — tests u.crafting_inventory().has_amount(item, count), i.e. find-item mission completeness over the reachable crafting inventory, a predicate of the wrong reach","divergence":"The id_card lies in an adjacent locker/on the ground within crafting reach but is not worn or held; crafting_inventory().has_amount returns true (mission complete) while the on-person dialogue possession check must return false","support_disposition":"n/a"}
+{
+  "case_id": "case-avpv2r",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The door's NPC dialogue gate (a dialogue possession check) asking: is the id_card carried on the player's body right now?",
+  "class": "C",
+  "scope": "On-person only (worn/wielded/held inventory), NOT the reachable/nearby crafting inventory",
+  "decisive_source": "src/mission.cpp::mission::is_complete (MGOAL_FIND_ITEM) — tests u.crafting_inventory().has_amount(item, count), i.e. find-item mission completeness over the reachable crafting inventory, a predicate of the wrong reach",
+  "divergence": "The id_card lies in an adjacent locker/on the ground within crafting reach but is not worn or held; crafting_inventory().has_amount returns true (mission complete) while the on-person dialogue possession check must return false",
+  "support_disposition": "n/a"
+}

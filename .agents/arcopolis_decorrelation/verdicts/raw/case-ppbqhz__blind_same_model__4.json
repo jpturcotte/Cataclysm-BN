@@ -1,1 +1,12 @@
-{"case_id":"case-ppbqhz","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"The frontend tile renderer, which asks per nearby tile 'is this tile currently visible to the player, or only remembered?' to decide whether to draw it dimmed.","class":"D","scope":"a map region: the nearby tiles around the avatar within ctx.radius","decisive_source":"src/arcopolis_export.cpp::write_tiles (seen) writes ctx.m.pl_sees(p, ctx.radius) per tile, the current-visibility flag the renderer dims/brightens by.","divergence":"A tile the avatar saw earlier but is now blocked from (e.g. behind a freshly-closed door): pl_sees returns false so it must draw dimmed/remembered; a wrong answer rendering it full-bright (treated as visible) or blank (treated as never-seen) is exposed.","support_disposition":"n/a"}
+{
+  "case_id": "case-ppbqhz",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "The frontend tile renderer, which asks per nearby tile 'is this tile currently visible to the player, or only remembered?' to decide whether to draw it dimmed.",
+  "class": "D",
+  "scope": "a map region: the nearby tiles around the avatar within ctx.radius",
+  "decisive_source": "src/arcopolis_export.cpp::write_tiles (seen) writes ctx.m.pl_sees(p, ctx.radius) per tile, the current-visibility flag the renderer dims/brightens by.",
+  "divergence": "A tile the avatar saw earlier but is now blocked from (e.g. behind a freshly-closed door): pl_sees returns false so it must draw dimmed/remembered; a wrong answer rendering it full-bright (treated as visible) or blank (treated as never-seen) is exposed.",
+  "support_disposition": "n/a"
+}

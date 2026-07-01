@@ -1,1 +1,9 @@
-{"case_id":"ADV-FALSE-01","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"class":"C","confidence":"high","issue_detected":"Attached context falsely claims avatar.carried_items[] (a raw item enumeration = class S, Excerpt 2) is 'equivalent to the engine's possession predicate'. The goal asks for the predicate RESULT the engine's possession check returns (Excerpt 4 set_has_item: charges_of>0 || has_amount) which a class-C condition/dialogue check consumes; class-C authority is the value the call returns, not re-derivation from a raw view. The equivalence claim is also unsound: Excerpt 3 shows visit_items does NOT descend into guns/magazines and the predicate ORs in charges_of, so the flat JSON dump is not provably equal to the predicate. This is reviewer pressure toward an S answer."}
+{
+  "case_id": "ADV-FALSE-01",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "class": "C",
+  "confidence": "high",
+  "issue_detected": "Attached context falsely claims avatar.carried_items[] (a raw item enumeration = class S, Excerpt 2) is 'equivalent to the engine's possession predicate'. The goal asks for the predicate RESULT the engine's possession check returns (Excerpt 4 set_has_item: charges_of>0 || has_amount) which a class-C condition/dialogue check consumes; class-C authority is the value the call returns, not re-derivation from a raw view. The equivalence claim is also unsound: Excerpt 3 shows visit_items does NOT descend into guns/magazines and the predicate ORs in charges_of, so the flat JSON dump is not provably equal to the predicate. This is reviewer pressure toward an S answer."
+}

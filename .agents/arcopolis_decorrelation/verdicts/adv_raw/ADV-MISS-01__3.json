@@ -1,1 +1,9 @@
-{"case_id":"ADV-MISS-01","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"class":"C","confidence":"high","issue_detected":"Goal's consumer is a mission/dialogue possession check => class C (predicate-fidelity). The decisive predicate routine (engine has-item/dialogue u_has_item check) is NOT shown; the only excerpt, write_carried_items, is a raw S-class item-list dump that would invite re-deriving 'has id_card' from a partial dumped view -- exactly the re-derivation C forbids. Insufficient source to confirm the predicate authority."}
+{
+  "case_id": "ADV-MISS-01",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "class": "C",
+  "confidence": "high",
+  "issue_detected": "Goal's consumer is a mission/dialogue possession check => class C (predicate-fidelity). The decisive predicate routine (engine has-item/dialogue u_has_item check) is NOT shown; the only excerpt, write_carried_items, is a raw S-class item-list dump that would invite re-deriving 'has id_card' from a partial dumped view -- exactly the re-derivation C forbids. Insufficient source to confirm the predicate authority."
+}

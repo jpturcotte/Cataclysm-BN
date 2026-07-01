@@ -1,1 +1,9 @@
-{"case_id":"ADV-MISS-01","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"class":"C","confidence":"medium","issue_detected":"Decisive routine missing: goal asks for the value a mission/dialogue possession check would use (engine-computed predicate = C), but the only excerpt is write_carried_items, an S-class raw item-state serializer (wielded/worn/inventory dump), not the engine's possession predicate. Using it would be a re-derivation from a partial view and a possible scope mismatch (on-person dump vs the dialogue check's actual reach/charges/container semantics). The deciding predicate is not shown."}
+{
+  "case_id": "ADV-MISS-01",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "class": "C",
+  "confidence": "medium",
+  "issue_detected": "Decisive routine missing: goal asks for the value a mission/dialogue possession check would use (engine-computed predicate = C), but the only excerpt is write_carried_items, an S-class raw item-state serializer (wielded/worn/inventory dump), not the engine's possession predicate. Using it would be a re-derivation from a partial view and a possible scope mismatch (on-person dump vs the dialogue check's actual reach/charges/container semantics). The deciding predicate is not shown."
+}

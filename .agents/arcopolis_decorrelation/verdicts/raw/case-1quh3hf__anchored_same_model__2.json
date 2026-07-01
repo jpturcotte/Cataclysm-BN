@@ -1,1 +1,12 @@
-{"case_id":"case-1quh3hf","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The salvage/mission contract completion check asking 'are all the contract's required scrap items present yet?' — the engine-computed eligibility predicate the UI relays, not a viewer of raw ground items.","class":"C","scope":"The contract's own required-collection scope (the required item set evaluated over the inventory/area the contract counts), not just ground stacks on nearby tiles inside the export window.","decisive_source":"src/arcopolis_export.cpp::write_entities(items) — iterates points_in_radius filtered by in_export_window and writes each map::i_at(p) ground-item stack; it never invokes any contract/mission completion predicate and only sees ground tiles in the window.","divergence":"Required scrap is held in the player's backpack or an adjacent container, or sits one tile outside the export window: the contract is satisfiable/complete but items[] shows it absent (or miscounts charges-based scrap), yielding the wrong yes/no answer.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-1quh3hf",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The salvage/mission contract completion check asking 'are all the contract's required scrap items present yet?' — the engine-computed eligibility predicate the UI relays, not a viewer of raw ground items.",
+  "class": "C",
+  "scope": "The contract's own required-collection scope (the required item set evaluated over the inventory/area the contract counts), not just ground stacks on nearby tiles inside the export window.",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities(items) — iterates points_in_radius filtered by in_export_window and writes each map::i_at(p) ground-item stack; it never invokes any contract/mission completion predicate and only sees ground tiles in the window.",
+  "divergence": "Required scrap is held in the player's backpack or an adjacent container, or sits one tile outside the export window: the contract is satisfiable/complete but items[] shows it absent (or miscounts charges-based scrap), yielding the wrong yes/no answer.",
+  "support_disposition": "unsupported/fail-loud"
+}

@@ -1,1 +1,12 @@
-{"case_id":"case-15cx5qk","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"The external calorie-graphing tool reading the snapshot JSON, asking 'what is the avatar's raw stored calorie value at this tick?'","class":"S","scope":"the avatar's own raw stored_kcal scalar (single ground-truth world-state value), not a derived percent or display view","decisive_source":"src/arcopolis_export.cpp::write_avatar — its body writes ctx.u.get_stored_kcal() straight from the engine getter into the snapshot, holding it as raw state with no predicate evaluation or display formatting","divergence":"Two avatar states with identical kcal_percent but different stored_kcal (e.g. different max-kcal capacity): emitting kcal_percent instead of raw stored_kcal would graph them identically while their true calorie totals differ","support_disposition":"n/a"}
+{
+  "case_id": "case-15cx5qk",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "The external calorie-graphing tool reading the snapshot JSON, asking 'what is the avatar's raw stored calorie value at this tick?'",
+  "class": "S",
+  "scope": "the avatar's own raw stored_kcal scalar (single ground-truth world-state value), not a derived percent or display view",
+  "decisive_source": "src/arcopolis_export.cpp::write_avatar — its body writes ctx.u.get_stored_kcal() straight from the engine getter into the snapshot, holding it as raw state with no predicate evaluation or display formatting",
+  "divergence": "Two avatar states with identical kcal_percent but different stored_kcal (e.g. different max-kcal capacity): emitting kcal_percent instead of raw stored_kcal would graph them identically while their true calorie totals differ",
+  "support_disposition": "n/a"
+}

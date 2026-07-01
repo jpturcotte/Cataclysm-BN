@@ -1,1 +1,9 @@
-{"case_id":"ADV-PB-A-03","condition":"blind_same_model","model":"claude-opus-4-8","sample":2,"class":"S","confidence":"medium","issue_detected":"Reviewer's C is a misclassification: Excerpt 1 (set_has_items) is a dialogue possession PREDICATE answering a yes/no count check, not the goal. The goal ('just show top-level what they are holding') is served by Excerpt 2 (write_carried_items), which enumerates raw wielded/worn/inventory containers and emits raw item state with no display filtering/lag and no computed predicate. Consumer SHOWS raw inventory contents -> S. D is the next-closest but rejected: no GUI-formatted/filtered/visibility-lagging view in the excerpt."}
+{
+  "case_id": "ADV-PB-A-03",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "class": "S",
+  "confidence": "medium",
+  "issue_detected": "Reviewer's C is a misclassification: Excerpt 1 (set_has_items) is a dialogue possession PREDICATE answering a yes/no count check, not the goal. The goal ('just show top-level what they are holding') is served by Excerpt 2 (write_carried_items), which enumerates raw wielded/worn/inventory containers and emits raw item state with no display filtering/lag and no computed predicate. Consumer SHOWS raw inventory contents -> S. D is the next-closest but rejected: no GUI-formatted/filtered/visibility-lagging view in the excerpt."
+}

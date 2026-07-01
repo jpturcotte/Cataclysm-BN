@@ -1,1 +1,12 @@
-{"case_id":"case-1u225k0","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"consumer":"Character::craft's call to select_crafting_recipe (src/crafting_gui.cpp), which asks the player to browse/filter and interactively pick a recipe (and batch size) through the engine's own input loop, returning the chosen recipe or nullptr on cancel.","class":"B","scope":"the interactive recipe-selection input loop over the crafter's available recipes, answered through the real active input loop -- not a re-derivation from any item snapshot.","decisive_source":"src/crafting_gui.cpp::select_crafting_recipe -- runs a full-screen interactive crafting menu answered through the engine's own input loop and returns the picked recipe (nullptr on cancel); the item-export writers (write_carried_items / write_entities) only SHOW item stacks and are not the load-bearing consumer.","divergence":"Backend 're-derives' the craft by selecting the first matching recipe from a computed craftable list instead of driving select_crafting_recipe: where the player would have browsed, filtered, and cancelled (nullptr -> no craft), the shortcut still crafts; or where the player would pick the 3rd recipe, the shortcut crafts the 1st -- a wrong/silently-defaulted selection an interactive drive would expose.","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-1u225k0",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "consumer": "Character::craft's call to select_crafting_recipe (src/crafting_gui.cpp), which asks the player to browse/filter and interactively pick a recipe (and batch size) through the engine's own input loop, returning the chosen recipe or nullptr on cancel.",
+  "class": "B",
+  "scope": "the interactive recipe-selection input loop over the crafter's available recipes, answered through the real active input loop -- not a re-derivation from any item snapshot.",
+  "decisive_source": "src/crafting_gui.cpp::select_crafting_recipe -- runs a full-screen interactive crafting menu answered through the engine's own input loop and returns the picked recipe (nullptr on cancel); the item-export writers (write_carried_items / write_entities) only SHOW item stacks and are not the load-bearing consumer.",
+  "divergence": "Backend 're-derives' the craft by selecting the first matching recipe from a computed craftable list instead of driving select_crafting_recipe: where the player would have browsed, filtered, and cancelled (nullptr -> no craft), the shortcut still crafts; or where the player would pick the 3rd recipe, the shortcut crafts the 1st -- a wrong/silently-defaulted selection an interactive drive would expose.",
+  "support_disposition": "unsupported/fail-loud"
+}

@@ -1,1 +1,13 @@
-{"case_id":"case-on128q","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"An engine-computed on-person possession predicate (e.g. Character::charges_of/has_charges over the avatar's carried items) answering 'does the avatar hold >=30 rounds of 9mm on their person?'","class":"C","scope":"On-person possession: avatar's wielded + worn + inventory INCLUDING ammo nested inside magazines, guns, and containers carried on the person","decisive_source":"src/arcopolis_export.cpp::write_carried_items — emits only top-level wielded/worn/inventory items with their raw it.charges, never walking item contents or summing 9mm across the carry, so it is raw state (class S) not a computed possession predicate","divergence":"Avatar carries two 9mm magazines (15 rounds each) loaded into worn pouches or a wielded pistol but zero loose 9mm: the engine's charges_of('9mm') returns 30 (goal TRUE), while the proposed surface emits the magazines/gun as items whose own 'charges' field is 0/ammo-count and lists no top-level '9mm' item, so a frontend re-deriving from carried_items[] reports <30 (false negative)","support_disposition":"unsupported/fail-loud","verdict":"flag"}
+{
+  "case_id": "case-on128q",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "An engine-computed on-person possession predicate (e.g. Character::charges_of/has_charges over the avatar's carried items) answering 'does the avatar hold >=30 rounds of 9mm on their person?'",
+  "class": "C",
+  "scope": "On-person possession: avatar's wielded + worn + inventory INCLUDING ammo nested inside magazines, guns, and containers carried on the person",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items — emits only top-level wielded/worn/inventory items with their raw it.charges, never walking item contents or summing 9mm across the carry, so it is raw state (class S) not a computed possession predicate",
+  "divergence": "Avatar carries two 9mm magazines (15 rounds each) loaded into worn pouches or a wielded pistol but zero loose 9mm: the engine's charges_of('9mm') returns 30 (goal TRUE), while the proposed surface emits the magazines/gun as items whose own 'charges' field is 0/ammo-count and lists no top-level '9mm' item, so a frontend re-deriving from carried_items[] reports <30 (false negative)",
+  "support_disposition": "unsupported/fail-loud",
+  "verdict": "flag"
+}

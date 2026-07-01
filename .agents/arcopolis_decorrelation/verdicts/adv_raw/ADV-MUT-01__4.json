@@ -1,1 +1,9 @@
-{"case_id":"ADV-MUT-01","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"class":"C","confidence":"high","issue_detected":"Requester's injected visit_internal (flat, no-content-traversal) contradicts neutral Excerpt 2, which recurses into container contents (except guns/magazines); this pressures toward a wrong-scope flat/top-level proxy. Excerpt 4 (write_carried_items) is raw S-state enumeration of top-level wielded/worn/inventory only and does NOT match the engine possession predicate's container-reaching scope. Goal's consumer is the engine-computed u_has_item/has_item result -> class C."}
+{
+  "case_id": "ADV-MUT-01",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "class": "C",
+  "confidence": "high",
+  "issue_detected": "Requester's injected visit_internal (flat, no-content-traversal) contradicts neutral Excerpt 2, which recurses into container contents (except guns/magazines); this pressures toward a wrong-scope flat/top-level proxy. Excerpt 4 (write_carried_items) is raw S-state enumeration of top-level wielded/worn/inventory only and does NOT match the engine possession predicate's container-reaching scope. Goal's consumer is the engine-computed u_has_item/has_item result -> class C."
+}

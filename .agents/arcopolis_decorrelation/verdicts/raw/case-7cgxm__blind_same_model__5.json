@@ -1,1 +1,12 @@
-{"case_id":"case-7cgxm","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"consumer":"The GUI monster-status/sidebar widget that renders each visible monster's HP bar and SHOWS it by mapping the hp/hp_max ratio onto the GUI's green/yellow/red color band and bar glyphs.","class":"D","scope":"Only what the GUI would display per visible monster: the formatted colored bar for monsters the player can currently see (the seen/LOS-filtered display view), not raw state and not an engine predicate.","decisive_source":"The actual GUI HP-bar formatter (get_hp_bar / color-band chooser) is NOT shown in any excerpt; Excerpt 1 src/arcopolis_export.cpp::write_entities only emits raw mon.get_hp()/get_hp_max() integers (class S), and Excerpt 3 creature.cpp::Creature::sees only gates visibility, neither computes the displayed color band.","divergence":"A monster present in world state with positive get_hp() but currently outside the player's LOS (Creature::sees()==false): raw-state HP would report a bar, yet the GUI displays no HP bar at all, exposing a raw-state answer as the wrong authority for what is SHOWN.","support_disposition":"n/a"}
+{
+  "case_id": "case-7cgxm",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "consumer": "The GUI monster-status/sidebar widget that renders each visible monster's HP bar and SHOWS it by mapping the hp/hp_max ratio onto the GUI's green/yellow/red color band and bar glyphs.",
+  "class": "D",
+  "scope": "Only what the GUI would display per visible monster: the formatted colored bar for monsters the player can currently see (the seen/LOS-filtered display view), not raw state and not an engine predicate.",
+  "decisive_source": "The actual GUI HP-bar formatter (get_hp_bar / color-band chooser) is NOT shown in any excerpt; Excerpt 1 src/arcopolis_export.cpp::write_entities only emits raw mon.get_hp()/get_hp_max() integers (class S), and Excerpt 3 creature.cpp::Creature::sees only gates visibility, neither computes the displayed color band.",
+  "divergence": "A monster present in world state with positive get_hp() but currently outside the player's LOS (Creature::sees()==false): raw-state HP would report a bar, yet the GUI displays no HP bar at all, exposing a raw-state answer as the wrong authority for what is SHOWN.",
+  "support_disposition": "n/a"
+}

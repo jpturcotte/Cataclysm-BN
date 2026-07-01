@@ -1,1 +1,12 @@
-{"case_id":"case-ppbqhz","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"consumer":"The frontend tile renderer reading the per-tile 'seen' value to decide whether to draw a tile with the dimmed remembered-but-not-currently-visible shading.","class":"D","scope":"a map region (the nearby tiles within the export radius)","decisive_source":"src/arcopolis_export.cpp::write_tiles (seen) — its body writes json.member(\"seen\", ctx.m.pl_sees(p, ctx.radius)), the player-visibility filter the GUI uses to shade remembered vs currently-visible tiles.","divergence":"A tile the avatar saw earlier but that is now out of line-of-sight: the renderer must shade it dimmed (remembered). A wrong answer reporting that tile as currently visible (no dim) or as fully unknown/hidden would expose the error.","support_disposition":"n/a"}
+{
+  "case_id": "case-ppbqhz",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "consumer": "The frontend tile renderer reading the per-tile 'seen' value to decide whether to draw a tile with the dimmed remembered-but-not-currently-visible shading.",
+  "class": "D",
+  "scope": "a map region (the nearby tiles within the export radius)",
+  "decisive_source": "src/arcopolis_export.cpp::write_tiles (seen) — its body writes json.member(\"seen\", ctx.m.pl_sees(p, ctx.radius)), the player-visibility filter the GUI uses to shade remembered vs currently-visible tiles.",
+  "divergence": "A tile the avatar saw earlier but that is now out of line-of-sight: the renderer must shade it dimmed (remembered). A wrong answer reporting that tile as currently visible (no dim) or as fully unknown/hidden would expose the error.",
+  "support_disposition": "n/a"
+}

@@ -1,1 +1,12 @@
-{"case_id":"case-1x3l7p3","condition":"blind_same_model","model":"claude-opus-4-8","sample":5,"consumer":"An engine possession/eligibility check (the crafting/condition path that calls Character::has_amount/amount_of) asking 'does the avatar possess at least one working multitool?'","class":"C","scope":"only the character's own carried items (wielded + worn + on-person inventory), including pseudo/bionic tool semantics; not items reachable nearby","decisive_source":"src/visitable.cpp::visitable<Character>::amount_of — the engine-COMPUTED possession predicate that special-cases BIONIC_TOOLS pseudo-tools and otherwise tallies via amount_of_internal; its return value is the authoritative yes/no, not a re-derivation from the snapshot","divergence":"Avatar has an active bionic that fakes a multitool (or holds a multitool nested inside a gun/magazine excluded by visit_internal's gun/magazine guard): amount_of returns >=1 while the carried_items[] snapshot disagrees, exposing a wrong answer derived from the snapshot instead of the engine predicate","support_disposition":"n/a"}
+{
+  "case_id": "case-1x3l7p3",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 5,
+  "consumer": "An engine possession/eligibility check (the crafting/condition path that calls Character::has_amount/amount_of) asking 'does the avatar possess at least one working multitool?'",
+  "class": "C",
+  "scope": "only the character's own carried items (wielded + worn + on-person inventory), including pseudo/bionic tool semantics; not items reachable nearby",
+  "decisive_source": "src/visitable.cpp::visitable<Character>::amount_of — the engine-COMPUTED possession predicate that special-cases BIONIC_TOOLS pseudo-tools and otherwise tallies via amount_of_internal; its return value is the authoritative yes/no, not a re-derivation from the snapshot",
+  "divergence": "Avatar has an active bionic that fakes a multitool (or holds a multitool nested inside a gun/magazine excluded by visit_internal's gun/magazine guard): amount_of returns >=1 while the carried_items[] snapshot disagrees, exposing a wrong answer derived from the snapshot instead of the engine predicate",
+  "support_disposition": "n/a"
+}

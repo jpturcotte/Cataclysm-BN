@@ -1,1 +1,12 @@
-{"case_id":"case-kl5v8y","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The mission/objective completion check that lights the 'objective met' indicator, asking 'are the required fetch parts accounted for in the objective's required scope?'","class":"C","scope":"The fetch objective's own required-item reach (the engine's objective/mission item count over reachable/eligible inventory, including carried/worn/containers), not just ground stacks on visible tiles in the export window","decisive_source":"src/arcopolis_export.cpp::write_entities(items) iterates points_in_radius+in_export_window and reads only get_map().i_at(p) ground stacks; it never invokes the mission/objective completion predicate, so it is raw windowed map state of the wrong scope","divergence":"The player has already picked up the required parts so they sit in the player's carried inventory (or just outside the export radius): the engine fetch objective predicate reads 'met', but the per-tile ground scan finds zero matching items in the window and leaves the indicator dark","support_disposition":"unsupported/fail-loud"}
+{
+  "case_id": "case-kl5v8y",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The mission/objective completion check that lights the 'objective met' indicator, asking 'are the required fetch parts accounted for in the objective's required scope?'",
+  "class": "C",
+  "scope": "The fetch objective's own required-item reach (the engine's objective/mission item count over reachable/eligible inventory, including carried/worn/containers), not just ground stacks on visible tiles in the export window",
+  "decisive_source": "src/arcopolis_export.cpp::write_entities(items) iterates points_in_radius+in_export_window and reads only get_map().i_at(p) ground stacks; it never invokes the mission/objective completion predicate, so it is raw windowed map state of the wrong scope",
+  "divergence": "The player has already picked up the required parts so they sit in the player's carried inventory (or just outside the export radius): the engine fetch objective predicate reads 'met', but the per-tile ground scan finds zero matching items in the window and leaves the indicator dark",
+  "support_disposition": "unsupported/fail-loud"
+}

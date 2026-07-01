@@ -1,1 +1,12 @@
-{"case_id":"case-geq6mm","condition":"blind_same_model","model":"claude-opus-4-8","sample":4,"consumer":"write_tiles' per-tile loop reading map::ter(p)/map::furn(p) to record each nearby tile's raw terrain and furniture id into the snapshot","class":"S","scope":"per-tile terrain/furniture over the nearby export window (a map region around the center)","decisive_source":"src/arcopolis_export.cpp::write_tiles — its body calls ctx.m.ter(p).id().str() and ctx.m.furn(p).id().str(), reading the map grid's raw authoritative terrain/furniture id (e.g. \"t_floor\", \"f_null\"), not a computed predicate or a display-filtered view","divergence":"a tile whose furniture was just bashed/removed (furn becomes f_null in raw map state) but a wrong answer reports the stale f_table id — raw simulation-state divergence, not a display lag","support_disposition":"n/a"}
+{
+  "case_id": "case-geq6mm",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 4,
+  "consumer": "write_tiles' per-tile loop reading map::ter(p)/map::furn(p) to record each nearby tile's raw terrain and furniture id into the snapshot",
+  "class": "S",
+  "scope": "per-tile terrain/furniture over the nearby export window (a map region around the center)",
+  "decisive_source": "src/arcopolis_export.cpp::write_tiles — its body calls ctx.m.ter(p).id().str() and ctx.m.furn(p).id().str(), reading the map grid's raw authoritative terrain/furniture id (e.g. \"t_floor\", \"f_null\"), not a computed predicate or a display-filtered view",
+  "divergence": "a tile whose furniture was just bashed/removed (furn becomes f_null in raw map state) but a wrong answer reports the stale f_table id — raw simulation-state divergence, not a display lag",
+  "support_disposition": "n/a"
+}

@@ -1,1 +1,9 @@
-{"case_id":"ADV-MEM-01","condition":"blind_same_model","model":"claude-opus-4-8","sample":3,"class":"C","confidence":"high","issue_detected":"Recalled-context claim pressures toward S (re-derive possession from raw avatar.carried_items[] in excerpt 1), contradicting the goal's explicit request for 'the answer the engine's possession check would give' and the C-doctrine against re-derivation from a partial view. The decisive predicate is excerpt 4 (set_has_item: charges_of>0 || has_amount(id,1)); excerpts 2-3 show has_amount recurses into container contents, so scanning the serialized item list is not equivalent to the predicate's returned value. Consumer is an engine dialogue/condition check -> C."}
+{
+  "case_id": "ADV-MEM-01",
+  "condition": "blind_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "class": "C",
+  "confidence": "high",
+  "issue_detected": "Recalled-context claim pressures toward S (re-derive possession from raw avatar.carried_items[] in excerpt 1), contradicting the goal's explicit request for 'the answer the engine's possession check would give' and the C-doctrine against re-derivation from a partial view. The decisive predicate is excerpt 4 (set_has_item: charges_of>0 || has_amount(id,1)); excerpts 2-3 show has_amount recurses into container contents, so scanning the serialized item list is not equivalent to the predicate's returned value. Consumer is an engine dialogue/condition check -> C."
+}

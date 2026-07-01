@@ -1,1 +1,13 @@
-{"case_id":"case-1qdfptr","condition":"anchored_same_model","model":"claude-opus-4-8","sample":1,"consumer":"The engine's active input-dispatch site that consumes a registered movement action and advances avatar_action::move one tile east while spending moves/a turn; it asks 'execute this player movement and let the turn-cost mechanics run'","class":"A","scope":"a registered player movement action driven through the engine's own active input loop, advancing the turn and deducting moves like a real keypress","decisive_source":"src/arcopolis_export.cpp::write_avatar(scalars) which merely copies u.get_hp()/get_stamina()/get_moves()/etc. read-only getters into snapshot JSON and performs no action and drives no input loop","divergence":"With the avatar standing still next to an open eastern tile, calling this surface reports unchanged scalars (moves never deducted, position never advances) while a real east keypress would move the avatar one tile and cost a turn; reading status getters can never produce the move","support_disposition":"unsupported/fail-loud","verdict":"flag"}
+{
+  "case_id": "case-1qdfptr",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 1,
+  "consumer": "The engine's active input-dispatch site that consumes a registered movement action and advances avatar_action::move one tile east while spending moves/a turn; it asks 'execute this player movement and let the turn-cost mechanics run'",
+  "class": "A",
+  "scope": "a registered player movement action driven through the engine's own active input loop, advancing the turn and deducting moves like a real keypress",
+  "decisive_source": "src/arcopolis_export.cpp::write_avatar(scalars) which merely copies u.get_hp()/get_stamina()/get_moves()/etc. read-only getters into snapshot JSON and performs no action and drives no input loop",
+  "divergence": "With the avatar standing still next to an open eastern tile, calling this surface reports unchanged scalars (moves never deducted, position never advances) while a real east keypress would move the avatar one tile and cost a turn; reading status getters can never produce the move",
+  "support_disposition": "unsupported/fail-loud",
+  "verdict": "flag"
+}

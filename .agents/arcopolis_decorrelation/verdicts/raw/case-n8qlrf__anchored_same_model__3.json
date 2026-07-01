@@ -1,1 +1,12 @@
-{"case_id":"case-n8qlrf","condition":"anchored_same_model","model":"claude-opus-4-8","sample":3,"consumer":"The frontend inventory panel renderer asking 'what carried-items entries should I DISPLAY, top-level, as the GUI inventory list shows them?'","class":"D","scope":"The formatted/filtered/stacked inventory-panel view the GUI presents (identical items collapsed into stacked lines with counts, categorized, sorted, and subject to the active inventory filter) — not a flat enumeration of every raw item object.","decisive_source":"src/arcopolis_export.cpp::write_carried_items — flat-iterates ctx.u.wielded_items(), ctx.u.worn, and ctx.u.inv_const_slice() and emits each raw item's type_id/name/symbol/charges, exposing raw simulation-state enumeration rather than the engine's display-formatted inventory view.","divergence":"Player carries 5 identical bandages plus a partial and a full magazine: the GUI inventory panel collapses the bandages into one stacked '5x' display line (and applies categorization/sort/active filter), whereas the proposed surface emits five separate flat entries (or splits by charges-stack), so carried_items[] diverges from what the inventory panel would actually show.","support_disposition":"n/a"}
+{
+  "case_id": "case-n8qlrf",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 3,
+  "consumer": "The frontend inventory panel renderer asking 'what carried-items entries should I DISPLAY, top-level, as the GUI inventory list shows them?'",
+  "class": "D",
+  "scope": "The formatted/filtered/stacked inventory-panel view the GUI presents (identical items collapsed into stacked lines with counts, categorized, sorted, and subject to the active inventory filter) — not a flat enumeration of every raw item object.",
+  "decisive_source": "src/arcopolis_export.cpp::write_carried_items — flat-iterates ctx.u.wielded_items(), ctx.u.worn, and ctx.u.inv_const_slice() and emits each raw item's type_id/name/symbol/charges, exposing raw simulation-state enumeration rather than the engine's display-formatted inventory view.",
+  "divergence": "Player carries 5 identical bandages plus a partial and a full magazine: the GUI inventory panel collapses the bandages into one stacked '5x' display line (and applies categorization/sort/active filter), whereas the proposed surface emits five separate flat entries (or splits by charges-stack), so carried_items[] diverges from what the inventory panel would actually show.",
+  "support_disposition": "n/a"
+}

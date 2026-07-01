@@ -1,1 +1,13 @@
-{"case_id":"case-ppbqhz","condition":"anchored_same_model","model":"claude-opus-4-8","sample":2,"consumer":"The frontend tile renderer asking 'should this tile be drawn with the remembered-but-not-currently-visible dimmed shading?'","class":"D","scope":"Per-tile map-memory display state distinguishing remembered-but-unseen (dimmed) from currently-visible (lit) from never-seen (unknown/black)","decisive_source":"src/arcopolis_export.cpp::write_tiles, which writes ter/furn ids plus seen=map::pl_sees(p,radius); pl_sees computes raw line-of-sight visibility within a radius, not the avatar's map-memory display category","divergence":"A tile the avatar previously explored and remembers but cannot currently see: the GUI dims it, yet pl_sees returns false there exactly as it does for a never-explored tile, so the exposed 'seen' value cannot produce the dimmed-vs-black distinction the shading requires","support_disposition":"n/a","verdict":"flag"}
+{
+  "case_id": "case-ppbqhz",
+  "condition": "anchored_same_model",
+  "model": "claude-opus-4-8",
+  "sample": 2,
+  "consumer": "The frontend tile renderer asking 'should this tile be drawn with the remembered-but-not-currently-visible dimmed shading?'",
+  "class": "D",
+  "scope": "Per-tile map-memory display state distinguishing remembered-but-unseen (dimmed) from currently-visible (lit) from never-seen (unknown/black)",
+  "decisive_source": "src/arcopolis_export.cpp::write_tiles, which writes ter/furn ids plus seen=map::pl_sees(p,radius); pl_sees computes raw line-of-sight visibility within a radius, not the avatar's map-memory display category",
+  "divergence": "A tile the avatar previously explored and remembers but cannot currently see: the GUI dims it, yet pl_sees returns false there exactly as it does for a never-explored tile, so the exposed 'seen' value cannot produce the dimmed-vs-black distinction the shading requires",
+  "support_disposition": "n/a",
+  "verdict": "flag"
+}
