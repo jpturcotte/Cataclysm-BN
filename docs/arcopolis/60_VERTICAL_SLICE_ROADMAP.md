@@ -16,6 +16,12 @@
   ([55](55_SPIKE26B_26C_NOT_REQUIRED.md)).
 - **Honesty stance.** Statuses below use doc 47's labels; "reachable through a witnessed verb" is never
   written as "witnessed". Spike numbers ≥ 28 are **proposed**, not committed.
+- **Revision (2026-07-01).** Amended after an adversarial review pass with leaf verification (a 6-lens
+  doc red-team, an FE-1/FE-3 scope review, and an attack-surface source sweep): Spike 30/31's turret
+  facts corrected (the searchlight cannot attack; armor bounds the bump witness), Spike 32's witness
+  gained an engagement-capability requirement, and FE-1/FE-3 carry transport/fixture caveats. All
+  findings are folded inline below; the review verdicts live in the session record, the load-bearing
+  leaves are cited in place.
 
 ## 1. Where the slice stands today
 
@@ -65,7 +71,10 @@ composition, two route witnesses, floor count, and catching the frontend up to t
 whole loop: export → `vertical_move down` → planar `move` to the package → `pickup` (level-4 prompt
 transaction) → planar return → `vertical_move up` → `op:"query" has_item` + position, conjunction green.
 Plus the false-green guards doc 53 established: possession false before pickup, off-contact false after a
-proven displacement.
+proven displacement — and two composite-specific gates the review added: **floor provenance** (the package
+is asserted on the floor-(−1) ground BEFORE the pickup, then ground −1 == carried +1 across it, so the
+pickup provably came from the descended floor) and a **z-changed off-contact guard** (the conjunction
+reads false while the avatar is on the other floor, not merely one tile off-contact on the same floor).
 
 **Why first:** it is the actual "vertical slice" milestone — 48 §21 steps 1–4 exist only as separate
 witnesses on separate fixtures; nothing has ever proven they compose in one session. Composition bugs
@@ -94,9 +103,16 @@ on the tall fixture (package on the deepest floor) — that IS Stage A's travers
 ### Spike 30 — hostile security-drone fixture + observation witness
 
 **What:** a hostile-bot fixture via the (already parameterized, 27A) `make_monster_fixture.py` hostility
-flags, plus the drone-specific gaps 47 §6 names: `mon_turret_searchlight` for the positional witness
-(immobile, non-lethal attacks); optionally `mon_secubot` **with its `556` ammo injected** for a
-ranged-attack engine-message observation. L1 observation only, 27A/27B pattern (RNG-invariant gates where
+flags, plus the drone-specific gaps 47 §6 names: `mon_turret_searchlight` for the positional witness —
+immobile and, leaf-verified, **unable to attack at all** (no `melee_dice`; its `SEARCHLIGHT` special is
+illumination-only — `turrets.json:19/26`) — and optionally `mon_secubot` for a ranged-attack observation
+the existing 27B tap **already captures with source** (`ballistics.cpp:622` → `deal_projectile_attack` →
+`creature.cpp:1271` `apply_damage`), i.e. an attributed `avatar.damage_taken[]` witness, not merely an
+engine-message one. Ammo semantics (leaf-verified): the monster ctor seeds `ammo = type->starting_ammo`
+(`monster.cpp:342`) and deserialization reads the `"ammo"` key only when present
+(`savegame_json.cpp:2151-2155`), so the fixture blob must **omit** the key rather than write an empty
+map; the generator also writes `special_attacks = {}` — verify attack-cooldown reconstruction on load
+before relying on the gun attack. L1 observation only, 27A/27B pattern (RNG-invariant gates where
 possible, seed-sampled where not).
 
 **Why:** step 5's cheap half. The liveness/damage machinery from 27A/27B transfers; only the fixture and
@@ -104,11 +120,16 @@ the drone-specific hazards (ammo, `FOCUSEDBEAM` death) are new.
 
 ### Spike 31 — fight-route witness (bump-melee)
 
-**What:** `move` into the adjacent hostile searchlight; assert a monster `hp` decrement across snapshots
-(class S, `entities.monsters[]`), **stop before the kill** (its `FOCUSEDBEAM` death explodes —
-`mondeath.cpp`), fixture **saves `manual_combat_mode: false`** (it is save-persisted — 47 §6/Provenance),
-and any technique/unexpected prompt fails loud. The avatar-side counter-fact (`damage_taken[]`) is
-already exported if the turret's melee lands.
+**What:** `move` into an adjacent hostile monster; assert a monster `hp` decrement across snapshots
+(class S, `entities.monsters[]`), **stop before the kill** (the searchlight's `FOCUSEDBEAM` death
+explodes — `mondeath.cpp:646-684`), fixture **saves `manual_combat_mode: false`** (it is save-persisted —
+47 §6/Provenance), and any technique/unexpected prompt fails loud. **Target selection is a real
+constraint (leaf-verified):** the searchlight carries `armor_bash 14 / armor_cut 16`
+(`turrets.json:20-21`), which plausibly zeroes a stock unarmed avatar's hits — the plan must either arm
+the avatar past that armor (compute the damage budget) or pick a softer adjacent target (a hostile
+`mon_zombie` at offset `0,1,0` is unarmored but mobile; the turret trades damageability for
+deterministic adjacency and no counter-attack confound). The searchlight **cannot melee back** (no
+`melee_dice`), so no avatar-side `damage_taken[]` counter-fact exists on a turret fixture.
 
 **Why after 30:** the fight route becomes witnessed with **no new engine seam** — the bump path is
 NATIVE-BN and prompt-suppressed in default play; the claim stays "reachable via the witnessed `move`,
@@ -116,11 +137,19 @@ now witnessed for this fixture", engine-equivalent for the attack, never level 4
 
 ### Spike 32 — sneak/alternate-route witness
 
-**What:** a fixture with a static threat on the direct route and an open alternate route; witness the
-route composition (planar moves only) arriving with `damage_taken[]` empty and the threat's position
-held/never adjacent — plus the near-free door sub-witness: `move` into an unlocked `t_door_c` auto-opens
-(`t_door_c → t_door_o`, `moves -= 100` turn-economy assertion), which the backlog already flags as the
-cheapest interaction follow-up.
+**What:** a fixture with a static, **engagement-capable** threat on the direct route (NOT the
+searchlight — it cannot attack, which would make the damage-empty gate structurally unable to fail) and
+an open alternate route; witness the route composition (planar moves only) arriving with
+`damage_taken[]` empty and the threat's position held/never adjacent, **plus a contrast/capability arm**:
+a direct-route (or adjacency) leg on the same fixture where the threat DOES land attributed damage — the
+27B pattern proves that witnessable — so "empty" discriminates route-avoidance from threat-impotence.
+Without the contrast arm, the claim must be downgraded to "a damage-free alternate route exists."
+(Once §5's field export lands, a FIRE field is an alternative direct-route hazard — but field damage is
+source-less, so `damage_taken[]` stays empty even when burned: a field-hazard variant must contrast on
+avatar hp instead, or keep the monster threat.)
+Also the near-free door sub-witness: `move` into an unlocked `t_door_c` auto-opens
+(`t_door_c → t_door_o`, `moves -= 100` turn-economy assertion — body leaf-verified prompt-free,
+`avatar_action.cpp:693-705`), which the backlog already flags as the cheapest interaction follow-up.
 
 **Bound (47 §7):** layout-driven avoidance, **never a stealth claim** — headless `seen=false` hides
 player LOS, so "sneaked past undetected" is not snapshot-observable and must not be asserted.
@@ -138,10 +167,16 @@ Ordered so each step consumes only surfaces the backend has already proven; each
 
 ### FE-1 — `vertical_move` in bridge + UI
 
-Up/Down controls + a floor (`z`) indicator; the bridge classifies the outcome like planar moves; the diff
-view already keys on snapshot identity with an origin-delta correction, but a **z-change diff is a new
-case** — suppress or annotate cross-floor diffs rather than showing a bogus full-map change. Unlocks the
-browser two-floor traversal.
+Up/Down controls + a floor (`z`) indicator; the bridge classifies the outcome like planar moves. Scope
+caveats from the review (leaf-verified): **(a)** `vertical_move` is witnessed only in run-script — doc 49
+§Live mode explicitly added no live probe — and the browser is live-only, so **FE-1's regression gate is
+also the first live-transport `vertical_move` witness**; a failure there is a backend finding, not a
+frontend bug. **(b)** the FE regression's fixture (`ArcopolisTest`) has no stairs — the two-floor
+traversal needs an `ArcopolisStairsTest` scenario, and the no-stairs `vertical_move` outcome contract
+must be pinned first (it is unwitnessed; the existing negative probes send planar `move_up`, a different
+rejection). **(c)** the diff view already nulls its baseline on a z-change (`app.js:305-310` gates on
+`prevState.z === next.z`), so the cross-floor diff work is an annotation nicety, not a correctness fix.
+Appetite: 11B-class, not trivial. Unlocks the browser two-floor traversal.
 
 ### FE-2 — prompt-transaction UI (the big one)
 
@@ -160,6 +195,10 @@ sense — rather than move/examine only.
   perception-masked GUI display — doc 57's deferred `sees()` frontier).
 - A `has_item` query control + contact-tile indicator computing the doc 53 conjunction **client-side** —
   the frontend is precisely the consumer the docs 53/55 contract placement intends; no backend change.
+  Scope honesty (review): the contact tile is a fixture **convention** (the start tile), so the UI needs
+  a declared source for it; and on the standard FE fixture the indicator can only ever read false — gate
+  the red path there, take the optional green path on `ArcopolisCarriedNestedTest` (pre-carried item),
+  and leave pickup-then-green to FE-4 (it needs FE-2's modal).
 
 ### FE-4 — browser slice demo
 
@@ -169,8 +208,8 @@ product differentiator (verticality, 48 §15) in the mouse-first frontend. Gate 
 regression like the existing session_002 scenario.
 
 **Deliberately later:** SSE/push updates, sockets, tileset depth (multitile/rotation/`looks_like`),
-multi-z minimap — none block the slice; the polling bridge and glyph fallback are adequate for it
-(ARCOPOLIS_STATE.md deferred backlog).
+multi-z minimap, hazard display (field / known-trap panels — once the §5 exports land) — none block the
+slice; the polling bridge and glyph fallback are adequate for it (ARCOPOLIS_STATE.md deferred backlog).
 
 ## 5. Parallel / opportunistic backend hardening (not on the critical path)
 
@@ -185,9 +224,29 @@ Small, additive, in rough value order — good fill-in work between ladder spike
    message-stream second witness chain.
 3. **Rejected-request transcript event** — the additive `"rejected"` event kind the live-protocol backlog
    already names; makes live sessions fully replayable from the transcript alone.
-4. **Explicit `open`/`close` verbs** — the backlog's "near-free follow-ups" (same chooser shape as
-   examine, prompt-free bodies, turn-economy witness); natural sibling of Spike 32's door sub-witness.
-5. **Routine upstream sync** per the STATE workflow — note the collision-surface set grew again
+4. **Per-tile field export (fields v0 — candidate, from the terrain exploration).** The deferred-backlog fields item, now
+   source-mapped: field state is raw class-S per-tile data (`field_entry` {type, intensity, age};
+   `submap::fld`) whose lifecycle runs in the **turn loop** (`process_fields_in_submap`) — headless-alive,
+   no extraction needed. Additive export in the snapshot window (the `entities.items[]` pattern);
+   unlocks slice hazard pressure + a frontend hazard display. Field DAMAGE stays unattributed
+   (`source == nullptr` — invisible to `damage_taken[]` by design); attribution is a separate, narrow
+   decision, not part of this export.
+5. **Known-traps export (traps v0 — candidate, from the terrain exploration).** Leaf-verified: "player knows trap" is
+   **turn-loop stored state** (`search_surroundings`, `game.cpp:13074` → `known_traps`) —
+   headless-faithful, the opposite of the draw-populated fog-of-war. Export the KNOWN set only
+   (windowed): raw-all-traps would leak traps the GUI player cannot see — an information-fidelity
+   break. Disarm (a `query_yn` B path, `iexamine.cpp:4676-4679`) stays deferred.
+6. **Explicit `open`/`close` verbs** — the backlog's "near-free follow-ups" (same chooser shape as
+   examine, prompt-free bodies for plain doors — a vehicle door can raise the owner-theft `query_yn`
+   (`vehicle.cpp:5444`), which fails loud; turn-economy witness); natural sibling of Spike 32's door
+   sub-witness.
+7. **Avatar→hostile-NPC bump-melee (recorded fact, blocked witness).** Leaf-verified prompt-free:
+   `avatar_action.cpp:592-598` fires `npc_menu` only for `!is_enemy()`; a hostile NPC is bump-attacked
+   like a hostile monster — Spike 21's fail-loud is the **non-hostile** case only. A fight-route sibling
+   once two blockers land: a hostile-NPC fixture generator (attitude `NPCATT_KILL` is a save-editable
+   int, `savegame_json.cpp:1720/1866`; no generator exists today) and an `entities.npcs[].hp` export
+   (absent — avatar→NPC damage has no observation surface).
+8. **Routine upstream sync** per the STATE workflow — note the collision-surface set grew again
    (`character.cpp` since 27B); keep syncs small and `ccache -C` before the post-sync compile check
    (doc 41 §4).
 
@@ -210,8 +269,10 @@ Small, additive, in rough value order — good fill-in work between ladder spike
   before floor count multiplies the surface (the doc 48 §20 lesson — isolate the environment variable
   from the capability variable).
 - **Observation before interaction** for the fight route (30 before 31), exactly as 27A preceded 27B.
-- **Frontend consumes only proven surfaces.** FE-1/FE-2 start any time (their backend halves are done);
-  FE-4 waits on 28. Backend and frontend tracks are otherwise independent and can interleave.
+- **Frontend consumes only proven surfaces.** FE-2/FE-3 start any time (their backend halves are done,
+  with FE-3's green-path caveat above); FE-1 starts any time too, **with the declared caveat** that its
+  gate doubles as the first live-transport `vertical_move` witness (backend-attributed failure
+  semantics). FE-4 waits on 28. Backend and frontend tracks are otherwise independent and can interleave.
 - **No new prompt class anywhere in Stage A.** Every remaining step reuses witnessed verbs or is
   observation-only — the first genuinely new prompt family (NPC dialogue) is Stage B's opener, using the
   established per-family per-transaction witness pattern (13B/14/15 shape), and should start with a
@@ -232,9 +293,14 @@ rung:
    with the broader reach) once the backend is meant to own "package returned" (Stage B per doc 55).
 4. **World/avatar state separation audit** — death continuation (48 §12) is an architecture question
    before it is a feature; audit-first like 47.
-5. **Player ranged combat** (targeting UI — its own prompt path), **elevator** (`iexamine_elevator`
-   uilist — mechanically the 13B pattern at a new site), **lockpick/smash** — each its own witnessed
-   spike when a route needs it.
+5. **Player ranged combat** — now source-mapped: fire, reach-attack, and throw all route through the ONE
+   bespoke targeting loop (`target_ui::run`, `input_context("TARGET")`, `ranged.cpp:2937-3188`), which is
+   NOT test_mode-abortable like `uilist`; driving it means a new served per-transaction family (the
+   13B/14/15 pattern) plus a renderer-neutrality audit, and one family would unlock all three verbs —
+   **elevator** (`iexamine_elevator` uilist — mechanically the 13B pattern at a new site),
+   **lockpick/smash** (smash is NOT prompt-free at entry — a weapon-shatter `query_yn` at
+   `handle_action.cpp:821-823` plus an acid-corpse query; the terrain bash itself is prompt-free once
+   past them) — each its own witnessed spike when a route needs it.
 
 ## 9. Claims this roadmap does not make
 
