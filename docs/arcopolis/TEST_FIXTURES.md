@@ -229,6 +229,22 @@ avatar-held / NPC-held / mover-survived) — the headless sim is not byte-determ
   [57_SPIKE27B_ATTACKER_DAMAGE.md](57_SPIKE27B_ATTACKER_DAMAGE.md), and
   [58_ONESHOT_SESSION_SERIALIZATION.md](58_ONESHOT_SESSION_SERIALIZATION.md).
 
+## `ArcopolisTwoZombieTest` — attacker per-instance ambiguity witness (Stage-1 shadow-test, doc 59)
+
+A clone of `ArcopolisTest` with **two** hostile mobile `mon_zombie` (offsets `0,2,0` and `1,2,0` — both
+`t_floor`, in dark-shelter detection range), so **both** attack the stationary avatar. It is a **gap
+demonstration**, not a capability: with two same-type attackers, the Spike-27B `avatar.damage_taken[]`
+surface (`source_kind`/`source_type_id`/`amount`/`bodypart`/`hp_part`/`turn`) carries **no per-instance join
+key**, so a `mon_zombie` hit cannot be pinned to a specific entry in `entities.monsters[]` (which itself keys
+by a volatile windowed index). Monsters have no stable BN id (audit in doc 59); this witnesses that the gap
+is real and unresolvable with today's surface. Built by the **parameterized**
+[`docs/arcopolis/make_monster_fixture.py`](make_monster_fixture.py)'s additive `--extra-offset` flag (default
+omitted ⇒ `ArcopolisNearMonsterTest`/`ArcopolisLivenessTest` regenerate byte-for-byte). Gated by
+[`docs/arcopolis/attacker_instance_ambiguity_regression.ps1`](attacker_instance_ambiguity_regression.ps1) — 3
+seeds, RNG-dependent (like its 27B sibling); the `no_instance_join_key` gate is structural and RNG-independent
+and **flips if the surface ever gains a discriminator** (the gap closing). **L1 observation only, NO `src/`
+change.** See [59_ATTACKER_INSTANCE_ID_AUDIT.md](59_ATTACKER_INSTANCE_ID_AUDIT.md).
+
 ## Spike 16 — non-live run-script reuse of the prompt fixtures
 
 **Spike 16 reuses all four prompt fixtures (`ArcopolisTest`, `ArcopolisVehicleCargoTest`,
