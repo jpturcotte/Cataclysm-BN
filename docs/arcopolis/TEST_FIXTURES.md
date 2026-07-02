@@ -245,6 +245,45 @@ seeds, RNG-dependent (like its 27B sibling); the `no_instance_join_key` gate is 
 and **flips if the surface ever gains a discriminator** (the gap closing). **L1 observation only, NO `src/`
 change.** See [59_ATTACKER_INSTANCE_ID_AUDIT.md](59_ATTACKER_INSTANCE_ID_AUDIT.md).
 
+## `ArcopolisSliceTest` — two-floor vertical-slice composite witness (folded Spike 29, gate G3)
+
+A clone of **`ArcopolisBackpackTest`** (NOT `ArcopolisTest` — the stock avatar has no worn storage, so
+picking up the 1 L `box_small` raises the Spike-14 WIELD secondary `uilist`; the backpack avatar keeps
+the composite's pickup in the single-prompt Spike-12A witnessed shape — probe-decided 2026-07-01) with
+the Spike-23 matched stair pair (avatar's z=0 tile → `t_stairs_down`, directly below → `t_stairs_up`)
+plus one `box_small` **package** save-edited onto the clean basement tile `(6301, 6423, -1)` — two
+tiles south of the stair landing, with the walk tile between them asserted clean. The **contact tile**
+is the avatar's z=0 start tile (a fixture convention, docs 53/60). Backs the former-Spike-28 composite:
+descend → walk → level-4 `pickup` → walk back → ascend → the consumer-side
+`carried_at_contact` conjunction green, with the doc-53 false-green guards plus floor provenance and
+the PINNED z-changed off-contact guard (evaluated at `(6301, 6421, -1)`: contact x/y, z −1 — a z-blind
+conjunction fails there). Built reproducibly by
+[`docs/arcopolis/make_stairs_fixture.py`](make_stairs_fixture.py) (`--source-world ArcopolisBackpackTest
+--dest-world ArcopolisSliceTest --package-typeid box_small --package-offset 0,2,-1`), driven by
+[`docs/arcopolis/slice_live_driver.py`](slice_live_driver.py) (`--floors 2`), gated by
+[`docs/arcopolis/slice_regression.ps1`](slice_regression.ps1) (G1a/G1d/G3). See
+[61_SPIKE29_VERTICAL_SLICE_COMPOSITE.md](61_SPIKE29_VERTICAL_SLICE_COMPOSITE.md).
+
+## `ArcopolisTowerTest` — 6-floor traversal + deepest-floor composite witness (folded Spike 29, gates G2/G4)
+
+A clone of **`ArcopolisBackpackTest`** with a **five-pair stairwell column** (pair k joins z=−k to
+z=−k−1 at `(6301, 6421+k)` — wells offset one tile SOUTH per pair, because one tile cannot carry both
+stair directions and the basement is only clean southward: eastward `(6302,6421,-1)` carries furniture)
+and a `box_small` package on the DEEPEST floor at `(6301, 6427, -5)`. Floors z=−2..−5 **do not exist in
+the source save** (rows only at z ∈ {−1, 0, +1}) and are **synthesized**: 49 footprint quad rows per
+floor, cloned from the basement quad, coordinates rewritten, terrain rewritten to uniform fill
+(`t_linoleum_white` on the stairwell quad, `t_rock` everywhere else — hermetic: no spawns, mapgen never
+runs because the full reality-bubble footprint is supplied; loader acceptance of INSERTed never-existing
+z rows probe-witnessed 2026-07-01), dynamic content emptied. Backs the **6-floor descent→ascent round
+trip** (18 legs, per-leg pos/ter/turn asserts — the "5–6 floors" witness doc 47 §11 demanded before any
+such claim) and the deepest-floor composite (Stage A's traversal core, doc 60 §3). Built by the same
+generator (`--floors 6 --package-offset 0,6,-5`), driven by run-script (G2) and
+[`docs/arcopolis/slice_live_driver.py`](slice_live_driver.py) (`--floors 6`, G4), gated by
+[`docs/arcopolis/slice_regression.ps1`](slice_regression.ps1) (G1b/G1d/G2/G4). NOTE: the G3/G4 live
+composites are also the **first live-transport `vertical_move` witnesses** (doc 49 added no live probe;
+doc 60 FE-1 named the gap). See
+[61_SPIKE29_VERTICAL_SLICE_COMPOSITE.md](61_SPIKE29_VERTICAL_SLICE_COMPOSITE.md).
+
 ## Spike 16 — non-live run-script reuse of the prompt fixtures
 
 **Spike 16 reuses all four prompt fixtures (`ArcopolisTest`, `ArcopolisVehicleCargoTest`,

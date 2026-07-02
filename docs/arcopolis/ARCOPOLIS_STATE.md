@@ -1,4 +1,4 @@
-# Arcopolis backend — current state (truth as of Spike 25 carried-package export, 2026-06-22)
+# Arcopolis backend — current state (truth as of the folded Spike 29 vertical-slice composite, 2026-07-01)
 
 A single-page checkpoint of what the Arcopolis backend **is today**, so you don't have to
 reconstruct it from the per-spike history. The numbered `NN_SPIKE*.md` docs are the chronological
@@ -253,8 +253,12 @@ Witnessed ONLY for the **matched-stair fast path** (a `GOES_DOWN`/`GOES_UP` alig
 `find_stairs` early-returns the aligned counterpart with no fabrication/`query_yn` (`src/game.cpp:14840-14846`);
 any sub-prompt vertical_move could raise (ramp/rope/climb/lava/push-past) FAILS LOUD via the Spike 20/21
 unexpected-prompt guards. Not live-only (the clean path is prompt-free; runs in `--arcopolis-run-script`). NO
-generic vertical / ramp / elevator / ladder / multi-floor claim — see
-[49_SPIKE24_VERTICAL_MOVEMENT_WITNESS.md](49_SPIKE24_VERTICAL_MOVEMENT_WITNESS.md).
+generic vertical / ramp / elevator / ladder claim — see
+[49_SPIKE24_VERTICAL_MOVEMENT_WITNESS.md](49_SPIKE24_VERTICAL_MOVEMENT_WITNESS.md). **The folded Spike 29
+(doc 61) extends the WITNESSED matched-stair surface** to a 6-floor descent→ascent round trip (south-offset
+wells, per-leg snapshots, `ArcopolisTowerTest`), the LIVE transport (G3/G4 are the first live-mode
+`vertical_move` witnesses — doc 49 had added no live probe), and the slice composites — still **level 2/3**,
+still matched-stair-only.
 
 **`pickup` + `direction` → `ACTION_PICKUP` (Spike 12A live; Spike 16 adds non-live script via declared
 `prompt_answers`)** — a GUI-equivalent prompt/menu transaction (doc 25's "Option C" for one prompt class). The "Pickup where?" chooser is answered like
@@ -486,6 +490,8 @@ behavior change; doc 40 carries the old→new name map).
 | 27A   | **World-tick liveness witness (agency)** — observation that BN simulates between inputs: a hostile `mon_zombie` 2 tiles south of the stationary avatar (authored anger/aggro, an initial condition like the GUI debug spawn) pathfinds toward it on its OWN engine turn (`game::monmove`, the do_turn bottom half the driven `wait` falls through to) across `[export, (wait,export)×N]`. **L1 / class S, NO `src/` change**; `delta ⇒ act`, never `no-delta ⇒ no-liveness`. The headless sim is NOT byte-deterministic (even fully serial + fixed seed diverges — `--seed` re-seeds only the main engine, worker AI RNG is time-seeded), so gates are RNG-INVARIANT and proven across **3 seeds**: single mover, approach (Chebyshev decreased), clock-advanced, avatar-held, NPC non-interference (`is_stationary` + pos held), mover survived. NPC Edwardo is stationary + opposite-side ⇒ non-interference is structural, proven from the existing `entities.npcs[]` export (no new field). The attacker-attributed DAMAGE fact (the engine's `source` at the `apply_damage` funnel) is **27B** (now built, below). `ArcopolisLivenessTest` + `world_tick_liveness_regression.ps1`; doc 56                                                                                       | ✅                                      |
 | 27B   | **Attacker-attributed damage fact** — a gated additive tap at the engine's own `Character::apply_damage` funnel (`src/character.cpp`) surfaces the raw in-scope `source` + applied `amount` as read-only `avatar.damage_taken[]` (drained per snapshot). **L1 / class S, self-sealing** (the value can't diverge from itself); the FUNNEL FACT, **not** message-equivalence (recorded BEFORE the GUI's perception/painkiller filters — the perception-masked display is the deferred `sees()` frontier; the backend `source` ≠ the GUI's _displayed_ attacker). Reuses 27A's `ArcopolisLivenessTest` (NO fixture change). Witnesses MELEE `mon_zombie` only (the surface captures any source; ranged/NPC unwitnessed). **RNG-DEPENDENT** (hit-only funnel), empirically reliable across 3 seeds, NOT RNG-invariant like 27A. `character.cpp` becomes a NEW engine touch / upstream collision surface. `attacker_damage_regression.ps1` + `[arcopolis]` buffer unit test; doc 57                                                                                                                                                                                                                                                                                                      | ✅                                      |
 
+| 29 | **Folded vertical-slice composite** (doc 61; Spike 28 folded in by maintainer decision 2026-07-01) — FOUR claims, no composite headline: **C1** per-floor-pair fixture determinism (the parameterized `make_stairs_fixture.py --floors N` asserts doc 47 §4's three conditions per pair; lower floors SYNTHESIZED by footprint-wide row INSERT — probe-proven; default invocation stays content-identical, gated); **C2** a 6-floor z=0…−5 descent→ascent round trip (18 legs, per-leg pos/ter/turn; L1 observation of the level-2/3 `vertical_move`); **C3** the 2-floor composite — descend → walk → level-4 `pickup` → return → ascend → consumer-side `carried_at_contact` conjunction green, with the doc-53 guards + floor provenance + the PINNED z-changed off-contact guard (contact x/y, z −1 — a z-blind conjunction fails it); **C4** the same composite at 6 floors, package on z=−5 (Stage A's traversal core). Arcopolis-layer **L1 composite** (docs 53/55), per-verb levels unchanged (pickup B/L4 at its witnessed site, `has_item` C, position S, vertical 2/3); **NO new equivalence claim, zero `src/`**. G3/G4 are also the FIRST live-transport `vertical_move` witnesses. Fixtures `ArcopolisSliceTest`/`ArcopolisTowerTest` (clones of `ArcopolisBackpackTest` — probe-decided: `box_small` doesn't fit the stock avatar), driver `slice_live_driver.py`, gate `slice_regression.ps1` (G1–G4) | ✅ |
+
 **Stage A carried-at-contact witness (L1, current truth — composition over existing surfaces, NO new
 spike, NO `src/` or fixture change).** A consumer can compute the chosen Stage A return signal
 `carried_at_contact = avatar.pos_abs == contact_pos_abs && query.has && query.scope ==
@@ -653,6 +659,22 @@ attack, and that `avatar.damage_taken[]` carries **no per-instance join key** (`
 structural, RNG-independent gate that FLIPS if a discriminator is ever added), so a hit cannot be pinned to a
 specific `entities.monsters[]` entry. RNG-dependent (a landed hit), like its 27B sibling. See
 [59_ATTACKER_INSTANCE_ID_AUDIT.md](59_ATTACKER_INSTANCE_ID_AUDIT.md).
+[`docs/arcopolis/slice_regression.ps1`](slice_regression.ps1) gates the **folded Spike 29 vertical-slice
+composite** (doc 61) over the two new `ArcopolisBackpackTest`-clone fixtures — **`ArcopolisSliceTest`**
+(2 floors + a `box_small` package at `(6301,6423,-1)`) and **`ArcopolisTowerTest`** (6 floors via
+south-offset wells at `(6301,6421+k)`, floors z=−2..−5 SYNTHESIZED as 49 footprint quad rows each, package
+at `(6301,6427,-5)`) — in the four-gate ladder that preserves failure attribution inside the folded spike:
+**G1** generator `--check-only` per world + the DEFAULT-invocation content-identity gate (the ratified
+non-goal: regenerating `ArcopolisStairsTest` from `ArcopolisTest` with no new flags is content-identical) +
+a loaded z=0 read-back per world; **G2** the 18-leg 6-floor round trip (run-script; per-leg
+`pos_abs`/stair-terrain/turn asserts, synthesized floors hermetic — zero monsters/NPCs in-window,
+`damage_taken[]` empty everywhere); **G3/G4** the live composites via
+[`slice_live_driver.py`](slice_live_driver.py) (14/15 gates each: possession-false-at-start, trajectory,
+floor provenance before/after — ground −1 == carried +1, `location:"inventory"` — the level-4 single-entry
+pickup menu transaction, the PINNED z-changed off-contact guard at `(6301,6421,-1)`, composite green at
+contact, proven off-contact displacement, hermeticity, and the literal
+`on_person_dialogue_predicate` scope guard, count-pinned). **Run with `pwsh`.** See
+[61_SPIKE29_VERTICAL_SLICE_COMPOSITE.md](61_SPIKE29_VERTICAL_SLICE_COMPOSITE.md).
 [`docs/arcopolis/item_export_regression.ps1`](item_export_regression.ps1) gates the **ground-item export** on
 **`ArcopolisTest`** (its saved evac shelter already holds 27 deterministic in-window ground items, so it is
 the item-export witness with **no** save edit; `export(items_before) → wait → export(items_after_wait)`); see
@@ -798,7 +820,8 @@ numbers are current-tree and may drift; confirm by symbol. Centralized here by t
 
 **Still backlog (no driving claim):** vertical movement BEYOND the matched-stair fast path —
 ramps/elevators/ladders/ropes/climb/falls (**matched-stair `vertical_move` down/up is DONE**, Spike 24,
-level 2/3); explicit `open`/`close`/`smash`; per-unit
+level 2/3; **the folded Spike 29 witnesses the matched-stair surface to a 6-floor round trip + the live
+transport + the slice composites**, doc 61 — still 2/3, still matched-stair-only); explicit `open`/`close`/`smash`; per-unit
 pickup quantity (whole-stack only); nested-container parent/child mark propagation (exposed but
 **unexercised**, `src/pickup.cpp:1107-1123`); NPC talk/attack/swap; monster menus; computer use; the
 examine auto-pickup tail (still ESC-cancels); the `inventory_selector` (`NEW_PICKUP_MENU=true`); multi-tick
@@ -854,7 +877,9 @@ resumed-activity secondary prompts; generic `popup()`/`query_popup` families.
   [15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md](15_MOVEMENT_NPC_NOOP_ROOTCAUSE.md))**, inventory, and targeting.
   **Vertical movement is no longer fully deferred — the `vertical_move` verb (`down`/`up` → the separate
   `game::vertical_move` primitive) is IMPLEMENTED for the matched-stair fast path (Spike 24, doc 49, level
-  2/3);** ramps/elevators/ladders/ropes/climb/falls and 5–6-floor traversal stay deferred. **`pickup` as a
+  2/3); the folded Spike 29 (doc 61) WITNESSES 5–6-floor traversal (a 6-floor round trip on
+  `ArcopolisTowerTest`, per-leg snapshots) plus the 2-floor and 6-floor slice composites, still at 2/3;**
+  ramps/elevators/ladders/ropes/climb/falls stay deferred. **`pickup` as a
   user-selectable action is no longer deferred — IMPLEMENTED (Spike 12A's
   prompt/menu transaction, doc 30)** for the old `"PICKUP"` menu: doc 25's **Option C is now built for
   one prompt class** (NPC dialogue / computer menus still need it; the new inventory_selector, quantities,
