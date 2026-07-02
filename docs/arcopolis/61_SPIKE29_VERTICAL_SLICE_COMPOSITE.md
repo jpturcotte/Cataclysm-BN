@@ -1,7 +1,11 @@
 # Spike 29 (folded) — N-floor slice fixtures + the vertical-slice composite witnesses
 
 **Status: BUILT + witnessed (2026-07-01).** Zero `src/` change. Two new committed fixture worlds, one
-parameterized generator, one live driver, one four-gate regression, docs.
+parameterized generator, one live driver, one four-gate regression, docs. **Revised same day after a
+four-lens red-team over the committed diff:** two engine-leaf citations corrected (§3/§5), the C1
+assertion bound stated honestly (ids, not flags; monsters, not NPCs — §2/§5), the `hermetic_lower_floors`
+gate de-vacuified (G4-only, count-pinned; G3 is 13 gates, not 14), and the damage/turn guards hardened to
+fail CLOSED under export-schema drift. All witnesses re-run green after the revision (§7).
 
 ## 1. The fold decision (recorded here; doc 60 is deliberately unedited)
 
@@ -25,12 +29,12 @@ current-truth record of the decision.
 
 ## 2. The four claims (no composite headline — never "the vertical slice works")
 
-| #  | Claim                                                                                                                                                                                                          | Level / class                                                                                                                                                                                                            | Witness                                                                                          |
-| -- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| C1 | Per-floor-pair fixture determinism: the generator asserts doc 47 §4's three conditions per pair (travel-direction flag on the pair's top tile; aligned counterpart directly below; no creature on either tile) | fixture tooling mirroring an engine predicate's conditions — no equivalence level                                                                                                                                        | G1 (`--check-only` per world + dest read-back + the loaded z=0 read-back)                        |
-| C2 | A **6-floor (z=0…−5) descent→ascent round trip** completes through the proven route, per-floor snapshot each leg                                                                                               | **L1 observation** of a traversal executed via the **level 2/3** `vertical_move` (doc 49 — the `action_id` is injected at the `handle_action` seam, never enters `input_context::handle_input`; unchanged by this spike) | G2 (18 legs, per-leg `pos_abs` trajectory + avatar-tile stair terrain + strictly advancing turn) |
-| C3 | The **2-floor composite** — descend, walk, level-4 `pickup`, walk back, ascend, consumer-side conjunction green, with the full false-green guard set                                                           | **Arcopolis-layer L1 composite** (docs 53/55); constituents at their recorded levels: `pickup` **B/L4** at its Spike-12A witnessed site, `has_item` **class C**, position **class S**, vertical/planar movement **2/3**  | G3 (`slice_live_driver.py --floors 2` on `ArcopolisSliceTest`, 14 gates)                         |
-| C4 | The **6-floor composite**, package on z=−5                                                                                                                                                                     | same as C3                                                                                                                                                                                                               | G4 (`--floors 6` on `ArcopolisTowerTest`, 15 gates)                                              |
+| #  | Claim                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Level / class                                                                                                                                                                                                            | Witness                                                                                          |
+| -- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| C1 | Per-floor-pair fixture determinism: the generator asserts doc 47 §4's three conditions per pair — condition (1)/(2) via the stair terrain IDS at the pair's tiles (the ids' GOES_DOWN/GOES_UP flags were leaf-verified at authoring; a flag-only JSON drift passes G1 and surfaces at the G2+ traversal witnesses — see §5); condition (3) via the `.sav` monster + `stair_monsters` scan (NPCs deliberately unscanned — the generator's documented topology bound; the engine's own `critter_at` check is Creature-wide and silently displaces a non-enemy) | fixture tooling mirroring an engine predicate's conditions — no equivalence level                                                                                                                                        | G1 (`--check-only` per world + dest read-back + the loaded z=0 read-back)                        |
+| C2 | A **6-floor (z=0…−5) descent→ascent round trip** completes through the proven route, per-floor snapshot each leg                                                                                                                                                                                                                                                                                                                                                                                                                                             | **L1 observation** of a traversal executed via the **level 2/3** `vertical_move` (doc 49 — the `action_id` is injected at the `handle_action` seam, never enters `input_context::handle_input`; unchanged by this spike) | G2 (18 legs, per-leg `pos_abs` trajectory + avatar-tile stair terrain + strictly advancing turn) |
+| C3 | The **2-floor composite** — descend, walk, level-4 `pickup`, walk back, ascend, consumer-side conjunction green, with the full false-green guard set                                                                                                                                                                                                                                                                                                                                                                                                         | **Arcopolis-layer L1 composite** (docs 53/55); constituents at their recorded levels: `pickup` **B/L4** at its Spike-12A witnessed site, `has_item` **class C**, position **class S**, vertical/planar movement **2/3**  | G3 (`slice_live_driver.py --floors 2` on `ArcopolisSliceTest`, 13 gates)                         |
+| C4 | The **6-floor composite**, package on z=−5                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | same as C3                                                                                                                                                                                                               | G4 (`--floors 6` on `ArcopolisTowerTest`, 15 gates)                                              |
 
 **No new equivalence claim** (doc 60 §3 verbatim). The conjunction
 `carried_at_contact = pos_abs == contact && query.has && query.scope == "on_person_dialogue_predicate"`
@@ -66,9 +70,13 @@ independence evidence, not a seal; the mechanical checks are G3/G4's guards.
   `ArcopolisBackpackTest` — keeping the composite's pickup constituent identical to its Spike-12A/16
   witnessed shape rather than silently swapping in the Spike-14 secondary.
 - **A single-item tile still opens the menu.** The "just grab" shortcut needs
-  `here.size() <= min && min != -1` (`src/pickup.cpp:728-733`) and the command path passes `min=0`
-  (`:1523`) — so the package tile's one-item pickup runs the real `"PICKUP"` menu with exactly one
-  entry (G3/G4 assert exactly that shape).
+  `here.size() <= min && min != -1` (`src/pickup.cpp:728-733`), and the DRIVEN command chain passes
+  `min=0`: `ACTION_PICKUP` → `game::pickup()` chooser → `game::pickup(p)` → `pickup::pick_up( p, 0 )`
+  (`src/game.cpp:8637`, the `NEW_PICKUP_MENU=false` branch) → `pick_up_from_items` via
+  `src/pickup.cpp:1479` — so the package tile's one-item pickup runs the real `"PICKUP"` menu with
+  exactly one entry (G3/G4 assert exactly that shape). (Red-team corrected: an earlier draft cited
+  `pickup.cpp:1523`, which is `pick_up_all_nearby` — the `ACTION_PICKUP_ALL` verb's call site, a path
+  the composite never drives; `min=0` happens to hold on both.)
 - **Well geometry is SOUTH, bounded.** One tile cannot carry both stair directions, so an N-floor
   column needs offset wells (the stock dual-flag `t_ladder_up_down` exists — its `DIFFICULT_Z` is
   consumed only on the mounted branch, `src/handle_action.cpp:2192/:2247` — but stairs were ratified
@@ -101,13 +109,17 @@ compare file-set + bytes + row-wise decompressed `map.sqlite3` payloads against 
 `ArcopolisStairsTest` — the ratified non-goal, mechanically gated); loaded z=0 read-back per world
 (avatar on `t_stairs_down` — the loaded-state transposed-RLE-index catcher; deeper floors are
 validated loaded by G2/G4's per-leg asserts, since the single-z window cannot see them at load).
+_Honest bound (red-team):_ G1's asserts compare terrain-ID strings and scan `.sav` monsters +
+`stair_monsters`; they read no `data/json` flag and no NPC — a flag-only JSON drift or an NPC placed on
+a witness tile passes G1 and surfaces at the traversal witnesses (G2+), so THAT drift class is
+attributed to traversal, not to the generator gate.
 
 **G2** (traversal): the 18-leg round trip with per-leg `pos_abs`/terrain/turn asserts, zero
 monsters/NPCs in every synthesized-floor window, `damage_taken[]` empty in every snapshot, exit 0 +
 `session_end ok`. _Does not prove:_ L4 vertical, ramps/elevators/ladders/ropes/climb/falls, multi-z
 snapshots, any floor count other than the witnessed 6.
 
-**G3/G4** (composites): the 14/15 driver gates — `possession_false_at_start`,
+**G3/G4** (composites): the 13/15 driver gates — `possession_false_at_start`,
 `descent_trajectory`, `floor_provenance_before` (package on the deepest floor's GROUND —
 `entities.items[]` at the package tile, `carried_items[]` empty of it, query false),
 `walk_to_package`, `pickup_l4_transaction` (the real menu prompt, exactly one enabled entry, answered
@@ -115,10 +127,12 @@ through the ack → terminal-response wire), `floor_provenance_after` (ground �
 `location:"inventory"`, query true), `return_to_landing` (+ `ascent_trajectory` at 6 floors),
 **`z_changed_off_contact_pinned`**, `final_ascent`, `composite_green_at_contact`,
 `off_contact_displacement` (proven `[0,1,0]` delta, conjunction false while possession true),
-`no_damage_interference`, `hermetic_lower_floors`, `scope_label_guard` (the literal
-`on_person_dialogue_predicate` on every successful query, count-pinned). _Does not prove:_ mission
-completion, `MGOAL_FIND_ITEM`/`crafting_inventory()` scope, NPC turn-in, stealth/perception, a
-validated frontend.
+`no_damage_interference` (present-AND-empty in every snapshot — a missing field fails, so schema drift
+cannot disarm it), `hermetic_lower_floors` (**G4 only** — at 2 floors no z≤−2 state exists, and a gate
+that cannot fail is not a guard; count-pinned: the 6-floor run must yield lower-floor snapshots, 17 in
+the witnessed run), `scope_label_guard` (the literal `on_person_dialogue_predicate` on every successful
+query, count-pinned). _Does not prove:_ mission completion, `MGOAL_FIND_ITEM`/`crafting_inventory()`
+scope, NPC turn-in, stealth/perception, a validated frontend.
 
 **The pinned z-guard (the red-team's Lens-A fix) is exercised, not asserted.** It is evaluated at the
 pre-ascent tile `(contact.x, contact.y, −1)` — x/y EQUAL to the contact tile, only z differing — the
@@ -133,11 +147,15 @@ the backend half: the verb works over the live transport on these fixtures.
 **A build-time catch worth keeping (why per-leg position asserts, not command success):** the first
 tower driver run had a leg-plan bug — one `move_n` too many, stepping off the pair-0 stair onto plain
 floor. The subsequent flagless `vertical_move up` was a **prompt-free engine no-op returning
-`ok:true`** ("You can't go down/up here!" message path, `src/game.cpp:14223-14227`) with **no position
-change and no turn advance**. Trusting command success would have mislocated the failure; the per-leg
-`pos_abs` assert caught it at the exact leg. (The engine's flagless failure path also calls the
-option-gated `suggest_auto_walk_to_stairs`, `src/game.cpp:891` — unaudited; a deliberate negative
-witness for flagless `vertical_move` stays out of scope until that path is audited.)
+`ok:true`** with **no position change and no turn advance**. Trusting command success would have
+mislocated the failure; the per-leg `pos_abs` assert caught it at the exact leg. _Mechanism (red-team
+corrected — an earlier draft cited the DOWN branch `game.cpp:14223-14227`):_ a flagless UP for a
+non-flying avatar diverts into the **climbing branch** (`src/game.cpp:14097`) and no-ops at the ceiling
+check ("You can't climb here - there's a ceiling above your head.", `src/game.cpp:14101-14108`); the
+"You can't go down here!" path (`:14223-14227`) is the DOWN-side twin. Both are prompt-free
+message+return paths, and both call the option-gated `suggest_auto_walk_to_stairs`
+(`src/game.cpp:14105` / `:14225`, body at `:891`) — unaudited; a deliberate negative witness for
+flagless `vertical_move` stays out of scope until that path is audited.
 
 ## 6. Anti-flat honesty (why there is no anti-flat gate here)
 
@@ -151,8 +169,10 @@ doc 51). The anti-flat divergence witness remains doc 53's.
 
 ## 7. Validation record (2026-07-01, all against the committed fixtures)
 
-- `slice_regression.ps1` — **G1a, G1b, G1c, G1d×2, G2 (18/18 legs), G3 (14/14 gates), G4 (15/15
-  gates): all green**, exit 0.
+- `slice_regression.ps1` (post-red-team revision) — **G1a, G1b, G1c, G1d×2, G2 (t0 + 18/18 legs), G3
+  (13/13 gates), G4 (15/15 gates incl. the count-pinned `hermetic_lower_floors` at 17 lower-floor
+  snapshots): all green**, exit 0. The pre-revision run was also fully green (G3 then counted 14 with
+  the vacuous gate).
 - No-regression: `stairs_fixture_regression.ps1` (5/5) and `vertical_movement_regression.ps1` (all
   gates) green with the extended generator and untouched `ArcopolisStairsTest`.
 - The generator's default invocation regenerates `ArcopolisStairsTest` **content-identically**

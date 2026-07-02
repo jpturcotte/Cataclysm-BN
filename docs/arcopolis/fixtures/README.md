@@ -42,8 +42,9 @@ snapshots and writes an options.json BOM, causing spurious gate failures on unch
 
 ## Included worlds and what each witnesses
 
-`ArcopolisTest` is the base world; the rest are clones, each adding one deterministic element. The full
-witness-role write-up lives in [`docs/arcopolis/TEST_FIXTURES.md`](../TEST_FIXTURES.md); summary:
+`ArcopolisTest` is the base world; the rest are clones of it — or of `ArcopolisBackpackTest`, itself a
+GUI-built base variant — each adding deterministic witness elements. The full witness-role write-up
+lives in [`docs/arcopolis/TEST_FIXTURES.md`](../TEST_FIXTURES.md); summary:
 
 | World                            | Witnesses                                                                                               | Refresh                                      |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------- |

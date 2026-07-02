@@ -86,15 +86,23 @@ Spike 29 extension (the folded N-floor + package parameterization; docs/arcopoli
     (ax+DX, ay+DY, az+DZ) -- the Stage A package (e.g. ``box_small``). The tile must be a clean
     expected floor (asserted); the walk tiles between the deepest stair landing and the package
     are asserted clean too.
-  * The DEFAULT invocation (no new flags) is behavior-identical to Spike 23: same two edits, same
-    prints, same read-back -- ``ArcopolisStairsTest`` regenerates content-identically and
-    ``stairs_fixture_regression.ps1`` passes unchanged. That invariant is a ratified non-goal of
-    the folded Spike 29; treat any drift as a defect.
+  * The DEFAULT invocation (no new flags) is output-identical to Spike 23 where it matters: same two
+    edits, same read-back, CONTENT-IDENTICAL world (mechanically gated by slice_regression.ps1 G1c) --
+    ``stairs_fixture_regression.ps1`` passes unchanged. Two informational stdout lines were reworded by
+    the Spike 29 extension (the preconditions summary and the final "next" pointer); no gate parses
+    them. That content-identity invariant is a ratified non-goal of the folded Spike 29; treat any
+    drift as a defect.
 
-If a future BN sync renames/removes ``t_stairs_down`` / ``t_stairs_up`` (or drops their GOES_DOWN /
-GOES_UP flags), or changes the avatar tile's ``t_floor`` / the basement ``t_linoleum_white``, this tool
-FAILS LOUD at its precondition asserts. Pick another stock GOES_DOWN/GOES_UP stair pair and update the
-constants below AND docs/arcopolis/stairs_fixture_regression.ps1. DO NOT invent JSON.
+If a future BN sync RENAMES/REMOVES ``t_stairs_down`` / ``t_stairs_up``, or changes the avatar tile's
+``t_floor`` / the basement ``t_linoleum_white``, this tool FAILS LOUD at its precondition asserts. Honest
+bound (red-team corrected, 2026-07-01): the asserts compare terrain-ID STRINGS only — this tool reads no
+``data/json`` and checks no flag at runtime, so a sync that keeps the ids but DROPS their GOES_DOWN /
+GOES_UP flags passes every generator assert and surfaces at the TRAVERSAL witnesses instead
+(``vertical_movement_regression.ps1`` / ``slice_regression.ps1`` G2+), where the engine's
+``mp.has_flag( TFLAG_GOES_UP, ... )`` fast path (src/game.cpp:14842) stops matching. The id→flag linkage
+was leaf-verified at authoring time (terrain-zlevel-transitions.json:119,142, 2026-06-22). If the ids
+ever stop meeting the criteria, pick another stock GOES_DOWN/GOES_UP stair pair and update the constants
+below AND docs/arcopolis/stairs_fixture_regression.ps1. DO NOT invent JSON.
 
 External-editor inspiration note (Checkpoint 3.5, INSPIRATION ONLY -- not evidence of native BN
 behavior): public CDDA save/map editors were reviewed for ideas only. ``teplinsky-maxim/cdda-save-editor``

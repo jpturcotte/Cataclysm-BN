@@ -275,6 +275,11 @@ if( $code -ne 0 ) {
             $byName[$s.session.export_name] = $s
         }
         $legFail = 0
+        # t0 is damage-checked too, so "damage_taken[] empty in every snapshot" covers all 19, not 18/19.
+        if( @($byName["t0"].avatar.damage_taken).Count -ne 0 ) {
+            Write-Host "  FAIL: G2 t0 snapshot carries damage_taken entries (load-instant interference)." -ForegroundColor Red
+            $legFail++
+        }
         $prevTurn = $byName["t0"].backend.turn
         for( $i = 0; $i -lt $legs.Count; $i++ ) {
             $s = $byName[("leg{0:d2}" -f $i)]
@@ -335,9 +340,11 @@ foreach( $c in $driverCases ) {
         "walk_to_package", "pickup_l4_transaction", "floor_provenance_after",
         "return_to_landing", "z_changed_off_contact_pinned", "final_ascent",
         "composite_green_at_contact", "off_contact_displacement",
-        "no_damage_interference", "hermetic_lower_floors", "scope_label_guard"
+        "no_damage_interference", "scope_label_guard"
     )
-    if( $c.floors -gt 2 ) { $required += "ascent_trajectory" }
+    # hermetic_lower_floors exists only when the fixture has z<=-2 floors (at floors=2 it would be a
+    # gate that cannot fail -- vacuously green -- so the driver does not record it there).
+    if( $c.floors -gt 2 ) { $required += @("ascent_trajectory", "hermetic_lower_floors") }
     $gateFail = 0
     foreach( $g in $required ) {
         $gate = $result.gates.$g

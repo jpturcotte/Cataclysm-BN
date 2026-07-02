@@ -16,8 +16,10 @@ point-in-time snapshots; regenerate the generated ones with the `make_*_fixture.
 **Run these regressions with `pwsh` (PowerShell 7), not `powershell` (5.1)** — 5.1 misreads BOM-less UTF-8
 snapshots and writes an options.json BOM, causing spurious gate failures on unchanged code.
 
-All worlds below live in the same userdir; `ArcopolisTest` is the base and the rest are clones of it, each
-adding one deterministic element so it can act as a specific export/prompt/movement witness.
+All worlds below live in the same userdir; `ArcopolisTest` is the base, and the rest are clones of it —
+or of `ArcopolisBackpackTest`, itself a GUI-built base variant (the carried-nested and Spike-29 slice
+worlds clone Backpack) — each adding deterministic witness elements so it can act as a specific
+export/prompt/movement/slice witness.
 
 ## `ArcopolisTest` — base world; movement / NPC / item / live-protocol witness
 

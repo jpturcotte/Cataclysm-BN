@@ -37,10 +37,13 @@ False-green guards (the doc-53 set + the composite-specific ones from the folded
     only) FAILS this gate -- the red-team's Lens-A divergence, exercised, not asserted;
   * off_contact_displacement       -- after the final green, a proven one-tile displacement at z=0
     (delta [0,1,0]) flips the conjunction false while possession stays true (the doc-53 gate);
-  * no_damage_interference         -- avatar.damage_taken[] empty in EVERY snapshot (the buffer drains
-    per snapshot -- doc 58 -- so this is per-window, not cumulative);
+  * no_damage_interference         -- avatar.damage_taken[] present AND empty in EVERY snapshot (the
+    buffer drains per snapshot -- doc 58 -- so this is per-window, not cumulative; a snapshot MISSING
+    the field fails the gate too, so export-schema drift cannot silently disarm it);
   * hermetic_lower_floors          -- zero monsters/NPCs in every z<=-2 window (the synthesized floors
-    are authored empty; mapgen never runs there because the generator supplies the full footprint);
+    are authored empty; mapgen never runs there because the generator supplies the full footprint).
+    Recorded ONLY when floors > 2 and count-pinned (lower-floor snapshots must exist) -- at 2 floors no
+    z<=-2 state exists, and a gate that cannot fail must not be counted as a guard;
   * scope_label_guard              -- every successful query response carries the literal
     "on_person_dialogue_predicate" scope string verbatim (the Spike-26A labelling guard).
 
@@ -185,7 +188,10 @@ class Driver:
             pos, snap = self.export("%s_%02d" % (gate_name, i))
             ter = self.avatar_tile_ter(snap)
             turn = snap.get("backend", {}).get("turn")
-            turn_ok = (self.prev_turn is None or (isinstance(turn, int) and turn > self.prev_turn))
+            # prev_turn is seeded by direct indexing at the contact export (KeyError = fail loud), so a
+            # missing backend.turn here must FAIL the leg -- never silently disarm the advance check.
+            turn_ok = (isinstance(turn, int) and isinstance(self.prev_turn, int) and
+                       turn > self.prev_turn)
             self.prev_turn = turn
             ok = leg_ok and pos == want_pos and ter == want_ter and turn_ok
             detail.append({"leg": i, "command": command, "direction": direction,
@@ -220,7 +226,7 @@ class Driver:
             contact, contact_snap = self.export("contact_start")
             if contact[2] != 0:
                 raise SystemExit("fatal: contact tile not at z=0: %r" % (contact,))
-            self.prev_turn = contact_snap.get("backend", {}).get("turn")
+            self.prev_turn = contact_snap["backend"]["turn"]  # direct index: schema drift fails loud
             self.summary["contact_pos_abs"] = contact
             ax, ay = contact[0], contact[1]
             plan = leg_plan(ax, ay, args.floors)
@@ -346,17 +352,29 @@ class Driver:
             })
 
             # --- Cross-cutting guards over EVERY loaded snapshot. ---
-            damage_hits = [(n, s["avatar"].get("damage_taken")) for (n, s) in self.snapshots
+            # ABSENT is a failure, not a pass: a snapshot missing damage_taken[] (export-schema drift)
+            # must fail the gate rather than silently disarm it (the absent-vs-empty conflation the
+            # red-team pass flagged).
+            missing_damage = [n for (n, s) in self.snapshots
+                              if "damage_taken" not in s.get("avatar", {})]
+            damage_hits = [(n, s["avatar"]["damage_taken"]) for (n, s) in self.snapshots
                            if s.get("avatar", {}).get("damage_taken")]
             self.record("no_damage_interference", {
-                "snapshots": len(self.snapshots), "hits": damage_hits, "pass": not damage_hits,
+                "snapshots": len(self.snapshots), "hits": damage_hits,
+                "missing_field": missing_damage,
+                "pass": (not damage_hits and not missing_damage),
             })
-            lower = [(n, len(s["entities"]["monsters"]), len(s["entities"]["npcs"]))
-                     for (n, s) in self.snapshots if s["avatar"]["pos_abs"][2] <= -2]
-            bad_lower = [t for t in lower if t[1] or t[2]]
-            self.record("hermetic_lower_floors", {
-                "lower_floor_snapshots": len(lower), "violations": bad_lower, "pass": not bad_lower,
-            })
+            # Recorded only when the fixture HAS lower floors: at floors=2 no z<=-2 state exists, so the
+            # gate would be vacuously green (a gate that cannot fail is not a guard -- red-team finding).
+            # When recorded, the snapshot count is presence-pinned so a broken filter cannot pass on [].
+            if args.floors > 2:
+                lower = [(n, len(s["entities"]["monsters"]), len(s["entities"]["npcs"]))
+                         for (n, s) in self.snapshots if s["avatar"]["pos_abs"][2] <= -2]
+                bad_lower = [t for t in lower if t[1] or t[2]]
+                self.record("hermetic_lower_floors", {
+                    "lower_floor_snapshots": len(lower), "violations": bad_lower,
+                    "pass": (len(lower) > 0 and not bad_lower),
+                })
             # Scope guard: every successful query carried the literal scope verbatim, and the count pins
             # the six successful queries (q0 start, qb before, qa after, qp pinned, qg green, qo off) --
             # a load-bearing count, not decoration: it stops all([]) passing vacuously if queries failed.
