@@ -52,11 +52,11 @@ $ErrorActionPreference = "Stop"
 if( -not $FixtureSrc ) { $FixtureSrc = Resolve-ArcoFixtureRoot -ScriptDir $PSScriptRoot }
 
 if( -not (Test-Path $Exe) ) {
-    Write-Error "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)"
+    Write-Error "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" -ErrorAction Continue
     exit 3
 }
 if( -not (Test-Path $FixtureSrc) ) {
-    Write-Error "Fixture source directory not found: $(Format-ArcoPath $FixtureSrc)  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)"
+    Write-Error "Fixture source directory not found: $(Format-ArcoPath $FixtureSrc)  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" -ErrorAction Continue
     exit 4
 }
 
@@ -65,7 +65,7 @@ if( -not (Test-Path $FixtureSrc) ) {
 # checkout path; the world's deepest save paths exceed the Win32 path limit). Fail loud with attribution
 # instead. `-ErrorAction Continue` is REQUIRED here: under $ErrorActionPreference="Stop" a bare
 # Write-Error throws and unwinds before `exit` runs, collapsing the labeled code to exit 1.
-$userDirAbs = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $UserDir))
+$userDirAbs = [System.IO.Path]::GetFullPath($UserDir, (Get-Location).Path)
 if( $userDirAbs.Length -gt 120 ) {
     Write-Error "Sandbox userdir path is too long for the engine ($($userDirAbs.Length) chars > 120): run this regression from a SHORT checkout root (e.g. under C:\tmp) or pass a short -UserDir/-OutRoot; a long userdir fails at world load with an unattributed 'failed to load world'." -ErrorAction Continue
     exit 5

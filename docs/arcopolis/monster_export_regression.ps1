@@ -64,8 +64,8 @@ if( -not $FixtureSrc ) { $FixtureSrc = Resolve-ArcoFixtureRoot -ScriptDir $PSScr
 # Fatal-prereq helper: print to stderr and exit with a SPECIFIC code. A bare `Write-Error; exit N` does NOT
 # work under `$ErrorActionPreference = "Stop"`: Write-Error throws a terminating error that unwinds BEFORE
 # `exit` runs, collapsing every guard to exit 1. `-ErrorAction Continue` keeps it non-terminating so the
-# labeled code is actually returned. (movement_regression.ps1's guards have the bare form and so collapse to
-# exit 1 -- harmless there since its only other exit is 1, but this script's 3..7 scheme needs the real code.)
+# labeled code is actually returned -- this script's 3..8 scheme needs the real code
+# (see 16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md).
 function Stop-WithCode {
     param([string]$Message, [int]$Code)
     Write-Error $Message -ErrorAction Continue
@@ -98,7 +98,7 @@ if( -not (Test-Path $Viewer) ) {
 # MAX_PATH guard (exit 8): a long sandbox root makes the ENGINE fail with an opaque
 # "failed to load world" (witnessed 2026-07-01 from a ~150-char checkout path; the world's
 # deepest save paths exceed the Win32 path limit). Fail loud with attribution instead.
-$userDirAbs = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $UserDir))
+$userDirAbs = [System.IO.Path]::GetFullPath($UserDir, (Get-Location).Path)
 if( $userDirAbs.Length -gt 120 ) {
     Stop-WithCode "Sandbox userdir path is too long for the engine ($($userDirAbs.Length) chars > 120): run this regression from a SHORT checkout root (e.g. under C:\tmp) or pass a short -UserDir/-OutRoot; a long userdir fails at world load with an unattributed 'failed to load world'." 8
 }

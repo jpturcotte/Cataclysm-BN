@@ -140,7 +140,7 @@ if( -not (Test-Path (Join-Path $HarnessDir "harness.py")) ) {
 # MAX_PATH guard (exit 9): a long sandbox root makes the ENGINE fail with an opaque
 # "failed to load world" (witnessed 2026-07-01 from a ~150-char checkout path; the world's
 # deepest save paths exceed the Win32 path limit). Fail loud with attribution instead.
-$userDirAbs = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $UserDir))
+$userDirAbs = [System.IO.Path]::GetFullPath($UserDir, (Get-Location).Path)
 if( $userDirAbs.Length -gt 120 ) {
     Stop-WithCode "Sandbox userdir path is too long for the engine ($($userDirAbs.Length) chars > 120): run this regression from a SHORT checkout root (e.g. under C:\tmp) or pass a short -UserDir/-OutRoot; a long userdir fails at world load with an unattributed 'failed to load world'." 9
 }
