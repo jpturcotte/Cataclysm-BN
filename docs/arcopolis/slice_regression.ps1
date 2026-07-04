@@ -71,7 +71,8 @@ function Stop-WithCode {
     exit $Code
 }
 
-# --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=worlds, 6=python, 7=generator, 8=driver). ---
+# --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=worlds, 6=python, 7=generator,
+# 8=driver, 9=sandbox-path-too-long -- the MAX_PATH guard below the block). ---
 if( -not (Test-Path $Exe) ) {
     Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
