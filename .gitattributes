@@ -38,3 +38,8 @@
 *.ttf     binary
 
 lua_annotations.txt linguist-generated=true
+
+# Arcopolis committed fixture worlds: engine-written save data (map.sqlite3 databases plus
+# JSON-shaped saves that carry engine-authored trailing whitespace). Byte-exact round-trips are
+# load-bearing, so never eol-normalize, whitespace-check, or text-diff them. (binary = -text -diff)
+docs/arcopolis/fixtures/arcopolis_user/save/** binary

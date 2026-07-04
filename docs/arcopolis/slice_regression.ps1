@@ -89,10 +89,24 @@ if( -not (Get-Command python -ErrorAction SilentlyContinue) ) {
 if( -not (Test-Path $Generator) ) { Stop-WithCode "Fixture generator not found: $(Format-ArcoPath $Generator)" 7 }
 if( -not (Test-Path $Driver) )    { Stop-WithCode "Slice live driver not found: $(Format-ArcoPath $Driver)" 8 }
 
+# MAX_PATH guard (exit 9): a long sandbox root makes the ENGINE fail with an opaque
+# "failed to load world" (witnessed 2026-07-01 from a ~150-char checkout path; the world's
+# deepest save paths exceed the Win32 path limit). Fail loud with attribution instead.
+$userDirAbs = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $UserDir))
+if( $userDirAbs.Length -gt 120 ) {
+    Stop-WithCode "Sandbox userdir path is too long for the engine ($($userDirAbs.Length) chars > 120): run this regression from a SHORT checkout root (e.g. under C:\tmp) or pass a short -UserDir/-OutRoot; a long userdir fails at world load with an unattributed 'failed to load world'." 9
+}
+
 # Refresh the gitignored sandbox userdir from the fixture pack (same rationale as the sibling regressions).
 if( Test-Path $UserDir ) { Remove-Item $UserDir -Recurse -Force }
 Copy-Item $FixtureSrc $UserDir -Recurse -Force
 New-Item -ItemType Directory -Force $OutRoot | Out-Null
+
+# Run provenance (cross-machine dispute discriminators: WHICH binary and WHICH fixture pack ran).
+$exeItem = Get-Item $Exe
+Write-Host ("  provenance: exe {0}  (modified {1:yyyy-MM-dd HH:mm:ss}, {2} bytes)" -f (Format-ArcoPath $Exe), $exeItem.LastWriteTime, $exeItem.Length)
+Write-Host ("  provenance: fixture root {0}; sandbox {1}" -f (Format-ArcoPath $FixtureSrc), (Format-ArcoPath $userDirAbs))
+if( $env:ARCO_FIXTURE_ROOT ) { Write-Host "  provenance: ARCO_FIXTURE_ROOT is SET (fixture resolution may bypass the repo pack)" -ForegroundColor Yellow }
 
 $fail = 0
 
