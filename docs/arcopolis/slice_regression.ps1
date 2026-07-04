@@ -19,7 +19,9 @@
       d. loaded z=0 read-back per slice world: a single-export run-script shows the avatar standing
          on t_stairs_down (the loaded-state transposed-index catcher; per-floor loaded validation
          is G2/G4's per-leg asserts).
-    G2 (traversal, run-script, no package): the full 6-floor round trip on ArcopolisTowerTest --
+    G2 (traversal, run-script, no package interaction -- the world CARRIES the G4 package but the
+       route never visits its tile and no pickup is driven; doc 61 section 5): the full 6-floor
+       round trip on ArcopolisTowerTest --
        18 legs, each asserted on pos_abs trajectory + avatar-tile stair terrain + strictly
        advancing turn, with zero monsters/NPCs in every synthesized-floor window and
        avatar.damage_taken[] empty in every snapshot; exit 0 + session_end ok (any engine

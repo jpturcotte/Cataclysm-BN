@@ -18,7 +18,7 @@ independently, in order:
 
 1. **G1** — generator assertions, no session (fixture machinery isolated);
 2. **G2** — N-floor traversal round trip, run-script, no package (new fixture machinery isolated from
-   composition);
+   composition; as built, the isolation is met by ROUTE rather than a package-free world — see §5 G2);
 3. **G3** — composite at 2 floors — former Spike 28 **verbatim**, on the already-proven z=−1
    environment (deliverable even if lower-z synthesis had stalled);
 4. **G4** — composite at 6 floors, package on the deepest floor (Stage A's traversal core, doc 60 §3).
@@ -116,8 +116,13 @@ attributed to traversal, not to the generator gate.
 
 **G2** (traversal): the 18-leg round trip with per-leg `pos_abs`/terrain/turn asserts, zero
 monsters/NPCs in every synthesized-floor window, `damage_taken[]` empty in every snapshot, exit 0 +
-`session_end ok`. _Does not prove:_ L4 vertical, ramps/elevators/ladders/ropes/climb/falls, multi-z
-snapshots, any floor count other than the witnessed 6.
+`session_end ok`. _Honest bound (review):_ the fold ladder's gate-2 arm says "no package", but G2
+runs on `ArcopolisTowerTest`, which CONTAINS the C4 package (`box_small` at (6301,6427,−5)). The
+isolation is met by route, not by world: the 18-leg route never visits the package tile and no
+`pickup` is driven, so traversal stays uncomposed with the pickup constituent — but a package-free
+world was deliberately not built for this gate (one committed tower world serves G2 and G4).
+_Does not prove:_ L4 vertical, ramps/elevators/ladders/ropes/climb/falls, multi-z
+snapshots, any floor count other than the witnessed 6, traversal of a package-free world.
 
 **G3/G4** (composites): the 13/15 driver gates — `possession_false_at_start`,
 `descent_trajectory`, `floor_provenance_before` (package on the deepest floor's GROUND —

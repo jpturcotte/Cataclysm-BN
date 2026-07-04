@@ -126,10 +126,11 @@ Usage::
     python docs/arcopolis/make_stairs_fixture.py --check-only # assert preconditions (+ read-back if dest
                                                               # exists) WITHOUT writing -- used by the gate
 
-    # Spike 29 slice fixtures (see docs/arcopolis/61 and TEST_FIXTURES.md):
-    python docs/arcopolis/make_stairs_fixture.py --source-world ArcopolisBackpackTest \
+    # Spike 29 slice fixtures (see docs/arcopolis/61 and TEST_FIXTURES.md); pwsh continuations --
+    # this repo's instruction surfaces are PowerShell (fixtures/README.md carries the same commands):
+    python docs/arcopolis/make_stairs_fixture.py --source-world ArcopolisBackpackTest `
         --dest-world ArcopolisSliceTest --package-typeid box_small --package-offset 0,2,-1
-    python docs/arcopolis/make_stairs_fixture.py --source-world ArcopolisBackpackTest \
+    python docs/arcopolis/make_stairs_fixture.py --source-world ArcopolisBackpackTest `
         --dest-world ArcopolisTowerTest --floors 6 --package-typeid box_small --package-offset 0,6,-5
 """
 
