@@ -65,7 +65,7 @@ if( -not (Test-Path $FixtureSrc) ) {
 # checkout path; the world's deepest save paths exceed the Win32 path limit). Fail loud with attribution
 # instead. `-ErrorAction Continue` is REQUIRED here: under $ErrorActionPreference="Stop" a bare
 # Write-Error throws and unwinds before `exit` runs, collapsing the labeled code to exit 1.
-$userDirAbs = [System.IO.Path]::GetFullPath($UserDir, (Get-Location).Path)
+$userDirAbs = [System.IO.Path]::GetFullPath($UserDir, (Get-Location).ProviderPath)
 if( $userDirAbs.Length -gt 120 ) {
     Write-Error "Sandbox userdir path is too long for the engine ($($userDirAbs.Length) chars > 120): run this regression from a SHORT checkout root (e.g. under C:\tmp) or pass a short -UserDir/-OutRoot; a long userdir fails at world load with an unattributed 'failed to load world'." -ErrorAction Continue
     exit 5

@@ -120,7 +120,7 @@ if( -not (Test-Path $Viewer) ) {
 # MAX_PATH guard (exit 9): a long sandbox root makes the ENGINE fail with an opaque
 # "failed to load world" (witnessed 2026-07-01 from a ~150-char checkout path; the world's
 # deepest save paths exceed the Win32 path limit). Fail loud with attribution instead.
-$userDirAbs = [System.IO.Path]::GetFullPath($UserDir, (Get-Location).Path)
+$userDirAbs = [System.IO.Path]::GetFullPath($UserDir, (Get-Location).ProviderPath)
 if( $userDirAbs.Length -gt 120 ) {
     Stop-WithCode "Sandbox userdir path is too long for the engine ($($userDirAbs.Length) chars > 120): run this regression from a SHORT checkout root (e.g. under C:\tmp) or pass a short -UserDir/-OutRoot; a long userdir fails at world load with an unattributed 'failed to load world'." 9
 }
@@ -330,7 +330,7 @@ if( $diagOk ) {
 $report = Join-Path $normalDir "report.html"
 $pview = Invoke-PyTool -ToolArgs @("`"$Viewer`"", '--session-dir', "`"$normalDir`"", '--output', "`"$report`"") `
     -StdoutPath (Join-Path $normalDir "viewer_stdout.txt") -StderrPath (Join-Path $normalDir "viewer_stderr.txt")
-Write-Host ("[viewer] exit=$($pview.ExitCode)  " + (Format-ArcoPath $pview.Stdout.Trim()))
+Write-Host ("[viewer] exit=$($pview.ExitCode)  " + (Format-ArcoPath "$($pview.Stdout)".Trim()))
 if( $pview.ExitCode -ne 0 ) {
     Write-Host "  FAIL: viewer exited $($pview.ExitCode) (0=clean; 2=discrepancies; 1=fatal) on the normal-sequence session." -ForegroundColor Red
     $fail++
