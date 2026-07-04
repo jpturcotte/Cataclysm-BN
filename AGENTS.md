@@ -241,7 +241,7 @@ resolver: `docs/arcopolis/arco_fixture_root.ps1`.
 **Run the regression scripts with `pwsh` (PowerShell 7), not `powershell` (5.1)** — 5.1 misreads BOM-less
 UTF-8 snapshots and writes an options.json BOM, causing spurious gate failures on unchanged code.
 
-Full catalog of the eight fixture worlds (`ArcopolisTest` + seven clones) — their witness roles, fixture
+Full catalog of the thirteen fixture worlds (`ArcopolisTest` + twelve clones) — their witness roles, fixture
 generators, regression scripts, and spike docs — is in `docs/arcopolis/TEST_FIXTURES.md`, with refresh and
 override details in `docs/arcopolis/fixtures/README.md`.
 
