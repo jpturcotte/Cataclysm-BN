@@ -55,7 +55,8 @@ function Stop-WithCode {
     exit $Code
 }
 
-# --- Prereqs (3=exe, 4=fixture, 5=world). ---
+# --- Prereqs (3=exe, 4=fixture, 5=world, 6=sandbox-path-too-long -- the MAX_PATH guard below the block;
+# this script's OWN exit 6, unrelated to the BACKEND's exit 6 (unsupported_command) the F-gates assert). ---
 if( -not (Test-Path $Exe) ) {
     Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
@@ -67,11 +68,25 @@ foreach( $w in @($World, $VehicleWorld, $CapacityWorld, $FurnitureWorld) ) {
     }
 }
 
+# MAX_PATH guard (exit 6): a long sandbox root makes the ENGINE fail with an opaque
+# "failed to load world" (witnessed 2026-07-01 from a ~150-char checkout path; the world's
+# deepest save paths exceed the Win32 path limit). Fail loud with attribution instead.
+$userDirAbs = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $UserDir))
+if( $userDirAbs.Length -gt 120 ) {
+    Stop-WithCode "Sandbox userdir path is too long for the engine ($($userDirAbs.Length) chars > 120): run this regression from a SHORT checkout root (e.g. under C:\tmp) or pass a short -UserDir/-OutRoot; a long userdir fails at world load with an unattributed 'failed to load world'." 6
+}
+
 # Refresh the gitignored sandbox userdir from the external fixture (a single shared config/options.json
 # applies to every world under save/).
 if( Test-Path $UserDir ) { Remove-Item $UserDir -Recurse -Force }
 Copy-Item $FixtureSrc $UserDir -Recurse -Force
 New-Item -ItemType Directory -Force $OutRoot | Out-Null
+
+# Run provenance (cross-machine dispute discriminators: WHICH binary and WHICH fixture pack ran).
+$exeItem = Get-Item $Exe
+Write-Host ("  provenance: exe {0}  (modified {1:yyyy-MM-dd HH:mm:ss}, {2} bytes)" -f (Format-ArcoPath $Exe), $exeItem.LastWriteTime, $exeItem.Length)
+Write-Host ("  provenance: fixture root {0}; sandbox {1}" -f (Format-ArcoPath $FixtureSrc), (Format-ArcoPath $userDirAbs))
+if( $env:ARCO_FIXTURE_ROOT ) { Write-Host "  provenance: ARCO_FIXTURE_ROOT is SET (fixture resolution may bypass the repo pack)" -ForegroundColor Yellow }
 
 # Pin one boolean option in the SANDBOX copy's options.json (deployment config, never an in-memory override),
 # UTF-8 with NO BOM. Same helper as prompt_menu_regression.ps1.
@@ -127,7 +142,10 @@ function Invoke-ScriptScenario {
         Name       = $Name
         ExitCode   = $p.ExitCode
         Transcript = $transcript
-        Stderr     = (Get-Content (Join-Path $dir "stderr.txt") -Raw -ErrorAction SilentlyContinue)
+        # Redacted at capture -- backend/engine errors may embed local absolute paths; every emission
+        # (and the F-gate `-like` matches, which key on path-free substrings) inherits the AGENTS.md
+        # default path redaction (Format-ArcoPath).
+        Stderr     = (Format-ArcoPath (Get-Content (Join-Path $dir "stderr.txt") -Raw -ErrorAction SilentlyContinue))
         Dir        = $dir
     }
 }

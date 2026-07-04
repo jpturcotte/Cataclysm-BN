@@ -87,7 +87,8 @@ function Stop-WithCode {
     exit $Code
 }
 
-# --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=harness, 8=viewer). ---
+# --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=harness, 8=viewer,
+# 9=sandbox-path-too-long -- the MAX_PATH guard below the block). ---
 if( -not (Test-Path $Exe) ) {
     Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
@@ -116,12 +117,26 @@ if( -not (Test-Path $Viewer) ) {
     Stop-WithCode "Offline viewer not found: $(Format-ArcoPath $Viewer) (needed for the consumer cross-check gate)" 8
 }
 
+# MAX_PATH guard (exit 9): a long sandbox root makes the ENGINE fail with an opaque
+# "failed to load world" (witnessed 2026-07-01 from a ~150-char checkout path; the world's
+# deepest save paths exceed the Win32 path limit). Fail loud with attribution instead.
+$userDirAbs = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $UserDir))
+if( $userDirAbs.Length -gt 120 ) {
+    Stop-WithCode "Sandbox userdir path is too long for the engine ($($userDirAbs.Length) chars > 120): run this regression from a SHORT checkout root (e.g. under C:\tmp) or pass a short -UserDir/-OutRoot; a long userdir fails at world load with an unattributed 'failed to load world'." 9
+}
+
 # Refresh the gitignored sandbox world from the external fixture. `Copy-Item -Recurse` nests the
 # source INSIDE the destination when the destination already exists, so delete any existing
 # sandbox first (same rationale as the sibling regression scripts).
 if( Test-Path $UserDir ) { Remove-Item $UserDir -Recurse -Force }
 Copy-Item $FixtureSrc $UserDir -Recurse -Force
 New-Item -ItemType Directory -Force $OutRoot | Out-Null
+
+# Run provenance (cross-machine dispute discriminators: WHICH binary and WHICH fixture pack ran).
+$exeItem = Get-Item $Exe
+Write-Host ("  provenance: exe {0}  (modified {1:yyyy-MM-dd HH:mm:ss}, {2} bytes)" -f (Format-ArcoPath $Exe), $exeItem.LastWriteTime, $exeItem.Length)
+Write-Host ("  provenance: fixture root {0}; sandbox {1}" -f (Format-ArcoPath $FixtureSrc), (Format-ArcoPath $userDirAbs))
+if( $env:ARCO_FIXTURE_ROOT ) { Write-Host "  provenance: ARCO_FIXTURE_ROOT is SET (fixture resolution may bypass the repo pack)" -ForegroundColor Yellow }
 
 # Run a python tool via Start-Process (captures the real exit code; `& python` of a long-running
 # child plus redirection is fine too, but this matches the sibling scripts' idiom) and return
@@ -168,7 +183,7 @@ if( $fj -and $fj.run ) {
         Write-Host "  FAIL: fail-loud move_n -- harness_exit=$($pf.ExitCode) run.exit_code=$($fj.run.exit_code) run.exit_meaning=$($fj.run.exit_meaning) start=$([bool]$startSnap) after=$([bool]$afterSnap) (expected 1 / 14 / unexpected_prompt / start present / no after)." -ForegroundColor Red
     }
 } else {
-    Write-Host "  FAIL: fail-loud move_n -- harness run produced no parseable run block. stdout: $($pf.Stdout)" -ForegroundColor Red
+    Write-Host "  FAIL: fail-loud move_n -- harness run produced no parseable run block. stdout: $(Format-ArcoPath $pf.Stdout)" -ForegroundColor Red
 }
 if( $failOk ) {
     Write-Host "  PASS: move_n into Edwardo fails loud via run mode -- run.exit_meaning=unexpected_prompt (exit 14), 'start' snapshot present (NPC visible), no success snapshot. Not blocked_no_op. See doc 43." -ForegroundColor Green
@@ -195,7 +210,7 @@ if( $pn.ExitCode -eq 0 ) {
         Write-Host "  FAIL: normal run -- run.exit_code=$($nj.run.exit_code) outcomes='$nseq' contract_ok=$($nj.contract_check.ok) (expected 0 / moved,waited,no_command / true)." -ForegroundColor Red
     }
 } else {
-    Write-Host "  FAIL: harness run --commands move_s,wait exited $($pn.ExitCode) (expected 0). See $(Join-Path $OutRoot 'run_normal_stderr.txt')." -ForegroundColor Red
+    Write-Host "  FAIL: harness run --commands move_s,wait exited $($pn.ExitCode) (expected 0). See $(Format-ArcoPath (Join-Path $OutRoot 'run_normal_stderr.txt'))." -ForegroundColor Red
 }
 if( $normalOk ) {
     Write-Host "  PASS: normal sequence -- moved,waited,no_command (run.exit_code=0, contract ok)." -ForegroundColor Green
@@ -237,7 +252,7 @@ if( $pw.ExitCode -eq 0 ) {
         Write-Host "  FAIL: wall run -- run.exit_code=$($wj.run.exit_code) outcomes='$wseq' pair0.outcome=$($w0.outcome) dest.ter=$($w0.destination.ter) turn_delta=$($w0.turn_delta) pos_delta=$(@($w0.pos_abs_delta) -join ',') (expected 0 / blocked_no_op,no_command / blocked_no_op / t_wall / 0 / 0,0,0)." -ForegroundColor Red
     }
 } else {
-    Write-Host "  FAIL: harness run --commands move_e --world $WallWorld exited $($pw.ExitCode) (expected 0). See $(Join-Path $OutRoot 'run_wall_stderr.txt')." -ForegroundColor Red
+    Write-Host "  FAIL: harness run --commands move_e --world $WallWorld exited $($pw.ExitCode) (expected 0). See $(Format-ArcoPath (Join-Path $OutRoot 'run_wall_stderr.txt'))." -ForegroundColor Red
 }
 if( $wallOk ) {
     Write-Host "  PASS: terrain blocked_no_op witness -- move_e into t_wall classified blocked_no_op (no move, no tick); harness reads the t_wall destination. blocked_by attribution withheld (tile exports seen=false headlessly; not bent). $($w0.explanation)" -ForegroundColor Green
@@ -301,7 +316,7 @@ if( $pd.ExitCode -eq 0 ) {
         Write-Host "  FAIL: run-mode diagonal -- run.exit_code=$($dj.run.exit_code) outcomes='$dseq' moved_delta='$ddelta' contract_ok=$($dj.contract_check.ok) (expected moved,no_command / 1,1,0)." -ForegroundColor Red
     }
 } else {
-    Write-Host "  FAIL: harness run --commands move_se exited $($pd.ExitCode) (expected 0 -- the diagonal token must NOT be rejected pre-launch). stderr: $(Get-Content (Join-Path $OutRoot 'run_diag_stderr.txt') -Raw -ErrorAction SilentlyContinue)" -ForegroundColor Red
+    Write-Host "  FAIL: harness run --commands move_se exited $($pd.ExitCode) (expected 0 -- the diagonal token must NOT be rejected pre-launch). stderr: $(Format-ArcoPath (Get-Content (Join-Path $OutRoot 'run_diag_stderr.txt') -Raw -ErrorAction SilentlyContinue))" -ForegroundColor Red
 }
 if( $diagOk ) {
     Write-Host "  PASS: run mode (diagonal) -- harness accepted move_se, drove the backend, classified 'moved' with pos_abs delta (1,1,0): 8-way movement is drivable through the contract consumer." -ForegroundColor Green
@@ -315,7 +330,7 @@ if( $diagOk ) {
 $report = Join-Path $normalDir "report.html"
 $pview = Invoke-PyTool -ToolArgs @("`"$Viewer`"", '--session-dir', "`"$normalDir`"", '--output', "`"$report`"") `
     -StdoutPath (Join-Path $normalDir "viewer_stdout.txt") -StderrPath (Join-Path $normalDir "viewer_stderr.txt")
-Write-Host ("[viewer] exit=$($pview.ExitCode)  " + $pview.Stdout.Trim())
+Write-Host ("[viewer] exit=$($pview.ExitCode)  " + (Format-ArcoPath $pview.Stdout.Trim()))
 if( $pview.ExitCode -ne 0 ) {
     Write-Host "  FAIL: viewer exited $($pview.ExitCode) (0=clean; 2=discrepancies; 1=fatal) on the normal-sequence session." -ForegroundColor Red
     $fail++
@@ -363,7 +378,7 @@ if( $pm.ExitCode -eq 0 ) {
         Write-Host "  FAIL: monster run-mode -- run.exit_code=$($mj.run.exit_code) outcomes='$mseq' contract_ok=$($mj.contract_check.ok) monsters=$($monsters.Count) wait_turn_delta=$monWaitDelta (expected 0 / waited,no_command / true / >=1 / >=1)." -ForegroundColor Red
     }
 } else {
-    Write-Host "  FAIL: harness run (monster fixture) exited $($pm.ExitCode) (expected 0). See $(Join-Path $OutRoot 'monster_run_stderr.txt')." -ForegroundColor Red
+    Write-Host "  FAIL: harness run (monster fixture) exited $($pm.ExitCode) (expected 0). See $(Format-ArcoPath (Join-Path $OutRoot 'monster_run_stderr.txt'))." -ForegroundColor Red
 }
 if( $monOk ) {
     # The HTML view must render the monster: inspect the monster's own tile (computed from the

@@ -68,7 +68,8 @@ function Stop-WithCode {
     exit $Code
 }
 
-# --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=driver, 8=fixture-gen). ---
+# --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=driver, 8=fixture-gen,
+# 10=sandbox-path-too-long -- the MAX_PATH guard below the block; 9 is the missing-driver-result guard later). ---
 if( -not (Test-Path $Exe) ) {
     Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
@@ -89,10 +90,24 @@ if( -not (Test-Path $FixtureGen) ) {
     Stop-WithCode "Fixture generator not found: $(Format-ArcoPath $FixtureGen)" 8
 }
 
+# MAX_PATH guard (exit 10): a long sandbox root makes the ENGINE fail with an opaque
+# "failed to load world" (witnessed 2026-07-01 from a ~150-char checkout path; the world's
+# deepest save paths exceed the Win32 path limit). Fail loud with attribution instead.
+$userDirAbs = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $UserDir))
+if( $userDirAbs.Length -gt 120 ) {
+    Stop-WithCode "Sandbox userdir path is too long for the engine ($($userDirAbs.Length) chars > 120): run this regression from a SHORT checkout root (e.g. under C:\tmp) or pass a short -UserDir/-OutRoot; a long userdir fails at world load with an unattributed 'failed to load world'." 10
+}
+
 # Refresh the gitignored sandbox world from the fixture root.
 if( Test-Path $UserDir ) { Remove-Item $UserDir -Recurse -Force }
 Copy-Item $FixtureSrc $UserDir -Recurse -Force
 New-Item -ItemType Directory -Force $OutRoot | Out-Null
+
+# Run provenance (cross-machine dispute discriminators: WHICH binary and WHICH fixture pack ran).
+$exeItem = Get-Item $Exe
+Write-Host ("  provenance: exe {0}  (modified {1:yyyy-MM-dd HH:mm:ss}, {2} bytes)" -f (Format-ArcoPath $Exe), $exeItem.LastWriteTime, $exeItem.Length)
+Write-Host ("  provenance: fixture root {0}; sandbox {1}" -f (Format-ArcoPath $FixtureSrc), (Format-ArcoPath $userDirAbs))
+if( $env:ARCO_FIXTURE_ROOT ) { Write-Host "  provenance: ARCO_FIXTURE_ROOT is SET (fixture resolution may bypass the repo pack)" -ForegroundColor Yellow }
 
 # Run the driver.
 $resultPath = Join-Path $OutRoot "spike26a_result.json"
@@ -112,7 +127,7 @@ $fail = 0
 
 # --- Hard gate 1: driver exits 0. ---
 if( $p.ExitCode -ne 0 ) {
-    Write-Host "  FAIL: driver exited $($p.ExitCode) (expected 0). stderr: $(Get-Content $stderrPath -Raw -ErrorAction SilentlyContinue)" -ForegroundColor Red
+    Write-Host "  FAIL: driver exited $($p.ExitCode) (expected 0). stderr: $(Format-ArcoPath (Get-Content $stderrPath -Raw -ErrorAction SilentlyContinue))" -ForegroundColor Red
     Write-Host "SPIKE 26A DIALOGUE PREDICATE REGRESSION: driver failed, abandoning gates." -ForegroundColor Red
     exit 1
 }

@@ -61,7 +61,8 @@ function Stop-WithCode {
     exit $Code
 }
 
-# --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=generator). ---
+# --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=generator,
+# 8=sandbox-path-too-long -- the MAX_PATH guard below the block). ---
 if( -not (Test-Path $Exe) ) {
     Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
@@ -79,12 +80,26 @@ if( -not (Test-Path $Generator) ) {
     Stop-WithCode "Stair fixture generator not found: $(Format-ArcoPath $Generator)" 7
 }
 
+# MAX_PATH guard (exit 8): a long sandbox root makes the ENGINE fail with an opaque
+# "failed to load world" (witnessed 2026-07-01 from a ~150-char checkout path; the world's
+# deepest save paths exceed the Win32 path limit). Fail loud with attribution instead.
+$userDirAbs = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $UserDir))
+if( $userDirAbs.Length -gt 120 ) {
+    Stop-WithCode "Sandbox userdir path is too long for the engine ($($userDirAbs.Length) chars > 120): run this regression from a SHORT checkout root (e.g. under C:\tmp) or pass a short -UserDir/-OutRoot; a long userdir fails at world load with an unattributed 'failed to load world'." 8
+}
+
 # Refresh the gitignored sandbox userdir from the fixture. `Copy-Item -Recurse` nests the source INSIDE the
 # destination when the destination already exists, so delete any existing sandbox first (same rationale as
 # the sibling regressions). Copying the whole userdir brings every world along; we only run $World.
 if( Test-Path $UserDir ) { Remove-Item $UserDir -Recurse -Force }
 Copy-Item $FixtureSrc $UserDir -Recurse -Force
 New-Item -ItemType Directory -Force $OutRoot | Out-Null
+
+# Run provenance (cross-machine dispute discriminators: WHICH binary and WHICH fixture pack ran).
+$exeItem = Get-Item $Exe
+Write-Host ("  provenance: exe {0}  (modified {1:yyyy-MM-dd HH:mm:ss}, {2} bytes)" -f (Format-ArcoPath $Exe), $exeItem.LastWriteTime, $exeItem.Length)
+Write-Host ("  provenance: fixture root {0}; sandbox {1}" -f (Format-ArcoPath $FixtureSrc), (Format-ArcoPath $userDirAbs))
+if( $env:ARCO_FIXTURE_ROOT ) { Write-Host "  provenance: ARCO_FIXTURE_ROOT is SET (fixture resolution may bypass the repo pack)" -ForegroundColor Yellow }
 
 $fail = 0
 
@@ -114,7 +129,7 @@ $p = Start-Process -FilePath $Exe -ArgumentList @(
 
 # Gate 1a: process exit 0.
 if( $p.ExitCode -ne 0 ) {
-    Write-Host "  FAIL: run exited $($p.ExitCode) (expected 0): $(Get-Content (Join-Path $dir 'stderr.txt') -Raw)" -ForegroundColor Red
+    Write-Host "  FAIL: run exited $($p.ExitCode) (expected 0): $(Format-ArcoPath (Get-Content (Join-Path $dir 'stderr.txt') -Raw))" -ForegroundColor Red
     $fail++
 }
 
@@ -198,10 +213,10 @@ $pg = Start-Process -FilePath "python" -ArgumentList @(
     "`"$Generator`"", '--check-only', '--fixture-root', "`"$UserDir`"", '--dest-world', $World
 ) -NoNewWindow -Wait -PassThru -RedirectStandardOutput $gv -RedirectStandardError (Join-Path $dir "generator_check_err.txt")
 if( $pg.ExitCode -ne 0 ) {
-    Write-Host "  FAIL: generator --check-only exited $($pg.ExitCode): $(Get-Content (Join-Path $dir 'generator_check_err.txt') -Raw)" -ForegroundColor Red
+    Write-Host "  FAIL: generator --check-only exited $($pg.ExitCode): $(Format-ArcoPath (Get-Content (Join-Path $dir 'generator_check_err.txt') -Raw))" -ForegroundColor Red
     $fail++
 } elseif( -not (Select-String -Path $gv -Pattern 't_stairs_up' -Quiet) ) {
-    Write-Host "  FAIL: generator --check-only did not confirm the z=-1 t_stairs_up read-back. Raw: $(Get-Content $gv -Raw)" -ForegroundColor Red
+    Write-Host "  FAIL: generator --check-only did not confirm the z=-1 t_stairs_up read-back. Raw: $(Format-ArcoPath (Get-Content $gv -Raw))" -ForegroundColor Red
     $fail++
 } else {
     Write-Host "  PASS: generator --check-only confirms both stair tiles (incl. z=-1 t_stairs_up)." -ForegroundColor Green

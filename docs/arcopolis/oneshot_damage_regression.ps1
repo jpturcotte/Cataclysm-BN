@@ -54,7 +54,8 @@ function Stop-WithCode {
     exit $Code
 }
 
-# --- Prereqs (3=exe, 4=fixture-root, 5=source world, 6=python). ---
+# --- Prereqs (3=exe, 4=fixture-root, 5=source world, 6=python, 8=sandbox-path-too-long -- the MAX_PATH
+# guard below the block; 7 is the fixture-generation failure after the sandbox refresh). ---
 if( -not (Test-Path $Exe) ) {
     Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
@@ -69,12 +70,26 @@ if( -not (Get-Command python -ErrorAction SilentlyContinue) ) {
     Stop-WithCode "python not found on PATH (needed to generate the adjacent-attacker fixture from ArcopolisTest)" 6
 }
 
+# MAX_PATH guard (exit 8): a long sandbox root makes the ENGINE fail with an opaque
+# "failed to load world" (witnessed 2026-07-01 from a ~150-char checkout path; the world's
+# deepest save paths exceed the Win32 path limit). Fail loud with attribution instead.
+$userDirAbs = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $UserDir))
+if( $userDirAbs.Length -gt 120 ) {
+    Stop-WithCode "Sandbox userdir path is too long for the engine ($($userDirAbs.Length) chars > 120): run this regression from a SHORT checkout root (e.g. under C:\tmp) or pass a short -UserDir/-OutRoot; a long userdir fails at world load with an unattributed 'failed to load world'." 8
+}
+
 # Refresh the gitignored sandbox from the committed pack, then GENERATE the adjacent-attacker fixture INSIDE
 # it (clones the sandbox's ArcopolisTest -> ArcopolisAdjacentAttackerTest). Nothing new is committed; the
 # headless backend exits via std::_Exit and never writes the world back, so every run loads identical state.
 if( Test-Path $UserDir ) { Remove-Item $UserDir -Recurse -Force }
 Copy-Item $FixtureSrc $UserDir -Recurse -Force
 New-Item -ItemType Directory -Force $OutRoot | Out-Null
+
+# Run provenance (cross-machine dispute discriminators: WHICH binary and WHICH fixture pack ran).
+$exeItem = Get-Item $Exe
+Write-Host ("  provenance: exe {0}  (modified {1:yyyy-MM-dd HH:mm:ss}, {2} bytes)" -f (Format-ArcoPath $Exe), $exeItem.LastWriteTime, $exeItem.Length)
+Write-Host ("  provenance: fixture root {0}; sandbox {1}" -f (Format-ArcoPath $FixtureSrc), (Format-ArcoPath $userDirAbs))
+if( $env:ARCO_FIXTURE_ROOT ) { Write-Host "  provenance: ARCO_FIXTURE_ROOT is SET (fixture resolution may bypass the repo pack)" -ForegroundColor Yellow }
 
 $gen = Join-Path $PSScriptRoot "make_monster_fixture.py"
 & python $gen --fixture-root $UserDir --source-world $SourceWorld --dest-world $World `
@@ -100,7 +115,7 @@ foreach( $seed in $Seeds ) {
     ) -NoNewWindow -Wait -PassThru `
         -RedirectStandardOutput (Join-Path $OutRoot ("stdout_{0}.txt" -f $seed)) -RedirectStandardError $err
     if( $p.ExitCode -ne 0 ) {
-        throw "one-shot run (seed '$seed') exited $($p.ExitCode) (expected 0): $(Get-Content $err -Raw)"
+        throw "one-shot run (seed '$seed') exited $($p.ExitCode) (expected 0): $(Format-ArcoPath (Get-Content $err -Raw))"
     }
     if( -not (Test-Path $out) ) { throw "one-shot run (seed '$seed') wrote no snapshot at $(Format-ArcoPath $out)" }
 
