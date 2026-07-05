@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Arcopolis Spike 23 - build the deterministic aligned two-floor stair witness fixture.
-Spike 29 (folded) - parameterize it to N floors + an optional ground package (see the
-"Spike 29 extension" section below; the DEFAULT invocation is unchanged Spike 23 behavior).
+Spike 28 (folded) - parameterize it to N floors + an optional ground package (see the
+"Spike 28 extension" section below; the DEFAULT invocation is unchanged Spike 23 behavior).
 
 Creates the ``ArcopolisStairsTest`` world by CLONING the canonical ``ArcopolisTest`` world and
 writing a MATCHED stair pair into the avatar's column WITHOUT moving the avatar:
@@ -11,7 +11,7 @@ writing a MATCHED stair pair into the avatar's column WITHOUT moving the avatar:
 
 This is a FIXTURE-ONLY tool. It does NOT add any Arcopolis ``move_up`` / ``move_down`` command
 support and proves NO vertical movement. Spike 24 is the ``move_down`` backend-input witness that
-drives the default fixture; the folded Spike 29 slice witnesses drive the N-floor variants.
+drives the default fixture; the folded Spike 28 slice witnesses drive the N-floor variants.
 
 WHY a matched aligned pair (the load-bearing determinism requirement, docs/arcopolis/47 section 4):
   * ``game::vertical_move`` (src/game.cpp) -> ``find_stairs`` has a deterministic FAST PATH: descending
@@ -35,7 +35,7 @@ WHY these terrain ids / these tiles:
     ABORTS otherwise), and the tile directly below at z=-1 is ``t_linoleum_white`` (a finished
     basement floor in the source world's already-saved bubble). Both submaps ALREADY EXIST in the
     saved ``map.sqlite3``, so the DEFAULT (2-floor) build needs only two terrain edits -- NO submap
-    synthesis/injection. (N-floor builds DO synthesize lower floors -- see the Spike 29 extension.)
+    synthesis/injection. (N-floor builds DO synthesize lower floors -- see the Spike 28 extension.)
 
 WHY NOT move the avatar onto an existing stair instead:
   * BN's loader recomputes the reality-bubble origin from ``player.abs_pos`` (src/savegame.cpp:350-352);
@@ -66,7 +66,7 @@ WHERE the terrain lives:
     tool decodes it, sets the witness tiles, re-encodes the full 144-tile RLE, and rewrites the
     zlib-compressed row. The source world stays untouched.
 
-Spike 29 extension (the folded N-floor + package parameterization; docs/arcopolis/61):
+Spike 28 extension (the folded N-floor + package parameterization; docs/arcopolis/61):
 
   * ``--floors N`` (default 2 = exactly the Spike 23 behavior above). Pair k (k = 0..N-2) joins
     z=-k to z=-k-1 through a stairwell at column (ax, ay+k) -- wells OFFSET ONE TILE SOUTH per
@@ -89,8 +89,8 @@ Spike 29 extension (the folded N-floor + package parameterization; docs/arcopoli
   * The DEFAULT invocation (no new flags) is output-identical to Spike 23 where it matters: same two
     edits, same read-back, CONTENT-IDENTICAL world (mechanically gated by slice_regression.ps1 G1c) --
     ``stairs_fixture_regression.ps1`` passes unchanged. Two informational stdout lines were reworded by
-    the Spike 29 extension (the preconditions summary and the final "next" pointer); no gate parses
-    them. That content-identity invariant is a ratified non-goal of the folded Spike 29; treat any
+    the Spike 28 extension (the preconditions summary and the final "next" pointer); no gate parses
+    them. That content-identity invariant is a ratified non-goal of the folded Spike 28; treat any
     drift as a defect.
 
 If a future BN sync RENAMES/REMOVES ``t_stairs_down`` / ``t_stairs_up``, or changes the avatar tile's
@@ -117,7 +117,7 @@ precedent.
 
 This is a developer fixture tool: stdlib-only, read-only on the source world, only writes the new world
 folder. Run it, then validate with ``docs/arcopolis/stairs_fixture_regression.ps1`` (default fixture) or
-``docs/arcopolis/slice_regression.ps1`` (the Spike 29 slice fixtures).
+``docs/arcopolis/slice_regression.ps1`` (the Spike 28 slice fixtures).
 
 Usage::
 
@@ -126,7 +126,7 @@ Usage::
     python docs/arcopolis/make_stairs_fixture.py --check-only # assert preconditions (+ read-back if dest
                                                               # exists) WITHOUT writing -- used by the gate
 
-    # Spike 29 slice fixtures (see docs/arcopolis/61 and TEST_FIXTURES.md); pwsh continuations --
+    # Spike 28 slice fixtures (see docs/arcopolis/61 and TEST_FIXTURES.md); pwsh continuations --
     # this repo's instruction surfaces are PowerShell (fixtures/README.md carries the same commands):
     python docs/arcopolis/make_stairs_fixture.py --source-world ArcopolisBackpackTest `
         --dest-world ArcopolisSliceTest --package-typeid box_small --package-offset 0,2,-1
@@ -170,7 +170,7 @@ STAIRS_UP_TER = "t_stairs_up"       # written at each pair's BOTTOM tile (z=-k-1
 # witness).
 EXPECTED_TER_Z0 = "t_floor"           # avatar's own z=0 tile in the source world
 EXPECTED_TER_ZM1 = "t_linoleum_white"  # the basement tile directly below it (z=-1)
-# Spike 29: synthesized-floor fills. The stairwell quad is walkable finished floor (same id as the real
+# Spike 28: synthesized-floor fills. The stairwell quad is walkable finished floor (same id as the real
 # basement, so one expected-terrain rule covers z=-1 and synthesized floors alike); every other footprint
 # quad is solid rock -- hermetic (no spawns, nothing passable) and matching what mapgen itself produced
 # for the missing-neighbor quads in the 2026-07-01 probe.
@@ -399,7 +399,7 @@ def assert_no_creature(data, tiles):
 
 def stair_pairs(ax, ay, floors):
     """The N-floor stairwell layout: pair k (k = 0..floors-2) joins z=-k to z=-k-1 at column
-    (ax, ay+k) -- offset one tile SOUTH per pair (see the Spike 29 extension in the docstring for why
+    (ax, ay+k) -- offset one tile SOUTH per pair (see the Spike 28 extension in the docstring for why
     south). Returns [(k, top_tile, bottom_tile), ...] where top carries t_stairs_down and bottom
     t_stairs_up."""
     return [(k, [ax, ay + k, -k], [ax, ay + k, -k - 1]) for k in range(floors - 1)]
@@ -541,13 +541,13 @@ def verify_world(world_dir, floors=2, package_typeid=None, package_offset=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Build the aligned stair witness fixtures: the Spike 23 two-floor default and the "
-                    "folded Spike 29 N-floor + package variants.")
+                    "folded Spike 28 N-floor + package variants.")
     parser.add_argument("--fixture-root", default=_default_fixture_root(),
                         help="userdir holding save/<world> (default: the AGENTS.md fixture root)")
     parser.add_argument("--source-world", default="ArcopolisTest", help="world to clone (read-only)")
     parser.add_argument("--dest-world", default="ArcopolisStairsTest", help="world to create")
     parser.add_argument("--floors", type=int, default=2,
-                        help="total floors incl. z=0 (default 2 = the Spike 23 fixture; 6 = the Spike 29 "
+                        help="total floors incl. z=0 (default 2 = the Spike 23 fixture; 6 = the Spike 28 "
                              "tower). Floors z<=-2 are synthesized -- see the docstring.")
     parser.add_argument("--package-typeid", default=None,
                         help="optional ground package itype_id (e.g. box_small); requires --package-offset")
@@ -691,7 +691,7 @@ def main(argv=None):
 
     print("created world  : save/%s" % args.dest_world)  # fixture-root-relative (AGENTS.md:273 no-local-paths)
     print("next           : validate with docs/arcopolis/stairs_fixture_regression.ps1 (default fixture) "
-          "or docs/arcopolis/slice_regression.ps1 (Spike 29 slice fixtures)")
+          "or docs/arcopolis/slice_regression.ps1 (Spike 28 slice fixtures)")
     return 0
 
 
