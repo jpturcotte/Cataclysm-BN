@@ -78,7 +78,8 @@ function Stop-WithCode {
 # Lower-cased bool for the report/PASS lines ("true"/"false", matching the JSON + viewer wording).
 function Flag { param($v) if( $v ) { "true" } else { "false" } }
 
-# --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=viewer). ---
+# --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=viewer,
+# 8=sandbox-path-too-long -- the MAX_PATH guard below the block). ---
 if( -not (Test-Path $Exe) ) {
     Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
@@ -99,12 +100,26 @@ if( -not (Test-Path $Viewer) ) {
     Stop-WithCode "Offline viewer not found: $(Format-ArcoPath $Viewer)" 7
 }
 
+# MAX_PATH guard (exit 8): a long sandbox root makes the ENGINE fail with an opaque
+# "failed to load world" (witnessed 2026-07-01 from a ~150-char checkout path; the world's
+# deepest save paths exceed the Win32 path limit). Fail loud with attribution instead.
+$userDirAbs = [System.IO.Path]::GetFullPath($UserDir, (Get-Location).ProviderPath)
+if( $userDirAbs.Length -gt 120 ) {
+    Stop-WithCode "Sandbox userdir path is too long for the engine ($($userDirAbs.Length) chars > 120): run this regression from a SHORT checkout root (e.g. under C:\tmp) or pass a short -UserDir/-OutRoot; a long userdir fails at world load with an unattributed 'failed to load world'." 8
+}
+
 # Refresh the gitignored sandbox world from the external fixture. `Copy-Item -Recurse` nests the source
 # INSIDE the destination when the destination already exists, so delete any existing sandbox first (same
 # rationale as the sibling regression scripts).
 if( Test-Path $UserDir ) { Remove-Item $UserDir -Recurse -Force }
 Copy-Item $FixtureSrc $UserDir -Recurse -Force
 New-Item -ItemType Directory -Force $OutRoot | Out-Null
+
+# Run provenance (cross-machine dispute discriminators: WHICH binary and WHICH fixture pack ran).
+$exeItem = Get-Item $Exe
+Write-Host ("  provenance: exe {0}  (modified {1:yyyy-MM-dd HH:mm:ss}, {2} bytes)" -f (Format-ArcoPath $Exe), $exeItem.LastWriteTime, $exeItem.Length)
+Write-Host ("  provenance: fixture root {0}; sandbox {1}" -f (Format-ArcoPath $FixtureSrc), (Format-ArcoPath $userDirAbs))
+if( $env:ARCO_FIXTURE_ROOT ) { Write-Host "  provenance: ARCO_FIXTURE_ROOT is SET (fixture resolution may bypass the repo pack)" -ForegroundColor Yellow }
 
 function Invoke-NpcScenario {
     param([string]$Name, [string]$ScriptBody)
@@ -159,7 +174,7 @@ $witnessScript = @'
 '@
 $scn = Invoke-NpcScenario -Name "npc_witness" -ScriptBody $witnessScript
 if( $scn.ExitCode -ne 0 ) {
-    Write-Host "  FAIL: witness run exited $($scn.ExitCode) (expected 0): $(Get-Content (Join-Path $scn.Dir 'stderr.txt') -Raw)" -ForegroundColor Red
+    Write-Host "  FAIL: witness run exited $($scn.ExitCode) (expected 0): $(Format-ArcoPath (Get-Content (Join-Path $scn.Dir 'stderr.txt') -Raw))" -ForegroundColor Red
     Write-Host "NPC EXPORT REGRESSION: aborting (witness run did not export cleanly)." -ForegroundColor Red
     exit 1
 }
@@ -283,7 +298,7 @@ $g5 = ($fl.ExitCode -eq 14) -and $flBefore -and (-not $flAfter) -and
 if( $g5 ) {
     Write-Host "  PASS: move_n into the NPC fails loud -- exit 14, 'before' written, NO 'after_move_n' snapshot, exactly one unexpected_prompt error event (no init()+query() double report). See doc 43." -ForegroundColor Green
 } else {
-    if( $fl.ExitCode -ne 14 ) { Write-Host "  FAIL: move_n run exited $($fl.ExitCode) (expected 14 / unexpected_prompt). stderr: $(Get-Content (Join-Path $fl.Dir 'stderr.txt') -Raw -ErrorAction SilentlyContinue)" -ForegroundColor Red }
+    if( $fl.ExitCode -ne 14 ) { Write-Host "  FAIL: move_n run exited $($fl.ExitCode) (expected 14 / unexpected_prompt). stderr: $(Format-ArcoPath (Get-Content (Join-Path $fl.Dir 'stderr.txt') -Raw -ErrorAction SilentlyContinue))" -ForegroundColor Red }
     if( -not $flBefore )       { Write-Host "  FAIL: no 'before' snapshot in the fail-loud run (it should be written before move_n fails)." -ForegroundColor Red }
     if( $flAfter )             { Write-Host "  FAIL: an 'after_move_n' snapshot exists (the failed command must not produce a success snapshot)." -ForegroundColor Red }
     if( $errEvents.Count -ne 1 -or $unexpected.Count -ne 1 ) { Write-Host "  FAIL: expected exactly ONE error event (kind=unexpected_prompt); got $($errEvents.Count) error event(s), $($unexpected.Count) unexpected_prompt." -ForegroundColor Red }
