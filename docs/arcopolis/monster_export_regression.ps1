@@ -64,15 +64,16 @@ if( -not $FixtureSrc ) { $FixtureSrc = Resolve-ArcoFixtureRoot -ScriptDir $PSScr
 # Fatal-prereq helper: print to stderr and exit with a SPECIFIC code. A bare `Write-Error; exit N` does NOT
 # work under `$ErrorActionPreference = "Stop"`: Write-Error throws a terminating error that unwinds BEFORE
 # `exit` runs, collapsing every guard to exit 1. `-ErrorAction Continue` keeps it non-terminating so the
-# labeled code is actually returned. (movement_regression.ps1's guards have the bare form and so collapse to
-# exit 1 -- harmless there since its only other exit is 1, but this script's 3..7 scheme needs the real code.)
+# labeled code is actually returned -- this script's 3..8 scheme needs the real code
+# (see 16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md).
 function Stop-WithCode {
     param([string]$Message, [int]$Code)
     Write-Error $Message -ErrorAction Continue
     exit $Code
 }
 
-# --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=viewer). ---
+# --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=viewer,
+# 8=sandbox-path-too-long -- the MAX_PATH guard below the block). ---
 if( -not (Test-Path $Exe) ) {
     Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
@@ -94,6 +95,14 @@ if( -not (Test-Path $Viewer) ) {
     Stop-WithCode "Offline viewer not found: $(Format-ArcoPath $Viewer)" 7
 }
 
+# MAX_PATH guard (exit 8): a long sandbox root makes the ENGINE fail with an opaque
+# "failed to load world" (witnessed 2026-07-01 from a ~150-char checkout path; the world's
+# deepest save paths exceed the Win32 path limit). Fail loud with attribution instead.
+$userDirAbs = [System.IO.Path]::GetFullPath($UserDir, (Get-Location).ProviderPath)
+if( $userDirAbs.Length -gt 120 ) {
+    Stop-WithCode "Sandbox userdir path is too long for the engine ($($userDirAbs.Length) chars > 120): run this regression from a SHORT checkout root (e.g. under C:\tmp) or pass a short -UserDir/-OutRoot; a long userdir fails at world load with an unattributed 'failed to load world'." 8
+}
+
 # Refresh the gitignored sandbox world from the external fixture. `Copy-Item -Recurse` nests the source
 # INSIDE the destination when the destination already exists, so delete any existing sandbox first (same
 # rationale as movement_regression.ps1). Copying the whole userdir brings BOTH worlds along; we only run
@@ -101,6 +110,12 @@ if( -not (Test-Path $Viewer) ) {
 if( Test-Path $UserDir ) { Remove-Item $UserDir -Recurse -Force }
 Copy-Item $FixtureSrc $UserDir -Recurse -Force
 New-Item -ItemType Directory -Force $OutRoot | Out-Null
+
+# Run provenance (cross-machine dispute discriminators: WHICH binary and WHICH fixture pack ran).
+$exeItem = Get-Item $Exe
+Write-Host ("  provenance: exe {0}  (modified {1:yyyy-MM-dd HH:mm:ss}, {2} bytes)" -f (Format-ArcoPath $Exe), $exeItem.LastWriteTime, $exeItem.Length)
+Write-Host ("  provenance: fixture root {0}; sandbox {1}" -f (Format-ArcoPath $FixtureSrc), (Format-ArcoPath $userDirAbs))
+if( $env:ARCO_FIXTURE_ROOT ) { Write-Host "  provenance: ARCO_FIXTURE_ROOT is SET (fixture resolution may bypass the repo pack)" -ForegroundColor Yellow }
 
 function Invoke-MonsterScenario {
     param([string]$Name)
@@ -131,7 +146,7 @@ function Invoke-MonsterScenario {
         '--userdir', "`"$UserDir`""
     ) -NoNewWindow -Wait -PassThru `
         -RedirectStandardOutput (Join-Path $dir "stdout.txt") -RedirectStandardError (Join-Path $dir "stderr.txt")
-    if( $p.ExitCode -ne 0 ) { throw "run for $Name exited $($p.ExitCode) (expected 0): $(Get-Content (Join-Path $dir 'stderr.txt') -Raw)" }
+    if( $p.ExitCode -ne 0 ) { throw "run for $Name exited $($p.ExitCode) (expected 0): $(Format-ArcoPath (Get-Content (Join-Path $dir 'stderr.txt') -Raw))" }
 
     # Select snapshots by the NNN_ prefix so we pick only NNN_<name>.json (excludes script.json, which is
     # also *.json); the numeric prefix orders them. session.jsonl is .jsonl, not matched.

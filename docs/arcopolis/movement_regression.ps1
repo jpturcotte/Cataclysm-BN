@@ -52,12 +52,23 @@ $ErrorActionPreference = "Stop"
 if( -not $FixtureSrc ) { $FixtureSrc = Resolve-ArcoFixtureRoot -ScriptDir $PSScriptRoot }
 
 if( -not (Test-Path $Exe) ) {
-    Write-Error "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)"
+    Write-Error "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" -ErrorAction Continue
     exit 3
 }
 if( -not (Test-Path $FixtureSrc) ) {
-    Write-Error "Fixture source directory not found: $(Format-ArcoPath $FixtureSrc)  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)"
+    Write-Error "Fixture source directory not found: $(Format-ArcoPath $FixtureSrc)  (set ARCO_FIXTURE_ROOT, pass -FixtureSrc, or restore the committed pack at docs\arcopolis\fixtures\arcopolis_user)" -ErrorAction Continue
     exit 4
+}
+
+# MAX_PATH guard (exit 5; this script's other prereq codes are 3=exe, 4=fixture): a long sandbox root
+# makes the ENGINE fail with an opaque "failed to load world" (witnessed 2026-07-01 from a ~150-char
+# checkout path; the world's deepest save paths exceed the Win32 path limit). Fail loud with attribution
+# instead. `-ErrorAction Continue` is REQUIRED here: under $ErrorActionPreference="Stop" a bare
+# Write-Error throws and unwinds before `exit` runs, collapsing the labeled code to exit 1.
+$userDirAbs = [System.IO.Path]::GetFullPath($UserDir, (Get-Location).ProviderPath)
+if( $userDirAbs.Length -gt 120 ) {
+    Write-Error "Sandbox userdir path is too long for the engine ($($userDirAbs.Length) chars > 120): run this regression from a SHORT checkout root (e.g. under C:\tmp) or pass a short -UserDir/-OutRoot; a long userdir fails at world load with an unattributed 'failed to load world'." -ErrorAction Continue
+    exit 5
 }
 
 # Refresh the gitignored sandbox world from the external fixture. NOTE: `Copy-Item -Recurse` copies the
@@ -67,6 +78,12 @@ if( -not (Test-Path $FixtureSrc) ) {
 if( Test-Path $UserDir ) { Remove-Item $UserDir -Recurse -Force }
 Copy-Item $FixtureSrc $UserDir -Recurse -Force
 New-Item -ItemType Directory -Force $OutRoot | Out-Null
+
+# Run provenance (cross-machine dispute discriminators: WHICH binary and WHICH fixture pack ran).
+$exeItem = Get-Item $Exe
+Write-Host ("  provenance: exe {0}  (modified {1:yyyy-MM-dd HH:mm:ss}, {2} bytes)" -f (Format-ArcoPath $Exe), $exeItem.LastWriteTime, $exeItem.Length)
+Write-Host ("  provenance: fixture root {0}; sandbox {1}" -f (Format-ArcoPath $FixtureSrc), (Format-ArcoPath $userDirAbs))
+if( $env:ARCO_FIXTURE_ROOT ) { Write-Host "  provenance: ARCO_FIXTURE_ROOT is SET (fixture resolution may bypass the repo pack)" -ForegroundColor Yellow }
 
 function Invoke-Scenario {
     param([string]$Name, [string]$Direction)
@@ -97,7 +114,7 @@ function Invoke-Scenario {
     ) -NoNewWindow -Wait -PassThru `
         -RedirectStandardOutput (Join-Path $dir "stdout.txt") -RedirectStandardError (Join-Path $dir "stderr.txt")
     $code = $p.ExitCode
-    if( $code -ne 0 ) { throw "run for $Name exited $code (expected 0): $(Get-Content (Join-Path $dir 'stderr.txt') -Raw)" }
+    if( $code -ne 0 ) { throw "run for $Name exited $code (expected 0): $(Format-ArcoPath (Get-Content (Join-Path $dir 'stderr.txt') -Raw))" }
 
     $beforeFile = Get-ChildItem $dir -Filter "*_before.json" | Select-Object -First 1
     $afterFile  = Get-ChildItem $dir -Filter "*_after.json"  | Select-Object -First 1

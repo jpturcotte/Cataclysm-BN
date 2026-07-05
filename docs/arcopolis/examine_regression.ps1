@@ -37,7 +37,8 @@
 # client harness's LiveSession plumbing) because harness.py's `live --commands` vocabulary is a
 # closed move/wait token list that cannot express examine.
 #
-# Exit codes: 0 = all gates pass; 1 = one or more gates failed; 3..8 = missing prereq (see below).
+# Exit codes: 0 = all gates pass; 1 = one or more gates failed; 3..8 = missing prereq (see below);
+# 9 = sandbox path too long (MAX_PATH guard).
 
 [CmdletBinding()]
 param(
@@ -68,7 +69,8 @@ function Stop-WithCode {
     exit $Code
 }
 
-# --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=driver, 8=harness). ---
+# --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=driver, 8=harness,
+# 9=sandbox-path-too-long -- the MAX_PATH guard below the block). ---
 if( -not (Test-Path $Exe) ) {
     Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
@@ -93,12 +95,26 @@ if( -not (Test-Path (Join-Path $HarnessDir "harness.py")) ) {
     Stop-WithCode "Client harness not found under: $(Format-ArcoPath $HarnessDir) (the driver imports its LiveSession)" 8
 }
 
+# MAX_PATH guard (exit 9): a long sandbox root makes the ENGINE fail with an opaque
+# "failed to load world" (witnessed 2026-07-01 from a ~150-char checkout path; the world's
+# deepest save paths exceed the Win32 path limit). Fail loud with attribution instead.
+$userDirAbs = [System.IO.Path]::GetFullPath($UserDir, (Get-Location).ProviderPath)
+if( $userDirAbs.Length -gt 120 ) {
+    Stop-WithCode "Sandbox userdir path is too long for the engine ($($userDirAbs.Length) chars > 120): run this regression from a SHORT checkout root (e.g. under C:\tmp) or pass a short -UserDir/-OutRoot; a long userdir fails at world load with an unattributed 'failed to load world'." 9
+}
+
 # Refresh the gitignored sandbox userdir from the external fixture. `Copy-Item -Recurse` nests the
 # source INSIDE the destination when the destination already exists, so delete any existing
 # sandbox first (same rationale as the sibling regression scripts).
 if( Test-Path $UserDir ) { Remove-Item $UserDir -Recurse -Force }
 Copy-Item $FixtureSrc $UserDir -Recurse -Force
 New-Item -ItemType Directory -Force $OutRoot | Out-Null
+
+# Run provenance (cross-machine dispute discriminators: WHICH binary and WHICH fixture pack ran).
+$exeItem = Get-Item $Exe
+Write-Host ("  provenance: exe {0}  (modified {1:yyyy-MM-dd HH:mm:ss}, {2} bytes)" -f (Format-ArcoPath $Exe), $exeItem.LastWriteTime, $exeItem.Length)
+Write-Host ("  provenance: fixture root {0}; sandbox {1}" -f (Format-ArcoPath $FixtureSrc), (Format-ArcoPath $userDirAbs))
+if( $env:ARCO_FIXTURE_ROOT ) { Write-Host "  provenance: ARCO_FIXTURE_ROOT is SET (fixture resolution may bypass the repo pack)" -ForegroundColor Yellow }
 
 # Pin one option value in the SANDBOX copy's options.json (deployment config, never an in-memory
 # override): the per-scenario examine gates must not silently depend on the external fixture's
@@ -137,7 +153,9 @@ function Invoke-LiveScenario {
     if( Test-Path $resultPath ) { $result = Get-Content $resultPath -Raw | ConvertFrom-Json }
     return [pscustomobject]@{
         Name = $Name; Dir = $dir; ExitCode = $p.ExitCode; Result = $result
-        Stderr = (Get-Content $stderr -Raw -ErrorAction SilentlyContinue)
+        # Redacted at capture -- driver tracebacks may embed local absolute paths; every emission
+        # of this field inherits the AGENTS.md default path redaction (Format-ArcoPath).
+        Stderr = (Format-ArcoPath (Get-Content $stderr -Raw -ErrorAction SilentlyContinue))
     }
 }
 
@@ -587,7 +605,7 @@ $g13 = ($vc.ExitCode -eq 14) -and $vcBefore -and (-not $vcAfter) -and
 if( $g13 ) {
     Write-Host "  PASS: vehicle examine non-live fail-loud -- examine move_s on the cart tile exited 14, 'before' written, NO 'after_examine' snapshot, exactly one unexpected_prompt error event. See doc 43 §2/§10." -ForegroundColor Green
 } else {
-    if( $vc.ExitCode -ne 14 ) { Write-Host "  FAIL: vehicle examine run exited $($vc.ExitCode) (expected 14 / unexpected_prompt). stderr: $(Get-Content (Join-Path $vc.Dir 'stderr.txt') -Raw -ErrorAction SilentlyContinue)" -ForegroundColor Red }
+    if( $vc.ExitCode -ne 14 ) { Write-Host "  FAIL: vehicle examine run exited $($vc.ExitCode) (expected 14 / unexpected_prompt). stderr: $(Format-ArcoPath (Get-Content (Join-Path $vc.Dir 'stderr.txt') -Raw -ErrorAction SilentlyContinue))" -ForegroundColor Red }
     if( -not $vcBefore )       { Write-Host "  FAIL: no 'before' snapshot in the vehicle fail-loud run (it should be written before examine fails)." -ForegroundColor Red }
     if( $vcAfter )             { Write-Host "  FAIL: an 'after_examine' snapshot exists (the failed examine must not produce a success snapshot)." -ForegroundColor Red }
     if( $vcErr.Count -ne 1 -or $vcUnexp.Count -ne 1 ) { Write-Host "  FAIL: expected exactly ONE error event (kind=unexpected_prompt); got $($vcErr.Count) error event(s), $($vcUnexp.Count) unexpected_prompt." -ForegroundColor Red }
