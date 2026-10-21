@@ -2,7 +2,7 @@
 .SYNOPSIS
   Arcopolis folded-Spike-28 vertical-slice regression: the four-gate ladder over the slice fixtures
   (docs/arcopolis/61). G1 fixture determinism per floor pair + generator content-identity; G2 a
-  6-floor descent->ascent round trip (run-script); G3 the former-Spike-28 two-floor composite
+  6-floor descent->ascent round trip (run-script); G3 the doc-60-proposed Spike 28 two-floor composite
   (live); G4 the 6-floor composite with the package on the deepest floor (live).
 
 .DESCRIPTION
@@ -26,7 +26,7 @@
        advancing turn, with zero monsters/NPCs in every synthesized-floor window and
        avatar.damage_taken[] empty in every snapshot; exit 0 + session_end ok (any engine
        sub-prompt would be unexpected_prompt, exit 14 -- never a silent success).
-    G3 (2-floor composite, live): slice_live_driver.py on ArcopolisSliceTest -- the former Spike 28
+    G3 (2-floor composite, live): slice_live_driver.py on ArcopolisSliceTest -- doc 60's proposed Spike 28
        verbatim, incl. the pinned z-changed off-contact guard and the doc-53 false-green set.
     G4 (6-floor composite, live): the same driver on ArcopolisTowerTest, package on z=-5 --
        Stage A's traversal core (doc 60 section 3).

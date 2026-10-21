@@ -3,14 +3,20 @@
 ## Claim (read this first)
 
 **Equivalence level 1 — observation only; native-authority class A (stimulus) via S (observation).**
-A backend-driven `move` into an ADJACENT hostile `mon_zombie` routes through the engine's OWN
-bump-melee and the engine's own damage shows up as a raw `entities.monsters[].hp` decrement across
-snapshots. This is the **melee half of doc 60 step 5** (Spike 29A), witnessed on ONE purpose-built
-adjacency fixture — a fight **mechanic**, not a fight **route**:
+Backend-driven `move`s into an ADJACENT hostile `mon_zombie` lower its raw `entities.monsters[].hp`
+across snapshots, and a **contrast arm** (§2 G2 — the same fixture with `wait` instead of `move`, hp
+held exactly) attributes that drop to the moves by experiment. The engine path the move takes (§1,
+the engine's own bump-melee) is **source-read** and leaf-cited, not observed by the witness. This is
+the **melee MECHANIC half of doc 60 step 5** (Spike 29A), witnessed on ONE purpose-built adjacency
+fixture — a fight **mechanic**, not a fight **route**:
 
+- **narrowed from doc 60's Spike 31**: doc 60 proposed a "fight-route witness" ("the fight route
+  becomes witnessed … engine-equivalent for the attack"). Spike 29A delivers only the mechanic, at
+  L1. Composing the fight onto the slice route (the fight **route**) is the still-**OPEN**,
+  not-yet-carded remainder of step 5 — it is NOT doc 60 step 6, which is the **sneak** route;
 - the security-DRONE half of step 5 (doc 60's "Spike 30" label — expected **29B** when carded) remains
   **OPEN**;
-- route composition (doc 60 step 6) remains **OPEN**;
+- sneak / alternate-route composition (doc 60 step 6) remains **OPEN**;
 - maintainer decision Q3 (drone on the composite route?) remains **OPEN** — nothing here answers it;
 - **NO level-4 claim for the attack**: the `move` verb stays at its recorded level-2/3 injection
   (the `action_id` enters at the `handle_action` seam and never passes
@@ -25,7 +31,7 @@ independent read (external-seal instrument, though no seal was required) that ma
 consumer/class/scope derivation (S for the hp value — "not a GUI display string, predicate verdict,
 action, or menu answer"; A for the driven move; one adjacent monster's pool).
 
-## 1. The witnessed engine chain (leaf-cited)
+## 1. The engine chain (source-read and leaf-cited; the witness observes only its hp result)
 
 | Step                                                                     | Leaf                                                                                                                                            | What it does                                                                                                                                                                                                                                                                                                                                                                                     |
 | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -40,7 +46,8 @@ action, or menu answer"; A for the driven move; one adjacent monster's pool).
 
 `fight_mechanic_regression.ps1` (run with `pwsh`; renamed from the plan's `fight_route_…` so the
 filename cannot claim the route-ness the docs deny), three seeds, non-live `--arcopolis-run-script`
-`[export t0, (move_s, export tN) × 6]`:
+`[export t0, (move_s, export tN) × 6]` plus, per seed, the contrast run `[export t0, (wait, export
+tN) × 6]` (a zero-seed `-Seeds @()` invocation exits 11 instead of reporting a vacuous ok):
 
 - **G-ID** — a default-generation-flags invocation (`--fixture-root`/`--dest-world
   ArcopolisIdentityCheck`/`--force` are harness plumbing; byte-identity across a different dest name
@@ -62,12 +69,31 @@ filename cannot claim the route-ness the docs deny), three seeds, non-live `--ar
   step: **turn advanced OR moves decreased** (the divert discriminator — a safe-mode/auto-travel
   divert burns NEITHER; a fist attack can cost less than a full turn, so strict turn-increase would
   be wrong); avatar `pos_abs` held; target holds its tile; monster count 1 everywhere
-  (join-by-elimination validity — monsters have no stable instance id, doc 59); hp non-increasing;
+  (join-by-elimination validity — monsters have no stable instance id, doc 59) and `type_id ==
+  mon_zombie` in every export (a mid-run `poly()` would rescale hp); hp non-increasing;
   **≥1 hp drop** (the RNG-dependent gate, 27B pattern); **zombie alive at end** (no-kill bound);
-  NPC Edwardo PRESENT at t0 (its own gate — an empty `entities.npcs` export cannot pass vacuously),
-  stationary + held (named in the attribution-by-elimination list); transcript PRESENT and carries
-  **zero error events** (identity-keyed: ANY prompt on this path is an attack-path failure; an
-  avatar-death DEATHCAM query would fail red as run-death, not attack-path).
+  NPC Edwardo PRESENT at t0 with a real `pos_abs` and `is_stationary` (its own gate — an empty or
+  position-less `entities.npcs` export cannot pass vacuously), then `is_stationary` + position held
+  in every export; transcript PRESENT and carries **zero error events** (keyed on `exit_code`, which
+  only error events carry: ANY prompt on this path is an attack-path failure; an avatar-death
+  DEATHCAM query would fail red as run-death, not attack-path).
+- **G2 contrast arm per seed (attribution)** — the identical fixture and seed with every `move_s`
+  replaced by `wait`: t0 identity as in G1; the zombie's hp stays **exactly 80 in every export**
+  while it stays adjacent (same exposure as the bump arm) and the clock advances; avatar held;
+  transcript present and error-free. With the avatar not attacking, ANY other damage source — the
+  NPC, fields, traps, defensive traits/bionics, a type change, known or not — would lower hp here
+  too, so G1's drop is attributed by experiment rather than only by the review-time elimination
+  below. It is a separate run with its own RNG draw: an intermittent third party is made unlikely
+  across three seeds, not impossible.
+- **Review-time elimination (2026-10-21, NOT gated — G2 is what checks it every run).** Re-verified
+  at the source/fixture: the avatar has `my_bionics: []` and six cosmetic/inert traits (hair_treated,
+  GOURMAND, KILLER, eye_blue, hair_platinum_blond, SKIN_LIGHT — none of the on-hit defensive ones
+  such as SPINES/QUILLS/THORNS/ACIDBLOOD); Edwardo wields a `throwing_knife` whose only flag is
+  `SHEATH_KNIFE`, and an NPC throws only `NPC_ALT_ATTACK`/`NPC_THROW_NOW` items
+  (`npcmove.cpp:3938-3951`) — no item in the data carries `NPC_ALT_ATTACK`; the generated clone
+  carries `"upgrades":false`. Reported by a review lens, not independently re-checked: no fields or traps in the
+  four submaps around the avatar; Edwardo is the only NPC in the loaded overmaps, carries no gun
+  and has reach 1 (so a melee attack would need him to move — G1 catches that).
 - The zombie's counter-hits populate `avatar.damage_taken[]` (the 27B surface) — **reported, not
   gated**: expected, not a confound.
 
@@ -77,8 +103,13 @@ filename cannot claim the route-ness the docs deny), three seeds, non-live `--ar
 the liveness/damage witnesses, but a repeated-bump witness would EXPECT a mid-run kill at 20
 (median unarmed kill ≈ 6-7 landed hits), violating the ratified no-kill bound and false-firing the
 avatar-held falsifier (a vacated tile turns the next bump into real movement). The additive
-`--hp` flag authors the type-NATURAL pool instead: **80 = `mon_zombie`'s `type->hp`** — a
-freshly-spawned zombie, arguably more engine-faithful than the inherited 20.
+`--hp` flag authors the type's natural pool instead: **80 = `mon_zombie`'s `type->hp`**. Only the
+**hp** is type-natural — the witness is NOT a freshly-spawned zombie: `build_witness` clones the
+world's stock wildlife template and overrides only position/hp/moves/speed/hostility, so the clone
+keeps `faction:"small_animal"` (a spawned zombie gets its `default_faction`, `zombie`) and is
+authored `speed` 100 (`mon_zombie`'s is 70). Neither affects the avatar's attack or the hp
+bookkeeping this witness reads; faction can affect how the NPC assesses the threat, which G2 covers
+behaviorally.
 
 Crit-inclusive worst case per hit for the fixture avatar (**str 10**, unarmed/bashing skill 0, bare
 fists, `style_none` selected, no damage-relevant mutations — the avatar carries six cosmetic/inert
@@ -134,31 +165,49 @@ is set only in `game::mon_info_update`
 - **headless TILES (today's build): safe mode never fires** — the caches stay dirty because
   `game::draw` is a test_mode no-op — so a hostile-adjacent witness would run while the GUI, for
   the identical fixture and input, would STOP ("safe mode is on!") and refuse the move;
-- **curses build (or after the backlogged headless visibility-cache extraction lands): it FIRES**
-  — every driven move dies at `check_safe_mode_allowed()` (`avatar_action.cpp:363`) with ZERO
-  moves consumed, the script drains inside one parked turn, and the signature misreads as an RNG
-  all-miss. (`command_error_kind::safe_mode_blocked` is declared but emitted nowhere.)
+- **curses build (or after a headless visibility-cache refresh lands — upstream #10104 adds one to
+  `do_turn`; re-check at the next sync): PREDICTED to fire** — source-inferred, never run: the
+  STOP additionally requires the avatar to see the monster (`!u.sees( critter )` early return,
+  `game.cpp:5441`); where it fires, driven moves die at `check_safe_mode_allowed()`
+  (`avatar_action.cpp:363`) with ZERO moves consumed, the script drains inside one parked turn, and
+  the signature would misread as an RNG all-miss. (`command_error_kind::safe_mode_blocked` is
+  declared but emitted nowhere.)
 
 The witness therefore **pins `SAFEMODE=false` in the SANDBOX options.json** — the GUI-equivalent
-of the player disabling safe mode, making GUI and headless agree on every build flavor — and gates
-per-step time advance so a regressed pin fails with attribution. Behavior under `SAFEMODE=true` is
+of the player disabling safe mode, taking the safe-mode branch out of the GUI/headless comparison on
+every build flavor (the script's post-check proves the TEXT edit only; on today's tiles build, where
+safe mode is inert anyway, the pin's engine effect is unwitnessed) — and gates per-step time advance
+so a regressed pin would fail with attribution wherever safe mode is live. Behavior under `SAFEMODE=true` is
 deliberately **not witnessed**; the artifact is recorded here, not resolved. Every future
 hostile-in-view witness must carry the same pin.
 
 ## 6. What this does NOT prove (do not let docs widen it)
 
-Level 4 for the attack · a fight ROUTE or any slice-route composition (step 6, OPEN) · the drone
-half of step 5 (doc 60's "Spike 30", OPEN) · Q3 (open maintainer decision) · NPC or ranged targets ·
+Level 4 for the attack · that the move took the §1 path (source-read, not observed) · a fight
+ROUTE (doc 60's Spike-31 framing, narrowed here; the fight-route composition is the open, uncarded
+remainder of step 5) · any sneak / slice-route composition (step 6, OPEN) · the drone half of step 5
+(doc 60's "Spike 30", expected 29B, OPEN) · Q3 (open maintainer decision) · NPC or ranged targets ·
 kill/death handling (out of scope by ratified bound) · multi-monster attribution (single-monster
 fixture only; no stable instance id) · GUI display equivalence of hp (the GUI shows bands) ·
 behavior under `SAFEMODE=true` (pinned away, §5) · any generic claim about other monster types,
 armors, or weapons.
 
-## 7. Validation record (2026-07-04, exe of 2026-06-30)
+## 7. Validation record (2026-07-04, revised 2026-10-21; exe of 2026-06-30)
 
-`pwsh docs/arcopolis/fight_mechanic_regression.ps1` (final revision, all fourteen per-seed gates
-incl. `npc_present_at_t0`, `avatar_str_max_10`, and the transcript-must-exist strictness) — **all
-gates green**: G-ID byte-identical; G0 pins hold; three seeds (`fight-alpha/bravo/charlie`) at K=6:
+**Revision 2026-10-21 (merge-review hardening):** contrast arm G2 (six per-seed gates), per-export
+`monster_type_held`, `is_stationary` + real-`pos_abs` NPC gates, zero-seed guard (exit 11), and the
+doc-scope corrections above (Spike-31 narrowing, safe-mode prediction labelled source-inferred,
+"type-natural" limited to hp). `pwsh docs/arcopolis/fight_mechanic_regression.ps1` with the
+2026-06-30 exe — **all gates green ×3 seeds**: bump arm zombie hp 80→58 / 80→43 / 80→63 (counter-hits
+3/4/2); contrast arm hp held at exactly 80 in every export on all three seeds while the zombie stayed
+adjacent and hit the avatar 5/7/5 times across 6 turns (so the control is not trivially quiet).
+Before this revision, two reruns of the 2026-07-04 script were green (07-05: 80→64/62/56; 10-21:
+80→61/58/67), and in all six of those runs every hp decrement matched the engine's own "You hit /
+whack the zombie for N" messages (display text — corroboration, not a gate).
+
+`pwsh docs/arcopolis/fight_mechanic_regression.ps1` (2026-07-04 revision: the fourteen G1 per-seed
+gates incl. `npc_present_at_t0` and the transcript-must-exist strictness, plus G0's
+`avatar_str_max_10`) — **all gates green**: G-ID byte-identical; G0 pins hold; three seeds (`fight-alpha/bravo/charlie`) at K=6:
 zombie hp 80→55 / 80→54 / 80→61, avatar and target held every step, every step advanced, monster
 count 1 everywhere, transcripts present and clean, zombie alive at end, counter-hits on the avatar
 0/2/2 (reported only). Two earlier same-day runs of the pre-revision script also passed: K=6

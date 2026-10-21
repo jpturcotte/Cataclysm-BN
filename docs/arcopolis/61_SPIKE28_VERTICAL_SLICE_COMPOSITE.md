@@ -16,7 +16,7 @@ the spike-number registry in ARCOPOLIS_STATE.md.
 ## 1. The fold decision (recorded here; doc 60 is deliberately unedited)
 
 Doc 60 proposed **Spike 28** (2-floor composite slice, "the keystone") before **Spike 29** (N-floor
-generator + 5–6-floor traversal), citing doc 48 §20. On **2026-07-01 the maintainer folded 28 into 29
+generator + 5–6-floor traversal), citing doc 48 §20. On **2026-07-01 the maintainer folded doc 60's proposed 28 into its 29
 as ONE spike** (shipped titled "Spike 29"; renumbered to **Spike 28** on 2026-07-05 — see the errata
 above) after a red-team of the sequencing rationale: §20's lesson ("isolate the test
 environment before proving the command seam") binds _which environment the first composite runs on_,
@@ -26,7 +26,7 @@ independently, in order:
 1. **G1** — generator assertions, no session (fixture machinery isolated);
 2. **G2** — N-floor traversal round trip, run-script, no package (new fixture machinery isolated from
    composition; as built, the isolation is met by ROUTE rather than a package-free world — see §5 G2);
-3. **G3** — composite at 2 floors — former Spike 28 **verbatim**, on the already-proven z=−1
+3. **G3** — composite at 2 floors — doc 60's proposed Spike 28 **verbatim**, on the already-proven z=−1
    environment (deliverable even if lower-z synthesis had stalled);
 4. **G4** — composite at 6 floors, package on the deepest floor (Stage A's traversal core, doc 60 §3).
 

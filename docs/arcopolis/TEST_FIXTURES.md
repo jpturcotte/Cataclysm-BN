@@ -232,7 +232,8 @@ avatar-held / NPC-held / mover-survived) — the headless sim is not byte-determ
   --anger 100 --morale 100 --aggro-character --hp 80` — the opt-in `--hp` authors the type-natural pool for
   kill-headroom; defaults
   stay byte-for-byte, gated at `.sav` scope by both G-ID checks), built into the sandbox with **`SAFEMODE=false`
-  pinned in the sandbox options.json** (the safe-mode render-coupling artifact, doc 62 §safe-mode) and gated
+  pinned in the sandbox options.json** (the safe-mode render-coupling artifact, doc 62 §5), run in two arms per seed
+  (`move_s` bumps, and a `wait` contrast arm whose hp must stay 80 — the attribution control), and gated
   by [`fight_mechanic_regression.ps1`](fight_mechanic_regression.ps1). See
   [56_SPIKE27A_WORLD_TICK_LIVENESS.md](56_SPIKE27A_WORLD_TICK_LIVENESS.md),
   [57_SPIKE27B_ATTACKER_DAMAGE.md](57_SPIKE27B_ATTACKER_DAMAGE.md),
@@ -263,7 +264,7 @@ the composite's pickup in the single-prompt Spike-12A witnessed shape — probe-
 the Spike-23 matched stair pair (avatar's z=0 tile → `t_stairs_down`, directly below → `t_stairs_up`)
 plus one `box_small` **package** save-edited onto the clean basement tile `(6301, 6423, -1)` — two
 tiles south of the stair landing, with the walk tile between them asserted clean. The **contact tile**
-is the avatar's z=0 start tile (a fixture convention, docs 53/60). Backs the former-Spike-28 composite:
+is the avatar's z=0 start tile (a fixture convention, docs 53/60). Backs the doc-60-proposed Spike 28 composite:
 descend → walk → level-4 `pickup` → walk back → ascend → the consumer-side
 `carried_at_contact` conjunction green, with the doc-53 false-green guards plus floor provenance and
 the PINNED z-changed off-contact guard (evaluated at `(6301, 6421, -1)`: contact x/y, z −1 — a z-blind

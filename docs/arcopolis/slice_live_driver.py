@@ -3,7 +3,7 @@
 
 Drives ONE persistent ``--arcopolis-live`` backend over an N-floor slice fixture
 (``ArcopolisSliceTest`` --floors 2, ``ArcopolisTowerTest`` --floors 6; both built by
-``make_stairs_fixture.py``) and witnesses the former-Spike-28 composite loop in one session:
+``make_stairs_fixture.py``) and witnesses the doc-60-proposed Spike 28 composite loop in one session:
 
     export -> vertical_move down (xN-1, planar between wells) -> planar move to the package
     -> level-4 ``pickup`` prompt transaction -> planar return -> vertical_move up (xN-1)

@@ -3,16 +3,24 @@
   Arcopolis FIGHT-MECHANIC witness (Spike 29A, doc 62): avatar bump-melee vs an adjacent hostile.
 
 .DESCRIPTION
-  Proves, at equivalence level 1 (OBSERVATION ONLY, native-authority class A-via-S), that a backend-driven
-  `move` into an ADJACENT hostile mon_zombie routes through the engine's OWN bump-melee
-  (avatar_action::move -> melee_attack_from_movement -> Character::melee_attack) and that the engine's own
-  damage shows up as a raw `entities.monsters[].hp` decrement across snapshots. The melee half of doc 60
-  step 5. It drives NO new input path (the move verb stays at its recorded level 2/3 injection) and makes
-  NO level-4 claim for the attack.
+  Witnesses, at equivalence level 1 (OBSERVATION ONLY, native-authority class A-via-S), that backend-driven
+  `move`s into an ADJACENT hostile mon_zombie lower its raw `entities.monsters[].hp` across snapshots, and
+  -- via the CONTRAST ARM below -- that the drop is CAUSED by those moves. The engine path the move takes
+  (avatar_action::move -> melee_attack_from_movement -> Character::melee_attack) is SOURCE-READ (doc 62
+  s1), not observed by this witness. The melee MECHANIC half of doc 60 step 5. It drives NO new input path
+  (the move verb stays at its recorded level 2/3 injection) and makes NO level-4 claim for the attack.
+
+  CONTRAST ARM (attribution): per seed, a second run on the identical fixture replaces every `move_s` with
+  `wait`; the zombie's hp must stay EXACTLY $Hp in every export. Any non-avatar damage source (the NPC,
+  fields, traps, defensive traits/bionics, a type change -- known or not) would lower hp in that arm too,
+  so the bump arm's drop is attributed by experiment, not only by the review-time elimination doc 62 s2
+  records. It is a separate run (its own RNG draw), so an intermittent third party is made unlikely across
+  3 seeds, not impossible.
 
   FIXTURE (runtime-sandbox, NOTHING COMMITTED): ArcopolisFightTest is generated at run start into the
   gitignored sandbox by cloning the sandbox's ArcopolisTest -- a hostile mon_zombie ADJACENT one south
-  (offset 0,1,0) at the type-NATURAL hp 80 (`--hp 80`; a freshly-spawned zombie's pool). K=6 bumps is
+  (offset 0,1,0) at mon_zombie's natural hp pool 80 (`--hp 80`; the type's `hp`). Only the hp is
+  type-natural: the clone keeps the generator template's faction/speed (doc 62 s3). K=6 bumps is
   PROVABLY kill-safe: the fixture avatar's crit-inclusive worst case is 12/hit (str-10 skill-0 fists:
   stat roll caps at 10, melee.cpp:2025/:2128; bash_mul 0.8 at skill 0, :2110; x1.5 crit, :2140; zombie
   armor_bash 0), so even six consecutive max-roll crits total 72 < 80 -- doc 62 shows the arithmetic.
@@ -23,18 +31,21 @@
   SAFE-MODE PIN (load-bearing -- doc 62 records the render-coupling artifact): the committed pack ships
   SAFEMODE=true and the saves carry run_mode:1. Safe mode's STOP machinery is INERT in today's headless
   TILES build (mon_info_update early-returns on the CATA_SDL visibility-cache gate, game.cpp:5310-5326)
-  but ACTIVE in a curses build -- where it would divert EVERY driven move at avatar_action.cpp:363 with
-  zero moves consumed. This script pins SAFEMODE=false in the SANDBOX options.json (the GUI-equivalent of
-  the player disabling safe mode; makes GUI and headless agree on every build flavor) and gates
+  and PREDICTED (source-inferred, never run) to be ACTIVE in a curses build -- where, if the avatar
+  sees the zombie (the `!u.sees( critter )` gate, game.cpp:5441), it would divert driven moves at
+  avatar_action.cpp:363 with zero moves consumed. This script pins SAFEMODE=false in the SANDBOX
+  options.json (the GUI-equivalent of the player disabling safe mode; takes the safe-mode branch out of
+  the comparison on every build flavor -- the post-check proves the TEXT edit only) and gates
   TURN/MOVES ADVANCE per driven step (a divert burns neither), so a regressed pin fails with attribution
   instead of masquerading as an all-miss.
 
   RNG-DEPENDENT (the 27B pattern): the hp drop needs >=1 landed hit across $Bumps attacks; each of 3 seeds
   must land one (an all-miss run FAILS LOUD, never a false green). Exact amounts/turns are NOT gated.
 
-  WHAT THIS DOES NOT PROVE (do not let docs widen it): level 4 for the attack; a fight ROUTE (route
-  composition is doc 60 step 6, OPEN) or the security-DRONE half of step 5 (doc 60's "Spike 30", OPEN; maintainer
-  decision Q3 stays open); NPC/ranged targets; kill/death handling (out of scope by ratified bound);
+  WHAT THIS DOES NOT PROVE (do not let docs widen it): level 4 for the attack; a fight ROUTE (doc 60's
+  Spike-31 "fight-route witness" was NARROWED to this mechanic; composing the fight onto the slice route is
+  the still-OPEN, not-yet-carded remainder of step 5 -- step 6 is the SNEAK route) or the security-DRONE half
+  of step 5 (doc 60's "Spike 30", expected 29B, OPEN; maintainer decision Q3 stays open); NPC/ranged targets; kill/death handling (out of scope by ratified bound);
   multi-monster attribution (monsters have no stable instance id -- single-monster fixture only); GUI
   display equivalence of hp (the GUI shows filtered health BANDS, not the raw number); behavior under
   SAFEMODE=true (deliberately pinned away, recorded artifact).
@@ -67,7 +78,10 @@ function Stop-WithCode {
 }
 
 # --- Prereqs (3=exe, 4=fixture-root/pin, 5=source world, 6=python, 7=fixture-generation, 8=path-too-long,
-# 9=generator-default-identity, 10=preflight). ---
+# 9=generator-default-identity, 10=preflight, 11=no seeds). ---
+if( @($Seeds | Where-Object { $_ }).Count -eq 0 ) {
+    Stop-WithCode "No -Seeds given: a zero-seed run would report ok without witnessing anything" 11
+}
 if( -not (Test-Path $Exe) ) {
     Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
@@ -146,7 +160,7 @@ $savText = Get-Content $fightSav.FullName -Raw
 $g0 = [ordered]@{}
 $g0['style_selected_style_none'] = ($savText -match '"style_selected":"style_none"')   # knockback pin (doc 62)
 $g0['auto_travel_mode_false']    = ($savText -match '"auto_travel_mode":false')        # silent-divert pin
-$g0['manual_combat_mode_absent'] = (-not ($savText -match '"manual_combat_mode"'))     # loader-defaults false (savegame.cpp:367-368)
+$g0['manual_combat_mode_absent'] = (-not ($savText -match '"manual_combat_mode"'))     # provenance pin: saves write it (savegame.cpp:99); game::load resets it false regardless (game.cpp:3985)
 $g0['witness_type_present']      = ($savText -match '"typeid":"mon_zombie"')
 $g0['witness_hp_authored']       = ($savText -match ('"hp":' + $Hp))          # textual smoke; authoritative = t0 export gate
 $g0['avatar_str_max_10']         = ($savText -match '"str_max":10')           # kill-safety premise (doc 62 s3)
@@ -156,18 +170,20 @@ if( $g0Fail.Count -gt 0 ) {
 }
 Write-Host "  G0    PASS: fixture pins hold (style_none selected, auto_travel off, manual_combat absent, zombie authored at hp $Hp, avatar str_max 10)" -ForegroundColor Green
 
-# --- G1: the witness -- [export t0, (move_s, export tN) x $Bumps] per seed, non-live run-script. ---
+# --- G1: the witness -- [export t0, (move_s, export tN) x $Bumps] per seed, non-live run-script.
+# G2: the CONTRAST arm -- the identical script with every move_s replaced by `wait`. ---
 function Invoke-FightRun {
-    param([string]$Seed)
+    param([string]$Seed, [ValidateSet('bump', 'contrast')][string]$Arm = 'bump')
 
-    $dir = Join-Path $OutRoot $Seed
+    $dir = if( $Arm -eq 'contrast' ) { Join-Path $OutRoot "$Seed-contrast" } else { Join-Path $OutRoot $Seed }
     if( Test-Path $dir ) { Remove-Item $dir -Recurse -Force }
     New-Item -ItemType Directory -Force $dir | Out-Null
 
+    $step = if( $Arm -eq 'contrast' ) { '{ "op": "command", "command": "wait" }' } else { '{ "op": "command", "command": "move", "direction": "move_s" }' }
     $steps = New-Object System.Collections.Generic.List[string]
     $steps.Add('{ "op": "export", "name": "t0" }')
     foreach( $i in 1..$Bumps ) {
-        $steps.Add('{ "op": "command", "command": "move", "direction": "move_s" }')
+        $steps.Add($step)
         $steps.Add( '{ "op": "export", "name": "t' + $i + '" }' )
     }
     $scriptPath = Join-Path $dir "script.json"
@@ -181,12 +197,12 @@ function Invoke-FightRun {
     ) -NoNewWindow -Wait -PassThru `
         -RedirectStandardOutput (Join-Path $dir "stdout.txt") -RedirectStandardError (Join-Path $dir "stderr.txt")
     if( $p.ExitCode -ne 0 ) {
-        throw "seed '$Seed' run exited $($p.ExitCode) (expected 0): $(Format-ArcoPath (Get-Content (Join-Path $dir 'stderr.txt') -Raw))"
+        throw "seed '$Seed' ($Arm arm) run exited $($p.ExitCode) (expected 0): $(Format-ArcoPath (Get-Content (Join-Path $dir 'stderr.txt') -Raw))"
     }
 
     # Named exports only (NNN_t<i>.json), in step order; excludes script.json and the final-on-exit snapshot.
     $snapFiles = Get-ChildItem $dir -Filter "*.json" | Where-Object { $_.Name -match '^\d+_t\d+\.json$' } | Sort-Object Name
-    if( $snapFiles.Count -ne ($Bumps + 1) ) { throw "seed '$Seed' produced $($snapFiles.Count) named exports (expected $($Bumps + 1))" }
+    if( $snapFiles.Count -ne ($Bumps + 1) ) { throw "seed '$Seed' ($Arm arm) produced $($snapFiles.Count) named exports (expected $($Bumps + 1))" }
     $snaps = $snapFiles | ForEach-Object { Get-Content $_.FullName -Raw | ConvertFrom-Json }
 
     $logPath = Join-Path $dir "session.jsonl"
@@ -222,13 +238,14 @@ foreach( $seed in $Seeds ) {
 
     # Per-export series gates.
     $monCountOk = $true; $avatarHeld = $true; $targetHeld = $true; $hpNonIncreasing = $true
-    $advanceOk = $true; $npcHeld = $true
+    $advanceOk = $true; $npcHeld = $true; $typeHeld = $true
     $npc0 = @($t0.entities.npcs | Where-Object { $_ }) | Select-Object -First 1
     $prevMon = $mon0
     for( $i = 1; $i -lt $snaps.Count; $i++ ) {
         $s = $snaps[$i]
         $m = Get-TheMonster $s
         if( $null -eq $m ) { $monCountOk = $false; break }
+        if( $m.type_id -ne 'mon_zombie' ) { $typeHeld = $false }
         if( (@($s.avatar.pos_abs) -join ',') -ne (@($avatar0) -join ',') ) { $avatarHeld = $false }
         if( (@($m.pos_abs) -join ',') -ne ($expectSouth -join ',') ) { $targetHeld = $false }
         if( $m.hp -gt $prevMon.hp ) { $hpNonIncreasing = $false }
@@ -236,20 +253,23 @@ foreach( $seed in $Seeds ) {
         # (A fist attack can cost less than a full turn, so consecutive exports may legally share a turn.)
         if( -not (($s.backend.turn -gt $snaps[$i-1].backend.turn) -or ($s.avatar.moves -lt $snaps[$i-1].avatar.moves)) ) { $advanceOk = $false }
         $npcNow = @($s.entities.npcs | Where-Object { $_ }) | Select-Object -First 1
-        if( $npc0 -and ( -not $npcNow -or (@($npcNow.pos_abs) -join ',') -ne (@($npc0.pos_abs) -join ',') ) ) { $npcHeld = $false }
+        if( $npc0 -and ( -not $npcNow -or $npcNow.is_stationary -ne $true -or (@($npcNow.pos_abs) -join ',') -ne (@($npc0.pos_abs) -join ',') ) ) { $npcHeld = $false }
         $prevMon = $m
     }
     $monFinal = Get-TheMonster $snaps[-1]
 
     $g['monster_count_one_everywhere'] = $monCountOk        # join-by-elimination validity; a vanished entry
+    $g['monster_type_held']            = $typeHeld          # no mid-run type change (poly() rescales hp)
     $g['avatar_held']                  = $avatarHeld        # bump-attack, not displacement (knockback pinned)
     $g['target_held_south']            = $targetHeld        # engaged adjacent hostile holds its tile
     $g['every_step_advances']          = $advanceOk         # no zero-cost divert (safe-mode/auto-travel)
     $g['hp_non_increasing']            = $hpNonIncreasing   # single damage source; no regen
     $g['hp_dropped']                   = ($monFinal -and $monFinal.hp -lt $Hp)  # >=1 landed hit (RNG gate)
     $g['zombie_alive_at_end']          = ($monFinal -and $monFinal.hp -gt 0)    # kill-headroom held (no-kill bound)
-    $g['npc_present_at_t0']            = ($null -ne $npc0)  # Edwardo must EXIST for the next gate to mean anything
-    $g['npc_noninterference']          = $npcHeld           # Edwardo (stationary ally, 1 north) holds pos
+    # Edwardo must EXIST with a real position (and be stationary) for the next gate to mean anything; a
+    # missing pos_abs would otherwise compare "" to "" and pass vacuously.
+    $g['npc_present_at_t0']            = ($null -ne $npc0 -and @($npc0.pos_abs).Count -eq 3 -and $npc0.is_stationary -eq $true)
+    $g['npc_noninterference']          = $npcHeld           # Edwardo (stationary, 1 north) stays stationary + holds pos
     $g['turn_advanced_overall']        = ($snaps[-1].backend.turn -gt $t0.backend.turn)
 
     # Transcript: no error events at all (error events uniquely carry exit_code); specifically no
@@ -263,10 +283,33 @@ foreach( $seed in $Seeds ) {
         $counterHits += @($sn.avatar.damage_taken | Where-Object { $_ -and $_.source_type_id -eq 'mon_zombie' }).Count
     }
 
+    # --- G2: CONTRAST arm (attribution). Same fixture + seed, `wait` instead of `move_s`: with the avatar
+    # NOT attacking, the zombie's hp must stay exactly $Hp in EVERY export while it stays engaged (adjacent)
+    # and the clock really runs. Any non-avatar damage source -- known or not -- would show up here. ---
+    $crun = Invoke-FightRun -Seed $seed -Arm contrast
+    $csnaps = $crun.Snaps
+    $cmon0 = Get-TheMonster $csnaps[0]
+    $cAvatar0 = $csnaps[0].avatar.pos_abs
+    $cExpectSouth = @($cAvatar0[0], ($cAvatar0[1] + 1), $cAvatar0[2])
+    $cHpHeld = $true; $cEngaged = $true; $cAvatarHeld = $true
+    foreach( $cs in $csnaps ) {
+        $cm = Get-TheMonster $cs
+        if( $null -eq $cm -or $cm.type_id -ne 'mon_zombie' -or $cm.hp -ne $Hp ) { $cHpHeld = $false }
+        if( $null -eq $cm -or (@($cm.pos_abs) -join ',') -ne ($cExpectSouth -join ',') ) { $cEngaged = $false }
+        if( (@($cs.avatar.pos_abs) -join ',') -ne (@($cAvatar0) -join ',') ) { $cAvatarHeld = $false }
+    }
+    $cErr = @($crun.Events | Where-Object { $_.PSObject.Properties.Name -contains 'exit_code' })
+    $g['contrast_t0_identity']     = ($cmon0 -and $cmon0.type_id -eq 'mon_zombie' -and $cmon0.hp -eq $Hp)
+    $g['contrast_hp_unchanged']    = $cHpHeld       # THE attribution gate: no drop without the avatar's bumps
+    $g['contrast_target_engaged']  = $cEngaged      # same exposure as the bump arm (adjacent all run)
+    $g['contrast_avatar_held']     = $cAvatarHeld
+    $g['contrast_turn_advanced']   = ($csnaps[-1].backend.turn -gt $csnaps[0].backend.turn)  # the waits really ticked
+    $g['contrast_transcript_no_errors'] = ($crun.HasLog -and $cErr.Count -eq 0)
+
     $seedFail = @($g.GetEnumerator() | Where-Object { -not $_.Value })
     if( $seedFail.Count -eq 0 ) {
-        Write-Host ("  [seed $seed] PASS  zombie hp {0} -> {1}  counter-hits on avatar: {2}  (amounts RNG-dependent)" -f `
-            $Hp, $monFinal.hp, $counterHits) -ForegroundColor Green
+        Write-Host ("  [seed $seed] PASS  zombie hp {0} -> {1}  counter-hits on avatar: {2}  (amounts RNG-dependent); contrast arm (wait x{3}): hp held at {0}" -f `
+            $Hp, $monFinal.hp, $counterHits, $Bumps) -ForegroundColor Green
     } else {
         $fail++
         $names = ($seedFail | ForEach-Object { $_.Key }) -join ', '
@@ -277,6 +320,9 @@ foreach( $seed in $Seeds ) {
         if( -not $advanceOk ) {
             Write-Host "        (a zero-cost step = a DIVERT before the monster branch -- check the SAFEMODE pin and auto_travel_mode, doc 62; NOT an RNG all-miss)" -ForegroundColor Red
         }
+        if( -not $cHpHeld ) {
+            Write-Host "        (the zombie lost hp WITHOUT the avatar attacking = a third-party/environmental damage source; the bump arm's drop is NOT attributable -- see doc 62 s2)" -ForegroundColor Red
+        }
     }
 }
 
@@ -284,5 +330,5 @@ if( $fail -gt 0 ) {
     Write-Host "FIGHT-MECHANIC REGRESSION: $fail of $($Seeds.Count) seed(s) failed." -ForegroundColor Red
     exit 1
 }
-Write-Host "FIGHT-MECHANIC REGRESSION: ok ($($Seeds.Count) seeds: G-ID + G0 pins + per-step advance, avatar/target held, hp dropped and stayed >0, transcript clean)." -ForegroundColor Green
+Write-Host "FIGHT-MECHANIC REGRESSION: ok ($($Seeds.Count) seeds: G-ID + G0 pins + per-step advance, avatar/target held, hp dropped and stayed >0, transcript clean; contrast arm held hp)." -ForegroundColor Green
 exit 0
