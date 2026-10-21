@@ -91,9 +91,13 @@ tN) × 6]` (a zero-seed `-Seeds @()` invocation exits 11 instead of reporting a 
   such as SPINES/QUILLS/THORNS/ACIDBLOOD); Edwardo wields a `throwing_knife` whose only flag is
   `SHEATH_KNIFE`, and an NPC throws only `NPC_ALT_ATTACK`/`NPC_THROW_NOW` items
   (`npcmove.cpp:3938-3951`) — no item in the data carries `NPC_ALT_ATTACK`; the generated clone
-  carries `"upgrades":false`. Reported by a review lens, not independently re-checked: no fields or traps in the
-  four submaps around the avatar; Edwardo is the only NPC in the loaded overmaps, carries no gun
-  and has reach 1 (so a melee attack would need him to move — G1 catches that).
+  carries `"upgrades":false`. Also re-verified (2026-10-21, decoded `ArcopolisTest/map.sqlite3` —
+  the fight fixture rewrites only the `.sav`, so it shares this map): **no fields and no traps** in
+  the 3×3 submaps around the avatar (empty `fields`/`traps` arrays; the engine writes one entry per
+  occupied tile, `savegame_json.cpp:4468-4489`, so empty means none); Edwardo is the **only NPC
+  record** in the world's overmap files, and none of the 21 items in his weapon/worn/inventory tree
+  is a `GUN`, carries a reach flag, or is NPC-throwable — so a melee attack would need him to move
+  (G1 catches that).
 - The zombie's counter-hits populate `avatar.damage_taken[]` (the 27B surface) — **reported, not
   gated**: expected, not a confound.
 
