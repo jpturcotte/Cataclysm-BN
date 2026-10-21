@@ -1,4 +1,4 @@
-# Spike 29 (folded) — N-floor slice fixtures + the vertical-slice composite witnesses
+# Spike 28 (folded) — N-floor slice fixtures + the vertical-slice composite witnesses
 
 **Status: BUILT + witnessed (2026-07-01).** Zero `src/` change. Two new committed fixture worlds, one
 parameterized generator, one live driver, one four-gate regression, docs. **Revised same day after a
@@ -7,11 +7,18 @@ assertion bound stated honestly (ids, not flags; monsters, not NPCs — §2/§5)
 gate de-vacuified (G4-only, count-pinned; G3 is 13 gates, not 14), and the damage/turn guards hardened to
 fail CLOSED under export-schema drift. All witnesses re-run green after the revision (§7).
 
+**Renumbering errata (2026-07-05).** This spike SHIPPED titled "Spike 29" (PR #95; the commit title is
+immutable and retains that name). The maintainer's numbering convention — a fold takes its EARLIEST
+constituent number; no numbers skipped except failures — renumbers the merged spike to **Spike 28**.
+The fight-mechanic witness that followed is Spike 29A (doc 62); doc 60's proposal-time labels map via
+the spike-number registry in ARCOPOLIS_STATE.md.
+
 ## 1. The fold decision (recorded here; doc 60 is deliberately unedited)
 
 Doc 60 proposed **Spike 28** (2-floor composite slice, "the keystone") before **Spike 29** (N-floor
-generator + 5–6-floor traversal), citing doc 48 §20. On **2026-07-01 the maintainer folded 28 into 29
-as ONE spike** after a red-team of the sequencing rationale: §20's lesson ("isolate the test
+generator + 5–6-floor traversal), citing doc 48 §20. On **2026-07-01 the maintainer folded doc 60's proposed 28 into its 29
+as ONE spike** (shipped titled "Spike 29"; renumbered to **Spike 28** on 2026-07-05 — see the errata
+above) after a red-team of the sequencing rationale: §20's lesson ("isolate the test
 environment before proving the command seam") binds _which environment the first composite runs on_,
 not generator build order. The fold preserves it via an internal **gate ladder** — each gate fails
 independently, in order:
@@ -19,7 +26,7 @@ independently, in order:
 1. **G1** — generator assertions, no session (fixture machinery isolated);
 2. **G2** — N-floor traversal round trip, run-script, no package (new fixture machinery isolated from
    composition; as built, the isolation is met by ROUTE rather than a package-free world — see §5 G2);
-3. **G3** — composite at 2 floors — former Spike 28 **verbatim**, on the already-proven z=−1
+3. **G3** — composite at 2 floors — doc 60's proposed Spike 28 **verbatim**, on the already-proven z=−1
    environment (deliverable even if lower-z synthesis had stalled);
 4. **G4** — composite at 6 floors, package on the deepest floor (Stage A's traversal core, doc 60 §3).
 

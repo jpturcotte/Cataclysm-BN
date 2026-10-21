@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Arcopolis folded-Spike-29 vertical-slice composite live driver (docs/arcopolis/61).
+"""Arcopolis folded-Spike-28 vertical-slice composite live driver (docs/arcopolis/61).
 
 Drives ONE persistent ``--arcopolis-live`` backend over an N-floor slice fixture
 (``ArcopolisSliceTest`` --floors 2, ``ArcopolisTowerTest`` --floors 6; both built by
-``make_stairs_fixture.py``) and witnesses the former-Spike-28 composite loop in one session:
+``make_stairs_fixture.py``) and witnesses the doc-60-proposed Spike 28 composite loop in one session:
 
     export -> vertical_move down (xN-1, planar between wells) -> planar move to the package
     -> level-4 ``pickup`` prompt transaction -> planar return -> vertical_move up (xN-1)
@@ -415,7 +415,7 @@ EXPECTED_WALK_TER = "t_linoleum_white"
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Folded-Spike-29 vertical-slice composite live driver.")
+    parser = argparse.ArgumentParser(description="Folded-Spike-28 vertical-slice composite live driver.")
     parser.add_argument("--exe", required=True, help="path to cataclysm-bn-tiles.exe")
     parser.add_argument("--world", required=True, help="slice world (ArcopolisSliceTest / ArcopolisTowerTest)")
     parser.add_argument("--floors", type=int, required=True, help="the fixture's floor count (2 or 6)")

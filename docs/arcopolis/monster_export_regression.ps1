@@ -23,6 +23,11 @@
       world state.
 
   What it asserts (hard gates, on every exported snapshot):
+    0. G-ID (before the run, exit 9): a default-generation-flags invocation of the generator regenerates
+       this fixture's .sav BYTE-FOR-BYTE (SHA256; .sav scope -- the generator's only content write) -- the
+       mechanical gate for make_monster_fixture.py's documented "defaults regenerate byte-for-byte"
+       contract (docstring; doc 59), enforced in the default fixture's
+       own witness so it holds even when fight_mechanic_regression.ps1 (which carries the same gate) is not run.
     1. entities.monsters is PRESENT (the block exists -- an old binary / export regression fails loudly).
     2. entities.monsters count > 0 (the witness monster is in the radius-12 window).
     3. off-window == 0: every monster's pos_local equals some exported tile's (x,y,z) on the tiles' z
@@ -64,7 +69,7 @@ if( -not $FixtureSrc ) { $FixtureSrc = Resolve-ArcoFixtureRoot -ScriptDir $PSScr
 # Fatal-prereq helper: print to stderr and exit with a SPECIFIC code. A bare `Write-Error; exit N` does NOT
 # work under `$ErrorActionPreference = "Stop"`: Write-Error throws a terminating error that unwinds BEFORE
 # `exit` runs, collapsing every guard to exit 1. `-ErrorAction Continue` keeps it non-terminating so the
-# labeled code is actually returned -- this script's 3..8 scheme needs the real code
+# labeled code is actually returned -- this script's 3..9 scheme needs the real code
 # (see 16_SPIKE6B_MONSTER_WITNESS_FIXTURE.md).
 function Stop-WithCode {
     param([string]$Message, [int]$Code)
@@ -73,7 +78,8 @@ function Stop-WithCode {
 }
 
 # --- Prereqs (each exits with a distinct code: 3=exe, 4=fixture, 5=world, 6=python, 7=viewer,
-# 8=sandbox-path-too-long -- the MAX_PATH guard below the block). ---
+# 8=sandbox-path-too-long -- the MAX_PATH guard below the block; 9=generator-default-identity --
+# the G-ID gate below the provenance lines). ---
 if( -not (Test-Path $Exe) ) {
     Stop-WithCode "Binary not found: $(Format-ArcoPath $Exe)  (build cataclysm-bn-tiles in out/build/win-rel-deb first; see 00_WINDOWS_LOCAL_ENVIRONMENT.md)" 3
 }
@@ -116,6 +122,26 @@ $exeItem = Get-Item $Exe
 Write-Host ("  provenance: exe {0}  (modified {1:yyyy-MM-dd HH:mm:ss}, {2} bytes)" -f (Format-ArcoPath $Exe), $exeItem.LastWriteTime, $exeItem.Length)
 Write-Host ("  provenance: fixture root {0}; sandbox {1}" -f (Format-ArcoPath $FixtureSrc), (Format-ArcoPath $userDirAbs))
 if( $env:ARCO_FIXTURE_ROOT ) { Write-Host "  provenance: ARCO_FIXTURE_ROOT is SET (fixture resolution may bypass the repo pack)" -ForegroundColor Yellow }
+
+# --- G-ID: generator DEFAULT-output identity (exit 9), shared with fight_mechanic_regression.ps1 -- the
+# mechanical gate for make_monster_fixture.py's documented "defaults regenerate byte-for-byte" contract.
+# Regenerate with default GENERATION flags (--fixture-root/--dest-world/--force are harness plumbing) and
+# SHA256-compare the produced .sav (the generator's only content write today; a future flag writing other
+# world files needs a wider comparison) against the sandbox copy of the reference default output. The
+# reference is the LITERAL ArcopolisNearMonsterTest (the generator's default --dest-world -- the
+# contract's subject), deliberately NOT $World: a -World override changes what this script witnesses, not
+# what the generator's defaults must reproduce.
+$gen = Join-Path $PSScriptRoot "make_monster_fixture.py"
+if( -not (Test-Path $gen) ) { Stop-WithCode "G-ID: generator not found: $(Format-ArcoPath $gen)" 9 }
+& python $gen --fixture-root $UserDir --dest-world ArcopolisIdentityCheck --force | Out-Null
+if( $LASTEXITCODE -ne 0 ) { Stop-WithCode "G-ID: default-invocation regeneration failed (exit $LASTEXITCODE)" 9 }
+$gidRef = Get-ChildItem (Join-Path $UserDir "save\ArcopolisNearMonsterTest") -Filter "*.sav" | Select-Object -First 1
+$gidChk = Get-ChildItem (Join-Path $UserDir "save\ArcopolisIdentityCheck")   -Filter "*.sav" | Select-Object -First 1
+if( -not $gidRef -or -not $gidChk ) { Stop-WithCode "G-ID: could not locate reference/check .sav files" 9 }
+if( (Get-FileHash $gidRef.FullName -Algorithm SHA256).Hash -ne (Get-FileHash $gidChk.FullName -Algorithm SHA256).Hash ) {
+    Stop-WithCode "G-ID FAIL: the generator's default invocation no longer reproduces the reference ArcopolisNearMonsterTest .sav byte-for-byte (either a generator change perturbed defaults -- new flags must default-preserve -- or the source/reference fixture worlds drifted out of step; the reference is the resolved fixture root's copy)." 9
+}
+Write-Host "  G-ID  PASS: generator default output is byte-identical to the reference ArcopolisNearMonsterTest .sav (resolved fixture root)" -ForegroundColor Green
 
 function Invoke-MonsterScenario {
     param([string]$Name)

@@ -67,12 +67,23 @@ Usage::
         --anger 100 --morale 100 --aggro-character --force
     # (a NEGATIVE extra offset needs the = form so argparse does not read it as a flag: --extra-offset=-1,2,0)
 
-The default (no hostility flags) reproduces the original IMMOBILE-witness behavior BYTE-FOR-BYTE,
-so ``ArcopolisNearMonsterTest`` regenerates unchanged. The opt-in ``--anger`` / ``--morale`` /
-``--aggro-character`` flags author a monster that the engine's own ``monmove`` will path toward the
-avatar on its OWN turn -- the initial condition the world-tick liveness witness observes. (Authoring
-an initial anger/aggro state is exactly what the GUI debug spawn does; the engine then simulates
-faithfully -- it is NOT faking engine state.)
+    # Fight-mechanic witness (Spike 29A, doc 62): an ADJACENT hostile at the type's NATURAL hp (80 =
+    # mon_zombie's type->hp, a freshly-spawned zombie) so K=6 avatar bumps are PROVABLY kill-safe
+    # (crit-inclusive worst case 6x12=72<80 -- doc 62 shows the arithmetic; K=8 would allow 96>80) --
+    # the runtime-sandbox fixture fight_mechanic_regression.ps1 generates (never committed):
+    python docs/arcopolis/make_monster_fixture.py --dest-world ArcopolisFightTest \
+        --monster mon_zombie --offset 0,1,0 --anger 100 --morale 100 --aggro-character --hp 80 --force
+
+The default (no hostility flags, ``--hp`` 20) reproduces the original IMMOBILE-witness behavior
+BYTE-FOR-BYTE, so ``ArcopolisNearMonsterTest`` regenerates unchanged (mechanically gated at .sav
+scope -- this script's only content write -- by the G-ID checks in monster_export_regression.ps1
+and fight_mechanic_regression.ps1; a future flag that writes OTHER world files needs a wider gate). The opt-in ``--anger`` /
+``--morale`` / ``--aggro-character`` flags author a monster that the engine's own ``monmove`` will
+path toward the avatar on its OWN turn -- the initial condition the world-tick liveness witness
+observes; the opt-in ``--hp`` authors the witness's starting hp (default 20 = the historical witness
+value; a type-natural value like mon_zombie's 80 gives a repeated-melee witness kill-headroom).
+(Authoring an initial anger/aggro/hp state is exactly what the GUI debug spawn does; the engine then
+simulates faithfully -- it is NOT faking engine state.)
 """
 
 import argparse
@@ -171,12 +182,15 @@ def terrain_id_at(world_dir, x, y, z):
         return None
 
 
-def build_witness(template, monster_id, pos_abs, turn, anger=0, morale=0, aggro_character=False):
+def build_witness(template, monster_id, pos_abs, turn, anger=0, morale=0, aggro_character=False,
+                  hp=20):
     """Clone a real engine-written monster into a clean instance of ``monster_id``.
 
-    Defaults (anger/morale 0, not aggroed) reproduce the original IMMOBILE-witness output
+    Defaults (anger/morale 0, not aggroed, hp 20) reproduce the original IMMOBILE-witness output
     BYTE-FOR-BYTE. Pass anger>0 + aggro_character=True for the world-tick LIVENESS witness: a
-    hostile instance the engine's own ``monmove`` paths toward the avatar on its own turn. The
+    hostile instance the engine's own ``monmove`` paths toward the avatar on its own turn; pass
+    ``hp`` for a witness needing a different starting pool (the Spike-29A fight fixture uses the
+    type-natural 80 for kill-headroom under repeated bumps). The
     fields below are an authored INITIAL world condition (as the GUI debug spawn authors one);
     the engine simulates from there -- nothing here mutates the running simulation.
     """
@@ -185,7 +199,7 @@ def build_witness(template, monster_id, pos_abs, turn, anger=0, morale=0, aggro_
     w["pos_abs"] = list(pos_abs)
     w["wander_pos_abs"] = list(pos_abs)
     w["destination"] = [0, 0, 0]
-    w["hp"] = 20
+    w["hp"] = hp
     w["moves"] = 0
     w["speed"] = 100
     w["last_updated"] = turn  # no-op catch-up if on_load runs; never affects position (see doc 17)
@@ -227,6 +241,10 @@ def main(argv=None):
                         help="witness current morale (0 = original default; raise with --anger so it does not flee).")
     parser.add_argument("--aggro-character", dest="aggro_character", action="store_true",
                         help="mark the witness aggressive toward the avatar (the liveness-mover flag).")
+    parser.add_argument("--hp", type=int, default=20,
+                        help="witness starting hp (default 20 = the original witness output, byte-for-byte). "
+                             "Set to the type's natural max (e.g. 80 for mon_zombie) for a witness that needs "
+                             "kill-headroom under repeated melee (the Spike-29A fight fixture).")
     parser.add_argument("--extra-offset", action="append", default=[], metavar="DX,DY,DZ",
                         help="place an ADDITIONAL witness at this offset with the SAME "
                              "--monster/--anger/--morale/--aggro-character (repeatable). Default none = "
@@ -286,7 +304,7 @@ def main(argv=None):
     template = monsters[0]  # the stock wildlife template; index 0 is stable because witnesses only append
     witness = build_witness(template, args.monster, pos, turn,
                             anger=args.anger, morale=args.morale,
-                            aggro_character=args.aggro_character)
+                            aggro_character=args.aggro_character, hp=args.hp)
     monsters.append(witness)
 
     # Extra witnesses (ADDITIVE; default [] => the single-witness .sav above is byte-for-byte unchanged, so
@@ -315,7 +333,7 @@ def main(argv=None):
             print("extra witness tile : %s ter=<unreadable map.sqlite3 — verify passable per doc 17>" % list(epos))
         monsters.append(build_witness(template, args.monster, epos, turn,
                                       anger=args.anger, morale=args.morale,
-                                      aggro_character=args.aggro_character))
+                                      aggro_character=args.aggro_character, hp=args.hp))
 
     with open(sav, "wb") as f:
         f.write(prefix + json.dumps(data, separators=(",", ":")).encode("utf-8"))

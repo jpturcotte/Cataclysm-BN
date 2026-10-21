@@ -17,7 +17,7 @@ point-in-time snapshots; regenerate the generated ones with the `make_*_fixture.
 snapshots and writes an options.json BOM, causing spurious gate failures on unchanged code.
 
 All worlds below live in the same userdir; `ArcopolisTest` is the base, and the rest are clones of it —
-or of `ArcopolisBackpackTest`, itself a GUI-built base variant (the carried-nested and Spike-29 slice
+or of `ArcopolisBackpackTest`, itself a GUI-built base variant (the carried-nested and Spike-28 slice
 worlds clone Backpack) — each adding deterministic witness elements so it can act as a specific
 export/prompt/movement/slice witness.
 
@@ -226,10 +226,19 @@ avatar-held / NPC-held / mover-survived) — the headless sim is not byte-determ
   fixture). The **one-shot** path's damage witness uses a **runtime-generated** adjacent-attacker variant
   (`make_monster_fixture.py --offset 0,1,0`, built into the sandbox, NOT a committed world) gated by
   [`oneshot_damage_regression.ps1`](oneshot_damage_regression.ps1); the one-shot session-serialization fix's
-  deterministic seal is the RNG-free Catch2 tripwire. See
+  deterministic seal is the RNG-free Catch2 tripwire. The **Spike 29A fight-mechanic witness** (avatar→zombie
+  bump-melee, doc 62) uses a second **runtime-generated** variant, `ArcopolisFightTest`
+  (`make_monster_fixture.py --dest-world ArcopolisFightTest --monster mon_zombie --offset 0,1,0
+  --anger 100 --morale 100 --aggro-character --hp 80` — the opt-in `--hp` authors the type-natural pool for
+  kill-headroom; defaults
+  stay byte-for-byte, gated at `.sav` scope by both G-ID checks), built into the sandbox with **`SAFEMODE=false`
+  pinned in the sandbox options.json** (the safe-mode render-coupling artifact, doc 62 §5), run in two arms per seed
+  (`move_s` bumps, and a `wait` contrast arm whose hp must stay 80 — the attribution control), and gated
+  by [`fight_mechanic_regression.ps1`](fight_mechanic_regression.ps1). See
   [56_SPIKE27A_WORLD_TICK_LIVENESS.md](56_SPIKE27A_WORLD_TICK_LIVENESS.md),
-  [57_SPIKE27B_ATTACKER_DAMAGE.md](57_SPIKE27B_ATTACKER_DAMAGE.md), and
-  [58_ONESHOT_SESSION_SERIALIZATION.md](58_ONESHOT_SESSION_SERIALIZATION.md).
+  [57_SPIKE27B_ATTACKER_DAMAGE.md](57_SPIKE27B_ATTACKER_DAMAGE.md),
+  [58_ONESHOT_SESSION_SERIALIZATION.md](58_ONESHOT_SESSION_SERIALIZATION.md), and
+  [62_SPIKE29A_FIGHT_MECHANIC_WITNESS.md](62_SPIKE29A_FIGHT_MECHANIC_WITNESS.md).
 
 ## `ArcopolisTwoZombieTest` — attacker per-instance ambiguity witness (Stage-1 shadow-test, doc 59)
 
@@ -247,7 +256,7 @@ seeds, RNG-dependent (like its 27B sibling); the `no_instance_join_key` gate is 
 and **flips if the surface ever gains a discriminator** (the gap closing). **L1 observation only, NO `src/`
 change.** See [59_ATTACKER_INSTANCE_ID_AUDIT.md](59_ATTACKER_INSTANCE_ID_AUDIT.md).
 
-## `ArcopolisSliceTest` — two-floor vertical-slice composite witness (folded Spike 29, gate G3)
+## `ArcopolisSliceTest` — two-floor vertical-slice composite witness (folded Spike 28, gate G3)
 
 A clone of **`ArcopolisBackpackTest`** (NOT `ArcopolisTest` — the stock avatar has no worn storage, so
 picking up the 1 L `box_small` raises the Spike-14 WIELD secondary `uilist`; the backpack avatar keeps
@@ -255,7 +264,7 @@ the composite's pickup in the single-prompt Spike-12A witnessed shape — probe-
 the Spike-23 matched stair pair (avatar's z=0 tile → `t_stairs_down`, directly below → `t_stairs_up`)
 plus one `box_small` **package** save-edited onto the clean basement tile `(6301, 6423, -1)` — two
 tiles south of the stair landing, with the walk tile between them asserted clean. The **contact tile**
-is the avatar's z=0 start tile (a fixture convention, docs 53/60). Backs the former-Spike-28 composite:
+is the avatar's z=0 start tile (a fixture convention, docs 53/60). Backs the doc-60-proposed Spike 28 composite:
 descend → walk → level-4 `pickup` → walk back → ascend → the consumer-side
 `carried_at_contact` conjunction green, with the doc-53 false-green guards plus floor provenance and
 the PINNED z-changed off-contact guard (evaluated at `(6301, 6421, -1)`: contact x/y, z −1 — a z-blind
@@ -264,9 +273,9 @@ conjunction fails there). Built reproducibly by
 --dest-world ArcopolisSliceTest --package-typeid box_small --package-offset 0,2,-1`), driven by
 [`docs/arcopolis/slice_live_driver.py`](slice_live_driver.py) (`--floors 2`), gated by
 [`docs/arcopolis/slice_regression.ps1`](slice_regression.ps1) (G1a/G1d/G3). See
-[61_SPIKE29_VERTICAL_SLICE_COMPOSITE.md](61_SPIKE29_VERTICAL_SLICE_COMPOSITE.md).
+[61_SPIKE28_VERTICAL_SLICE_COMPOSITE.md](61_SPIKE28_VERTICAL_SLICE_COMPOSITE.md).
 
-## `ArcopolisTowerTest` — 6-floor traversal + deepest-floor composite witness (folded Spike 29, gates G2/G4)
+## `ArcopolisTowerTest` — 6-floor traversal + deepest-floor composite witness (folded Spike 28, gates G2/G4)
 
 A clone of **`ArcopolisBackpackTest`** with a **five-pair stairwell column** (pair k joins z=−k to
 z=−k−1 at `(6301, 6421+k)` — wells offset one tile SOUTH per pair, because one tile cannot carry both
@@ -284,7 +293,7 @@ generator (`--floors 6 --package-offset 0,6,-5`), driven by run-script (G2) and
 [`docs/arcopolis/slice_regression.ps1`](slice_regression.ps1) (G1b/G1d/G2/G4). NOTE: the G3/G4 live
 composites are also the **first live-transport `vertical_move` witnesses** (doc 49 added no live probe;
 doc 60 FE-1 named the gap). See
-[61_SPIKE29_VERTICAL_SLICE_COMPOSITE.md](61_SPIKE29_VERTICAL_SLICE_COMPOSITE.md).
+[61_SPIKE28_VERTICAL_SLICE_COMPOSITE.md](61_SPIKE28_VERTICAL_SLICE_COMPOSITE.md).
 
 ## Spike 16 — non-live run-script reuse of the prompt fixtures
 

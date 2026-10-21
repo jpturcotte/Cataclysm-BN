@@ -59,8 +59,8 @@ lives in [`docs/arcopolis/TEST_FIXTURES.md`](../TEST_FIXTURES.md); summary:
 | `ArcopolisStairsTest`            | aligned two-floor stair fixture (Spike 23); matched-stair `vertical_move` down→up round trip (Spike 24) | `make_stairs_fixture.py`                     |
 | `ArcopolisLivenessTest`          | world-tick liveness: a hostile mobile `mon_zombie` acts on its own engine turn (Spikes 27A/27B)         | `make_monster_fixture.py` (hostility flags)  |
 | `ArcopolisTwoZombieTest`         | attacker per-instance ambiguity shadow-test — two same-type attackers, no join key (doc 59)             | `make_monster_fixture.py` (`--extra-offset`) |
-| `ArcopolisSliceTest`             | 2-floor vertical-slice composite with a `box_small` package at z=−1 (folded Spike 29, gate G3)          | `make_stairs_fixture.py` (slice flags)       |
-| `ArcopolisTowerTest`             | 6-floor traversal + deepest-floor composite; floors z=−2..−5 synthesized (folded Spike 29, G2/G4)       | `make_stairs_fixture.py` (tower flags)       |
+| `ArcopolisSliceTest`             | 2-floor vertical-slice composite with a `box_small` package at z=−1 (folded Spike 28, gate G3)          | `make_stairs_fixture.py` (slice flags)       |
+| `ArcopolisTowerTest`             | 6-floor traversal + deepest-floor composite; floors z=−2..−5 synthesized (folded Spike 28, G2/G4)       | `make_stairs_fixture.py` (tower flags)       |
 
 ## Refreshing / regenerating a generated world
 
@@ -77,7 +77,7 @@ python .\docs\arcopolis\make_stairs_fixture.py      # rewrites save/ArcopolisSta
 python .\docs\arcopolis\make_carried_nested_fixture.py  # rewrites save/ArcopolisCarriedNestedTest
 # ArcopolisLivenessTest / ArcopolisTwoZombieTest: make_monster_fixture.py with the opt-in hostility /
 # --extra-offset flags — the exact invocations live in the generator docstring and TEST_FIXTURES.md.
-# the folded-Spike-29 slice worlds (clone ArcopolisBackpackTest, not ArcopolisTest — doc 61):
+# the folded-Spike-28 slice worlds (clone ArcopolisBackpackTest, not ArcopolisTest — doc 61):
 python .\docs\arcopolis\make_stairs_fixture.py --source-world ArcopolisBackpackTest `
     --dest-world ArcopolisSliceTest --package-typeid box_small --package-offset 0,2,-1 --force
 python .\docs\arcopolis\make_stairs_fixture.py --source-world ArcopolisBackpackTest `
