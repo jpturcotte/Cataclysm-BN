@@ -64,7 +64,17 @@ tip: set N = upstream's count + the Arcopolis flags (17 + 5 = 22 as of 2026-06-1
 array entries — git auto-merges the literal silently and incorrectly, including inside commits that
 replay **without** conflict markers.
 
-**Latest sync (2026-06-19, onto `upstream/main` `20e4cb2d24`; 112 commits absorbed) —
+**Latest sync (2026-10-21, onto `upstream/main` `a463bd2220`; 682 commits absorbed, incl. 0.13.0) —
+[63_UPSTREAM_SYNC_2026_10_21.md](63_UPSTREAM_SYNC_2026_10_21.md).** The only textual conflict was
+`src/game.cpp`'s `#include` block (upstream moved headers into `map/`, `overmap/`, `vehicle/`, …). One
+silent compile break: `arcopolis_export.cpp` `map.h` → `map/map.h`. `arg_handler` stays **22**; every seam
+is intact. **Behavior changed under the witnesses without any Arcopolis change:** the per-turn tiles
+visibility refresh in `do_turn` (#10104/#10127/#10265) makes safe mode fire headless and exported `seen`
+true; the shelter NPC now engages adjacent zombies (cause not isolated; #10163 per-turn lightmap leads).
+Both are classified faithful. 16/21 regressions pass; the 5 hostile-in-view witnesses fail pending a
+witness adaptation (doc 63 §6). Catch2 `[arcopolis]` was not run (test-exe link blocked by disk/memory).
+
+**Previous recorded sync (2026-06-19, onto `upstream/main` `20e4cb2d24`; 112 commits absorbed) —
 [41_UPSTREAM_SYNC_MAP_AUDIT.md](41_UPSTREAM_SYNC_MAP_AUDIT.md).** Upstream's absolute-coordinate /
 map-function / mapbuffer migration wave (#9398/#9506/#9519/#9543/#9559) made `src/game.cpp`,
 `src/iexamine.cpp`, and `src/pickup.cpp` collision surfaces too (all **auto-merged** this round —
@@ -866,13 +876,14 @@ resumed-activity secondary prompts; generic `popup()`/`query_popup` families.
 
 ## Deferred backlog
 
-- **Safe-mode GUI/headless divergence (recorded by Spike 29A, doc 62 §5):** safe mode's STOP is inert in
-  headless TILES (`mon_info_update` early-returns on the `CATA_SDL` visibility-cache gate) but is
-  PREDICTED (source-inferred, unwitnessed) to fire in curses and wherever a headless visibility-cache
-  refresh runs. Every hostile-in-view witness pins `SAFEMODE=false`; behavior under `SAFEMODE=true` is
-  unwitnessed, and `command_error_kind::safe_mode_blocked` is declared but never emitted. Still deferred:
-  a headless visibility-cache refresh (upstream #10104 adds one to `do_turn` — re-classify at the next
-  upstream sync) and a witnessed `SAFEMODE=true` fail-loud path.
+- **Safe mode is live headless since the 2026-10-21 sync (doc 62 §5, doc 63 §4):** the per-turn tiles
+  visibility refresh in `do_turn` (upstream #10104/#10127/#10265) closed the old divergence. With the
+  pack's `SAFEMODE=true`, a hostile in view refuses `wait`/`move` exactly as the tiles GUI does (WITNESSED).
+  Only `fight_mechanic_regression` pins `SAFEMODE=false` today; the other hostile-in-view witnesses
+  (attacker_damage, attacker_instance_ambiguity, oneshot_damage, world_tick_liveness) need the same pin or
+  a pack default (doc 63 §6). `command_error_kind::safe_mode_blocked` is still declared but never emitted:
+  a refused command reports `queued` and the session ends `ok` with no turn advance. Deferred: a witnessed
+  `SAFEMODE=true` fail-loud path, now drivable.
 - **Richer read-only export:** dynamic entities — **monsters done (Spike 6A, `entities.monsters[]`), NPCs
   done (Spike 7A, `entities.npcs[]`), ground items done (Spike 8A, `entities.items[]`), avatar top-level
   carried items done (Spike 25, `avatar.carried_items[]` — wielded/worn/top-level inventory)**; fields and

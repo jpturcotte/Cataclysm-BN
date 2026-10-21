@@ -166,21 +166,25 @@ is set only in `game::mon_info_update`
 `#if defined(CATA_SDL)` → `variables_set && !visibility_caches_dirty()`, else unconditionally
 `true` (`game.cpp:5310-5317`). Consequences:
 
-- **headless TILES (today's build): safe mode never fires** — the caches stay dirty because
-  `game::draw` is a test_mode no-op — so a hostile-adjacent witness would run while the GUI, for
-  the identical fixture and input, would STOP ("safe mode is on!") and refuse the move;
-- **curses build (or after a headless visibility-cache refresh lands — upstream #10104 adds one to
-  `do_turn`; re-check at the next sync): PREDICTED to fire** — source-inferred, never run: the
-  STOP additionally requires the avatar to see the monster (`!u.sees( critter )` early return,
-  `game.cpp:5441`); where it fires, driven moves die at `check_safe_mode_allowed()`
-  (`avatar_action.cpp:363`) with ZERO moves consumed, the script drains inside one parked turn, and
-  the signature would misread as an RNG all-miss. (`command_error_kind::safe_mode_blocked` is
-  declared but emitted nowhere.)
+- **headless TILES on the pre-2026-10-21 base (exe of 2026-06-30): safe mode never fired** — the
+  caches stayed dirty because `game::draw` is a test_mode no-op — so a hostile-adjacent witness ran
+  while the GUI, for the identical fixture and input, would STOP ("safe mode is on!") and refuse the
+  move. **Superseded by the 2026-10-21 sync ([doc 63](63_UPSTREAM_SYNC_2026_10_21.md) §4):** upstream
+  #10104/#10127/#10265 refresh the visibility cache in `do_turn` (`game.cpp:2225-2229`), so headless
+  tiles now behaves like the GUI;
+- **where the STOP fires (curses, and headless tiles since the 2026-10-21 sync): WITNESSED** on the
+  synced tiles build with the pack's `SAFEMODE=true`. Every driven `wait`/`move` is refused at
+  `check_safe_mode_allowed()` (`avatar_action.cpp:368`, `handle_action.cpp:2192`) with ZERO moves
+  consumed, the turn never advances, and the snapshot carries "Spotted zombie--safe mode is on!". The
+  signature misreads as an RNG all-miss, which is exactly how four unpinned witnesses failed (doc 63
+  §5). The STOP still requires the avatar to see the monster (`!u.sees( critter )` early return in
+  `mon_info_update`). (`command_error_kind::safe_mode_blocked` is declared but emitted nowhere.)
 
 The witness therefore **pins `SAFEMODE=false` in the SANDBOX options.json** — the GUI-equivalent
 of the player disabling safe mode, taking the safe-mode branch out of the GUI/headless comparison on
-every build flavor (the script's post-check proves the TEXT edit only; on today's tiles build, where
-safe mode is inert anyway, the pin's engine effect is unwitnessed) — and gates per-step time advance
+every build flavor (the script's post-check proves the TEXT edit only; the pin's engine effect was
+unwitnessed on the pre-sync tiles build and is now witnessed by contrast: doc 63 §5's scratch-pack probe
+flipped only `SAFEMODE` and turned four unpinned witnesses' blocked waits into ticking turns) — and gates per-step time advance
 so a regressed pin would fail with attribution wherever safe mode is live. Behavior under `SAFEMODE=true` is
 deliberately **not witnessed**; the artifact is recorded here, not resolved. Every future
 hostile-in-view witness must carry the same pin.
@@ -197,6 +201,12 @@ behavior under `SAFEMODE=true` (pinned away, §5) · any generic claim about oth
 armors, or weapons.
 
 ## 7. Validation record (2026-07-04, revised 2026-10-21; exe of 2026-06-30)
+
+**Post-sync status (2026-10-21, synced exe; [doc 63](63_UPSTREAM_SYNC_2026_10_21.md)): FAILS ×3 seeds**
+on `npc_noninterference` + `contrast_hp_unchanged`. After the upstream sync, the shelter NPC (Edwardo)
+walks to the zombie and attacks it, even in the wait-only contrast arm (zombie hp 80→7 with no avatar
+attack). The contrast gate caught a third-party damage source, as designed. The records below are from
+the pre-sync engine. Re-greening needs an NPC-isolated fixture (doc 63 §6).
 
 **Revision 2026-10-21 (merge-review hardening):** contrast arm G2 (six per-seed gates), per-export
 `monster_type_held`, `is_stationary` + real-`pos_abs` NPC gates, zero-seed guard (exit 11), and the
