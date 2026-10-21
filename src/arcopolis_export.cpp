@@ -21,7 +21,7 @@
 #include "get_version.h"     // getVersionString()
 #include "item.h"            // item (complete type: typeId/display_name/symbol/charges/count_by_charges + map_stack deref)
 #include "json.h"            // JsonOut
-#include "map.h"             // get_map(), ter/furn/pl_sees/inbounds/getmapsize/get_abs_sub
+#include "map/map.h"         // get_map(), ter/furn/pl_sees/inbounds/getmapsize/get_abs_sub
 #include "map_iterator.h"    // points_in_radius()
 #include "messages.h"        // Messages::recent_messages()
 #include "monster.h"         // monster (complete type for all_monsters() iteration + accessors)
