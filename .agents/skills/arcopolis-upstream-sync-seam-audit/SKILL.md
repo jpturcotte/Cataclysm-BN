@@ -57,13 +57,15 @@ markers. Audit the seams by hand.
    - **regression** — the backend path now differs from the GUI path; fix the
      lifecycle/seam, not the behavior.
      Worked examples (2026-10-21, doc 63): the per-turn tiles visibility refresh made safe
-     mode live headless (waits/moves refused, turn frozen — reads like an RNG all-miss)
-     and exported `seen` true; the per-turn lightmap build made a fixture NPC start
-     fighting the witness monster; `suggest_auto_walk_to_stairs` dropped its `sees()`
-     guard, so failed vertical moves reach an unarmed `query_yn` that must fail loud;
-     fixtures without `turn_last_actualized` replay a full catch-up on load. All four
-     are faithful. Run the full fixture suite to surface these, and separate causes with
-     a scratch-pack probe that flips one option.
+     mode live headless at turn start (waits/moves refused, turn frozen — reads like an
+     RNG all-miss) and exported `seen` true, with within-turn parity still unproven; a
+     fixture NPC started fighting the witness monster (leading candidate: the per-turn
+     lightmap build; cause not isolated); `suggest_auto_walk_to_stairs` dropped its
+     `sees()` guard, so failed vertical moves reach an unarmed `query_yn` that must fail
+     loud; fixtures without `turn_last_actualized` replay a full catch-up on load. State
+     the evidence level of each classification; do not round "likely" up to "faithful".
+     Run the full fixture suite to surface these, and separate causes with a scratch-pack
+     probe that flips one option.
 
 ## Output
 
