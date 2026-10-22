@@ -75,10 +75,11 @@ the GUI does. The rows close two documented headless/GUI gaps: safe mode and `se
 - **Build** — `ccache -C`, wiped `out/build/win-rel-deb` (kept `vcpkg_installed`), fresh configure
   (`-S` this worktree). `cataclysm-bn-tiles` built clean: **500 compiles, 0 ccache hits**, exit 0,
   exe 2026-10-21 16:25. All Arcopolis TUs compiled fresh.
-- **Catch2 `[arcopolis]` — NOT RUN.** `cata_test-tiles` compiled but did not link: first `LNK1201`
-  (disk full writing the PDB), then `LNK1102` out of memory. The system pagefile grew to ~32 GB during
-  the build and filled `C:`. This is a machine-resource block, not a code failure. Needs a reboot or
-  freed disk/commit, then a relink.
+- **Catch2 `[arcopolis]` — PASS: `All tests passed (1044 assertions in 159 test cases)`**, exit 0
+  (`CATA_TEST_COMPUTE_ACCELERATION=cpu`, child cwd = this worktree so the synced `data/` is used). The
+  first two `cata_test-tiles` links failed on machine resources, not code: `LNK1201` (disk full writing
+  the PDB), then `LNK1102` (out of memory: the pagefile had grown to ~32 GB and filled `C:`). Once memory
+  and disk were freed, a plain relink succeeded (exe 2026-10-21 20:51).
 - **Fixture regressions (21, pwsh, committed pack): 16 PASS / 5 FAIL.**
   - PASS: client_harness, examine, frontend_prototype, item_export, live_protocol, monster_export,
     movement, npc_export, prompt_menu, query_popup, script_prompt, slice,
@@ -108,4 +109,3 @@ the GUI does. The rows close two documented headless/GUI gaps: safe mode and `se
 4. **Stale "headless `seen` is always false" text** — `client_harness_regression.ps1` (PASS label,
    line ~258), docs 20/43/47/60, TEST_FIXTURES, and the doc-43 terrain-attribution rationale. The
    harness's seen-gated `blocked_by=terrain` branch is now reachable.
-5. Run Catch2 `[arcopolis]` once the machine has room (§5).

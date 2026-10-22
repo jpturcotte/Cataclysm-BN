@@ -72,7 +72,7 @@ is intact. **Behavior changed under the witnesses without any Arcopolis change:*
 visibility refresh in `do_turn` (#10104/#10127/#10265) makes safe mode fire headless and exported `seen`
 true; the shelter NPC now engages adjacent zombies (cause not isolated; #10163 per-turn lightmap leads).
 Both are classified faithful. 16/21 regressions pass; the 5 hostile-in-view witnesses fail pending a
-witness adaptation (doc 63 §6). Catch2 `[arcopolis]` was not run (test-exe link blocked by disk/memory).
+witness adaptation (doc 63 §6). Catch2 `[arcopolis]` passes (1044 assertions / 159 cases).
 
 **Previous recorded sync (2026-06-19, onto `upstream/main` `20e4cb2d24`; 112 commits absorbed) —
 [41_UPSTREAM_SYNC_MAP_AUDIT.md](41_UPSTREAM_SYNC_MAP_AUDIT.md).** Upstream's absolute-coordinate /
